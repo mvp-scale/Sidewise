@@ -1,0 +1,92 @@
+# Nightly (schedule, builds the `nightly` branch) and release (tag vX.Y.Z on `main`) publishing, in one
+# workflow because npm trusted publishing names a single workflow file. Nothing publishes unless the repo
+# variable SIDEWISE_PUBLISH is 'true'.
+name: publish
+
+on:
+  schedule:
+    - cron: '0 7 * * *'
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      channel: ${{ steps.plan.outputs.channel }}
+      go: ${{ steps.plan.outputs.go }}
+      ref: ${{ steps.plan.outputs.ref }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.ref_type == 'tag' && github.ref || 'nightly' }}
+          fetch-depth: 0
+      - id: plan
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="v$(node -p "require('./package.json').version")"
+            if [ "$version" != "$GITHUB_REF_NAME" ]; then
+              echo "::error::tag $GITHUB_REF_NAME does not match package.json $version"
+              exit 1
+            fi
+            if ! git merge-base --is-ancestor HEAD origin/main; then
+              echo "::error::tag $GITHUB_REF_NAME is not on main; releases ship from main only"
+              exit 1
+            fi
+            { echo "channel=release"; echo "ref=$GITHUB_REF"; echo "go=true"; } >> "$GITHUB_OUTPUT"
+          else
+            go=false
+            if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] || [ -n "$(git log --since='24 hours ago' --format=%H -1)" ]; then
+              go=true
+            else
+              echo "no commits on nightly in the last 24 hours; skipping"
+            fi
+            { echo "channel=nightly"; echo "ref=$(git rev-parse HEAD)"; echo "go=$go"; } >> "$GITHUB_OUTPUT"
+          fi
+
+  ci:
+    needs: plan
+    if: needs.plan.outputs.go == 'true'
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.plan.outputs.ref }}
+
+  publish:
+    needs: [plan, ci]
+    if: needs.plan.outputs.go == 'true' && vars.SIDEWISE_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.plan.outputs.ref }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - run: npm install -g npm@11
+      - run: npm ci
+      - run: npm run build
+      - name: Nightly version
+        if: needs.plan.outputs.channel == 'nightly'
+        run: |
+          base=$(node -p "require('./package.json').version")
+          npm version --no-git-tag-version "$base-nightly.$(date -u +%Y%m%d).g$(git rev-parse --short HEAD)"
+      - name: Publish nightly
+        if: needs.plan.outputs.channel == 'nightly'
+        run: npm publish --tag nightly
+      - name: Publish release
+        if: needs.plan.outputs.channel == 'release'
+        run: npm publish --tag latest
+      - name: GitHub release
+        if: needs.plan.outputs.channel == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" --generate-notes --verify-tag

@@ -1,0 +1,11 @@
+{
+  "name": "sidewise",
+  "displayName": "Sidewise",
+  "version": "0.0.0",
+  "description": "Side answers for coding agents: compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
+  "author": { "name": "mvp-scale" },
+  "homepage": "https://github.com/mvp-scale/Sidewise",
+  "repository": "https://github.com/mvp-scale/Sidewise",
+  "license": "Apache-2.0",
+  "keywords": ["decision-support", "checklist", "consensus", "knowledge"]
+}

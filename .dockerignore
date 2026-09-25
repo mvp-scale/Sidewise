@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+.git
+.claude
+.sidewise
+.env
+.env.*
+*.tgz
+lab
+CLAUDE.local.md
+.github

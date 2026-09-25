@@ -1,0 +1,11 @@
+{
+  "name": "unavailable",
+  "response": {
+    "status": 503,
+    "body": {
+      "error": {
+        "type": "unavailable"
+      }
+    }
+  }
+}

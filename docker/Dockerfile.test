@@ -1,0 +1,10 @@
+# Clean-room test image. Network only at build (npm ci); tests run with --network none (docker/test.sh).
+ARG NODE_VERSION=22
+FROM node:${NODE_VERSION}-slim
+RUN mkdir -p /app && chown node:node /app
+WORKDIR /app
+COPY --chown=node:node package.json package-lock.json ./
+USER node
+RUN npm ci --no-audit --no-fund
+COPY --chown=node:node . .
+CMD ["sh", "-c", "npx tsc -p tsconfig.json --noEmit && npx vitest run --project unit --project contract --project golden && npm pack --dry-run --json > /dev/null && echo PACK OK"]

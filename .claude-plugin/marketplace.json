@@ -1,0 +1,12 @@
+{
+  "name": "mvp-scale",
+  "owner": { "name": "mvp-scale" },
+  "description": "Agent tooling from mvp-scale.",
+  "plugins": [
+    {
+      "name": "sidewise",
+      "source": ".",
+      "description": "Side answers for coding agents, with a log that learns where agents go wrong."
+    }
+  ]
+}

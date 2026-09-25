@@ -1,0 +1,25 @@
+{
+  "name": "choice ok",
+  "response": {
+    "status": 200,
+    "body": {
+      "model": "jev-1.13.0",
+      "answers": {
+        "d1": {
+          "type": "choice",
+          "choice": "block",
+          "probabilities": {
+            "ship": 0.02,
+            "fix": 0.01,
+            "block": 0.97
+          },
+          "confidence": 0.95
+        }
+      },
+      "usage": {
+        "input_tokens": 140,
+        "output_tokens": 6
+      }
+    }
+  }
+}
