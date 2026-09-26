@@ -1,10 +1,10 @@
-import { spawn } from 'node:child_process';
-import { appendFileSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { formatRunId, ulid } from '../../src/ledger/ids.ts';
-import { LockError, withLock } from '../../src/ledger/lock.ts';
+import { LockError, StoreError, withLock } from '../../src/ledger/lock.ts';
 import { appendOutcome, appendRun, isRun, latestOutcome, readLedger } from '../../src/ledger/log.ts';
 import { findRoot } from '../../src/ledger/paths.ts';
 import { redact, redactDeep } from '../../src/ledger/redact.ts';
@@ -15,6 +15,14 @@ const WORKER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures
 // Secret-shaped strings are built at runtime so the repo's pre-commit leak check never sees a literal one.
 const GH_TOKEN = 'gh' + 'p_' + 'a'.repeat(30);
 const AWS_KEY = 'AKIA' + 'B'.repeat(16);
+
+/** The pid of a process that has already exited. */
+const deadPid = (): number => spawnSync(process.execPath, ['-e', '']).pid!;
+/** Sets a file's mtime `ms` into the past. */
+const age = (file: string, ms: number): void => {
+  const t = new Date(Date.now() - ms);
+  utimesSync(file, t, t);
+};
 
 describe('ids', () => {
   it('ulid: 26 Crockford chars, time-sortable, deterministic with fixed inputs', () => {
@@ -94,13 +102,57 @@ describe('lock', () => {
     expect((err as Error).message).not.toContain(root);
   });
 
-  it('clears a fresh lock at once when its recorded pid is no longer alive', () => {
+  it('a dead pid is not broken until the lock is 2 s old (a pid from another namespace reads as dead)', () => {
     const { paths } = tempProject({});
     mkdirSync(paths.dir, { recursive: true });
-    writeFileSync(paths.lock, '2147483646\n'); // large unused pid: not alive; mtime is now
+    writeFileSync(paths.lock, `${deadPid()}\n`); // mtime is now
+    expect(() => withLock(paths.lock, () => 1, { timeoutMs: 300, staleMs: 30_000 })).toThrow(LockError);
+    age(paths.lock, 2_500);
     const start = Date.now();
     expect(withLock(paths.lock, () => 42, { timeoutMs: 1000, staleMs: 30_000 })).toBe(42);
     expect(Date.now() - start).toBeLessThan(500);
+  });
+
+  it('breaking is serialized: a stale lock is not removed while another breaker holds lock.break', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    const stale = `${deadPid()}\n`;
+    writeFileSync(paths.lock, stale);
+    age(paths.lock, 60_000);
+    writeFileSync(`${paths.lock}.break`, ''); // another breaker, mid-break
+    expect(() => withLock(paths.lock, () => 1, { timeoutMs: 300, staleMs: 30_000 })).toThrow(LockError);
+    expect(readFileSync(paths.lock, 'utf8')).toBe(stale); // untouched: only the breaker decides
+  });
+
+  it('an orphaned lock.break (older than 2 s) is removed, and the stale lock is then broken', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.lock, `${deadPid()}\n`);
+    age(paths.lock, 60_000);
+    writeFileSync(`${paths.lock}.break`, '');
+    age(`${paths.lock}.break`, 3_000);
+    expect(withLock(paths.lock, () => 42, { timeoutMs: 1000, staleMs: 30_000 })).toBe(42);
+    expect(existsSync(`${paths.lock}.break`)).toBe(false);
+    expect(existsSync(paths.lock)).toBe(false);
+  });
+
+  it('under lock.break the lock is re-read: a live lock that replaced the stale one is never removed', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.lock, `${process.pid}\n`); // what a breaker finds once it holds lock.break: a live holder
+    age(paths.lock, 60_000);
+    expect(() => withLock(paths.lock, () => 1, { timeoutMs: 300, staleMs: 30_000 })).toThrow(LockError);
+    expect(readFileSync(paths.lock, 'utf8')).toBe(`${process.pid}\n`);
+    expect(existsSync(`${paths.lock}.break`)).toBe(false);
+  });
+
+  it('a lock that is a directory stops at once with a StoreError, never a spin', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.lock, { recursive: true });
+    const start = Date.now();
+    expect(() => withLock(paths.lock, () => 1, { timeoutMs: 5000 })).toThrow(new StoreError('✖ files: .sidewise/lock is not a lock file → remove it'));
+    expect(Date.now() - start).toBeLessThan(1000);
+    expect(existsSync(`${paths.lock}.break`)).toBe(false);
   });
 
   it('keeps the age rule for a fresh lock with no parseable pid', () => {
@@ -122,7 +174,7 @@ describe('lock', () => {
   it('clears a stale lock recorded against a pid that is no longer alive', () => {
     const { paths } = tempProject({});
     mkdirSync(paths.dir, { recursive: true });
-    writeFileSync(paths.lock, '2147483646\n'); // large unused pid: not alive
+    writeFileSync(paths.lock, `${deadPid()}\n`);
     const old = new Date(Date.now() - 120_000);
     utimesSync(paths.lock, old, old);
     expect(withLock(paths.lock, () => 42, { timeoutMs: 100, staleMs: 30_000 })).toBe(42);

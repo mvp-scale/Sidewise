@@ -1,7 +1,7 @@
 // First use of a budget, raced: for each of `rounds` fresh projects under `root`, wait for a shared start time,
-// then load the budget (creating it) and count one run. Spawned several times at once by budget.test.ts.
-import { loadBudget, recordSpend } from '../../../src/budget/budget.ts';
-import { pathsFor } from '../../../src/ledger/paths.ts';
+// then load the budget (creating it) and count one run. Spawned several times at once by races.test.ts.
+import { loadBudget, recordSpend } from '../../../../src/budget/budget.ts';
+import { pathsFor } from '../../../../src/ledger/paths.ts';
 
 const [root = '', rounds = '0', startAt = '0'] = process.argv.slice(2);
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, Math.max(0, ms)));

@@ -1,8 +1,12 @@
 /**
  * A cross-process lock file (O_EXCL create). Held only around read-count-append, so many agents appending at
- * once get unique, ordered ids. The lock file's body is the owner's pid. A lock whose recorded pid is no
- * longer alive is stale at once (left behind by a crash); a live pid is never stale; a file with no parseable
- * pid (legacy, or not yet written) falls back to the age-only rule (older than staleMs).
+ * once get unique, ordered ids. The lock file's body is the owner's pid.
+ * Breaking a stale lock: a lock whose recorded pid is not alive is stale once it is 2 s old (the grace keeps a
+ * pid from another pid namespace, which reads as dead, from being stolen); a live pid is never stale; a file
+ * with no parseable pid (not yet written) falls back to the age-only rule (older than staleMs). Breaking is
+ * serialized by lock.break: the breaker re-reads the lock under it, so it can never remove a lock another run
+ * has just taken. An orphaned lock.break (older than 2 s; a breaker holds it for microseconds) is removed.
+ * A lock that is not a regular readable file (a folder) stops at once: waiting would never end.
  * A timeout throws LockError, which verbs catch; it lives here so ledger and budget can share it without a cycle.
  * So does StoreError: a filesystem failure under .sidewise/ (not writable, a folder where a file should be),
  * turned into one clean line instead of a raw errno and a machine path.
@@ -57,10 +61,68 @@ function isAlive(pid: number): boolean {
   }
 }
 
-function isStale(lockPath: string, staleMs: number): boolean {
-  const pid = Number.parseInt(readFileSync(lockPath, 'utf8').trim(), 10);
-  if (Number.isInteger(pid) && pid > 0) return !isAlive(pid);
-  return Date.now() - statSync(lockPath).mtimeMs > staleMs; // no parseable pid: age-only rule
+const DEAD_PID_GRACE_MS = 2000;
+const ORPHAN_BREAK_MS = 2000;
+
+const errno = (e: unknown): string | undefined => (e as NodeJS.ErrnoException | undefined)?.code;
+const notALock = (lockPath: string): StoreError => new StoreError(`✖ files: ${shownStore(lockPath)} is not a lock file → remove it`);
+
+/** The lock's pid text and age, or undefined when it is gone. Anything but a readable regular file is a StoreError. */
+function readLock(lockPath: string): { body: string; ageMs: number } | undefined {
+  try {
+    const st = statSync(lockPath);
+    if (!st.isFile()) throw notALock(lockPath);
+    return { body: readFileSync(lockPath, 'utf8'), ageMs: Date.now() - st.mtimeMs };
+  } catch (e) {
+    if (e instanceof StoreError) throw e;
+    if (errno(e) === 'ENOENT') return undefined;
+    throw notALock(lockPath);
+  }
+}
+
+function isStale(lock: { body: string; ageMs: number }, staleMs: number): boolean {
+  const pid = Number.parseInt(lock.body.trim(), 10);
+  if (Number.isInteger(pid) && pid > 0) return lock.ageMs >= DEAD_PID_GRACE_MS && !isAlive(pid);
+  return lock.ageMs > staleMs; // no parseable pid: age-only rule
+}
+
+/**
+ * Removes the lock if it is stale, deciding under lock.break. True when the lock is gone (removed, or already
+ * released), so the caller retries the create at once; false when it must wait.
+ */
+function tryBreak(lockPath: string, staleMs: number): boolean {
+  const breakPath = `${lockPath}.break`;
+  const first = readLock(lockPath);
+  if (!first) return true;
+  if (!isStale(first, staleMs)) return false;
+  try {
+    closeSync(openSync(breakPath, 'wx'));
+  } catch (e) {
+    if (errno(e) !== 'EEXIST') throw storeError(e, breakPath, 'write');
+    try {
+      if (Date.now() - statSync(breakPath).mtimeMs > ORPHAN_BREAK_MS) unlinkSync(breakPath); // a breaker died mid-break
+    } catch {
+      /* gone already */
+    }
+    return false;
+  }
+  try {
+    const now = readLock(lockPath); // re-read under lock.break: it may have been replaced since
+    if (!now) return true;
+    if (!isStale(now, staleMs)) return false;
+    try {
+      unlinkSync(lockPath);
+    } catch (e) {
+      if (errno(e) !== 'ENOENT') throw storeError(e, lockPath, 'write');
+    }
+    return true;
+  } finally {
+    try {
+      unlinkSync(breakPath);
+    } catch {
+      /* already removed */
+    }
+  }
 }
 
 export function withLock<T>(lockPath: string, fn: () => T, opts: { timeoutMs?: number; staleMs?: number } = {}): T {
@@ -88,14 +150,7 @@ export function withLock<T>(lockPath: string, fn: () => T, opts: { timeoutMs?: n
     } catch (e) {
       if (e instanceof StoreError) throw e;
       if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw storeError(e, lockPath, 'write');
-      try {
-        if (isStale(lockPath, staleMs)) {
-          unlinkSync(lockPath);
-          continue;
-        }
-      } catch {
-        continue;
-      }
+      if (tryBreak(lockPath, staleMs)) continue;
       if (Date.now() - start > timeoutMs) {
         throw new LockError(`✖ lock: ${shownStore(lockPath)} is locked → wait for the other run, or delete the lock file if no run is active`);
       }

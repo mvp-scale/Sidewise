@@ -1,13 +1,7 @@
-import { spawn } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { budgetLine, checkBudget, loadBudget, recordSpend, resetBudget, setBudget } from '../../src/budget/budget.ts';
-import { pathsFor } from '../../src/ledger/paths.ts';
 import { tempProject } from '../helpers/project.ts';
-
-const WORKER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'budget-worker.ts');
 
 describe('budget', () => {
   it('creates the default $5 / 500-run budget on first use and says so', () => {
@@ -57,17 +51,4 @@ describe('budget', () => {
     expect(budgetLine({ ...base, runs: 12 })).toBe('budget 12% used ($0.00 of $5.00 · 12 of 100 runs)');
     expect(budgetLine({ ...base, runs: 76 })).toBe('⚠ budget 76% used ($0.00 of $5.00 · 76 of 100 runs)');
   });
-
-  it('first use raced by 6 processes: the budget is created once and every run is counted', async () => {
-    const { root } = tempProject({});
-    const rounds = 15;
-    const startAt = Date.now() + 1500; // after every worker has started
-    const worker = (): Promise<number> =>
-      new Promise((resolve) => {
-        spawn(process.execPath, ['--import', 'tsx', WORKER, root, String(rounds), String(startAt)], { stdio: 'ignore' }).on('exit', (code) => resolve(code ?? 1));
-      });
-    expect(await Promise.all(Array.from({ length: 6 }, worker))).toEqual([0, 0, 0, 0, 0, 0]);
-    const runs = Array.from({ length: rounds }, (_, k) => loadBudget(pathsFor(path.join(root, `p${k}`))).state.runs);
-    expect(runs).toEqual(Array.from({ length: rounds }, () => 6));
-  }, 30_000);
 });
