@@ -1,7 +1,7 @@
 /**
  * The ledger: .sidewise/log.jsonl, append-only, one record shape for every verb. Runs get SW-#### in order
  * under the lock, plus a ULID. Outcomes are separate appended lines, never edits. Everything is redacted
- * before it is written.
+ * before it is written; identities (run actor, outcome by) keep emails so they stay comparable, but never secrets.
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -10,7 +10,7 @@ import type { Level, Place, Verb } from '../lens/request.ts';
 import { formatRunId, ulid } from './ids.ts';
 import { withLock } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
-import { redact, redactDeep } from './redact.ts';
+import { redactDeep, redactSecrets } from './redact.ts';
 
 export type Outcome = 'held' | 'overruled' | 'failed';
 
@@ -101,7 +101,7 @@ function appendLine(paths: SidewisePaths, record: LedgerRecord): void {
 export function appendRun(paths: SidewisePaths, run: NewRun, now: number = Date.now()): RunRecord {
   return withLock(paths.lock, () => {
     const count = readLedger(paths).filter(isRun).length;
-    const record: RunRecord = { kind: 'run', id: formatRunId(count + 1), uid: ulid(now), ts: iso(now), ...redactDeep(run) };
+    const record: RunRecord = { kind: 'run', id: formatRunId(count + 1), uid: ulid(now), ts: iso(now), ...redactDeep(run), actor: redactSecrets(run.actor) };
     appendLine(paths, record);
     return record;
   });
@@ -111,10 +111,11 @@ export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome
   return withLock(paths.lock, () => {
     const run = readLedger(paths).filter(isRun).find((r) => r.id === of);
     if (!run) throw new LedgerError(`✖ outcome: ${of} is not in the ledger → check the id with "sidewise view ${of}"`);
-    if (outcome === 'held' && by === run.actor) {
-      throw new LedgerError(`✖ outcome: ${by} asked ${of}, so it can't mark it held → another agent or the owner records "held"`);
+    const who = redactSecrets(by); // the same transform the run's actor went through: compare like with like
+    if (outcome === 'held' && who === run.actor) {
+      throw new LedgerError(`✖ outcome: ${who} asked ${of}, so it can't mark it held → another agent or the owner records "held"`);
     }
-    const record: OutcomeRecord = { kind: 'outcome', id: `${of}-outcome`, uid: ulid(now), ts: iso(now), of, outcome, by: redact(by) };
+    const record: OutcomeRecord = { kind: 'outcome', id: `${of}-outcome`, uid: ulid(now), ts: iso(now), of, outcome, by: who };
     appendLine(paths, record);
     return record;
   });

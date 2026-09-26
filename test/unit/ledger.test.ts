@@ -173,6 +173,24 @@ describe('log', () => {
     expect(latestOutcome(readLedger(paths), 'SW-0001')).toBe('held');
   });
 
+  it('an email actor is kept, so it cannot mark its own run held', () => {
+    const { paths } = tempProject({});
+    appendRun(paths, sampleRun({ actor: 'dev@example.com', problem: 'mail dev@example.com' }));
+    const [run] = readLedger(paths).filter(isRun);
+    expect(run).toMatchObject({ actor: 'dev@example.com', problem: 'mail [redacted]' });
+    expect(() => appendOutcome(paths, 'SW-0001', 'held', 'dev@example.com')).toThrow(/dev@example.com asked SW-0001, so it can't mark it held/);
+    expect(appendOutcome(paths, 'SW-0001', 'held', 'owner@example.com')).toMatchObject({ by: 'owner@example.com' });
+  });
+
+  it('a token-shaped actor is still redacted, and the same token as by is still refused', () => {
+    const { paths } = tempProject({});
+    appendRun(paths, sampleRun({ actor: GH_TOKEN }));
+    expect(readFileSync(paths.log, 'utf8')).not.toContain(GH_TOKEN);
+    expect(readLedger(paths).filter(isRun)[0]!.actor).toBe('[redacted]');
+    expect(() => appendOutcome(paths, 'SW-0001', 'held', GH_TOKEN)).toThrow(/can't mark it held/);
+    expect(readFileSync(paths.log, 'utf8')).not.toContain(GH_TOKEN);
+  });
+
   it('redacts secrets in the by field before writing an outcome', () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun({ actor: 'reviewer' }));
