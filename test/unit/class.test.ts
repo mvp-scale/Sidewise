@@ -4,6 +4,7 @@ import { loadBudget, recordSpend, setBudget } from '../../src/budget/budget.ts';
 import { isRun, readLedger } from '../../src/ledger/log.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import type { ClassifierQuestion } from '../../src/classifier/port.ts';
+import { EVIDENCE_LIMITS } from '../../src/evidence/code.ts';
 import { tempProject } from '../helpers/project.ts';
 import { classRequest, RM_SLOTS } from '../helpers/requests.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
@@ -94,6 +95,19 @@ describe('class', () => {
     const r = await runClass(classRequest(), { paths, provider: stubProvider({ yes, costUsd: undefined, adapter: 'typesafe' }), env });
     expect(r.text).toContain('provider did not report cost; the run cap still applies');
     expect(loadBudget(paths).state.runs).toBe(1);
+  });
+
+  it('notes run in a fixed order: validation, evidence, unreported cost, budget initialised', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(EVIDENCE_LIMITS.perFileChars + 10) });
+    const text = classRequest({ fields: { perspective: null, where: 'src/user.ts' } });
+    const r = await runClass(text, { paths, provider: stubProvider({ yes, costUsd: undefined, adapter: 'typesafe' }), env });
+    expect(r.exit).toBe(0);
+    expect(readLedger(paths).filter(isRun)[0]!.notes).toEqual([
+      'no perspective; recorded as "agent"',
+      `src/user.ts truncated to ${EVIDENCE_LIMITS.perFileChars} chars`,
+      'provider did not report cost; the run cap still applies',
+      'budget initialised ($5.00 / 500 runs; "sidewise budget set" changes it)',
+    ]);
   });
 
   it('redacts secrets in slot text before the provider and the ledger see them', async () => {
