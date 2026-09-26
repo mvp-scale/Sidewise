@@ -1,3 +1,6 @@
+import { mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { EVIDENCE_LIMITS, readCodeEvidence } from '../../src/evidence/code.ts';
 import { tempProject } from '../helpers/project.ts';
@@ -22,6 +25,34 @@ describe('readCodeEvidence', () => {
         '✖ where: cannot read "src/missing.ts" → check the path',
       ],
     });
+  });
+
+  it('stops on a symlink that points outside the project', (ctx) => {
+    const { root } = tempProject({ 'src/a.ts': 'inside' });
+    const outside = mkdtempSync(path.join(os.tmpdir(), 'sidewise-outside-'));
+    writeFileSync(path.join(outside, 'secret.ts'), 'outside');
+    try {
+      symlinkSync(path.join(outside, 'secret.ts'), path.join(root, 'src', 'link.ts'));
+      symlinkSync(path.join(root, 'src', 'a.ts'), path.join(root, 'src', 'inner.ts'));
+    } catch {
+      ctx.skip(); // no symlink support here
+    }
+    expect(readCodeEvidence(root, [{ path: 'src/link.ts' }])).toEqual({
+      ok: false,
+      errors: ['✖ where: "src/link.ts" is outside the project → use a path inside the project'],
+    });
+    expect(readCodeEvidence(root, [{ path: 'src/inner.ts' }])).toEqual({ ok: true, evidence: { state: { 'code:src/inner.ts': 'inside' }, notes: [] } });
+  });
+
+  it('stops on a bad line range', () => {
+    const { root } = tempProject({ 'src/a.ts': 'one\ntwo\nthree\n' });
+    const bad = ['3-2', '0-2', '0', 'x-2', '2-', ''].map((lines) => ({ path: 'src/a.ts', lines }));
+    const r = readCodeEvidence(root, bad);
+    expect(r).toEqual({
+      ok: false,
+      errors: ['3-2', '0-2', '0', 'x-2', '2-'].map((l) => `✖ where: "src/a.ts:${l}" has a bad line range → use start-end with 1 ≤ start ≤ end`),
+    });
+    expect(readCodeEvidence(root, [{ path: 'src/a.ts', lines: '2' }, { path: 'src/a.ts', lines: '2-2' }]).ok).toBe(true);
   });
 
   it('redacts secrets in code before it becomes evidence', () => {
