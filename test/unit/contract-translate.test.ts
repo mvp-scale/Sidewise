@@ -43,6 +43,8 @@ describe('answer keys', () => {
     expect(answerKey('code A', { ...q, text: 'Other?' })).not.toBe(answerKey('code A', q));
     const s = subjectQuestions(cats)[2]!;
     expect(answerKey('x', { ...s, levels: ['low', 'mid', 'high'] })).not.toBe(answerKey('x', s));
+    const c = subjectQuestions(cats)[3]!;
+    expect(answerKey('x', { ...c, options: ['ship', 'fix', 'hold'] })).not.toBe(answerKey('x', c));
   });
 
   it('subject evidence does not depend on the order files were listed', () => {
@@ -61,5 +63,15 @@ describe('itemsState', () => {
     expect(Object.values(state).reduce((n, t) => n + t.length, 0)).toBeLessThanOrEqual(ITEM_LIMITS.totalChars);
     expect(notes).toContain(`i1 truncated to ${ITEM_LIMITS.perItemChars} chars`);
     expect(notes.some((n) => /^i3 (truncated|not shown): evidence limit reached$/.test(n))).toBe(true);
+  });
+
+  it('redacts the item id in its notes too, not just the state keys', () => {
+    const notes: string[] = [];
+    const big = 'x'.repeat(ITEM_LIMITS.perItemChars + 5);
+    const items = [{ ...item, id: `leaky-${GH_TOKEN}`, text: big }];
+    const state = itemsState(items, notes);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(Object.keys(state).some((k) => k.includes(GH_TOKEN))).toBe(false);
+    expect(notes.some((n) => n.includes(GH_TOKEN))).toBe(false);
   });
 });

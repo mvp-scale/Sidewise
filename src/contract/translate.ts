@@ -80,17 +80,17 @@ export function itemsState(items: readonly Item[], notes: string[]): Record<stri
     let text = redact(it.text);
     if (text.length > ITEM_LIMITS.perItemChars) {
       text = text.slice(0, ITEM_LIMITS.perItemChars);
-      notes.push(`${it.id} truncated to ${ITEM_LIMITS.perItemChars} chars`);
+      notes.push(`${id} truncated to ${ITEM_LIMITS.perItemChars} chars`);
     }
     const room = ITEM_LIMITS.totalChars - total;
     if (room <= 0) {
       out[id] = '';
-      notes.push(`${it.id} not shown: evidence limit reached`);
+      notes.push(`${id} not shown: evidence limit reached`);
       continue;
     }
     if (text.length > room) {
       text = text.slice(0, room);
-      notes.push(`${it.id} truncated: evidence limit reached`);
+      notes.push(`${id} truncated: evidence limit reached`);
     }
     total += text.length;
     out[id] = text;
