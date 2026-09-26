@@ -108,6 +108,20 @@ The `id`, `gate` and probabilities above are one run's illustration, not a guara
 - A rejected request always reads `✖ field: problem → fix` (exit 2).
 - Exit codes: `0` ok · `1` provider or ledger error · `2` invalid request or usage · `3` budget blocked.
 
+## outcome and budget
+
+`sidewise outcome <SW-####> held|overruled|failed --by <actor>` records what happened to a run, so weak spots
+can roll up later. The agent that asked the run can't mark it `held` itself — that stops at exit 1, naming
+another agent or the owner as the one who can; `overruled` and `failed` have no such restriction. Recording
+the exact same outcome, by the exact same actor, again is a no-op: exit 0, and the confirmation says "already
+recorded by <actor>" instead of adding a second line.
+
+`sidewise budget show` (the default with no subcommand) prints the current spend and run count. `sidewise
+budget reset` zeroes the spend and run count but keeps the current caps — nothing in the code stops any agent
+from running it, but by convention only the project owner does. `sidewise budget set --usd <n> --runs <n>`
+changes either or both caps without touching the spend already counted; the defaults are $5.00 and 500 runs.
+Any verb that would go over either cap stops at exit 3 before it spends anything.
+
 ## More
 
 The exact field rules are in `references/request.schema.json`; one starting example per verb is in `templates/*.yaml`.
