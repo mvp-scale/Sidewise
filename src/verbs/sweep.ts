@@ -203,14 +203,22 @@ export async function runSweep(
   return { ok: true, value: { answers: { ...plan.answers, ...asked.value.answers }, costUsd: asked.value.costUsd, statusOf } };
 }
 
-/** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. Needs nothing beyond the plan. */
-export function sweepDryRun(plan: SweepPlan): VerbResult {
+/** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. `identity` is P2's route/base
+ *  URL (providerIdentity(ctx.env)) — the only thing beyond the plan itself this needs. */
+export function sweepDryRun(plan: SweepPlan, identity: { route: string; baseURL: string | null }): VerbResult {
   const calls = plan.planned.filter((p) => p.call !== null).length;
   const askedItems = plan.planned.reduce((n, p) => n + p.itemIds.length, 0);
   const skippedItems = plan.planned.reduce((n, p) => n + p.skipped.length, 0);
   return {
     exit: 0,
-    text: dryRunText({ calls, questions: plan.askedQuestions, items: plan.items.length, reused: plan.items.length - askedItems - skippedItems }),
+    text: dryRunText({
+      calls,
+      questions: plan.askedQuestions,
+      items: plan.items.length,
+      reused: plan.items.length - askedItems - skippedItems,
+      route: identity.route,
+      baseURL: identity.baseURL,
+    }),
   };
 }
 

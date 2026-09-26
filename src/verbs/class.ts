@@ -5,6 +5,7 @@
  *   in one lock section → the compact side: response. A run fully answered from the ledger makes no call and
  *   is free (BRIEF §5: sweeps and one-subject runs reuse alike).
  */
+import { providerIdentity } from '../classifier/select.ts';
 import { gradeSubject } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer } from '../contract/types.ts';
@@ -28,9 +29,11 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
 
+  const identity = providerIdentity(ctx.env);
+
   if (ctx.dryRun) {
     const questions = 1 + request.side.categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 1, questions }) };
+    return { exit: 0, text: dryRunText({ calls: 1, questions, route: identity.route, baseURL: identity.baseURL }) };
   }
 
   const pre = preflight(ctx);
@@ -121,6 +124,8 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     model: ctx.provider.model,
     costUsd: costUsd ?? null,
     calls,
+    route: identity.route,
+    baseURL: identity.baseURL,
   };
 
   const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);

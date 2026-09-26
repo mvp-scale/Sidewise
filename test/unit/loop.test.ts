@@ -33,7 +33,7 @@ describe('loop', () => {
     const provider = stubProvider();
     const r = await runLoop(LOOP, { paths, provider, env: {}, dryRun: true });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 2\n  questions: 16\n  items: 8\n  reused: 0\nnotes: ["dry run: no call, no spend"]\n');
+    expect(r.text).toBe('plan:\n  calls: 2\n  questions: 16\n  items: 8\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
   });

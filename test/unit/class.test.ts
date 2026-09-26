@@ -63,7 +63,7 @@ describe('class', () => {
     const provider = stubProvider();
     const r = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 13\nnotes: ["dry run: no call, no spend"]\n');
+    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 13\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
   });

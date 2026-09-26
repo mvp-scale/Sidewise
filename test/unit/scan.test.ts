@@ -76,7 +76,7 @@ describe('scan', () => {
     const provider = stubProvider();
     const r = await runScan(REQUEST, { paths, provider, env, dryRun: true });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 2\n  items: 4\n  reused: 2\nnotes: ["dry run: no call, no spend"]\n');
+    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 2\n  items: 4\n  reused: 2\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
   });

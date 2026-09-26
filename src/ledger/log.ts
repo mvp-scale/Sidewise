@@ -114,6 +114,11 @@ export interface ContractRun {
   costUsd: number | null;
   /** HTTP calls made (0 when every answer was reused). */
   calls: number;
+  /** P2: the route (direct/gateway/custom, or fake/chaos) and base URL a run used, never the key. Optional so a
+   *  record from before P2 (no `route`/`baseURL` at all) still reads: isRecord below doesn't require them, and
+   *  every reader must treat a missing value the same as these fields never having been asked about. */
+  route?: string | null;
+  baseURL?: string | null;
 }
 
 /** What a verb hands the ledger: the response is built inside the lock, once the id and the budget are known. */

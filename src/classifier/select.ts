@@ -6,7 +6,7 @@ import { CHAOS_MODEL, createChaosAdapter, parseSchedule } from './chaos.ts';
 import { createFakeAdapter, FAKE_MODEL } from './fake.ts';
 import type { ClassifierPort } from './port.ts';
 import { createTypesafeAdapter } from './typesafe/adapter.ts';
-import { hasKey, resolveJevConfig } from './typesafe/client.ts';
+import { hasKey, resolveJevConfig, routeLabel, type ProviderRoute } from './typesafe/client.ts';
 
 type Env = Record<string, string | undefined>;
 
@@ -23,15 +23,26 @@ export function selectProvider(env: Env = process.env, deps: { fetch?: typeof fe
   return hasKey(resolveJevConfig(env)) ? createTypesafeAdapter(env, deps) : createFakeAdapter();
 }
 
-export function providerIdentity(env: Env = process.env): { adapter: string; model: string } {
+/** P2: the route (direct/gateway/custom, or fake/chaos) and base URL (null for fake/chaos) a run would use —
+ *  shown in --dry-run and stored on the ledger run record, never the key itself. */
+export interface ProviderIdentity {
+  adapter: string;
+  model: string;
+  route: ProviderRoute | 'fake' | 'chaos';
+  baseURL: string | null;
+}
+
+export function providerIdentity(env: Env = process.env): ProviderIdentity {
   const wanted = env.SIDEWISE_PROVIDER?.trim();
-  if (wanted === 'fake') return { adapter: 'fake', model: FAKE_MODEL };
-  if (wanted === 'chaos') return { adapter: 'chaos', model: CHAOS_MODEL };
+  if (wanted === 'fake') return { adapter: 'fake', model: FAKE_MODEL, route: 'fake', baseURL: null };
+  if (wanted === 'chaos') return { adapter: 'chaos', model: CHAOS_MODEL, route: 'chaos', baseURL: null };
   try {
     const config = resolveJevConfig(env);
-    if (wanted === 'typesafe' || hasKey(config)) return { adapter: 'typesafe', model: config.model };
+    if (wanted === 'typesafe' || hasKey(config)) return { adapter: 'typesafe', model: config.model, route: routeLabel(config), baseURL: config.baseURL };
   } catch {
-    return { adapter: 'typesafe', model: 'unknown' };
+    // A config error (a floating model, a bad SIDEWISE_BASE_URL) leaves the route/base URL unknowable here;
+    // `sidewise doctor` (P5) surfaces the real ✖ message instead of this best-effort fallback.
+    return { adapter: 'typesafe', model: 'unknown', route: 'custom', baseURL: null };
   }
-  return { adapter: 'fake', model: FAKE_MODEL };
+  return { adapter: 'fake', model: FAKE_MODEL, route: 'fake', baseURL: null };
 }

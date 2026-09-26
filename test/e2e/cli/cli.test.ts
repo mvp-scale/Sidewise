@@ -66,7 +66,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
     const dry = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--dry-run']);
     expect(dry.status).toBe(0);
-    expect(dry.stdout).toMatch(/^plan:\n {2}calls: \d+\n {2}questions: \d+\nnotes: \["dry run: no call, no spend"\]\n$/);
+    expect(dry.stdout).toMatch(/^plan:\n {2}calls: \d+\n {2}questions: \d+\n {2}route: \w+\nnotes: \["dry run: no call, no spend"\]\n$/);
     expect(sidewise(root, ['budget']).stdout).toContain('1 of 500 runs'); // only the class run counted; the dry run spent nothing
     const real = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree']);
     expect(real.status).toBe(0);

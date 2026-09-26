@@ -102,10 +102,15 @@ describe('regressionNext', () => {
 
 describe('dryRunText', () => {
   it('a one-subject plan (no items/reused) [C-088]', () => {
-    expect(dryRunText({ calls: 1, questions: 11 })).toBe('plan:\n  calls: 1\n  questions: 11\nnotes: ["dry run: no call, no spend"]\n');
+    expect(dryRunText({ calls: 1, questions: 11, route: 'fake' })).toBe('plan:\n  calls: 1\n  questions: 11\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
   });
   it('a sweep plan [C-088]', () => {
-    expect(dryRunText({ calls: 2, questions: 16, items: 8, reused: 0 })).toBe('plan:\n  calls: 2\n  questions: 16\n  items: 8\n  reused: 0\nnotes: ["dry run: no call, no spend"]\n');
+    expect(dryRunText({ calls: 2, questions: 16, items: 8, reused: 0, route: 'fake' })).toBe('plan:\n  calls: 2\n  questions: 16\n  items: 8\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+  });
+  it('shows the base URL when the route has one (P2)', () => {
+    expect(dryRunText({ calls: 1, questions: 3, route: 'direct', baseURL: 'https://api.typesafe.ai' })).toBe(
+      'plan:\n  calls: 1\n  questions: 3\n  route: direct\n  baseURL: https://api.typesafe.ai\nnotes: ["dry run: no call, no spend"]\n',
+    );
   });
 });
 

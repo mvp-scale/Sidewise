@@ -263,7 +263,7 @@ describe('change', () => {
       dryRun: true,
     });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 2\n  questions: 3\nnotes: ["dry run: no call, no spend"]\n');
+    expect(r.text).toBe('plan:\n  calls: 2\n  questions: 3\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'change')).toEqual([]);
   });

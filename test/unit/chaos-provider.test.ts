@@ -63,9 +63,19 @@ describe('selectProvider and providerIdentity', () => {
   });
 
   it('names the provider that would answer, without building it (no key needed)', () => {
-    expect(providerIdentity({})).toEqual({ adapter: 'fake', model: 'sidewise-fake-1' });
-    expect(providerIdentity({ SIDEWISE_PROVIDER: 'chaos' })).toEqual({ adapter: 'chaos', model: CHAOS_MODEL });
-    expect(providerIdentity({ TYPESAFE_API_KEY: 'k' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0' });
-    expect(providerIdentity({ SIDEWISE_PROVIDER: 'typesafe' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0' });
+    expect(providerIdentity({})).toEqual({ adapter: 'fake', model: 'sidewise-fake-1', route: 'fake', baseURL: null });
+    expect(providerIdentity({ SIDEWISE_PROVIDER: 'chaos' })).toEqual({ adapter: 'chaos', model: CHAOS_MODEL, route: 'chaos', baseURL: null });
+    expect(providerIdentity({ TYPESAFE_API_KEY: 'k' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'direct', baseURL: 'https://api.typesafe.ai' });
+    expect(providerIdentity({ SIDEWISE_PROVIDER: 'typesafe' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'direct', baseURL: 'https://api.typesafe.ai' });
+  });
+
+  it('names the gateway route, and a custom route when SIDEWISE_BASE_URL overrides the default (P2)', () => {
+    expect(providerIdentity({ AI_GATEWAY_API_KEY: 'g' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'gateway', baseURL: 'https://ai-gateway.vercel.sh/typesafe' });
+    expect(providerIdentity({ TYPESAFE_API_KEY: 'k', SIDEWISE_BASE_URL: 'http://localhost:8080' })).toEqual({
+      adapter: 'typesafe',
+      model: 'jev-1.13.0',
+      route: 'custom',
+      baseURL: 'http://localhost:8080',
+    });
   });
 });

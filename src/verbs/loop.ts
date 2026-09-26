@@ -4,6 +4,7 @@
  * mostly wiring: planSweep/runSweep do the reuse-aware work; loop grades, orders (tree order — Plan 2a decision
  * 11, unlike scan/drill's worst-first) and responds.
  */
+import { providerIdentity } from '../classifier/select.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
 import { m } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
@@ -20,9 +21,10 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const { request } = loaded;
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
+  const identity = providerIdentity(ctx.env);
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
 
-  if (ctx.dryRun) return sweepDryRun(plan);
+  if (ctx.dryRun) return sweepDryRun(plan, identity);
 
   const pre = preflight(ctx);
   if (!pre.ok) return pre.result;
@@ -102,6 +104,8 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
     model: ctx.provider.model,
     costUsd: costUsd ?? null,
     calls,
+    route: identity.route,
+    baseURL: identity.baseURL,
   };
 
   return recordSweep(ctx, calls, costUsd, run);

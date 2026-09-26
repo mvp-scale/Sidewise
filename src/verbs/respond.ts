@@ -98,7 +98,9 @@ export function sweepNext(id: string, gate: Gate, worst: readonly ItemGrade[], g
   return graded.length ? GOAL_ONLY_NEXT : ALL_SKIPPED_NEXT;
 }
 
-export function dryRunText(plan: { calls: number; questions: number; items?: number; reused?: number }): string {
+/** P2: `route` (direct/gateway/custom, or fake/chaos) names what would answer; `baseURL` is shown only when
+ *  there is one (fake/chaos have none) — never the key. */
+export function dryRunText(plan: { calls: number; questions: number; items?: number; reused?: number; route: string; baseURL?: string | null }): string {
   return emit(
     m(
       [
@@ -108,6 +110,8 @@ export function dryRunText(plan: { calls: number; questions: number; items?: num
           ['questions', plan.questions],
           ...(plan.items !== undefined ? [['items', plan.items] as [string, Value]] : []),
           ...(plan.reused !== undefined ? [['reused', plan.reused] as [string, Value]] : []),
+          ['route', plan.route],
+          ...(plan.baseURL ? [['baseURL', plan.baseURL] as [string, Value]] : []),
         ),
       ],
       ['notes', ['dry run: no call, no spend']],

@@ -11,6 +11,7 @@
  * a one-subject parent keeps "fix it, then change"; a sweep parent says to fix and re-run this drill instead
  * (unchanged items are reused, so it is nearly free), since change refuses a sweep parent outright.
  */
+import { providerIdentity } from '../classifier/select.ts';
 import { m } from '../contract/emit.ts';
 import { goalGate, gradeItems, gradeSubject, sweepGate, worstFirst } from '../contract/grade.ts';
 import { firstStringLayer, type Item } from '../contract/layers.ts';
@@ -89,9 +90,10 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
 
     const notes: string[] = [];
     const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
+    const identity = providerIdentity(ctx.env);
     const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
 
-    if (ctx.dryRun) return sweepDryRun(plan);
+    if (ctx.dryRun) return sweepDryRun(plan, identity);
 
     const pre = preflight(ctx);
     if (!pre.ok) return pre.result;
@@ -169,6 +171,8 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       model: ctx.provider.model,
       costUsd: costUsd ?? null,
       calls,
+      route: identity.route,
+      baseURL: identity.baseURL,
     };
 
     return recordSweep(ctx, calls, costUsd, run);
@@ -186,9 +190,11 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
   const evidence = readCodeEvidence(ctx.paths.root, parent.where);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
 
+  const identity = providerIdentity(ctx.env);
+
   if (ctx.dryRun) {
     const questions = 1 + request.side.categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 1, questions }) };
+    return { exit: 0, text: dryRunText({ calls: 1, questions, route: identity.route, baseURL: identity.baseURL }) };
   }
 
   const pre = preflight(ctx);
@@ -277,6 +283,8 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     model: ctx.provider.model,
     costUsd: costUsd ?? null,
     calls,
+    route: identity.route,
+    baseURL: identity.baseURL,
   };
 
   const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);

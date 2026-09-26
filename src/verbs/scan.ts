@@ -5,6 +5,7 @@
  * nothing on a later scan. Unlike loop: failing: is worst first (Plan 2a decision 11), passing: and reused:
  * are counts (not lists), and the response carries an extra scanned: {layer: count, ...} line.
  */
+import { providerIdentity } from '../classifier/select.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
 import { m, type Value } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
@@ -23,9 +24,10 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const notes: string[] = [];
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
+  const identity = providerIdentity(ctx.env);
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
 
-  if (ctx.dryRun) return sweepDryRun(plan);
+  if (ctx.dryRun) return sweepDryRun(plan, identity);
 
   const pre = preflight(ctx);
   if (!pre.ok) return pre.result;
@@ -113,6 +115,8 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
     model: ctx.provider.model,
     costUsd: costUsd ?? null,
     calls,
+    route: identity.route,
+    baseURL: identity.baseURL,
   };
 
   return recordSweep(ctx, calls, costUsd, run);

@@ -5,6 +5,7 @@
  * pairs before/after per category (fixed/still) and across all of them (regressed), which alone can fail the
  * gate even when every "after" category passes.
  */
+import { providerIdentity } from '../classifier/select.ts';
 import { combine, gradeSubject, goalGate, type Mark } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions, type AskedQuestion } from '../contract/translate.ts';
 import type { Answer } from '../contract/types.ts';
@@ -53,9 +54,11 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   // Two ranges on one file (parent.where can hold both) must read and charge it once, not once per range.
   const paths = [...new Set(parent.where.map((w) => w.split(':')[0]!))];
 
+  const identity = providerIdentity(ctx.env);
+
   if (ctx.dryRun) {
     const n = categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 2, questions: n * 2 + 1 }) };
+    return { exit: 0, text: dryRunText({ calls: 2, questions: n * 2 + 1, route: identity.route, baseURL: identity.baseURL }) };
   }
 
   const compare = request.side.compare!;
@@ -180,6 +183,8 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     model: ctx.provider.model,
     costUsd: costUsd ?? null,
     calls: calls.length,
+    route: identity.route,
+    baseURL: identity.baseURL,
   };
 
   const rec = calls.length === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
