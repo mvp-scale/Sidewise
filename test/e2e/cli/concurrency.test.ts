@@ -7,7 +7,8 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { sidewise, sidewiseAsync, type CliResult } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
-import { classRequest } from '../../helpers/requests.ts';
+
+const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 
 interface Line {
   kind: string;
@@ -29,19 +30,29 @@ function state(root: string): { lines: Line[]; runIds: string[]; counted: number
 }
 
 const expectedIds = (n: number): string[] => Array.from({ length: n }, (_, i) => `SW-${String(i + 1).padStart(4, '0')}`);
-const printedId = (r: CliResult): string | undefined => /^sidewise (SW-\d{4,}) /.exec(r.stdout)?.[1];
+const printedId = (r: CliResult): string | undefined => /^ {2}id: (SW-\d{4,})$/m.exec(r.stdout)?.[1];
 const isLockTimeout = (r: CliResult): boolean => r.status === 1 && r.stdout === '' && /^✖ lock: [^\n]+ → [^\n]+\n$/.test(r.stderr);
 
 function project(): string {
   const { root } = tempProject();
-  writeFileSync(path.join(root, 'req.txt'), classRequest());
+  writeFileSync(path.join(root, 'req.yaml'), CLASS_YAML);
   return root;
+}
+
+/** A request file with a goal unique to `tag`: the contract reuses per-question answers (same evidence, same
+ * question text) across requests, so two byte-identical requests race into one paid run and one free one. These
+ * tests are about the lock, not reuse, so every concurrent request here gets its own goal — a key the ledger has
+ * never seen — which always forces at least that one call, keeping every run paid and the counts exact. */
+function reqFile(root: string, tag: string): string {
+  const name = `req-${tag}.yaml`;
+  writeFileSync(path.join(root, name), CLASS_YAML.replace('This login handler is safe to merge', `This login handler is safe to merge (${tag})`));
+  return name;
 }
 
 describe('separate processes at once', () => {
   it('10 × class on a fresh project: unique gap-free ids, every line parses, budget runs == run + failed records', async () => {
     const root = project();
-    const results = await Promise.all(Array.from({ length: 10 }, () => sidewiseAsync(root, ['class', 'req.txt'])));
+    const results = await Promise.all(Array.from({ length: 10 }, (_, i) => sidewiseAsync(root, ['class', reqFile(root, String(i))])));
     for (const r of results) expect(r.status === 0 || isLockTimeout(r), `${r.status} ${r.stderr}`).toBe(true);
     const ok = results.filter((r) => r.status === 0);
     const s = state(root);
@@ -53,9 +64,9 @@ describe('separate processes at once', () => {
 
   it('class and outcome interleaved: every outcome names a logged run, ids stay gap-free, budget agrees', async () => {
     const root = project();
-    for (let i = 0; i < 3; i++) expect(sidewise(root, ['class', 'req.txt']).status).toBe(0);
+    for (let i = 0; i < 3; i++) expect(sidewise(root, ['class', reqFile(root, `seq${i}`)]).status).toBe(0);
     const jobs = [
-      ...Array.from({ length: 4 }, () => sidewiseAsync(root, ['class', 'req.txt'])),
+      ...Array.from({ length: 4 }, (_, i) => sidewiseAsync(root, ['class', reqFile(root, `par${i}`)])),
       sidewiseAsync(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']),
       sidewiseAsync(root, ['outcome', 'SW-0002', 'overruled', '--by', 'owner']),
       sidewiseAsync(root, ['outcome', 'SW-0003', 'held', '--by', 'owner']),
@@ -76,7 +87,7 @@ describe('separate processes at once', () => {
   it('6 runs racing a cap of 3: at least 3 succeed, the rest are blocked; the cap may be overshot by up to concurrent − 1 (at most 8 runs)', async () => {
     const root = project();
     expect(sidewise(root, ['budget', 'set', '--runs', '3']).status).toBe(0);
-    const results = await Promise.all(Array.from({ length: 6 }, () => sidewiseAsync(root, ['class', 'req.txt'])));
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => sidewiseAsync(root, ['class', reqFile(root, String(i))])));
     const ok = results.filter((r) => r.status === 0);
     const blocked = results.filter((r) => r.status === 3);
     expect(ok.length + blocked.length).toBe(6);
@@ -87,7 +98,7 @@ describe('separate processes at once', () => {
     expect(s.runIds).toEqual(expectedIds(ok.length));
     expect(s.budgetRuns).toBe(s.counted);
     expect(s.counted).toBe(ok.length);
-    expect(sidewise(root, ['class', 'req.txt']).status).toBe(3); // over the cap now: blocked until reset
+    expect(sidewise(root, ['class', 'req.yaml']).status).toBe(3); // over the cap now: blocked until reset
   }, 60_000);
 
   // The dead holder's lock is broken once it is 2 s old (the grace for a pid in another namespace), so the next run
@@ -107,7 +118,7 @@ describe('separate processes at once', () => {
     expect(readFileSync(lock, 'utf8')).toBe(`${holder.pid}\n`); // the dead holder's lock is still there
 
     const start = Date.now();
-    const r = await sidewiseAsync(root, ['class', 'req.txt']);
+    const r = await sidewiseAsync(root, ['class', 'req.yaml']);
     expect(r.status, r.stderr).toBe(0);
     expect(Date.now() - start).toBeLessThan(4500);
     expect(state(root).files).toEqual(['budget.json', 'log.jsonl']);

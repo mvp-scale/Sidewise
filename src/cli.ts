@@ -4,23 +4,35 @@
  * request or usage · 3 budget blocked. Answers go to stdout; stops and errors go to stderr.
  */
 import { readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
+import { stringify } from 'yaml';
 import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './budget/budget.ts';
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
 import { RUN_ID } from './ledger/ids.ts';
 import { LockError, StoreError } from './ledger/lock.ts';
-import { appendOutcome, LedgerError, type Outcome } from './ledger/log.ts';
-import { resolvePaths } from './ledger/paths.ts';
+import { appendOutcome, findRun, isContractRun, LedgerError, type Outcome } from './ledger/log.ts';
+import { resolvePaths, type SidewisePaths } from './ledger/paths.ts';
 import type { Level } from './lens/request.ts';
+import { runChange } from './verbs/change.ts';
 import { runClass } from './verbs/class.ts';
+import { runDrill } from './verbs/drill.ts';
+import { runLoop } from './verbs/loop.ts';
+import { runScan } from './verbs/scan.ts';
+import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
 import { clip, hasControlChars } from './util/text.ts';
 
 // One usage line per command: a usage mistake prints the problem and just the line for that command.
 const LINES = {
-  class: 'sidewise class <request-file | ->',
-  view: 'sidewise view <folder | tag | SW-####> [--level 1|2|3]',
+  view: 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3]',
+  class: 'sidewise class <request-file | -> [--dry-run]',
+  change: 'sidewise change <request-file | -> [--dry-run]  ·  or: sidewise change --parent SW-#### --compare <before>..<after> [--dry-run]',
+  scan: 'sidewise scan <request-file | -> [--dry-run]',
+  drill: 'sidewise drill <request-file | -> [--dry-run]',
+  loop: 'sidewise loop <request-file | -> [--dry-run]',
+  template: 'sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]',
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
 } as const;
@@ -41,8 +53,10 @@ const NO_PROJECT = '✖ project: no .sidewise or .git folder here or above → r
 const MAX_REQUEST_BYTES = 1_048_576;
 const TOO_BIG = '✖ request: larger than 1 MB → a request is a short text file; point "where:" at the code instead';
 
+/** Every existing call site already prints text with no trailing newline (USAGE, a stop, budgetLine, the outcome
+ * confirmation); every contract response already ends in one (respondText/dryRunText). Add it only when missing. */
 function finish(code: number, text: string): void {
-  (code === 0 ? process.stdout : process.stderr).write(`${text}\n`);
+  (code === 0 ? process.stdout : process.stderr).write(text.endsWith('\n') ? text : `${text}\n`);
   process.exitCode = code;
 }
 
@@ -90,7 +104,7 @@ function readRequest(file: string): { text: string } | { stop: string } {
     return { stop: `✖ request: cannot read ${shown} (${code ?? 'error'}) → check the path and its permissions` };
   }
   if (bytes.length > MAX_REQUEST_BYTES) return { stop: TOO_BIG };
-  if (bytes.includes(0)) return { stop: `✖ request: ${file === '-' ? 'stdin' : shown} is binary, not text → write the request as plain text, starting "sidewise class L1"` };
+  if (bytes.includes(0)) return { stop: `✖ request: ${file === '-' ? 'stdin' : shown} is binary, not text → write the request as YAML, starting "side:"` };
   return { text: bytes.toString('utf8') };
 }
 
@@ -102,6 +116,26 @@ function cap(flag: string, raw: string): number | string {
   return raw.trim() !== '' && Number.isFinite(n) && n > 0 ? n : `✖ budget: --${flag} must be a positive number, got "${raw}" → ${BUDGET_EXAMPLE}`;
 }
 
+const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop } as const;
+
+/** class, scan, drill and loop share one shape: a request file (or -), optional --dry-run. */
+async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths: SidewisePaths): Promise<void> {
+  const twice = givenTwice(rest, ['dry-run']);
+  if (twice) return finish(2, twice);
+  const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { 'dry-run': { type: 'boolean', default: false } } });
+  positionalCount(command, positionals, 1, 1);
+  const read = readRequest(positionals[0]!);
+  if ('stop' in read) return finish(2, read.stop);
+  let provider: ClassifierPort;
+  try {
+    provider = selectProvider(process.env, { chaosState: path.join(paths.dir, 'chaos.json') });
+  } catch (e) {
+    return finish(1, (e as Error).message);
+  }
+  const r = await RUNNERS[command](read.text, { paths, provider, env: process.env, dryRun: values['dry-run'] });
+  return finish(r.exit, r.text);
+}
+
 async function main(argv: string[]): Promise<void> {
   const [command = '', ...rest] = argv;
   if (command === '') return finish(2, USAGE);
@@ -109,32 +143,89 @@ async function main(argv: string[]): Promise<void> {
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use class, view, outcome or budget (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome or budget (sidewise --help)`);
   }
+
+  // template needs no project: it never touches paths, the ledger or the budget.
+  if (command === 'template') {
+    const twice = givenTwice(rest, ['parent', 'from']);
+    if (twice) return finish(2, twice);
+    const { values, positionals } = args('template', {
+      args: rest,
+      allowPositionals: true,
+      options: { parent: { type: 'string' }, from: { type: 'string' } },
+    });
+    positionalCount('template', positionals, 1, 1);
+    const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from });
+    return finish(r.exit, r.text);
+  }
+
   const paths = resolvePaths();
   if (!paths) return finish(2, NO_PROJECT);
   switch (command) {
-    case 'class': {
-      const { positionals } = args('class', { args: rest, allowPositionals: true, options: {} });
-      positionalCount('class', positionals, 1, 1);
-      const read = readRequest(positionals[0]!);
-      if ('stop' in read) return finish(2, read.stop);
-      let provider: ClassifierPort;
-      try {
-        provider = selectProvider(process.env);
-      } catch (e) {
-        return finish(1, (e as Error).message);
-      }
-      const r = await runClass(read.text, { paths, provider, env: process.env });
-      return finish(r.exit, r.text);
-    }
     case 'view': {
       const twice = givenTwice(rest, ['level']);
       if (twice) return finish(2, twice);
       const { values, positionals } = args('view', { args: rest, allowPositionals: true, options: { level: { type: 'string', default: '1' } } });
       positionalCount('view', positionals, 1, 1);
       if (!['1', '2', '3'].includes(values.level)) return finish(2, `✖ --level: "${clip(values.level, 20)}" is not a level → use --level 1, 2 or 3`);
-      const r = runView(positionals[0]!, Number(values.level) as Level, { paths, env: process.env });
+      const arg = positionals[0]!;
+      let input = arg;
+      if (arg === '-') {
+        input = readFileSync(0, 'utf8');
+      } else {
+        try {
+          if (statSync(arg).isFile()) input = readFileSync(arg, 'utf8');
+        } catch {
+          // not a file: arg itself is the place/id, as in Plan 1
+        }
+      }
+      const r = runView(input, Number(values.level) as Level, { paths, env: process.env });
+      return finish(r.exit, r.text);
+    }
+    case 'class':
+    case 'scan':
+    case 'drill':
+    case 'loop':
+      return runSweptVerb(command, rest, paths);
+    case 'change': {
+      const twice = givenTwice(rest, ['dry-run', 'parent', 'compare']);
+      if (twice) return finish(2, twice);
+      const { values, positionals } = args('change', {
+        args: rest,
+        allowPositionals: true,
+        options: { 'dry-run': { type: 'boolean', default: false }, parent: { type: 'string' }, compare: { type: 'string' } },
+      });
+      const usingFlags = values.parent !== undefined || values.compare !== undefined;
+      let text: string;
+      if (usingFlags) {
+        if (values.parent === undefined || values.compare === undefined) {
+          return finish(2, '✖ --parent/--compare: give both, or neither → sidewise change --parent SW-#### --compare <before>..<after>');
+        }
+        positionalCount('change', positionals, 0, 0);
+        const sep = values.compare.indexOf('..');
+        if (sep <= 0 || sep >= values.compare.length - 2) {
+          return finish(2, `✖ --compare: "${clip(values.compare, 60)}" is not <before>..<after> → e.g. --compare main..HEAD`);
+        }
+        // The goal comes from the parent run itself (not a fixed placeholder): a real parent's own goal is what
+        // "did the fix work?" is asking about. When the parent can't supply one (missing, or predates the
+        // contract), the placeholder is never read — runChange's own findRun/isContractRun checks bail first.
+        const parentRun = findRun(paths, values.parent);
+        const goal = parentRun && isContractRun(parentRun) ? parentRun.goal : 'The change works';
+        text = stringify({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) } } });
+      } else {
+        positionalCount('change', positionals, 1, 1);
+        const read = readRequest(positionals[0]!);
+        if ('stop' in read) return finish(2, read.stop);
+        text = read.text;
+      }
+      let provider: ClassifierPort;
+      try {
+        provider = selectProvider(process.env, { chaosState: path.join(paths.dir, 'chaos.json') });
+      } catch (e) {
+        return finish(1, (e as Error).message);
+      }
+      const r = await runChange(text, { paths, provider, env: process.env, dryRun: values['dry-run'] });
       return finish(r.exit, r.text);
     }
     case 'outcome': {

@@ -1,17 +1,19 @@
 // Each run stands alone: the answer depends on the request (and, for the fake provider, nothing else), and
 // .sidewise/ holds only the log and the budget between runs.
-import { readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { sidewise } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
-import { classRequest } from '../../helpers/requests.ts';
 
-const INITIALISED = 'budget initialised ($5.00 / 500 runs; "sidewise budget set" changes it)';
+const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
+// A distinct goal: the contract reuses per-question answers keyed on evidence + question text, so sending the
+// exact same request twice makes the second one free (calls: 0, not counted against the budget).
+const CLASS_YAML_2 = CLASS_YAML.replace('This login handler is safe to merge', 'This login handler is safe to merge, again');
 
 function project(): string {
   const { root } = tempProject();
-  writeFileSync(path.join(root, 'req.txt'), classRequest());
+  writeFileSync(path.join(root, 'req.yaml'), CLASS_YAML);
   return root;
 }
 
@@ -26,34 +28,35 @@ const answerBody = (stdout: string): string[] =>
 describe('statelessness', () => {
   it('the same request twice: the same answer except the run id (and the budget count in the notes)', () => {
     const root = project();
-    const first = sidewise(root, ['class', 'req.txt']);
-    const second = sidewise(root, ['class', 'req.txt']);
+    const first = sidewise(root, ['class', 'req.yaml']);
+    const second = sidewise(root, ['class', 'req.yaml']);
     expect(first.status).toBe(0);
     expect(second.status).toBe(0);
-    expect(first.stdout).toMatch(/^sidewise SW-0001 /);
-    expect(second.stdout).toMatch(/^sidewise SW-0002 /);
+    expect(first.stdout).toMatch(/^side:\n {2}id: SW-0001\n/);
+    expect(second.stdout).toMatch(/^side:\n {2}id: SW-0002\n/);
     expect(answerBody(second.stdout)).toEqual(answerBody(first.stdout));
-    expect(second.stdout.trimEnd().split('\n').at(-1)).toBe('notes: budget 0% used ($0.00 of $5.00 · 2 of 500 runs)');
+    // The second call is a byte-for-byte repeat: every question is reused for free, so it doesn't count.
+    expect(second.stdout.trimEnd().split('\n').at(-1)).toMatch(/^notes: \[.*budget 0% used \(\$0\.00 of \$5\.00 · 1 of 500 runs\).*\]$/);
 
-    const elsewhere = sidewise(project(), ['class', 'req.txt']); // a fresh project: byte-for-byte the first answer
+    const elsewhere = sidewise(project(), ['class', 'req.yaml']); // a fresh project: byte-for-byte the first answer
     expect(elsewhere.stdout).toBe(first.stdout);
   });
 
-  it('delete .sidewise/ between runs: a clean fresh start, SW-0001 again, budget initialised again', () => {
+  it('delete .sidewise/ between runs: a clean fresh start, SW-0001 again, a fresh budget', () => {
     const root = project();
-    expect(sidewise(root, ['class', 'req.txt']).stdout).toContain(INITIALISED);
-    expect(sidewise(root, ['class', 'req.txt']).stdout).toMatch(/^sidewise SW-0002 /);
+    expect(sidewise(root, ['class', 'req.yaml']).stdout).toContain('$0.00 of $5.00 · 1 of 500 runs');
+    writeFileSync(path.join(root, 'req2.yaml'), CLASS_YAML_2); // a different goal: a second paid run, not a free repeat
+    expect(sidewise(root, ['class', 'req2.yaml']).stdout).toMatch(/^side:\n {2}id: SW-0002\n/);
     rmSync(path.join(root, '.sidewise'), { recursive: true });
-    const again = sidewise(root, ['class', 'req.txt']);
+    const again = sidewise(root, ['class', 'req.yaml']);
     expect(again.status).toBe(0);
-    expect(again.stdout).toMatch(/^sidewise SW-0001 /);
-    expect(again.stdout).toContain(INITIALISED);
-    expect(again.stdout).toContain('1 of 500 runs');
+    expect(again.stdout).toMatch(/^side:\n {2}id: SW-0001\n/);
+    expect(again.stdout).toContain('$0.00 of $5.00 · 1 of 500 runs');
   });
 
   it('after runs finish, .sidewise/ holds only log.jsonl and budget.json (no lock, no temp file)', () => {
     const root = project();
-    expect(sidewise(root, ['class', 'req.txt']).status).toBe(0);
+    expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
     expect(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']).status).toBe(0);
     expect(sidewise(root, ['budget', 'set', '--runs', '50']).status).toBe(0);
     expect(sidewise(root, ['view', 'src']).status).toBe(0);

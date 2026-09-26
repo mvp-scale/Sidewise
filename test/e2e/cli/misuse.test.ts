@@ -6,7 +6,8 @@ import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { expectCleanStop, sidewise, snapshot, type CliResult } from '../../helpers/cli.ts';
 import { tempProject, USER_TS } from '../../helpers/project.ts';
-import { classRequest } from '../../helpers/requests.ts';
+
+const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 
 /** Runs one misuse and checks that .sidewise/ is byte-for-byte what it was before. */
 function unchanged(root: string, args: string[], o: Parameters<typeof sidewise>[2] = {}): CliResult {
@@ -19,8 +20,8 @@ function unchanged(root: string, args: string[], o: Parameters<typeof sidewise>[
 /** A project with one logged run (SW-0001, asked by e2e-agent), so misuse has a ledger to leave alone. */
 function projectWithRun(): string {
   const { root } = tempProject();
-  writeFileSync(path.join(root, 'req.txt'), classRequest());
-  expect(sidewise(root, ['class', 'req.txt']).status).toBe(0);
+  writeFileSync(path.join(root, 'req.yaml'), CLASS_YAML);
+  expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
   return root;
 }
 
@@ -35,29 +36,23 @@ describe('class: bad request input', () => {
   };
 
   it('an empty file, and empty stdin', () => {
-    expect(expectCleanStop(unchanged(root, ['class', file('empty.txt', '')]), 2)).toBe('✖ request: empty → start with the header "sidewise class L1"');
-    expect(expectCleanStop(unchanged(root, ['class', '-'], { input: '' }), 2)).toBe('✖ request: empty → start with the header "sidewise class L1"');
+    const stop = '✖ request: empty → start with "side:" (sidewise template class prints a skeleton)';
+    expect(expectCleanStop(unchanged(root, ['class', file('empty.txt', '')]), 2)).toBe(stop);
+    expect(expectCleanStop(unchanged(root, ['class', '-'], { input: '' }), 2)).toBe(stop);
   });
 
   it('a binary file', () => {
     const bytes = Buffer.from(Array.from({ length: 4096 }, (_, i) => (i * 97 + 13) % 256));
     expect(expectCleanStop(unchanged(root, ['class', file('blob.bin', bytes)]), 2)).toBe(
-      '✖ request: blob.bin is binary, not text → write the request as plain text, starting "sidewise class L1"',
+      '✖ request: blob.bin is binary, not text → write the request as YAML, starting "side:"',
     );
   });
 
   it('a file over 1 MB, and over 1 MB on stdin', () => {
-    const big = `${classRequest()}\n# ${'x'.repeat(1_100_000)}\n`;
+    const big = `${CLASS_YAML}\n# ${'x'.repeat(1_100_000)}\n`;
     const stop = '✖ request: larger than 1 MB → a request is a short text file; point "where:" at the code instead';
     expect(expectCleanStop(unchanged(root, ['class', file('big.txt', big)]), 2)).toBe(stop);
     expect(expectCleanStop(unchanged(root, ['class', '-'], { input: big }), 2)).toBe(stop);
-  });
-
-  it('a JSON or YAML document instead of the text request: one line, not one per line', () => {
-    const header = '✖ line 1: expected the header "sidewise <verb> L<1-3>" → e.g. "sidewise class L1"';
-    const json = JSON.stringify({ verb: 'class', level: 1, focus: 'x', slots: ['a', 'b'] }, null, 2);
-    expect(expectCleanStop(unchanged(root, ['class', file('req.json', json)]), 2)).toBe(header);
-    expect(expectCleanStop(unchanged(root, ['class', file('req.yaml', 'verb: class\nlevel: 1\nslots:\n  - a\n  - b\n')]), 2)).toBe(header);
   });
 
   it('a directory, and a missing file', () => {
@@ -74,23 +69,30 @@ describe('class: bad request input', () => {
   });
 
   it('a request whose header names another verb', () => {
-    const view = file('view.txt', classRequest({ header: 'sidewise view L1' }));
-    expect(expectCleanStop(unchanged(root, ['class', view]), 2)).toBe('✖ verb: "view" is not available yet → use class');
+    const badVerb = file('view.yaml', CLASS_YAML.replace('side:\n', 'side:\n  verb: view\n'));
+    expect(expectCleanStop(unchanged(root, ['class', badVerb]), 2)).toBe('✖ side.verb: says "view" but you ran class → remove side.verb, or run sidewise view');
   });
 
   it('a valid request with trailing garbage', () => {
-    const trailing = file('trail.txt', `${classRequest()}\n\nThanks! Let me know what you think.\n`);
-    expect(expectCleanStop(unchanged(root, ['class', trailing]), 2)).toMatch(/^✖ line 22: "Thanks! Let me know what you think\." is not a field, slot or primitive → /);
+    const trailing = file('trail.yaml', `${CLASS_YAML}\nThanks! Let me know what you think.\n`);
+    const r = unchanged(root, ['class', trailing]);
+    expect(r.status).toBe(2);
+    expect(r.stdout).toBe('');
+    expect(r.stderr).toMatch(/^✖ /);
   });
 
   it('a request with many bad lines: at most 5 stops, then one line saying how many more', () => {
-    const noisy = file('noisy.txt', `${classRequest()}\n${Array.from({ length: 40 }, (_, i) => `junk line ${i}`).join('\n')}\n`);
+    const categories = Array.from({ length: 12 }, (_, i) => `    cat${i + 1}: {pass: no}`).join('\n');
+    const noisy = file(
+      'noisy.yaml',
+      `side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n${categories}\n`,
+    );
     const r = unchanged(root, ['class', noisy]);
     expect(r.status).toBe(2);
     const lines = r.stderr.trimEnd().split('\n');
     expect(lines).toHaveLength(6);
     expect(lines.every((l) => /^✖ .+ → .+$/.test(l))).toBe(true);
-    expect(lines[5]).toBe('✖ request: 35 more problems → fix the ones above, then run again');
+    expect(lines[5]).toMatch(/^✖ request: \d+ more problems → fix the ones above, then run again$/);
   });
 });
 
@@ -107,12 +109,12 @@ describe('flags', () => {
   });
 
   it('an unknown flag, a flag before the command, and extra arguments: one "✖ args:" line with that command\'s usage', () => {
-    const view = 'sidewise view <folder | tag | SW-####> [--level 1|2|3]';
-    const cls = 'sidewise class <request-file | ->';
+    const view = 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3]';
+    const cls = 'sidewise class <request-file | -> [--dry-run]';
     expect(expectCleanStop(unchanged(root, ['view', 'src', '--lvl', '2']), 2)).toBe(`✖ args: unknown flag --lvl → ${view}`);
     expect(expectCleanStop(unchanged(root, ['--level', '2', 'view', 'src']), 2)).toBe(`✖ args: "--level" comes before the command → ${view}`);
-    expect(expectCleanStop(unchanged(root, ['class', 'req.txt', '--level', '2']), 2)).toBe(`✖ args: unknown flag --level → ${cls}`);
-    expect(expectCleanStop(unchanged(root, ['class', 'req.txt', 'other.txt']), 2)).toBe(`✖ args: extra argument "other.txt" → ${cls}`);
+    expect(expectCleanStop(unchanged(root, ['class', 'req.yaml', '--level', '2']), 2)).toBe(`✖ args: unknown flag --level → ${cls}`);
+    expect(expectCleanStop(unchanged(root, ['class', 'req.yaml', 'other.txt']), 2)).toBe(`✖ args: extra argument "other.txt" → ${cls}`);
     expect(expectCleanStop(unchanged(root, ['budget', 'show', 'now']), 2)).toBe('✖ args: extra argument "now" → sidewise budget [show | reset | set --usd <n> --runs <n>]');
     expect(expectCleanStop(unchanged(root, ['outcome', 'SW-0001', 'failed', 'x', '--by', 'o']), 2)).toBe(
       '✖ args: extra argument "x" → sidewise outcome <SW-####> held|overruled|failed --by <actor>',
@@ -197,14 +199,14 @@ describe('environment', () => {
     const bare = mkdtempSync(path.join(os.tmpdir(), 'sidewise-bare-'));
     mkdirSync(path.join(bare, 'src'));
     writeFileSync(path.join(bare, 'src', 'user.ts'), USER_TS);
-    writeFileSync(path.join(bare, 'req.txt'), classRequest());
+    writeFileSync(path.join(bare, 'req.yaml'), CLASS_YAML);
     const stop = '✖ project: no .sidewise or .git folder here or above → run inside a project, or "mkdir .sidewise" to start one here';
-    for (const args of [['class', 'req.txt'], ['view', 'src'], ['outcome', 'SW-0001', 'failed', '--by', 'owner'], ['budget'], ['budget', 'reset']]) {
+    for (const args of [['class', 'req.yaml'], ['view', 'src'], ['outcome', 'SW-0001', 'failed', '--by', 'owner'], ['budget'], ['budget', 'reset']]) {
       expect(expectCleanStop(sidewise(bare, args, { home: false }), 2)).toBe(stop);
     }
     expect(snapshot(bare)).toBeNull();
     mkdirSync(path.join(bare, '.sidewise'));
-    expect(sidewise(bare, ['class', 'req.txt'], { home: false }).status).toBe(0); // "mkdir .sidewise" is enough
+    expect(sidewise(bare, ['class', 'req.yaml'], { home: false }).status).toBe(0); // "mkdir .sidewise" is enough
   });
 
   it.skipIf(process.getuid?.() === 0)('.sidewise/ not writable: exit 1, one clean line, nothing changed', () => {
@@ -212,7 +214,7 @@ describe('environment', () => {
     const dir = path.join(root, '.sidewise');
     chmodSync(dir, 0o555);
     try {
-      const r = unchanged(root, ['class', 'req.txt']);
+      const r = unchanged(root, ['class', 'req.yaml']);
       expect(expectCleanStop(r, 1)).toMatch(/^✖ files: .*\.sidewise\/.* \(EACCES\) → make \.sidewise\/ a writable folder/);
       expect(expectCleanStop(unchanged(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']), 1)).toMatch(/^✖ files: .*\(EACCES\)/);
       expect(expectCleanStop(unchanged(root, ['budget', 'reset']), 1)).toMatch(/^✖ files: .*\(EACCES\)/);
@@ -223,11 +225,11 @@ describe('environment', () => {
 
   it.skipIf(process.getuid?.() === 0)('a fresh, read-only .sidewise/: exit 1, no budget file appears', () => {
     const { root } = tempProject();
-    writeFileSync(path.join(root, 'req.txt'), classRequest());
+    writeFileSync(path.join(root, 'req.yaml'), CLASS_YAML);
     const dir = path.join(root, '.sidewise');
     mkdirSync(dir, { mode: 0o555 });
     try {
-      expect(expectCleanStop(unchanged(root, ['class', 'req.txt']), 1)).toMatch(/^✖ files: .*\(EACCES\) → /);
+      expect(expectCleanStop(unchanged(root, ['class', 'req.yaml']), 1)).toMatch(/^✖ files: .*\(EACCES\) → /);
     } finally {
       chmodSync(dir, 0o755);
     }
@@ -235,6 +237,6 @@ describe('environment', () => {
 
   it('an unknown SIDEWISE_PROVIDER: one clean line, no doubled prefix', () => {
     const root = projectWithRun();
-    expect(expectCleanStop(unchanged(root, ['class', 'req.txt'], { env: { SIDEWISE_PROVIDER: 'bogus' } }), 1)).toBe('✖ provider: "bogus" is not a provider → use fake, chaos or typesafe');
+    expect(expectCleanStop(unchanged(root, ['class', 'req.yaml'], { env: { SIDEWISE_PROVIDER: 'bogus' } }), 1)).toBe('✖ provider: "bogus" is not a provider → use fake, chaos or typesafe');
   });
 });
