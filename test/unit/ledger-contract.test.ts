@@ -102,4 +102,13 @@ describe('answer reuse', () => {
     expect(exactReuse(paths, WHO, ['k-goal', 'k-9'])).toBeUndefined();
     expect(exactReuse(paths, WHO, [])).toBeUndefined();
   });
+
+  it('exact reuse traces each key back to its original run: one traced to an overruled run blocks the whole match', () => {
+    const { paths } = tempProject({});
+    appendContractRun(paths, sampleContractRun(), T, 'b'); // SW-0001: keys { goal: 'k-goal', 1: 'k-1' }
+    appendContractRun(paths, sampleContractRun({ keys: { 1: 'k-1', 2: 'k-2' }, reusedFrom: { 1: 'SW-0001' } }), T, 'b'); // SW-0002 reused SW-0001's k-1
+    expect(exactReuse(paths, WHO, ['k-1', 'k-2'])).toBe('SW-0002');
+    appendOutcome(paths, 'SW-0001', 'overruled', 'owner');
+    expect(exactReuse(paths, WHO, ['k-1', 'k-2'])).toBeUndefined(); // k-1's original run (SW-0001) is now overruled
+  });
 });
