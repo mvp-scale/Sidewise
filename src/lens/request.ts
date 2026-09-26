@@ -1,6 +1,6 @@
 /** The request model every verb shares: header, envelope fields, numbered yes/no slots and up to 5 primitives. */
-export const VERBS = ['view', 'class', 'change', 'scan', 'drill', 'loop'] as const;
-export type Verb = (typeof VERBS)[number];
+export { VERBS, type Verb } from '../contract/types.ts';
+import type { Verb } from '../contract/types.ts';
 export type Level = 1 | 2 | 3;
 
 export interface Place {
