@@ -112,6 +112,12 @@ sidewise outcome SW-0001 held --by you
 sidewise budget
 ```
 
+Run `sidewise doctor` any time to check which provider, route and base URL a call would use, whether a key is
+set (never its value), and whether a project and its ledger are found — free, no call, no spend. Set
+`SIDEWISE_BASE_URL=<url>` to point at a proxy or a self-hosted mirror instead of TypeSafe's own endpoint
+(`https` required, except `http` for `localhost`/`127.0.0.1`/`[::1]`). A 429 or 529 from TypeSafe is retried
+automatically, up to twice more; a 401 or 422 never retries.
+
 For the full six verbs, grading rules and stop/exit codes, see [skills/sidewise/SKILL.md](skills/sidewise/SKILL.md).
 
 ## Releases

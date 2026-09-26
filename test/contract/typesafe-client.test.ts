@@ -144,7 +144,7 @@ describe('TypeSafe client, recorded transactions', () => {
 });
 
 describe('bounded retry on 429/529 (P8)', () => {
-  it('429 then 200: succeeds after one retry, honouring the server\'s Retry-After', async () => {
+  it('429 then 200: succeeds after one retry, honouring the server\'s Retry-After [C-096]', async () => {
     const r = replay(loadCassette('errors/429.json'), loadCassette('noul/ok.json'));
     const waits: number[] = [];
     const res = await createJevClient(config(), { fetch: r.fetch, sleep: async (ms) => void waits.push(ms) }).ask({ state: {}, questions: noul });
@@ -153,7 +153,7 @@ describe('bounded retry on 429/529 (P8)', () => {
     expect(waits).toEqual([1000]); // errors/429.json's own Retry-After: 1 (seconds), not the backoff default
   });
 
-  it('529 three times: fails after 3 attempts (1 + 2 retries), backing off between them', async () => {
+  it('529 three times: fails after 3 attempts (1 + 2 retries), backing off between them [C-096]', async () => {
     const c = loadCassette('errors/529.json');
     const r = replay(c, c, c);
     const waits: number[] = [];
@@ -167,7 +167,7 @@ describe('bounded retry on 429/529 (P8)', () => {
     expect(waits.every((ms) => ms > 0 && ms <= 10_000)).toBe(true); // capped per the P8 ruling
   });
 
-  it('401 never retries: one attempt, no wait', async () => {
+  it('401 never retries: one attempt, no wait [C-096]', async () => {
     const r = replay(loadCassette('errors/401.json'));
     const waits: number[] = [];
     const err = await createJevClient(config(), { fetch: r.fetch, sleep: async (ms) => void waits.push(ms) })
@@ -195,17 +195,17 @@ describe('resolveJevConfig', () => {
 });
 
 describe('SIDEWISE_BASE_URL (P3)', () => {
-  it('an https override wins over the route default, trailing slashes stripped', () => {
+  it('an https override wins over the route default, trailing slashes stripped [C-094]', () => {
     expect(resolveJevConfig({ SIDEWISE_BASE_URL: 'https://proxy.example.com/' })).toMatchObject({ baseURL: 'https://proxy.example.com' });
   });
 
-  it('http is allowed for localhost, 127.0.0.1 and [::1], nowhere else', () => {
+  it('http is allowed for localhost, 127.0.0.1 and [::1], nowhere else [C-094]', () => {
     expect(resolveJevConfig({ SIDEWISE_BASE_URL: 'http://localhost:8080' })).toMatchObject({ baseURL: 'http://localhost:8080' });
     expect(resolveJevConfig({ SIDEWISE_BASE_URL: 'http://127.0.0.1:8080' })).toMatchObject({ baseURL: 'http://127.0.0.1:8080' });
     expect(resolveJevConfig({ SIDEWISE_BASE_URL: 'http://[::1]:8080' })).toMatchObject({ baseURL: 'http://[::1]:8080' });
   });
 
-  it('http to a non-local host is a stop: ✖ SIDEWISE_BASE_URL, exit 2', () => {
+  it('http to a non-local host is a stop: ✖ SIDEWISE_BASE_URL, exit 2 [C-094]', () => {
     let err: unknown;
     try {
       resolveJevConfig({ SIDEWISE_BASE_URL: 'http://example.com' });

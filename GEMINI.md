@@ -39,6 +39,14 @@ every run (default: the literal string `agent`) and is exactly what `outcome`'s 
 `--by` against, so an agent that wants its own runs marked `held` by someone else needs a distinct actor name
 per agent, not the same one for all of them.
 
+`sidewise doctor` checks all of this without spending anything: the provider, route and base URL a call would
+use, whether `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` is set (never its value), the pinned model, and
+whether a project and its ledger are found — free, no call, no ledger write. `SIDEWISE_BASE_URL=<url>` points
+either route at a proxy or a self-hosted mirror instead of TypeSafe's own endpoint; it must be `https`, except
+`http` for `localhost`, `127.0.0.1` or `[::1]` — anything else stops before spending anything. A 429 or 529
+from TypeSafe is retried automatically, up to twice more, honouring `Retry-After` when the server sends one; a
+401 or 422 never retries.
+
 ## A worked example (class)
 
 Request:

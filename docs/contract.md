@@ -548,3 +548,16 @@ query yet that mines it into a pattern across runs the way class's per-category 
   own Node 20 host) it falls back to a slower, always-correct linear scan instead. Either way the ledger
   itself (`.sidewise/log.jsonl`) stays the source of truth: the index is a disposable, self-healing cache
   that a missing or corrupt copy only costs a rebuild, never a wrong answer. [C-089]
+- `SIDEWISE_BASE_URL` overrides the TypeSafe base URL for either route (a proxy, a self-hosted mirror, tests).
+  It must parse as a URL; `https` is required, except `http` for `localhost`, `127.0.0.1` or `[::1]`. Anything
+  else is a stop, `✖ SIDEWISE_BASE_URL: ... → ...`, at exit 2. [C-094]
+- `sidewise doctor` is free: no classifier call, no budget touched, no ledger write. It reports the resolved
+  provider, route (`direct`/`gateway`/`custom`, or `fake`/`chaos`) and base URL, whether `TYPESAFE_API_KEY` and
+  `AI_GATEWAY_API_KEY` are set (never their value), the pinned model (plus the gateway wire model when
+  relevant), whether a project/ledger is found, and the Node version and whether `node:sqlite` is available.
+  Exit 0 when the config is usable; exit 2 with the same `✖` message a paid verb would give when it isn't (a
+  floating model, a bad `SIDEWISE_BASE_URL`). [C-095]
+- The TypeSafe client retries a 429, a 529, or another retryable status/timeout up to 2 more times (3 attempts
+  total), honouring the server's own `Retry-After` when it sends one, else exponential backoff with jitter,
+  capped at 10s per wait. 401, 422 and any other non-retryable status are never retried — the first failure is
+  final. [C-096]
