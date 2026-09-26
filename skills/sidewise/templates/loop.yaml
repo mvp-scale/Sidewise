@@ -1,0 +1,27 @@
+side:
+  goal: The checkout redesign is sound
+  depth: quick
+  where: [src/checkout/]
+  over:
+    part:
+      - name: gateway
+        story: [guest checkout, saved cards]
+      - name: payments
+        story: [refunds, retries, partial capture]
+      - ledger
+  ask:
+    part:
+      boundaries:
+        pass: yes
+        1: Does {part} own one clear responsibility?
+        2: Can {part} be deployed without the others?
+    story:
+      done:
+        pass: yes
+        3: Is "{story}" testable against {part} as written?
+      risk:
+        pass: no
+        4: Does "{story}" need data {part} doesn't own?
+wise:
+  why: validate
+  area: api

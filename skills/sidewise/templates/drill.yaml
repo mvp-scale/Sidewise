@@ -1,0 +1,16 @@
+side:
+  goal: Find exactly where request text reaches the query
+  parent: SW-0060
+  from: src/handlers/user.ts/findUser
+  depth: quick
+  over:
+    call: each
+  ask:
+    call:
+      injection:
+        pass: no
+        1: Does {call} pass request text into SQL?
+        2: Is {call}'s argument built by string concatenation?
+wise:
+  why: debug
+  area: data
