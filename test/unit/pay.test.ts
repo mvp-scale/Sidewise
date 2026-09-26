@@ -8,7 +8,7 @@ import type { ClassifierPort, ClassifierResult } from '../../src/classifier/port
 import { goalQuestion, type AskedQuestion } from '../../src/contract/translate.ts';
 import { isContractRun, readLedger } from '../../src/ledger/log.ts';
 import type { SidewisePaths } from '../../src/ledger/paths.ts';
-import { askAll, preflight, record, recordFree, type PlannedCall } from '../../src/verbs/pay.ts';
+import { askAll, oneLine, preflight, record, recordFree, type PlannedCall } from '../../src/verbs/pay.ts';
 import type { VerbContext } from '../../src/verbs/types.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleContractRun } from '../helpers/runs.ts';
@@ -132,6 +132,37 @@ describe('askAll: provider faults', () => {
     const unknown = await askAll(ctxOf(paths, stubProvider({ costUsd: undefined })), 'class', [call()]);
     expect(unknown.ok && unknown.value.costUsd).toBeUndefined();
     expect(ok.ok && ok.value.answers['2']).toEqual({ kind: 'scale', dist: { low: 0.9, high: 0.1 } });
+  });
+});
+
+describe('oneLine: redacts secret-shaped text before it ever becomes VerbResult text (P6)', () => {
+  it('strips an API key and a bearer token from a provider error message', () => {
+    const key = 'sk-' + 'A'.repeat(24);
+    const bearer = `${'Bearer'} ${'B'.repeat(24)}`;
+    const line = oneLine(new Error(`upstream said: key ${key} rejected, header ${bearer} invalid`));
+    expect(line).not.toContain(key);
+    expect(line).not.toContain('B'.repeat(24));
+    expect(line).toContain('[redacted]');
+  });
+
+  it('the first-call-failure branch never leaks a secret in its VerbResult.text', async () => {
+    const { paths } = tempProject({});
+    const key = 'sk-' + 'A'.repeat(24);
+    const port: ClassifierPort = { adapter: 'stub', model: 'stub-1', ask: async () => { throw new Error(`auth failed: ${key}`); } };
+    const r = await askAll(ctxOf(paths, port), 'class', [call()]);
+    expect(!r.ok && r.result.exit).toBe(1);
+    expect(!r.ok && r.result.text).not.toContain(key);
+    expect(!r.ok && r.result.text).toContain('[redacted]');
+  });
+
+  it('a failed record\'s reason (paid, logged) is also redacted in the returned text', async () => {
+    const { paths } = tempProject({});
+    const key = 'sk-' + 'A'.repeat(24);
+    const first = await stubProvider({ yes: () => 0.9, costUsd: 0.01 }).ask(Q.map((q) => ({ type: q.kind === 'scale' ? 'score' : 'noul', id: q.id, ask: q.text, levels: q.levels ?? [] }) as never), {});
+    const port: ClassifierPort = { adapter: 'stub', model: 'stub-1', ask: async (qs) => (qs[0]!.id === 'goal' ? first : Promise.reject(new Error(`boom: ${key}`))) };
+    const r = await askAll(ctxOf(paths, port), 'loop', [call(), call([{ id: 'x#1', n: 1, kind: 'yesno', text: 'Is x ok?', item: 'x' }])]);
+    expect(!r.ok && r.result.text).not.toContain(key);
+    expect(!r.ok && r.result.text).toContain('[redacted]');
   });
 });
 

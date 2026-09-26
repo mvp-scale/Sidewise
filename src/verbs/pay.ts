@@ -13,6 +13,7 @@ import type { Answer, Verb } from '../contract/types.ts';
 import { LockError, StoreError } from '../ledger/lock.ts';
 import { appendContractRun, checkLedger, LedgerError, type ContractRun, type NewContractRun } from '../ledger/log.ts';
 import { recordCall } from '../ledger/record.ts';
+import { redact } from '../ledger/redact.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 export interface PlannedCall {
@@ -30,9 +31,12 @@ const isProbability = (p: unknown): p is number => typeof p === 'number' && p >=
 /** A reported cost we can add up: finite and not negative. Anything else counts as not reported. */
 export const usableCost = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined);
 
-/** One short line from whatever a provider threw (an Error, a string, a many-line HTML body). */
+/** One short line from whatever a provider threw (an Error, a string, a many-line HTML body). Redacted before
+ *  truncation (P6): a provider error can echo back request headers or config, so this is the one place every
+ *  caller (the first-call-failure stop, and logFailed's reason, which also flows into the ledger) is guaranteed
+ *  to have already run through redact() before the text can reach a VerbResult a caller prints to stderr. */
 export function oneLine(e: unknown): string {
-  const text = (e instanceof Error ? e.message : String(e)).split('\n')[0]!.trim();
+  const text = redact((e instanceof Error ? e.message : String(e)).split('\n')[0]!.trim());
   return text.length > 200 ? `${text.slice(0, 199)}…` : text;
 }
 
