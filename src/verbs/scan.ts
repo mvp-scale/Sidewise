@@ -10,7 +10,7 @@ import { m, type Value } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
 import { createCodeResolver } from '../evidence/units.ts';
 import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
-import { actorOf, preflight } from './pay.ts';
+import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
 import { commonNotes, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
 import { planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
@@ -78,7 +78,11 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
       ),
       wiseRecorded(request.wise),
       sweepNext(id, gate, worst, graded, 'act on it'),
-      commonNotes([...loaded.notes, ...notes], `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`, ctx.provider.adapter),
+      commonNotes(
+        [...loaded.notes, ...notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])],
+        `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
+        ctx.provider.adapter,
+      ),
     );
 
   const run: NewContractRun = {

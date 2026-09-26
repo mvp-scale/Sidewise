@@ -165,6 +165,9 @@ the depth cap, it says so instead of naming one. [C-046]
 A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, offline, canned) adds `adapter
 <name> · not evidence` to `notes:`, right before the budget line, on every verb that calls the classifier
 (class, scan, drill, loop, change) — so a rehearsal answer is never mistaken for real evidence. [C-092]
+A missing `.sidewise/budget.json` is created with the defaults ($5.00, 500 runs) the first time any of those
+verbs preflights a call; that same run's `notes:` says so (`budget file created with defaults ($5.00 · 500
+runs)`), once, since every later run finds the file already there. [C-093]
 Question text is never repeated in a response; the agent has it by number. [C-048]
 A sweep response lists category gates per item and shows probabilities only for questions that didn't clear
 the bar; the full numbers are in the ledger. [C-049]

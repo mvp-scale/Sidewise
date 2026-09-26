@@ -304,4 +304,21 @@ describe('change', () => {
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
   });
+
+  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
+    const parent = sampleContractRun({
+      where: ['src/a.ts'],
+      ask: { categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
+      answers: { goal: { kind: 'yesno', p: 0.1 }, '1': { kind: 'yesno', p: 0.05 } },
+      keys: { goal: 'k-goal', '1': 'k-1' },
+      categories: { injection: 'pass' },
+      gate: 'pass',
+    });
+    appendContractRun(paths, parent, T, 'b'); // SW-0001, seeded directly — no preflight call, so budget.json doesn't exist yet
+    const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : 0.05) });
+    const r = await runChange('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
+  });
 });

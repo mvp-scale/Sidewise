@@ -1,16 +1,17 @@
 // drill: down from one item (sweep shape) or one category (class shape), depending on the parent's own shape.
 import { describe, expect, it } from 'vitest';
-import { appendRun, isContractRun, readLedger } from '../../src/ledger/log.ts';
+import { appendContractRun, appendRun, isContractRun, readLedger } from '../../src/ledger/log.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runLoop } from '../../src/verbs/loop.ts';
 import { runScan } from '../../src/verbs/scan.ts';
 import { runDrill } from '../../src/verbs/drill.ts';
 import { runView } from '../../src/verbs/view.ts';
 import { tempProject } from '../helpers/project.ts';
-import { sampleRun } from '../helpers/runs.ts';
+import { sampleContractRun, sampleRun } from '../helpers/runs.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
 
 const env = { SIDEWISE_ACTOR: 'r' };
+const T = Date.parse('2026-09-26T12:00:00Z');
 
 describe('drill: parent and from resolution', () => {
   it('a parent not in the ledger stops, naming the id', async () => {
@@ -114,6 +115,29 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
   });
+
+  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
+    // Seeded directly (not run for real), so budget.json doesn't exist yet — drill's own preflight is the first.
+    const parent = sampleContractRun({
+      items: {
+        'src/a.ts/findUser': {
+          layer: 'function',
+          fill: { file: 'src/a.ts', function: 'findUser' },
+          unit: { path: 'src/a.ts', kind: 'function', name: 'findUser', lines: '1-1' },
+          status: 'asked',
+          gate: 'fail',
+          categories: { injection: 'fail' },
+        },
+      },
+      ask: { categories: [], layers: [{ name: 'function', categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'is it unsafe?' }] }] }] },
+      over: { file: 'src/*.ts', function: 'each' },
+    });
+    appendContractRun(paths, parent, T, 'b'); // SW-0001
+    const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
+  });
 });
 
 describe('drill: a sweep parent (loop) — an idea item has no unit, unlike scan/class [C-075] [C-076]', () => {
@@ -195,5 +219,14 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95, adapter: 'fake' }), env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
+  });
+
+  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
+    // Seeded directly (not run for real), so budget.json doesn't exist yet — drill's own preflight is the first.
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // SW-0001: the default "injection" category
+    const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95 }), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
   });
 });

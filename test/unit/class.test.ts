@@ -47,6 +47,15 @@ describe('class', () => {
     const runs = readLedger(paths).filter(isContractRun);
     expect(runs[1]).toMatchObject({ id: 'SW-0002', calls: 0 });
     expect(loadBudget(paths).state.runs).toBe(1); // the free run isn't counted
+    expect(r2.text).not.toContain('budget file created'); // only the run that actually created it says so
+  });
+
+  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const r = await runClass(CLASS_YAML, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
   });
 
   it('--dry-run: no provider call, no budget file, no ledger line [C-088]', async () => {
@@ -101,6 +110,6 @@ describe('class', () => {
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' }, adapter: 'fake' });
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('notes: [adapter fake · not evidence, budget');
+    expect(r.text).toContain('adapter fake · not evidence');
   });
 });

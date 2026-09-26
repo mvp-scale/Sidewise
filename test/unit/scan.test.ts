@@ -135,4 +135,12 @@ describe('scan', () => {
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
   });
+
+  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+    const { paths } = tempProject(FILES);
+    const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
+    const r = await runScan(REQUEST, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
+  });
 });

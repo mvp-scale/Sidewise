@@ -44,6 +44,13 @@ function notCounted(e: unknown): { ok: false; result: VerbResult } {
   throw e;
 }
 
+/** BRIEF §5: a missing budget file is created with defaults, "and the answer says so" — once, on whichever run's
+ * preflight finds it missing (loadBudget creates it right there; every verb threads preflight's own `created`
+ * back into that same run's notes: — see commonNotes' callers). */
+export function createdNote(state: BudgetState): string {
+  return `budget file created with defaults ($${state.capUsd.toFixed(2)} · ${state.capRuns} runs)`;
+}
+
 /** Before any call: a budget with room, and a ledger that reads cleanly and can be written. */
 export function preflight(ctx: VerbContext): Step<{ state: BudgetState; created: boolean }> {
   const now = ctx.now ?? Date.now;

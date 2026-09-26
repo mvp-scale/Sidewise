@@ -8,7 +8,7 @@ import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.t
 import { m } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
 import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
-import { actorOf, preflight } from './pay.ts';
+import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
 import { commonNotes, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
 import { planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
@@ -67,7 +67,11 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
       m(['id', id], ['gate', gate], ['goal', m(['gate', goal], ['p', goalAnswer?.p ?? 0])], ['failing', failing], ['passing', passing]),
       wiseRecorded(request.wise),
       sweepNext(id, gate, worst, graded, 'act on it'),
-      commonNotes(loaded.notes, `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`, ctx.provider.adapter),
+      commonNotes(
+        [...loaded.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])],
+        `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
+        ctx.provider.adapter,
+      ),
     );
 
   const run: NewContractRun = {

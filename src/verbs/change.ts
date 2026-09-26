@@ -13,7 +13,7 @@ import { findRun, isContractRun, type NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type Reusable } from '../ledger/reuse.ts';
 import { m, type Value } from '../contract/emit.ts';
-import { actorOf, askAll, preflight, record, recordFree, type PlannedCall } from './pay.ts';
+import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
 import { commonNotes, dryRunText, outcomeNext, regressionNext, respondText, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
@@ -149,7 +149,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
       regressed.length
         ? regressionNext(id, regressed, categories)
         : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
-      commonNotes([...loaded.notes, ...evidenceNotes], `2 states · ${budget}`, ctx.provider.adapter),
+      commonNotes([...loaded.notes, ...evidenceNotes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])], `2 states · ${budget}`, ctx.provider.adapter),
     );
 
   const run: NewContractRun = {

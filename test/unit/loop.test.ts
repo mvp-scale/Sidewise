@@ -24,7 +24,7 @@ describe('loop', () => {
     // worstFirst picks the worst item (most fails, then unsures): refunds (2 failing categories) over
     // payments itself (1) or partial capture (0 fails, 1 unsure) — matches the contract's own golden example.
     expect(r.text).toContain('next: sidewise template drill --parent SW-0001 --from payments/refunds');
-    expect(r.text).toMatch(/notes: \[2 calls · 16 questions · budget \d+% used/);
+    expect(r.text).toMatch(/2 calls · 16 questions · budget \d+% used/);
     expect(r.run).toBeDefined();
   });
 
@@ -86,5 +86,14 @@ describe('loop', () => {
     const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes, adapter: 'fake' }), env: {} });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
+  });
+
+  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+    const { paths } = tempProject({});
+    const yes = (q: { id: string }) =>
+      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
+    const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes }), env: {} });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
   });
 });
