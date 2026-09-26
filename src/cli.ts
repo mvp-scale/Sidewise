@@ -4,7 +4,7 @@
  * request or usage · 3 budget blocked. Answers go to stdout; stops and errors go to stderr.
  */
 import { readFileSync } from 'node:fs';
-import { parseArgs } from 'node:util';
+import { parseArgs, type ParseArgsConfig } from 'node:util';
 import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './budget/budget.ts';
 import { selectProvider } from './classifier/select.ts';
 import { LockError } from './ledger/lock.ts';
@@ -27,6 +27,23 @@ function finish(code: number, text: string): void {
   process.exitCode = code;
 }
 
+/** parseArgs, or undefined on an unknown flag, a missing value or a stray positional (the caller prints usage, exit 2). */
+function args<T extends ParseArgsConfig>(config: T): ReturnType<typeof parseArgs<T>> | undefined {
+  try {
+    return parseArgs(config);
+  } catch {
+    return undefined;
+  }
+}
+
+const BUDGET_EXAMPLE = 'e.g. sidewise budget set --usd 5 --runs 500';
+
+/** A --usd/--runs value as a positive finite number, or a stop naming the bad value. */
+function cap(flag: string, raw: string): number | string {
+  const n = Number(raw);
+  return raw.trim() !== '' && Number.isFinite(n) && n > 0 ? n : `✖ budget: --${flag} must be a positive number, got "${raw}" → ${BUDGET_EXAMPLE}`;
+}
+
 async function main(argv: string[]): Promise<void> {
   const [command, ...rest] = argv;
   const paths = resolvePaths();
@@ -44,7 +61,9 @@ async function main(argv: string[]): Promise<void> {
       return finish(r.exit, r.text);
     }
     case 'view': {
-      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { level: { type: 'string', default: '1' } } });
+      const parsed = args({ args: rest, allowPositionals: true, options: { level: { type: 'string', default: '1' } } });
+      if (!parsed) return finish(2, USAGE);
+      const { values, positionals } = parsed;
       const level = Number(values.level);
       const target = positionals[0];
       if (!target || (level !== 1 && level !== 2 && level !== 3)) return finish(2, USAGE);
@@ -52,7 +71,9 @@ async function main(argv: string[]): Promise<void> {
       return finish(r.exit, r.text);
     }
     case 'outcome': {
-      const { values, positionals } = parseArgs({ args: rest, allowPositionals: true, options: { by: { type: 'string' } } });
+      const parsed = args({ args: rest, allowPositionals: true, options: { by: { type: 'string' } } });
+      if (!parsed) return finish(2, USAGE);
+      const { values, positionals } = parsed;
       const [id, outcome] = positionals;
       if (!id || !outcome || !OUTCOMES.includes(outcome) || !values.by) return finish(2, USAGE);
       const rec = appendOutcome(paths, id, outcome as Outcome, values.by);
@@ -63,10 +84,17 @@ async function main(argv: string[]): Promise<void> {
       if (sub === 'show') return finish(0, budgetLine(loadBudget(paths).state));
       if (sub === 'reset') return finish(0, `reset · ${budgetLine(resetBudget(paths))}`);
       if (sub === 'set') {
-        const { values } = parseArgs({ args: more, options: { usd: { type: 'string' }, runs: { type: 'string' } } });
+        const parsed = args({ args: more, options: { usd: { type: 'string' }, runs: { type: 'string' } } });
+        if (!parsed) return finish(2, USAGE);
+        const { usd, runs } = parsed.values;
+        if (usd === undefined && runs === undefined) return finish(2, `✖ budget: set needs --usd or --runs → ${BUDGET_EXAMPLE}`);
+        const capUsd = usd === undefined ? undefined : cap('usd', usd);
+        const capRuns = runs === undefined ? undefined : cap('runs', runs);
+        const stops = [capUsd, capRuns].filter((v): v is string => typeof v === 'string');
+        if (stops.length) return finish(2, stops.join('\n'));
         const caps = {
-          ...(values.usd !== undefined ? { capUsd: Number(values.usd) } : {}),
-          ...(values.runs !== undefined ? { capRuns: Number(values.runs) } : {}),
+          ...(typeof capUsd === 'number' ? { capUsd } : {}),
+          ...(typeof capRuns === 'number' ? { capRuns } : {}),
         };
         return finish(0, `set · ${budgetLine(setBudget(paths, caps))}`);
       }

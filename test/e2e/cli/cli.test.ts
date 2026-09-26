@@ -64,6 +64,27 @@ describe('sidewise CLI (built)', () => {
     expect(sidewise(root, ['view']).status).toBe(2);
   });
 
+  it('usage mistakes exit 2: unknown flags, bad budget numbers, budget set with no flags', () => {
+    const { root } = tempProject();
+    const unknown = sidewise(root, ['view', 'src', '--lvl', '2']);
+    expect(unknown.status).toBe(2);
+    expect(unknown.stderr).toContain('usage:');
+    expect(sidewise(root, ['outcome', 'SW-0001', 'held', '--who', 'owner']).status).toBe(2);
+    expect(sidewise(root, ['budget', 'set', '--usd']).status).toBe(2);
+
+    const abc = sidewise(root, ['budget', 'set', '--usd', 'abc']);
+    expect(abc.status).toBe(2);
+    expect(abc.stderr).toBe('✖ budget: --usd must be a positive number, got "abc" → e.g. sidewise budget set --usd 5 --runs 500\n');
+    const zero = sidewise(root, ['budget', 'set', '--runs', '0']);
+    expect(zero.status).toBe(2);
+    expect(zero.stderr).toContain('✖ budget: --runs must be a positive number, got "0"');
+
+    const none = sidewise(root, ['budget', 'set']);
+    expect(none.status).toBe(2);
+    expect(none.stderr).toBe('✖ budget: set needs --usd or --runs → e.g. sidewise budget set --usd 5 --runs 500\n');
+    expect(sidewise(root, ['budget']).stdout).toBe('budget 0% used ($0.00 of $5.00 · 0 of 500 runs)\n');
+  });
+
   it('a held lock exits 1 with one clean "✖ lock:" line, even for a budget command', () => {
     const { root } = tempProject();
     mkdirSync(path.join(root, '.sidewise'), { recursive: true });
