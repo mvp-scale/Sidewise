@@ -1,6 +1,6 @@
 #!/bin/sh
 # Run the default test tiers in a clean container per Node version, sequentially, capped for a shared box.
-#   SIDEWISE_NODE_VERSIONS="20 22 24" npm run test:container
+#   SIDEWISE_NODE_VERSIONS="22 24" npm run test:container
 set -eu
 cd "$(dirname "$0")/.."
 VERSIONS="${SIDEWISE_NODE_VERSIONS:-22}"

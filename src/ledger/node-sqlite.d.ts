@@ -1,7 +1,8 @@
 /**
  * Minimal ambient types for node:sqlite (stable since Node 22.13), only what ledger/index.ts calls. The pinned
- * devDependency @types/node (20.19.43, matching the old Node 20 floor) predates this module, so tsc has nothing
- * to check it against; this file exists only so `import('node:sqlite')` type-checks, not to model the whole API.
+ * devDependency @types/node (22.19.18) ships its own, fuller node:sqlite types now too; this file's declarations
+ * merge with theirs harmlessly (tsconfig's skipLibCheck) and stay as a floor in case @types/node is ever pinned
+ * back below 22.5 — this file exists so `import('node:sqlite')` type-checks either way, not to model the whole API.
  */
 declare module 'node:sqlite' {
   export interface DatabaseSyncOptions {

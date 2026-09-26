@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22, 24]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -32,4 +32,5 @@ jobs:
       - run: sh scripts/check-clean.sh --all
       - run: npm run typecheck
       - run: npm test
-      - run: npm pack --dry-run
+      - run: npm run build
+      - run: npm run check:pack

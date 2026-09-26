@@ -9,11 +9,13 @@
 | Default tests (unit, contract, golden; no network, no build) | `npm test` |
 | CLI end-to-end (builds first) | `npm run test:cli` |
 | Agent chaos harness (capped, costs real money; not part of `npm test`) | `npm run test:chaos` |
-| Clean-room container (Node 22; set `SIDEWISE_NODE_VERSIONS="20 22 24"` for the matrix) | `npm run test:container` |
+| Clean-room container (Node 22; set `SIDEWISE_NODE_VERSIONS="22 24"` for the matrix) | `npm run test:container` |
 | Ledger scale bench (not part of `npm test`; run by hand or nightly) | `npm run bench:ledger -- --sizes 10000,100000` |
 | Token-format bench (regenerates `docs/evidence/tokens.md`) | `npm run bench:tokens` |
 | Check staged files before a commit (also runs as the pre-commit hook) | `npm run check:clean` |
 | Requirement -> test trace (fails on an untraced contract claim) | `npm run check:trace` |
+| Clean install + README quickstart, built first (`npm run build`) | `npm run test:install` |
+| Tarball content check (files allow-list, required entry points) | `npm run check:pack` |
 | Validate the Claude Code plugin and marketplace | `claude plugin validate .` |
 
 ## Rules

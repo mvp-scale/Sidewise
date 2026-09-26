@@ -35,7 +35,6 @@
     "dist",
     "skills",
     ".claude-plugin",
-    "hooks",
     "README.md",
     "LICENSE"
   ],
@@ -48,6 +47,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --project unit --project contract --project golden",
     "test:cli": "npm run build && vitest run --project cli",
+    "test:install": "npm run build && vitest run --project install",
     "test:chaos": "npm run build && tsx test/chaos/run.ts",
     "test:container": "sh docker/test.sh",
     "bench:ledger": "tsx scripts/bench-ledger.ts",
@@ -55,10 +55,11 @@
     "sidewise": "tsx src/cli.ts",
     "check:clean": "sh scripts/check-clean.sh",
     "check:trace": "tsx scripts/trace.ts",
+    "check:pack": "tsx scripts/check-pack.ts",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "devDependencies": {
-    "@types/node": "20.19.43",
+    "@types/node": "22.19.18",
     "ajv": "8.20.0",
     "js-tiktoken": "1.0.21",
     "tsx": "4.23.15",
