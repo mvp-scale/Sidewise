@@ -11,6 +11,7 @@ import type { Verb } from '../../src/contract/types.ts';
 import { validateRequest } from '../../src/contract/validate.ts';
 import { seededRandom } from '../../src/util/prng.ts';
 
+// [C-003] the public schema file (docs/contract.md's single named source) is the one checked here.
 const schema = JSON.parse(readFileSync('skills/sidewise/references/request.schema.json', 'utf8')) as object;
 const ajvValid = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
 const ROOT = 'test/fixtures/requests';

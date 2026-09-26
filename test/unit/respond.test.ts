@@ -33,7 +33,7 @@ describe('respondText / subjectSide / categoryEntry (the contract class golden, 
 });
 
 describe('wiseRecorded', () => {
-  it('only the fields actually set; extras always append; nothing at all is "none"', () => {
+  it('only the fields actually set; extras always append; nothing at all is "none" [C-044]', () => {
     expect(wiseRecorded({ why: 'validate' })).toEqual(['why']);
     expect(wiseRecorded({ area: 'api' })).toEqual(['area']);
     expect(wiseRecorded(null)).toBe('none');
@@ -45,12 +45,12 @@ describe('wiseRecorded', () => {
 describe('outcomeNext', () => {
   const cats: Category[] = [cat('injection', 'no', [1]), cat('access', 'no', [2])];
   const graded = [gradeCategory(cats[0]!, () => ({ kind: 'yesno', p: 0.9 })), gradeCategory(cats[1]!, () => ({ kind: 'yesno', p: 0.1 }))];
-  it("pass uses the caller's own text; fail/unsure drill the first matching category, in written order", () => {
+  it("pass uses the caller's own text; fail/unsure drill the first matching category, in written order [C-045] [C-058]", () => {
     expect(outcomeNext('SW-1', 'pass', graded, cats, 'act on it')).toBe('act on it');
     expect(outcomeNext('SW-1', 'fail', graded, cats, 'act on it')).toBe('sidewise template drill --parent SW-1 --from injection');
   });
 
-  it('every category passes but the gate is not pass (only the goal missed): says so, not categories[0]', () => {
+  it('every category passes but the gate is not pass (only the goal missed): says so, not categories[0] [C-046]', () => {
     const allPass = [gradeCategory(cats[0]!, () => ({ kind: 'yesno', p: 0.1 })), gradeCategory(cats[1]!, () => ({ kind: 'yesno', p: 0.1 }))];
     expect(outcomeNext('SW-1', 'fail', allPass, cats, 'act on it')).toBe('the goal missed though every part passed · fix what is missing, then run it again');
   });
@@ -74,7 +74,7 @@ describe('sweepNext', () => {
     expect(sweepNext('SW-1', 'fail', [], graded, 'act on it')).toBe('the goal missed though every part passed · fix what is missing, then run it again');
   });
 
-  it('nothing graded at all (every item skipped past the depth cap): says so', () => {
+  it('nothing graded at all (every item skipped past the depth cap): says so [C-046]', () => {
     expect(sweepNext('SW-1', 'unsure', [], [], 'act on it')).toBe('every item was skipped · raise depth or narrow over, then run it again');
   });
 });

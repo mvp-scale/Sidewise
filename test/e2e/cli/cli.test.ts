@@ -61,7 +61,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(drilled.status).toBe(0);
   });
 
-  it('change: the flag form and the file form both work; --dry-run spends nothing', () => {
+  it('change: the flag form and the file form both work; --dry-run spends nothing [C-066]', () => {
     const root = project();
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
     const dry = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--dry-run']);

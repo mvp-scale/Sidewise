@@ -21,13 +21,13 @@ describe('checkSchema', () => {
     expect(checkSchema(bad).every((s) => s.cls === 'schema')).toBe(true);
   });
 
-  it('the root: a mapping with side:, and only side: and wise:', () => {
+  it('the root: a mapping with side:, and only side: and wise: [C-004]', () => {
     expect(texts('hello')).toEqual(['✖ request: is not a mapping → start with side:']);
     expect(texts({ wise: {} })).toEqual(['✖ side: missing → start with side: and a goal']);
     expect(texts({ ...base(), focus: 'x' })).toEqual(['✖ focus: not a block → the request holds only side: and wise:; put fields under side:']);
   });
 
-  it('side fields: unknown, goal, depth, where, parent, compare, verb, from', () => {
+  it('side fields: unknown, goal, depth, where, parent, compare, verb, from [C-010]', () => {
     const r = base();
     r.side.level = 1;
     expect(texts(r)).toEqual(['✖ side.level: not a field → use goal, depth, where, parent, ask, over, from, compare or verb']);
@@ -54,7 +54,7 @@ describe('checkSchema', () => {
     expect(texts(v)).toEqual(['✖ side.verb: "judge" → use view, class, change, scan, drill or loop, or leave it out']);
   });
 
-  it('questions: not a question, no "?", too long, a broken scale or choice', () => {
+  it('questions: not a question, no "?", too long, a broken scale or choice [C-021]', () => {
     const at = (q: unknown): string[] => {
       const r = base();
       r.side.ask.injection[1] = q;
@@ -71,7 +71,7 @@ describe('checkSchema', () => {
     expect(at({ ask: 'x?' })).toEqual(['✖ question 1: is not a question → write "N: <question>?", or scale: + levels:, or choice: + options:']);
   });
 
-  it('categories: pass, need, tags, keys, names', () => {
+  it('categories: pass, need, tags, keys, names [C-019]', () => {
     const r = base();
     r.side.ask.injection.pass = 'maybe';
     expect(texts(r)).toEqual(['✖ side.ask.injection.pass: "maybe" → use yes, no, or a list of the passing levels or options']);
@@ -92,7 +92,7 @@ describe('checkSchema', () => {
     expect(texts(nopass)).toEqual(['✖ side.ask.injection: has questions but no pass → add "pass: yes" or "pass: no"']);
   });
 
-  it('a sweep: layer → categories; over holds lists or patterns', () => {
+  it('a sweep: layer → categories; over holds lists or patterns [C-013]', () => {
     const r = base();
     r.side.over = { part: ['a', 'b'] };
     r.side.ask = { part: { boundaries: { pass: 'yes', 1: 'Does {part} own one thing?' } } };
@@ -103,7 +103,7 @@ describe('checkSchema', () => {
     expect(texts(r)).toEqual(['✖ side.over.part: 0 items → give 1–30 items']);
   });
 
-  it('wise: only why, area, parent', () => {
+  it('wise: only why, area, parent [C-016] [C-017]', () => {
     const r = base();
     r.wise = { why: 'explore', area: 'backend', mood: 'x' };
     expect(texts(r)).toEqual([

@@ -54,6 +54,7 @@
     "bench:tokens": "tsx scripts/bench-tokens.ts",
     "sidewise": "tsx src/cli.ts",
     "check:clean": "sh scripts/check-clean.sh",
+    "check:trace": "tsx scripts/trace.ts",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "devDependencies": {

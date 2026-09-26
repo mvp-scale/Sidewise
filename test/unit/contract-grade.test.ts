@@ -14,14 +14,14 @@ const cat = (name: string, pass: Category['pass'], nums: number[], need: Categor
 });
 
 describe('the bar', () => {
-  it('pass: yes clears at ≥ 0.70; pass: no clears at ≤ 0.30; the mirror image is a clear miss', () => {
+  it('pass: yes clears at ≥ 0.70; pass: no clears at ≤ 0.30; the mirror image is a clear miss [C-024] [C-025] [C-026]', () => {
     const y = cat('y', 'yes', [1]);
     const n = cat('n', 'no', [1]);
     expect([0.7, 0.69, 0.31, 0.3].map((p) => markOf(passingProbability(y, yes(p))))).toEqual(['pass', 'mid', 'mid', 'miss']);
     expect([0.3, 0.31, 0.69, 0.7].map((p) => markOf(passingProbability(n, yes(p))))).toEqual(['pass', 'mid', 'mid', 'miss']);
   });
 
-  it('scale and choice: the total probability of the passing levels or options', () => {
+  it('scale and choice: the total probability of the passing levels or options [C-027]', () => {
     const sev: Category = { name: 'sev', pass: ['none', 'low'], need: 'all', tags: [], questions: [{ n: 11, kind: 'scale', text: 'How bad?', levels: ['none', 'low', 'high'] }] };
     expect(passingProbability(sev, { kind: 'scale', dist: { none: 0.4, low: 0.35, high: 0.25 } })).toBeCloseTo(0.75, 12);
     expect(markOf(passingProbability(sev, { kind: 'scale', dist: { none: 0.3, low: 0.3, high: 0.4 } }))).toBe('mid');
@@ -31,16 +31,16 @@ describe('the bar', () => {
 
 describe('gates', () => {
   const g = (need: Category['need'], marks: Mark[]) => gateOf(need, marks);
-  it('all: every answer clears; any clear miss fails; otherwise unsure', () => {
+  it('all: every answer clears; any clear miss fails; otherwise unsure [C-028]', () => {
     expect([g('all', ['pass', 'pass']), g('all', ['pass', 'mid']), g('all', ['pass', 'miss'])]).toEqual(['pass', 'unsure', 'fail']);
   });
-  it('most: ≥ ⅔ clear and none a clear miss', () => {
+  it('most: ≥ ⅔ clear and none a clear miss [C-029]', () => {
     expect([g('most', ['pass', 'pass', 'mid']), g('most', ['pass', 'mid', 'mid']), g('most', ['pass', 'pass', 'miss'])]).toEqual(['pass', 'unsure', 'fail']);
   });
-  it('any: one clearing is enough; all clear misses fail; otherwise unsure', () => {
+  it('any: one clearing is enough; all clear misses fail; otherwise unsure [C-030]', () => {
     expect([g('any', ['miss', 'pass']), g('any', ['miss', 'miss']), g('any', ['miss', 'mid'])]).toEqual(['pass', 'fail', 'unsure']);
   });
-  it('combine: fail > unsure > pass; the goal passes at ≥ 0.70', () => {
+  it('combine: fail > unsure > pass; the goal passes at ≥ 0.70 [C-031]', () => {
     expect([combine(['pass', 'unsure']), combine(['unsure', 'fail']), combine([]), combine(['pass'])]).toEqual(['unsure', 'fail', 'pass', 'pass']);
     expect([goalGate(0.74), goalGate(0.5), goalGate(0.08)]).toEqual(['pass', 'unsure', 'fail']);
   });
@@ -73,7 +73,7 @@ describe('gradeItems (the contract loop example)', () => {
   for (const it of items) for (const n of it.layer === 'part' ? [1, 2] : [3, 4]) answers[`${it.id}#${n}`] = yes(n === 4 ? 0.1 : 0.9);
   Object.assign(answers, { 'payments#2': yes(0.18), 'payments/refunds#3': yes(0.22), 'payments/refunds#4': yes(0.91), 'payments/partial capture#4': yes(0.48) });
 
-  it('an item fails if it or a child fails; the run gate rolls up from the top items and the goal', () => {
+  it('an item fails if it or a child fails; the run gate rolls up from the top items and the goal [C-032] [C-082]', () => {
     const grades = gradeItems(items, (l) => layers[l] ?? [], () => 'asked', answers);
     expect(grades.get('payments')).toMatchObject({ ownGate: 'fail', gate: 'fail' });
     expect(grades.get('gateway')).toMatchObject({ ownGate: 'pass', gate: 'pass' });

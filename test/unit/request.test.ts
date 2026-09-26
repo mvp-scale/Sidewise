@@ -9,7 +9,7 @@ describe('loadRequest', () => {
     expect(r.ok && r.request.side.goal).toBe('This login handler is safe to merge');
   });
 
-  it('a parse stop or validation stops exit 2', () => {
+  it('a parse stop or validation stops exit 2 [C-002]', () => {
     expect(loadRequest('', 'class')).toEqual({ ok: false, result: { exit: 2, text: '✖ request: empty → start with "side:" (sidewise template class prints a skeleton)' } });
     const r = loadRequest('side:\n  goal: The handler is safe\n', 'class');
     expect(!r.ok && r.result.exit).toBe(2);

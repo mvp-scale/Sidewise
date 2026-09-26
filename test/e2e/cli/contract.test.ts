@@ -13,7 +13,7 @@ function ledgerAgreesWithBudget(root: string): void {
 }
 
 describe('the contract, end to end, through the built CLI', () => {
-  it('view → class → outcome → change → scan → template drill → drill → loop, one project', () => {
+  it('view → class → outcome → change → scan → template drill → drill → loop, one project [C-051] [C-057] [C-061] [C-067] [C-068] [C-074] [C-080]', () => {
     const { root } = tempProject();
     writeFileSync(path.join(root, 'class.yaml'), readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8'));
 

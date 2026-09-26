@@ -10,7 +10,7 @@ const tenSlots = (fwd: number, rev: number, override: Record<number, number> = {
   });
 
 describe('computeConsensus', () => {
-  it('STRONG concern when forward slots say yes and reversed slots say no', () => {
+  it('STRONG concern when forward slots say yes and reversed slots say no [C-033]', () => {
     const r = computeConsensus(tenSlots(0.9, 0.1));
     expect(r).toMatchObject({ consensus: 'STRONG', verdict: 'concern', reverseConsistent: true });
     expect(r.agreement).toBe(1);

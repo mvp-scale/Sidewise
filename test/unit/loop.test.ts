@@ -1,7 +1,7 @@
 // loop: the contract's own example end to end, tree order for failing: and passing:.
 import { describe, expect, it } from 'vitest';
 import { runLoop } from '../../src/verbs/loop.ts';
-import { readLedger } from '../../src/ledger/log.ts';
+import { isContractRun, readLedger } from '../../src/ledger/log.ts';
 import { tempProject } from '../helpers/project.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
 
@@ -9,7 +9,7 @@ const LOOP =
   'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout, saved cards]\n      - name: payments\n        story: [refunds, retries, partial capture]\n      - ledger\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n        2: Can {part} be deployed without the others?\n    story:\n      done:\n        pass: yes\n        3: Is "{story}" testable against {part} as written?\n      risk:\n        pass: no\n        4: Does "{story}" need data {part} doesn\'t own?\nwise:\n  why: validate\n  area: api\n';
 
 describe('loop', () => {
-  it('the contract example: payments and its failing children show up, tree order, worst-target next', async () => {
+  it('the contract example: payments and its failing children show up, tree order, worst-target next [C-079] [C-081]', async () => {
     const { paths } = tempProject({});
     const yes = (q: { id: string }) =>
       q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
@@ -62,5 +62,20 @@ describe('loop', () => {
     expect(r.text).toContain('goal: {gate: fail, p: 0.10}');
     expect(r.text).toContain('passing: [gateway, payments]');
     expect(r.text).toContain('next: the goal missed though every part passed · fix what is missing, then run it again');
+  });
+
+  it('the full per-item category record is kept in the ledger even though no per-layer query surfaces it yet [C-083]', async () => {
+    const { paths } = tempProject({});
+    const yes = (q: { id: string }) =>
+      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
+    const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes }), env: {} });
+    // Unlike class (view's request mode reads a per-category, per-place record straight off the ledger),
+    // a sweep run's own top-level `categories` is always {} — the per-item categories below are the only
+    // place this run's grading lives, and today only this run's own response reads them back, not a
+    // dedicated cross-run pattern query. That's the real, current shape of "Wise learns" for loop.
+    if (!r.run || !isContractRun(r.run)) throw new Error('expected a v2 contract run');
+    expect(r.run.categories).toEqual({});
+    expect(r.run.items?.['payments']?.categories).toEqual({ boundaries: 'fail' });
+    expect(r.run.items?.['payments/refunds']?.categories).toEqual({ done: 'fail', risk: 'fail' });
   });
 });

@@ -17,7 +17,7 @@ const FILES = {
 };
 
 describe('scan', () => {
-  it('the contract shape: scanned, failing worst first, passing/reused as counts', async () => {
+  it('the contract shape: scanned, failing worst first, passing/reused as counts [C-069]', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
     const r = await runScan(REQUEST, { paths, provider, env });
@@ -30,7 +30,7 @@ describe('scan', () => {
     expect(provider.calls).toHaveLength(1); // one call: the function layer (file has no ask categories)
   });
 
-  it('a second scan of unchanged code is free', async () => {
+  it('a second scan of unchanged code is free [C-071] [C-072]', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
     const r1 = await runScan(REQUEST, { paths, provider, env });
@@ -49,7 +49,7 @@ describe('scan', () => {
     expect(runs[1]).toMatchObject({ id: 'SW-0002', verb: 'scan', calls: 0 });
   });
 
-  it('a changed function forces exactly one new call carrying only it; the unchanged one stays reused', async () => {
+  it('a changed function forces exactly one new call carrying only it; the unchanged one stays reused [C-036]', async () => {
     const { root, paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
     await runScan(REQUEST, { paths, provider, env });
@@ -93,7 +93,7 @@ describe('scan', () => {
     expect(r.text).toContain('wise: {recorded: [why, area]}');
   });
 
-  it('a goal that misses the bar on an all-passing scan: next says so, not a passing item', async () => {
+  it('a goal that misses the bar on an all-passing scan: next says so, not a passing item [C-070]', async () => {
     const { paths } = tempProject(FILES);
     // Every function passes injection (pass: no, low P(yes)); only the goal itself misses the 0.70 bar, so
     // worstFirst has nothing to point at — this used to throw on worst[0]!.id, then (fix round 1) wrongly
@@ -108,7 +108,7 @@ describe('scan', () => {
     expect(r.text).toContain('next: the goal missed though every part passed · fix what is missing, then run it again');
   });
 
-  it('a glob matching nothing and a missed goal: next says every item was skipped, not a crash', async () => {
+  it('a glob matching nothing and a missed goal: next says every item was skipped, not a crash [C-070]', async () => {
     const { paths } = tempProject(FILES); // FILES are on disk, but the pattern below matches none of them
     const NOTHING_MATCHES =
       'side:\n  goal: Handlers don\'t trust request input\n  depth: quick\n  over:\n    file: src/nope/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\nwise:\n  why: find\n  area: api\n';

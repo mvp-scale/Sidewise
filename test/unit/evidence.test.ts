@@ -8,7 +8,7 @@ import { tempProject } from '../helpers/project.ts';
 const GH_TOKEN = 'gh' + 'p_' + 'z'.repeat(30);
 
 describe('readCodeEvidence', () => {
-  it('reads a file, or just its lines, keyed by the shown path', () => {
+  it('reads a file, or just its lines, keyed by the shown path [C-012]', () => {
     const { root } = tempProject({ 'src/a.ts': 'one\ntwo\nthree\nfour\n' });
     const r = readCodeEvidence(root, ['src/a.ts:2-3', './src/a.ts']);
     expect(r).toEqual({ ok: true, evidence: { files: { 'src/a.ts:2-3': 'two\nthree', 'src/a.ts': 'one\ntwo\nthree\nfour\n' }, notes: [] } });

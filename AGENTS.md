@@ -13,6 +13,7 @@
 | Ledger scale bench (not part of `npm test`; run by hand or nightly) | `npm run bench:ledger -- --sizes 10000,100000` |
 | Token-format bench (regenerates `docs/evidence/tokens.md`) | `npm run bench:tokens` |
 | Check staged files before a commit (also runs as the pre-commit hook) | `npm run check:clean` |
+| Requirement -> test trace (fails on an untraced contract claim) | `npm run check:trace` |
 | Validate the Claude Code plugin and marketplace | `claude plugin validate .` |
 
 ## Rules
@@ -26,6 +27,7 @@
 7. **Help first.** A validation stop has to say what to change (`✖ field: problem → fix`). Everything else is a note.
 8. **Match the surrounding code.** Give each module a short header comment saying why it exists. Keep runtime dependencies minimal.
 9. **Public repo.** Local notes go in `lab/`, which is gitignored and blocked by the pre-commit hook. Never commit machine paths, keys, or internal tracker IDs.
+10. **Trace new claims.** A new test for a claim in `docs/contract.md` carries its `[C-###]` tag (title or a comment above the assertion); `npm run check:trace` checks this, but it is not wired into the pre-commit hook (it scans the whole `test/` tree, which `check-clean.sh` intentionally keeps fast) — run it by hand before a PR that touches the contract.
 
 ## Layout
 

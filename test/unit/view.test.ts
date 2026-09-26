@@ -11,7 +11,7 @@ import { sampleRun } from '../helpers/runs.ts';
 const at = (day: number) => Date.parse(`2026-09-${String(day).padStart(2, '0')}T12:00:00Z`);
 
 describe('view', () => {
-  it('a folder shows outcome counts and runs newest first; a tag works too', () => {
+  it('a folder shows outcome counts and runs newest first; a tag works too [C-055]', () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun({ focus: 'first' }), at(20));
     appendRun(paths, sampleRun({ focus: 'second', where: [{ path: 'src/db/pool.ts' }], tags: ['perf'] }), at(21));
@@ -61,7 +61,7 @@ describe('view', () => {
     expect(runView('src', 2, { paths, env: {} }).text.split('\n')).toHaveLength(13);
   });
 
-  it('a run id shows its lineage up and down', () => {
+  it('a run id shows its lineage up and down [C-055]', () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun({ focus: 'root' }), at(20));
     appendRun(paths, sampleRun({ focus: 'child', parent: 'SW-0001' }), at(21));
@@ -83,7 +83,7 @@ describe('view', () => {
 });
 
 describe('view: request mode', () => {
-  it('the contract example, no history: runs 0, next class, free', async () => {
+  it('the contract example, no history: runs 0, next class, free [C-053] [C-054]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
     const text = 'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n';
     const r = runView(text, 1, { paths, env: {} });
@@ -93,7 +93,7 @@ describe('view: request mode', () => {
     );
   });
 
-  it('with history: per-category counts, and reuse when the exact question set was asked before', async () => {
+  it('with history: per-category counts, and reuse when the exact question set was asked before [C-052] [C-059]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
     // First: a real class run on this file with this exact category (Task 15's runClass), so it lands in the ledger as v2.
     await runClass(
@@ -106,7 +106,7 @@ describe('view: request mode', () => {
     expect(r.text).toContain('injection: {runs: 1, pass: 0, fail: 1, last: SW-0001}');
   });
 
-  it('reuse: the exact same request comes back as reuse, and the view call spends nothing', async () => {
+  it('reuse: the exact same request comes back as reuse, and the view call spends nothing [C-050] [C-053] [C-054]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
     // The fake adapter (Task 7) is what providerIdentity({}) names too, so the run and the lookup agree on who answered.
     const text =

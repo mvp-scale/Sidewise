@@ -26,7 +26,7 @@ describe('questions', () => {
     expect(qs[2]).toEqual({ id: 'payments#3', n: 3, kind: 'scale', text: 'How risky is payments?', item: 'payments', levels: ['low', 'high'] });
   });
 
-  it('to the port: noul, score with levels, choice with {option: option}; text and item redacted, ids kept', () => {
+  it('to the port: noul, score with levels, choice with {option: option}; text and item redacted, ids kept [C-037]', () => {
     const [a, , s, c] = itemQuestions({ ...item, id: `x ${GH_TOKEN}`, fill: { part: GH_TOKEN } }, cats);
     expect(toClassifierQuestion(a!)).toEqual({ type: 'noul', id: `x ${GH_TOKEN}#1`, ask: 'Does [redacted] mix jobs?', item: 'x [redacted]' });
     expect(toClassifierQuestion(s!)).toMatchObject({ type: 'score', levels: ['low', 'high'] });

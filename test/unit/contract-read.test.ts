@@ -15,7 +15,7 @@ const value = (text: string): unknown => {
 };
 
 describe('readRequestText', () => {
-  it('reads YAML, and JSON (valid YAML 1.2)', () => {
+  it('reads YAML, and JSON (valid YAML 1.2) [C-001]', () => {
     expect(value('side:\n  goal: The handler is safe\n')).toEqual({ side: { goal: 'The handler is safe' } });
     expect(value('{"side": {"goal": "The handler is safe"}}')).toEqual({ side: { goal: 'The handler is safe' } });
   });
@@ -24,12 +24,12 @@ describe('readRequestText', () => {
     expect(value('﻿side:\r\n  goal: abc\r\n')).toEqual(value('side:\n  goal: abc\n'));
   });
 
-  it('keeps no/yes as text (YAML 1.2), numbers question keys as strings', () => {
+  it('keeps no/yes as text (YAML 1.2), numbers question keys as strings [C-041]', () => {
     expect(value(q(4, 'no'))).toEqual({ side: { ask: { leaks: { pass: 'no', 4: 'no' } } } });
     expect(Object.keys((value(q(1, 'Is it?')) as { side: { ask: { leaks: object } } }).side.ask.leaks)).toContain('1');
   });
 
-  it('a question with ": " unquoted', () => {
+  it('a question with ": " unquoted [C-038]', () => {
     expect(stops(q(4, 'Does it log: an email?'))).toEqual(['✖ question 4 has ": " → put it in quotes']);
     expect(stops(q(4, 'Does it log:'))).toEqual(['✖ question 4 has ": " → put it in quotes']);
   });
@@ -38,7 +38,7 @@ describe('readRequestText', () => {
     expect(value(q(4, 'Is it # really safe?'))).toEqual({ side: { ask: { leaks: { pass: 'no', 4: 'Is it' } } } });
   });
 
-  it('a parse error on a line in { }, including an unclosed one reported past its end', () => {
+  it('a parse error on a line in { }, including an unclosed one reported past its end [C-040]', () => {
     expect(stops('side:\n  ask:\n    leaks: {pass: no, 4: Does it log: an email?}\n')).toEqual(['✖ yaml: line 3 puts a category or question in { } → use the indented form']);
     expect(stops('side:\n  ask:\n    leaks: {pass: no, 4: Is it #x safe?}\n')).toEqual(['✖ yaml: line 3 puts a category or question in { } → use the indented form']);
   });

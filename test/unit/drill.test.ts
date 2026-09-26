@@ -4,6 +4,7 @@ import { appendRun, isContractRun, readLedger } from '../../src/ledger/log.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runScan } from '../../src/verbs/scan.ts';
 import { runDrill } from '../../src/verbs/drill.ts';
+import { runView } from '../../src/verbs/view.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleRun } from '../helpers/runs.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
@@ -79,7 +80,7 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
   const drillReq =
     'side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0001\n  from: src/a.ts/findUser\n  depth: quick\n  over:\n    call: each\n  ask:\n    call:\n      injection:\n        pass: no\n        1: Does {call} pass request text into SQL?\n';
 
-  it("drills into a function's calls", async () => {
+  it("drills into a function's calls [C-009] [C-073] [C-075] [C-077]", async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
     await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
     const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.96 }), env });
@@ -113,7 +114,7 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
   const drillReq =
     'side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0001\n  from: injection\n  ask:\n    source:\n      pass: no\n      1: Is the value concatenated straight into the string?\n      2: Does it skip a parameterized query?\n';
 
-  it('sends new, narrower questions inside the named category', async () => {
+  it('sends new, narrower questions inside the named category [C-076] [C-077]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
     await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
     const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95 }), env });
@@ -122,6 +123,12 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     expect(r.text).toContain('consensus:');
     // Controller ruling: a one-subject parent's fail/unsure next keeps fix-then-change.
     expect(r.text).toContain('next: fix it, then sidewise change --parent SW-0001 --compare <before>..<after>');
+
+    // [C-078] the narrower "source" category drill invented becomes part of the record at this place: it
+    // rides drill's own run (where: parent.where), so view's per-category history now carries it too.
+    const viewText = 'side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    source:\n      pass: no\n      1: Is the value concatenated straight into the string?\n      2: Does it skip a parameterized query?\n';
+    const v = runView(viewText, 1, { paths, env: {} });
+    expect(v.text).toContain('source: {runs: 1, pass: 0, fail: 1, last: SW-0002}');
   });
 
   it('a from that names neither a category nor an item: a clean stop', async () => {

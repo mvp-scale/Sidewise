@@ -15,7 +15,7 @@ const env = { SIDEWISE_ACTOR: 'reviewer-7' };
 const P: Record<string, number> = { goal: 0.08, '1': 0.94, '2': 0.91, '10': 0.9, '3': 0.88, '6': 0.81, '9': 0.75, '4': 0.86, '5': 0.84, '7': 0.55, '8': 0.2 };
 
 describe('class', () => {
-  it('the contract class example: gate, categories, consensus SPLIT (Decision 3), one call, logged as v2', async () => {
+  it('the contract class example: gate, categories, consensus SPLIT (Decision 3), one call, logged as v2 [C-033] [C-034] [C-056]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
     const r = await runClass(CLASS_YAML, { paths, provider, env, now: () => Date.parse('2026-09-26T12:00:00Z') });
@@ -26,6 +26,11 @@ describe('class', () => {
     expect(r.text).toContain('consensus: SPLIT');
     expect(r.text).toContain('escalate: true');
     expect(provider.calls).toHaveLength(1);
+    // [C-035] one subject's call state is exactly {goal, code} — no run-level id/ts/actor/task ever reaches
+    // the classifier ([C-023]: those are stamped by the engine afterwards, from the run it logs, not sent).
+    expect(Object.keys(provider.calls[0]!.state)).toEqual(['goal', 'code']);
+    // [C-048] question text is never repeated in the response; the agent already has it by number.
+    expect(r.text).not.toContain('Is request text placed directly into the SQL query?');
     const [run] = readLedger(paths).filter(isContractRun);
     expect(run).toMatchObject({ id: 'SW-0001', v: 2, verb: 'class', calls: 1, consensus: 'SPLIT' });
     expect(loadBudget(paths).state.runs).toBe(1);
@@ -43,7 +48,7 @@ describe('class', () => {
     expect(loadBudget(paths).state.runs).toBe(1); // the free run isn't counted
   });
 
-  it('--dry-run: no provider call, no budget file, no ledger line', async () => {
+  it('--dry-run: no provider call, no budget file, no ledger line [C-087]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x' });
     const provider = stubProvider();
     const r = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });
@@ -53,7 +58,7 @@ describe('class', () => {
     expect(readLedger(paths)).toEqual([]);
   });
 
-  it('an oversized source file: the evidence-truncation note comes before the budget note', async () => {
+  it('an oversized source file: the evidence-truncation note comes before the budget note [C-047]', async () => {
     const big = 'x'.repeat(EVIDENCE_LIMITS.perFileChars + 5000);
     const { paths } = tempProject({ 'src/user.ts': big });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
@@ -64,7 +69,7 @@ describe('class', () => {
     expect(r.text.indexOf('truncated to')).toBeLessThan(r.text.indexOf('budget'));
   });
 
-  it('an invalid request exits 2 before touching the budget or the ledger', async () => {
+  it('an invalid request exits 2 before touching the budget or the ledger [C-002]', async () => {
     const { paths } = tempProject({});
     const r = await runClass('side:\n  goal: too short one\n', { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);

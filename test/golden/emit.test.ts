@@ -17,7 +17,7 @@ const roundTrip = (doc: Map<string, Value>): void => {
 };
 
 describe('emit (golden: the contract examples)', () => {
-  it('class', () => {
+  it('class [C-018] [C-043]', () => {
     const doc = m(
       [
         'side',
@@ -61,7 +61,7 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it('change', () => {
+  it('change [C-018]', () => {
     const doc = m(
       [
         'side',
@@ -99,7 +99,7 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it('scan: failing is a map of maps, one line per item', () => {
+  it('scan: failing is a map of maps, one line per item [C-049]', () => {
     const doc = m(
       [
         'side',

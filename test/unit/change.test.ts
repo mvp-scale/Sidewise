@@ -36,7 +36,7 @@ function markerProvider(): ClassifierPort {
 }
 
 describe('change', () => {
-  it('a class parent that has since been fixed on the worktree: fixed, no regression', async () => {
+  it('a class parent that has since been fixed on the worktree: fixed, no regression [C-060]', async () => {
     const { paths, root } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`SELECT * FROM t WHERE id = ${x}`); }\n' });
     const classText =
       'side:\n  goal: fix sql injection\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does f put request text into a query?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n';
@@ -53,7 +53,7 @@ describe('change', () => {
     expect(run).toMatchObject({ verb: 'change', parent: 'SW-0001' });
   });
 
-  it('a sweep parent stops, naming the fix', async () => {
+  it('a sweep parent stops, naming the fix [C-063]', async () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ items: {} }), T, 'b'); // SW-0001: items !== null, a sweep
     const r = await runChange('side:\n  goal: check the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', {
@@ -170,7 +170,7 @@ describe('change', () => {
     expect(r.text).toContain('gate: fail'); // ...yet the top gate still fails, from the regression alone
   });
 
-  it('two real git refs: fixed/still/regressed come from the actual file content across two commits, not the ref name or question id', async (ctx) => {
+  it('two real git refs: fixed/still/regressed come from the actual file content across two commits, not the ref name or question id [C-064]', async (ctx) => {
     if (!hasGit()) return ctx.skip();
     const { paths, root } = tempProject({ 'src/a.ts': 'export function f(x) {\n  return db.query(`SELECT * FROM t WHERE id = ${x}`); // VULN STILL_BAD\n}\n' });
     gitInit(root);
@@ -260,5 +260,25 @@ describe('change', () => {
     expect(r.text).toBe('plan:\n  calls: 2\n  questions: 3\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'change')).toEqual([]);
+  });
+
+  it('on gate: pass (goal and every category clear, nothing regressed), next: records the outcome held on the parent [C-065]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
+    const parent = sampleContractRun({
+      where: ['src/a.ts'],
+      ask: { categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
+      answers: { goal: { kind: 'yesno', p: 0.1 }, '1': { kind: 'yesno', p: 0.05 } },
+      keys: { goal: 'k-goal', '1': 'k-1' },
+      categories: { injection: 'pass' },
+      gate: 'pass',
+    });
+    appendContractRun(paths, parent, T, 'b'); // SW-0001
+    // goal clears the bar (0.9 ≥ 0.70); the "no" category clears it too (1 - 0.05 = 0.95), before and after alike.
+    const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : 0.05) });
+    const r = await runChange('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('gate: pass');
+    expect(r.text).toContain('regressed: []');
+    expect(r.text).toContain('next: sidewise outcome SW-0001 held --by <you>');
   });
 });

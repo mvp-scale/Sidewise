@@ -21,7 +21,7 @@ const one = (nums: number[]): string => cls(`    leaks:\n      pass: no\n${yesno
 const TEN = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 describe('validateRequest', () => {
-  it('normalizes the contract class example', () => {
+  it('normalizes the contract class example [C-006]', () => {
     const v = validateRequest(parse(readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8')), 'class');
     if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
     expect(v.request.side.categories.map((c) => [c.name, c.pass, c.questions.map((q) => q.n)])).toEqual([
@@ -37,7 +37,7 @@ describe('validateRequest', () => {
     expect(v.notes).toEqual([]);
   });
 
-  it('pass: true / false (older parsers) mean yes / no', () => {
+  it('pass: true / false (older parsers) mean yes / no [C-042]', () => {
     const v = validateRequest(parse(cls(`    leaks:\n      pass: false\n${yesno(TEN)}`)), 'class');
     expect(v.ok && v.request.side.categories[0]!.pass).toBe('no');
   });
@@ -52,12 +52,12 @@ describe('validateRequest', () => {
     ]);
   });
 
-  it('the YAML traps that parse: "#" cut a question short, "no" is not a question', () => {
+  it('the YAML traps that parse: "#" cut a question short, "no" is not a question [C-039] [C-041]', () => {
     expect(stops(cls('    leaks:\n      pass: no\n      1: Is it # really safe?\n'), 'class')).toEqual(['✖ question 1: doesn\'t end in "?" → put it in quotes']);
     expect(stops(cls('    leaks:\n      pass: no\n      1: no\n'), 'class')).toEqual(['✖ question 1: is not a question → write it as text']);
   });
 
-  it('the verb\'s own fields', () => {
+  it('the verb\'s own fields [C-015] [C-062] [C-084]', () => {
     expect(stops(one(TEN).replace('side:\n', 'side:\n  verb: view\n'), 'class')).toEqual(['✖ side.verb: says "view" but you ran class → remove side.verb, or run sidewise view']);
     expect(stops('side:\n  goal: The handler is safe\n', 'class')).toEqual([
       '✖ side.depth: class needs it → add "depth: quick" (10 yes/no questions; standard 20, thorough 30)',
@@ -70,21 +70,31 @@ describe('validateRequest', () => {
     expect(stops(one(TEN).replace('side:\n', 'side:\n  parent: SW-0001\n'), 'class')).toEqual(['✖ side.parent: only drill and change build on a parent → move it to wise.parent (lineage)']);
   });
 
-  it('numbering: twice across categories, gaps', () => {
+  it('wise is entirely optional: omitting it validates, and request.wise is null (nothing recorded for it) [C-005]', () => {
+    const v = validateRequest(parse(one(TEN)), 'class'); // no wise: block at all
+    expect(v.ok && v.request.wise).toBeNull();
+  });
+
+  it('over is sweep-only: a one-subject verb (class) refuses it even when it is validly shaped [C-007] [C-014]', () => {
+    const bad = cls(`    leaks:\n      pass: no\n${yesno(TEN)}`, '  over: {part: [a, b]}\n');
+    expect(stops(bad, 'class')).toContain('✖ side.over: class asks about one subject → remove over, or use loop or scan to sweep');
+  });
+
+  it('numbering: twice across categories, gaps [C-020]', () => {
     expect(stops(cls(`    a:\n      pass: no\n${yesno([1, 2, 3, 4, 5])}    b:\n      pass: yes\n${yesno([5, 6, 7, 8, 9], 'right')}`), 'class')).toEqual([
       '✖ question 5: numbered twice → give each question its own number',
     ]);
     expect(stops(one([1, 2, 3, 4, 5, 6, 7, 8, 9, 11]), 'class')).toEqual(['✖ question numbers: 1 2 3 4 5 6 7 8 9 11 → number them 1…10 with no gaps']);
   });
 
-  it('depth counts yes/no questions only, exactly, for class', () => {
+  it('depth counts yes/no questions only, exactly, for class [C-011] [C-085]', () => {
     expect(stops(one([1, 2, 3, 4, 5, 6, 7]), 'class')).toEqual(['✖ side.depth: quick needs 10 yes/no questions, got 7 → add 3']);
     expect(stops(one([...TEN, 11, 12]), 'class')).toEqual(['✖ side.depth: quick needs 10 yes/no questions, got 12 → remove 2, or raise the depth']);
     const scaled = cls(`    leaks:\n      pass: no\n${yesno(TEN)}    sev:\n      pass: [low]\n      11:\n        scale: How bad is it?\n        levels: [low, high]\n`);
     expect(validateRequest(parse(scaled), 'class').ok).toBe(true);
   });
 
-  it('one kind per category, a pass that fits it, at most 5 scale/choice', () => {
+  it('one kind per category, a pass that fits it, at most 5 scale/choice [C-022]', () => {
     const mixed = cls(`    leaks:\n      pass: no\n${yesno(TEN)}      11:\n        scale: How bad is it?\n        levels: [low, high]\n`);
     expect(stops(mixed, 'class')).toEqual(['✖ side.ask.leaks: mixes yes/no and scale questions → one kind per category']);
     const unknown = cls(`    leaks:\n      pass: no\n${yesno(TEN)}    sev:\n      pass: [severe]\n      11:\n        scale: How bad is it?\n        levels: [low, high]\n`);
@@ -122,7 +132,7 @@ describe('validateRequest', () => {
     ]);
   });
 
-  it('a sweep request: layers normalized in over\'s order', () => {
+  it('a sweep request: layers normalized in over\'s order [C-008]', () => {
     const v = validateRequest(parse(readFileSync('test/fixtures/requests/valid/loop.yaml', 'utf8')), 'loop');
     if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
     expect(v.request.side.layers.map((l) => [l.name, l.categories.map((c) => c.name)])).toEqual([
@@ -132,7 +142,7 @@ describe('validateRequest', () => {
     expect(v.request.side.categories).toEqual([]);
   });
 
-  it('notes, never stops: an irreversible goal; a view draft whose count is off', () => {
+  it('notes, never stops: an irreversible goal; a view draft whose count is off [C-034]', () => {
     const v = validateRequest(parse(one(TEN).replace('The handler is safe to merge', 'It is safe to deploy this migration')), 'class');
     expect(v.ok && v.notes).toEqual(['looks irreversible; don\'t act on this alone ("deploy")']);
     const view = validateRequest(parse(one([1, 2, 3])), 'view');
