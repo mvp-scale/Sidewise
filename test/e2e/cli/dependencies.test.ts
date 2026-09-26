@@ -15,17 +15,27 @@ function projectWithRun(): string {
 }
 
 describe('a corrupt log', () => {
-  it.each([
-    ['a garbage line mid-file', 'garbage\n{"kind":"outcome","of":"SW-0001"}\n'],
-    ['a truncated last line', '{"kind":"run","id":"SW-00'],
-  ])('%s: class, view and outcome refuse (exit 1) and change nothing', (_name, tail) => {
+  it('a garbage line mid-file: class, view and outcome refuse (exit 1) and change nothing', () => {
     const root = projectWithRun();
-    appendFileSync(path.join(root, '.sidewise', 'log.jsonl'), tail);
+    appendFileSync(path.join(root, '.sidewise', 'log.jsonl'), 'garbage\n{"kind":"outcome","of":"SW-0001"}\n');
     const before = snapshot(root);
     const stop = '✖ ledger: line 2 of .sidewise/log.jsonl is not valid JSON → fix or remove that line';
     expect(expectCleanStop(sidewise(root, ['class', 'req.txt']), 1)).toBe(stop);
     expect(expectCleanStop(sidewise(root, ['view', 'src']), 1)).toBe(stop);
     expect(expectCleanStop(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']), 1)).toBe(stop);
+    expect(snapshot(root)).toEqual(before);
+  });
+
+  it('a truncated last line (no newline): class and outcome refuse; view reads past it (an append may be in progress)', () => {
+    const root = projectWithRun();
+    appendFileSync(path.join(root, '.sidewise', 'log.jsonl'), '{"kind":"run","id":"SW-00');
+    const before = snapshot(root);
+    const stop = '✖ ledger: line 2 of .sidewise/log.jsonl is not valid JSON → fix or remove that line';
+    expect(expectCleanStop(sidewise(root, ['class', 'req.txt']), 1)).toBe(stop);
+    expect(expectCleanStop(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']), 1)).toBe(stop);
+    const view = sidewise(root, ['view', 'src']);
+    expect(view).toMatchObject({ status: 0, stderr: '' });
+    expect(view.stdout).toMatch(/^sidewise view src · 1 run /);
     expect(snapshot(root)).toEqual(before);
   });
 });
@@ -52,5 +62,17 @@ describe('a write failure', () => {
       '✖ files: cannot read .sidewise/log.jsonl (EISDIR) → make .sidewise/ a writable folder, with log.jsonl and budget.json as files',
     );
     expect(sidewise(root, ['budget']).stdout).toBe('budget 0% used ($0.00 of $5.00 · 0 of 500 runs)\n');
+  });
+});
+
+describe('a lock that is not a lock file', () => {
+  it('.sidewise/lock is a directory: exit 1 at once with one clean line, no spin', () => {
+    const { root } = tempProject();
+    writeFileSync(path.join(root, 'req.txt'), classRequest());
+    mkdirSync(path.join(root, '.sidewise', 'lock'), { recursive: true });
+    const start = Date.now();
+    const r = sidewise(root, ['class', 'req.txt'], { timeoutMs: 8000 });
+    expect(Date.now() - start).toBeLessThan(3000);
+    expect(expectCleanStop(r, 1)).toBe('✖ files: .sidewise/lock is not a lock file → remove it');
   });
 });

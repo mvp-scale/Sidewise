@@ -56,21 +56,33 @@ describe('sidewise CLI (built)', () => {
     expect(sidewise(root, ['class', 'req.txt']).status).toBe(0);
   });
 
-  it('unknown commands and missing arguments print usage with exit 2', () => {
+  it('bare sidewise prints full usage (exit 2); --help prints it on stdout (exit 0)', () => {
     const { root } = tempProject();
-    const r = sidewise(root, ['judge']);
-    expect(r.status).toBe(2);
-    expect(r.stderr).toContain('usage:');
-    expect(sidewise(root, ['view']).status).toBe(2);
+    const bare = sidewise(root, []);
+    expect(bare.status).toBe(2);
+    expect(bare.stderr).toMatch(/^usage:\n  sidewise class/);
+    for (const flag of ['--help', '-h']) {
+      const help = sidewise(root, [flag]);
+      expect(help).toMatchObject({ status: 0, stderr: '' });
+      expect(help.stdout).toMatch(/^usage:\n  sidewise class/);
+    }
+  });
+
+  it('unknown commands and missing arguments: one "✖ args:" line with the right usage line, exit 2', () => {
+    const { root } = tempProject();
+    expect(sidewise(root, ['judge'])).toMatchObject({ status: 2, stdout: '', stderr: '✖ args: "judge" is not a command → use class, view, outcome or budget (sidewise --help)\n' });
+    expect(sidewise(root, ['view'])).toMatchObject({ status: 2, stderr: '✖ args: missing arguments → sidewise view <folder | tag | SW-####> [--level 1|2|3]\n' });
+    expect(sidewise(root, ['class'])).toMatchObject({ status: 2, stderr: '✖ args: missing arguments → sidewise class <request-file | ->\n' });
   });
 
   it('usage mistakes exit 2: unknown flags, bad budget numbers, budget set with no flags', () => {
     const { root } = tempProject();
-    const unknown = sidewise(root, ['view', 'src', '--lvl', '2']);
-    expect(unknown.status).toBe(2);
-    expect(unknown.stderr).toContain('usage:');
-    expect(sidewise(root, ['outcome', 'SW-0001', 'held', '--who', 'owner']).status).toBe(2);
-    expect(sidewise(root, ['budget', 'set', '--usd']).status).toBe(2);
+    expect(sidewise(root, ['view', 'src', '--lvl', '2'])).toMatchObject({ status: 2, stderr: '✖ args: unknown flag --lvl → sidewise view <folder | tag | SW-####> [--level 1|2|3]\n' });
+    expect(sidewise(root, ['outcome', 'SW-0001', 'held', '--who', 'owner'])).toMatchObject({
+      status: 2,
+      stderr: '✖ args: unknown flag --who → sidewise outcome <SW-####> held|overruled|failed --by <actor>\n',
+    });
+    expect(sidewise(root, ['budget', 'set', '--usd'])).toMatchObject({ status: 2, stderr: '✖ args: --usd needs a value → sidewise budget [show | reset | set --usd <n> --runs <n>]\n' });
 
     const abc = sidewise(root, ['budget', 'set', '--usd', 'abc']);
     expect(abc.status).toBe(2);

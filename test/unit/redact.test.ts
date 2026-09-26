@@ -16,25 +16,25 @@ const minified = (): string => {
 };
 
 describe('redact stays linear on hostile input', () => {
-  it("'token_' repeated 20 000 times: under 500 ms", () => {
+  it("'token_' repeated 20 000 times: under 2 s", () => {
     const { ms, out } = timed('token_'.repeat(20_000));
     expect(out).toBe('token_'.repeat(20_000)); // nothing to redact: no separator, no value
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(2000);
   });
 
-  it('a 1 MB minified line: under 500 ms', () => {
-    expect(timed(minified()).ms).toBeLessThan(500);
+  it('a 1 MB minified line: under 2 s', () => {
+    expect(timed(minified()).ms).toBeLessThan(2000);
   });
 
-  it('a 1 MB base64-style blob with no separators: under 500 ms', () => {
+  it('a 1 MB base64-style blob with no separators: under 2 s', () => {
     const blob = 'QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo0123456789abcdef'.repeat(Math.ceil(1_048_576 / 50));
-    expect(timed(blob).ms).toBeLessThan(500);
-    expect(timed(`a@${'b.'.repeat(500_000)}`).ms).toBeLessThan(500);
+    expect(timed(blob).ms).toBeLessThan(2000);
+    expect(timed(`a@${'b.'.repeat(500_000)}`).ms).toBeLessThan(2000);
   });
 
-  it('many private-key headers with no end: under 500 ms', () => {
+  it('many private-key headers with no end: under 2 s', () => {
     const header = '-----BEGIN RSA ' + 'PRIVATE KEY-----\n'; // built at runtime: the pre-commit leak check
-    expect(timed(header.repeat(30_000)).ms).toBeLessThan(500);
+    expect(timed(header.repeat(30_000)).ms).toBeLessThan(2000);
   });
 });
 

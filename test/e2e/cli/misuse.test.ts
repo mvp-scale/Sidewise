@@ -1,19 +1,12 @@
 // Agents misuse tools. Every misuse of the built CLI ends with the right exit code, nothing on stdout, one
-// "✖ <field>: <problem> → <fix>" line (or usage) on stderr, no stack trace, and .sidewise/ exactly as it was.
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+// "✖ <field>: <problem> → <fix>" line on stderr, no stack trace, and .sidewise/ exactly as it was.
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { expectCleanStop, sidewise, snapshot, type CliResult } from '../../helpers/cli.ts';
 import { tempProject, USER_TS } from '../../helpers/project.ts';
 import { classRequest } from '../../helpers/requests.ts';
-
-function expectUsage(r: CliResult): void {
-  expect(r.status).toBe(2);
-  expect(r.stdout).toBe('');
-  expect(r.stderr).toMatch(/^usage:\n/);
-  expect(r.stderr).not.toMatch(/\n\s+at /);
-}
 
 /** Runs one misuse and checks that .sidewise/ is byte-for-byte what it was before. */
 function unchanged(root: string, args: string[], o: Parameters<typeof sidewise>[2] = {}): CliResult {
@@ -72,6 +65,14 @@ describe('class: bad request input', () => {
     expect(expectCleanStop(unchanged(root, ['class', 'nope.txt']), 2)).toBe('✖ request: nope.txt not found → check the path, or pass - to read stdin');
   });
 
+  it('a file argument with control characters is refused; a long one is clipped in the message', () => {
+    expect(expectCleanStop(unchanged(root, ['class', 'req\u001b[2J.txt']), 2)).toBe('✖ request: the file name has control characters → pass a plain path, or - to read stdin');
+    const long = `${'d'.repeat(200)}.txt`; // under NAME_MAX, so it is "not found", not ENAMETOOLONG
+    const stop = expectCleanStop(unchanged(root, ['class', long]), 2);
+    expect(stop).toMatch(/^✖ request: d+… not found → check the path, or pass - to read stdin$/);
+    expect(stop.length).toBeLessThan(140);
+  });
+
   it('a request whose header names another verb', () => {
     const view = file('view.txt', classRequest({ header: 'sidewise view L1' }));
     expect(expectCleanStop(unchanged(root, ['class', view]), 2)).toBe('✖ verb: "view" is not available yet → use class');
@@ -105,11 +106,17 @@ describe('flags', () => {
     expect(expectCleanStop(unchanged(root, ['budget', 'set', '--runs', '5', '--runs', '9']), 2)).toBe('✖ --runs: given twice → give it once');
   });
 
-  it('an unknown flag, a flag before the command, and extra arguments print usage', () => {
-    expectUsage(unchanged(root, ['view', 'src', '--lvl', '2']));
-    expectUsage(unchanged(root, ['--level', '2', 'view', 'src']));
-    expectUsage(unchanged(root, ['class', 'req.txt', '--level', '2']));
-    expectUsage(unchanged(root, ['class', 'req.txt', 'other.txt']));
+  it('an unknown flag, a flag before the command, and extra arguments: one "✖ args:" line with that command\'s usage', () => {
+    const view = 'sidewise view <folder | tag | SW-####> [--level 1|2|3]';
+    const cls = 'sidewise class <request-file | ->';
+    expect(expectCleanStop(unchanged(root, ['view', 'src', '--lvl', '2']), 2)).toBe(`✖ args: unknown flag --lvl → ${view}`);
+    expect(expectCleanStop(unchanged(root, ['--level', '2', 'view', 'src']), 2)).toBe(`✖ args: "--level" comes before the command → ${view}`);
+    expect(expectCleanStop(unchanged(root, ['class', 'req.txt', '--level', '2']), 2)).toBe(`✖ args: unknown flag --level → ${cls}`);
+    expect(expectCleanStop(unchanged(root, ['class', 'req.txt', 'other.txt']), 2)).toBe(`✖ args: extra argument "other.txt" → ${cls}`);
+    expect(expectCleanStop(unchanged(root, ['budget', 'show', 'now']), 2)).toBe('✖ args: extra argument "now" → sidewise budget [show | reset | set --usd <n> --runs <n>]');
+    expect(expectCleanStop(unchanged(root, ['outcome', 'SW-0001', 'failed', 'x', '--by', 'o']), 2)).toBe(
+      '✖ args: extra argument "x" → sidewise outcome <SW-####> held|overruled|failed --by <actor>',
+    );
   });
 
   it('--level 0, 4 and abc', () => {
@@ -148,6 +155,10 @@ describe('outcome', () => {
     expect(first).toMatchObject({ status: 0, stdout: 'sidewise outcome SW-0001 failed · by owner\n', stderr: '' });
     const again = unchanged(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']);
     expect(again).toMatchObject({ status: 0, stdout: 'sidewise outcome SW-0001 failed · already recorded by owner\n', stderr: '' });
+    // The same outcome from a different actor is a second judgement: appended.
+    expect(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'reviewer-2'])).toMatchObject({ status: 0, stdout: 'sidewise outcome SW-0001 failed · by reviewer-2\n' });
+    const lines = readFileSync(path.join(root, '.sidewise', 'log.jsonl'), 'utf8').trimEnd().split('\n');
+    expect(lines.filter((l) => l.includes('"kind":"outcome"'))).toHaveLength(2);
     expect(sidewise(root, ['outcome', 'SW-0001', 'overruled', '--by', 'owner']).status).toBe(0); // a change is a new line
   });
 });

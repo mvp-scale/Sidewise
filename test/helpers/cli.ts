@@ -19,8 +19,14 @@ export function cliEnv(root: string | undefined, extra: Record<string, string> =
 }
 
 /** One run, synchronous. `root` is both the cwd and SIDEWISE_HOME unless `home: false`. */
-export function sidewise(root: string, args: string[], o: { input?: string | Buffer; home?: boolean; env?: Record<string, string> } = {}): CliResult {
-  const r = spawnSync(process.execPath, [CLI, ...args], { cwd: root, input: o.input ?? '', encoding: 'utf8', env: cliEnv(o.home === false ? undefined : root, o.env) });
+export function sidewise(root: string, args: string[], o: { input?: string | Buffer; home?: boolean; env?: Record<string, string>; timeoutMs?: number } = {}): CliResult {
+  const r = spawnSync(process.execPath, [CLI, ...args], {
+    cwd: root,
+    input: o.input ?? '',
+    encoding: 'utf8',
+    env: cliEnv(o.home === false ? undefined : root, o.env),
+    ...(o.timeoutMs ? { timeout: o.timeoutMs, killSignal: 'SIGKILL' as const } : {}),
+  });
   return { status: r.status, stdout: r.stdout, stderr: r.stderr };
 }
 
