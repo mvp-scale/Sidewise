@@ -1,5 +1,11 @@
 {
   "name": "choice via gateway with cost",
+  "expectRequest": {
+    "model": "typesafe-ai/jev",
+    "questions": {
+      "d1": { "type": "choice", "instructions": "Where should this go?", "criteria": { "ship": "ship", "fix": "fix", "block": "block" } }
+    }
+  },
   "response": {
     "status": 200,
     "body": {

@@ -1,5 +1,11 @@
 {
   "name": "choice ok",
+  "expectRequest": {
+    "model": "jev-1.13.0",
+    "questions": {
+      "d1": { "type": "choice", "instructions": "Where should this go?", "criteria": { "ship": "ship", "fix": "fix", "block": "block" } }
+    }
+  },
   "response": {
     "status": 200,
     "body": {

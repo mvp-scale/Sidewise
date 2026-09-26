@@ -1,6 +1,6 @@
 /**
  * The one `/v1/systemone` HTTP round trip: timeout, abort wiring, HTTP-status and JSON-body error mapping.
- * No parsing of the answer shape — that's noul.ts and choice.ts.
+ * No parsing of the answer shape — that's answers.ts.
  */
 import type { JevConfig } from './config.ts';
 import { JevApiError } from './config.ts';

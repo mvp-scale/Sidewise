@@ -8,50 +8,32 @@ import { loadCassette, replay } from './cassette.ts';
 const env = { TYPESAFE_API_KEY: 'k-test' };
 
 describe('TypeSafe adapter', () => {
-  it('sends yes/no slots as one noul call; the cost is unknown when not reported', async () => {
-    const c = loadCassette('noul/ok.json');
+  it('one ask is ONE POST: yes/no as noul, a scale as score, a choice as choice', async () => {
+    const c = loadCassette('mixed/ok.json');
     const r = replay(c);
     const res = await createTypesafeAdapter(env, { fetch: r.fetch }).ask(
-      [{ type: 'noul', id: 'p1', ask: 'Is request text placed directly into the SQL query?' }],
-      { code: 'x' },
+      [
+        { type: 'noul', id: 'goal', ask: 'This login handler is safe to merge' },
+        { type: 'noul', id: '1', ask: 'Is request text placed directly into the SQL query?' },
+        { type: 'score', id: '11', ask: 'How severe is the worst issue?', levels: ['none', 'low', 'medium', 'high', 'critical'] },
+        { type: 'choice', id: '12', ask: 'Where should this go?', options: { ship: 'ship', fix: 'fix', block: 'block' } },
+      ],
+      { goal: 'This login handler is safe to merge', code: { 'src/user.ts:1-3': 'return db.query(sql)' } },
     );
     expect(r.sent).toHaveLength(1);
     expect(r.sent[0]).toMatchObject(c.expectRequest!);
-    expect(res.answers.p1).toEqual({ type: 'noul', probability: 0.91 });
+    expect(res.answers['1']).toEqual({ type: 'noul', probability: 0.94 });
+    const s = res.answers['11']!;
+    expect(s.type).toBe('score');
+    if (s.type === 'score') expect(s.distribution.map((p) => Number(p.toFixed(2)))).toEqual([0.02, 0.05, 0.1, 0.81, 0.02]);
+    expect(res.answers['12']).toMatchObject({ type: 'choice', choice: 'block' });
     expect(res.costUsd).toBeUndefined();
   });
 
-  it('sends scale and direction together as one choice call and folds the scale back into levels', async () => {
-    const r = replay({
-      name: 'scale + direction',
-      response: {
-        status: 200,
-        body: {
-          model: 'jev-1.13.0',
-          answers: {
-            d1: { type: 'choice', choice: 'high', probabilities: { none: 0.05, low: 0.05, medium: 0.1, high: 0.7, critical: 0.1 } },
-            d2: { type: 'choice', choice: 'fix', probabilities: { ship: 0.1, fix: 0.8, block: 0.1 } },
-          },
-          usage: { input_tokens: 10, output_tokens: 2 },
-          provider_metadata: { gateway: { cost: 0.001 } },
-        },
-      },
-    });
-    const res = await createTypesafeAdapter(env, { fetch: r.fetch }).ask(
-      [
-        { type: 'score', id: 'd1', ask: 'How severe?', levels: ['none', 'low', 'medium', 'high', 'critical'] },
-        { type: 'choice', id: 'd2', ask: 'Where should this go?', options: { ship: 'ship', fix: 'fix', block: 'block' } },
-      ],
-      {},
-    );
-    expect(r.sent).toHaveLength(1);
-    const d1 = res.answers.d1!;
-    expect(d1.type).toBe('score');
-    if (d1.type === 'score') {
-      expect(d1.distribution.map((p) => Number(p.toFixed(2)))).toEqual([0.05, 0.05, 0.1, 0.7, 0.1]);
-    }
-    expect(res.answers.d2).toMatchObject({ type: 'choice', choice: 'fix' });
-    expect(res.costUsd).toBeCloseTo(0.001, 10);
+  it('no questions: no call', async () => {
+    const r = replay();
+    expect(await createTypesafeAdapter(env, { fetch: r.fetch }).ask([], {})).toEqual({ answers: {}, costUsd: 0 });
+    expect(r.sent).toHaveLength(0);
   });
 
   it('refuses to start without a key', () => {
