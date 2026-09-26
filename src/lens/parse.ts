@@ -63,6 +63,7 @@ export function parseRequest(text: string): ParseResult {
   const primitives: Primitive[] = [];
   let header: { verb: Verb; level: Level } | undefined;
   let headerSeen = false;
+  let notARequest: string | undefined; // no header line at all (JSON, YAML, binary, prose): one stop, not one per line
 
   text
     .replace(/^﻿/, '')
@@ -70,10 +71,11 @@ export function parseRequest(text: string): ParseResult {
     .forEach((raw, i) => {
       const lineNo = i + 1;
       const line = raw.trim();
-      if (!line || line.startsWith('#')) return;
+      if (notARequest || !line || line.startsWith('#')) return;
       if (!headerSeen) {
         headerSeen = true;
         const h = parseHeader(line, lineNo);
+        if (!HEADER.test(line) && typeof h === 'string') notARequest = h;
         if (typeof h === 'string') errors.push(h);
         else header = h;
         return;
@@ -107,6 +109,7 @@ export function parseRequest(text: string): ParseResult {
     });
 
   if (!headerSeen) return { ok: false, errors: ['✖ request: empty → start with the header "sidewise class L1"'] };
+  if (notARequest) return { ok: false, errors: [notARequest] };
   if (errors.length || !header) return { ok: false, errors };
   const tags = (fields.get('tags') ?? '').split(',').map((t) => t.trim()).filter(Boolean);
   const parent = fields.get('parent');

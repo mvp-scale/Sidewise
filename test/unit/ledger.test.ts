@@ -179,7 +179,7 @@ describe('log', () => {
     const [run] = readLedger(paths).filter(isRun);
     expect(run).toMatchObject({ actor: 'dev@example.com', problem: 'mail [redacted]' });
     expect(() => appendOutcome(paths, 'SW-0001', 'held', 'dev@example.com')).toThrow(/dev@example.com asked SW-0001, so it can't mark it held/);
-    expect(appendOutcome(paths, 'SW-0001', 'held', 'owner@example.com')).toMatchObject({ by: 'owner@example.com' });
+    expect(appendOutcome(paths, 'SW-0001', 'held', 'owner@example.com').record).toMatchObject({ by: 'owner@example.com' });
   });
 
   it('a token-shaped actor is still redacted, and the same token as by is still refused', () => {

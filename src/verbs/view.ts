@@ -4,6 +4,7 @@
  * lineage (parents up, children down).
  * The hot cache (Plan 2) replaces this linear read without changing the output.
  */
+import path from 'node:path';
 import { RUN_ID } from '../ledger/ids.ts';
 import { isRun, latestOutcome, readLedger, type LedgerRecord, type RunRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
@@ -21,17 +22,27 @@ function runLine(r: RunRecord, records: readonly LedgerRecord[]): string {
   return `${clip(`${r.id} ${r.ts.slice(0, 10)} ${r.verb} L${r.level} ${r.consensus} ${r.verdict} "${clip(r.focus, 48)}" · ${outcome}`, 120 - label.length)}${label}`;
 }
 
-function byPlace(target: string, runs: RunRecord[], records: readonly LedgerRecord[], limit: number): VerbResult {
-  const place = target.replace(/^\.\//, '').replace(/\/+$/, '') || '.';
+const CONTROL = /[\u0000-\u001f\u007f]/;
+
+/** A folder, a tag or a path as a project-relative place; an absolute path inside the project is fine. */
+function toPlace(target: string, root: string): { place: string } | { stop: string } {
+  if (CONTROL.test(target)) return { stop: '✖ view: the target has control characters → use a folder, a tag, or SW-####' };
+  if (!path.isAbsolute(target) && !target.split(/[\\/]/).includes('..')) return { place: target.replace(/^\.\//, '').replace(/\/+$/, '') || '.' };
+  const rel = path.relative(root, path.resolve(root, target));
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return { stop: `✖ view: "${clip(target, 60)}" is outside the project → use a folder inside it, a tag, or SW-####` };
+  return { place: rel.split(path.sep).join('/') || '.' };
+}
+
+function byPlace(place: string, runs: RunRecord[], records: readonly LedgerRecord[], limit: number): VerbResult {
   const hits = runs.filter((r) => place === '.' || r.tags.includes(place) || r.where.some((w) => w.path === place || w.path.startsWith(`${place}/`)));
-  if (!hits.length) return { exit: 0, text: `sidewise view ${place} · no runs yet → "sidewise class <request>" starts one` };
+  if (!hits.length) return { exit: 0, text: `sidewise view ${clip(place, 60)} · no runs yet → "sidewise class <request>" starts one` };
   const counts = { held: 0, overruled: 0, failed: 0, open: 0 };
   let fake = 0;
   for (const r of hits) {
     if (isFake(r)) fake += 1;
     else counts[latestOutcome(records, r.id) ?? 'open'] += 1;
   }
-  const head = `sidewise view ${place} · ${hits.length} run${hits.length === 1 ? '' : 's'} · held ${counts.held} · overruled ${counts.overruled} · failed ${counts.failed} · open ${counts.open}${fake ? ` · fake ${fake}` : ''}`;
+  const head = `sidewise view ${clip(place, 60)} · ${hits.length} run${hits.length === 1 ? '' : 's'} · held ${counts.held} · overruled ${counts.overruled} · failed ${counts.failed} · open ${counts.open}${fake ? ` · fake ${fake}` : ''}`;
   const shown = hits.slice(-limit).reverse();
   const older = hits.length - shown.length;
   return { exit: 0, text: [head, ...shown.map((r) => runLine(r, records)), ...(older ? [`… ${older} older → raise the level to see more`] : [])].join('\n') };
@@ -70,8 +81,10 @@ function byId(id: string, runs: RunRecord[], records: readonly LedgerRecord[], l
 }
 
 export function runView(target: string, level: Level, paths: SidewisePaths): VerbResult {
+  const at = RUN_ID.test(target) ? undefined : toPlace(target, paths.root);
+  if (at && 'stop' in at) return { exit: 2, text: at.stop };
   const records = readLedger(paths);
   const runs = records.filter(isRun);
   const limit = level * 10;
-  return RUN_ID.test(target) ? byId(target, runs, records, limit) : byPlace(target, runs, records, limit);
+  return at ? byPlace(at.place, runs, records, limit) : byId(target, runs, records, limit);
 }

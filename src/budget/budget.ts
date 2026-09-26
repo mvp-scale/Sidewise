@@ -4,7 +4,7 @@
  * always applies, including when a provider does not report cost. A corrupt file refuses to run (fail closed).
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { withLock } from '../ledger/lock.ts';
+import { onStore, withLock } from '../ledger/lock.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 
 export interface BudgetState {
@@ -29,7 +29,8 @@ type Caps = { capUsd: number; capRuns: number };
 const iso = (now: number): string => new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z');
 const money = (n: number): string => `$${n.toFixed(2)}`;
 const fresh = (now: number, caps: Caps = DEFAULT_BUDGET): BudgetState => ({ capUsd: caps.capUsd, capRuns: caps.capRuns, spentUsd: 0, runs: 0, resetAt: iso(now) });
-const corrupt = (): BudgetError => new BudgetError('✖ budget: .sidewise/budget.json is unreadable → the owner runs "sidewise budget reset" to start a fresh budget');
+const corrupt = (code?: string): BudgetError =>
+  new BudgetError(`✖ budget: .sidewise/budget.json is unreadable${code ? ` (${code})` : ''} → the owner runs "sidewise budget reset" to start a fresh budget`);
 
 function isState(v: unknown): v is BudgetState {
   if (!v || typeof v !== 'object') return false;
@@ -43,18 +44,22 @@ function read(paths: SidewisePaths): BudgetState | undefined {
   let value: unknown;
   try {
     value = JSON.parse(readFileSync(paths.budget, 'utf8'));
-  } catch {
-    throw corrupt();
+  } catch (e) {
+    const code = (e as NodeJS.ErrnoException).code;
+    throw corrupt(typeof code === 'string' ? code : undefined); // unreadable for any reason: fail closed
   }
   if (!isState(value)) throw corrupt();
   return value;
 }
 
+/** Write a temp file, then rename it over budget.json, so a reader never sees half a file. */
 function write(paths: SidewisePaths, state: BudgetState): void {
-  mkdirSync(paths.dir, { recursive: true });
   const tmp = `${paths.budget}.tmp`;
-  writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
-  renameSync(tmp, paths.budget);
+  onStore(paths.budget, 'write', () => {
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
+    renameSync(tmp, paths.budget);
+  });
 }
 
 export function loadBudget(paths: SidewisePaths, now: number = Date.now()): { state: BudgetState; created: boolean } {
@@ -79,7 +84,7 @@ export function checkBudget(s: BudgetState): { ok: true } | { ok: false; message
 export function recordSpend(paths: SidewisePaths, costUsd: number, now: number = Date.now()): BudgetState {
   return withLock(paths.lock, () => {
     const s = read(paths) ?? fresh(now);
-    const next = { ...s, spentUsd: s.spentUsd + Math.max(0, costUsd), runs: s.runs + 1 };
+    const next = { ...s, spentUsd: s.spentUsd + (Number.isFinite(costUsd) ? Math.max(0, costUsd) : 0), runs: s.runs + 1 };
     write(paths, next);
     return next;
   });
