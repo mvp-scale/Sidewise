@@ -138,4 +138,34 @@ describe('validateRequest', () => {
     const view = validateRequest(parse(one([1, 2, 3])), 'view');
     expect(view.ok && view.notes).toEqual(['quick expects 10 yes/no questions, got 3; class will stop on this']);
   });
+
+  it('scan: where duplicates over (scan reads the files it sweeps)', () => {
+    const text =
+      'side:\n  goal: Handlers stay safe\n  depth: quick\n  where: [src/a.ts]\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\nwise:\n  why: find\n  area: api\n';
+    expect(stops(text, 'scan')).toEqual(['✖ side.where: scan reads the files in over → remove where']);
+  });
+
+  it('drill: a blank that is not one of the sweep\'s own layers is deferred, not stopped (the verb resolves it against the parent)', () => {
+    const text =
+      'side:\n  goal: Find where the leak happens\n  parent: SW-0060\n  from: src/handlers/user.ts/findUser\n  over:\n    call: each\n  ask:\n    call:\n      injection:\n        pass: no\n        1: Does {call} pass request text into SQL?\n        2: Does {resource} get checked for ownership?\n';
+    const v = validateRequest(parse(text), 'drill');
+    if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
+    expect(v.request.side.layers.map((l) => [l.name, l.categories.map((c) => c.name)])).toEqual([['call', ['injection']]]);
+    expect(v.notes).toEqual([]);
+  });
+
+  it('loop: the same shape blank, but with no parent to defer to, IS stopped', () => {
+    const text = 'side:\n  goal: Ideas hold up\n  depth: quick\n  over:\n    part: [a]\n  ask:\n    part:\n      x:\n        pass: yes\n        1: Is {part} ok?\n        2: Does {resource} check out?\n';
+    expect(stops(text, 'loop')).toEqual(["✖ question 2: {resource} is not part's layer or above it → use {part}"]);
+  });
+
+  it('a valid scan and a valid drill fixture pass validation', () => {
+    const scan = validateRequest(parse(readFileSync('test/fixtures/requests/valid/scan.yaml', 'utf8')), 'scan');
+    if (!scan.ok) throw new Error(scan.stops.map((s) => s.text).join('\n'));
+    expect(scan.request.side.layers.map((l) => l.name)).toEqual(['function']);
+
+    const drill = validateRequest(parse(readFileSync('test/fixtures/requests/valid/drill.yaml', 'utf8')), 'drill');
+    if (!drill.ok) throw new Error(drill.stops.map((s) => s.text).join('\n'));
+    expect(drill.request.side.layers.map((l) => l.name)).toEqual(['call']);
+  });
 });

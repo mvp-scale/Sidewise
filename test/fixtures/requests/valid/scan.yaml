@@ -1,0 +1,17 @@
+side:
+  goal: Handlers don't trust request input
+  depth: quick
+  over:
+    file: src/handlers/*.ts
+    function: each
+  ask:
+    function:
+      injection:
+        pass: no
+        1: Does {function} put request text straight into a query?
+      access:
+        pass: no
+        2: Does {function} return a record without checking its owner?
+wise:
+  why: find
+  area: api
