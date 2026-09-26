@@ -52,7 +52,7 @@ function read(paths: SidewisePaths): BudgetState | undefined {
   return value;
 }
 
-/** Write a temp file, then rename it over budget.json, so a reader never sees half a file. */
+/** Always under the lock: write a temp file, then rename it over budget.json, so a reader never sees half a file. */
 function write(paths: SidewisePaths, state: BudgetState): void {
   const tmp = `${paths.budget}.tmp`;
   onStore(paths.budget, 'write', () => {
@@ -65,9 +65,14 @@ function write(paths: SidewisePaths, state: BudgetState): void {
 export function loadBudget(paths: SidewisePaths, now: number = Date.now()): { state: BudgetState; created: boolean } {
   const existing = read(paths);
   if (existing) return { state: existing, created: false };
-  const state = fresh(now);
-  write(paths, state);
-  return { state, created: true };
+  // Create under the lock, and only if still missing: two first runs at once must not reset each other's count.
+  return withLock(paths.lock, () => {
+    const again = read(paths);
+    if (again) return { state: again, created: false };
+    const state = fresh(now);
+    write(paths, state);
+    return { state, created: true };
+  });
 }
 
 export function usedFraction(s: BudgetState): number {
