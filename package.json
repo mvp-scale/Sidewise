@@ -48,6 +48,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --project unit --project contract --project golden",
     "test:cli": "npm run build && vitest run --project cli",
+    "test:chaos": "npm run build && tsx test/chaos/run.ts",
     "test:container": "sh docker/test.sh",
     "sidewise": "tsx src/cli.ts",
     "check:clean": "sh scripts/check-clean.sh",
