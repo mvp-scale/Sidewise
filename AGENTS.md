@@ -85,6 +85,14 @@ sidewise class -              # or pipe it in on stdin
 
 With `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` set, calls go to the real classifier. With neither set, every call falls back to the built-in fake provider — free, deterministic, offline, and its answers are canned, not real; every response says so, with `adapter fake · not evidence` in `notes:` (the chaos provider labels itself the same way). `SIDEWISE_PROVIDER=fake|chaos|typesafe` overrides the choice either way.
 
+Two more environment variables matter: `SIDEWISE_HOME=<path>` names the project root explicitly, skipping the
+walk up from the current directory for a `.sidewise` or `.git` folder — set it whenever the agent's cwd isn't
+the project itself (Sidewise never creates `.sidewise/` on its own outside a real project, so without it in the
+wrong cwd every command just fails to find one). `SIDEWISE_ACTOR=<name>` names who's asking; it's recorded on
+every run (default: the literal string `agent`) and is exactly what `outcome`'s self-held check compares
+`--by` against, so an agent that wants its own runs marked `held` by someone else needs a distinct actor name
+per agent, not the same one for all of them.
+
 ## A worked example (class)
 
 Request:
