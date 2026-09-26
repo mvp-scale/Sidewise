@@ -5,10 +5,13 @@ import { spawn } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { sidewise, sidewiseAsync, type CliResult } from '../../helpers/cli.ts';
+import { hasNodeSqlite, sidewise, sidewiseAsync, type CliResult } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
+// index.db (ledger/index.ts) is a disposable SQLite sidecar: a real run persists it only when node:sqlite is
+// actually available (Node >= 22.13); the Node < 22.13 fallback never writes one at all.
+const EXPECTED_FILES = ['budget.json', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
 
 interface Line {
   kind: string;
@@ -59,7 +62,7 @@ describe('separate processes at once', () => {
     expect(s.runIds).toEqual(expectedIds(ok.length));
     expect(ok.map(printedId).sort()).toEqual(s.runIds);
     expect(s.budgetRuns).toBe(s.counted);
-    expect(s.files).toEqual(['budget.json', 'index.json', 'log.jsonl']);
+    expect(s.files).toEqual(EXPECTED_FILES);
   }, 60_000);
 
   it('class and outcome interleaved: every outcome names a logged run, ids stay gap-free, budget agrees', async () => {
@@ -81,7 +84,7 @@ describe('separate processes at once', () => {
     for (const o of outcomes) expect(s.runIds.indexOf(o.of!)).toBeGreaterThanOrEqual(0);
     expect(s.budgetRuns).toBe(s.counted);
     expect(s.counted).toBe(7);
-    expect(s.files).toEqual(['budget.json', 'index.json', 'log.jsonl']);
+    expect(s.files).toEqual(EXPECTED_FILES);
   }, 60_000);
 
   it('6 runs racing a cap of 3: at least 3 succeed, the rest are blocked; the cap may be overshot by up to concurrent − 1 (at most 8 runs)', async () => {
@@ -121,6 +124,10 @@ describe('separate processes at once', () => {
     const r = await sidewiseAsync(root, ['class', 'req.yaml']);
     expect(r.status, r.stderr).toBe(0);
     expect(Date.now() - start).toBeLessThan(4500);
-    expect(state(root).files).toEqual(['budget.json', 'index.json', 'log.jsonl']);
+    // Unlike EXPECTED_FILES: this is a truly fresh project's very first command — log.jsonl doesn't exist yet
+    // when checkLedger/nextRunNumber first touch the index (design binding #7: no ledger yet, touch nothing on
+    // disk), and appendLine only creates log.jsonl moments later, in the same command. So this one command never
+    // persists index.db even with node:sqlite available; the next command would. See ledger/index.ts's withIndex.
+    expect(state(root).files).toEqual(['budget.json', 'log.jsonl']);
   }, 30_000);
 });

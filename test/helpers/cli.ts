@@ -5,6 +5,18 @@ import path from 'node:path';
 
 export const CLI = path.resolve('dist/cli.js');
 
+/** True when this test run's own Node has node:sqlite (>= 22.13) — the same test-running process the CLI
+ *  subprocess inherits its `node` binary from, so this predicts whether a real run persists .sidewise/index.db
+ *  (SQLite) or leaves nothing on disk for the index (the Node < 22.13 fallback, e.g. this repo's Node 20 host). */
+export const hasNodeSqlite = await (async () => {
+  try {
+    await import('node:sqlite');
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
 export interface CliResult {
   status: number | null;
   stdout: string;
@@ -44,23 +56,24 @@ export function sidewiseAsync(root: string, args: string[], env: Record<string, 
 }
 
 /**
- * Every file under <root>/.sidewise with its bytes, or null when the folder does not exist OR holds nothing but
- * index.json. index.json is a disposable read cache (ledger/index.ts) that a plain read (view, --dry-run, a
- * rejected request, now also lookupAnswers/exactReuse for a sweep's --dry-run reuse count) can create or refresh
- * as a side effect, including `.sidewise/` itself when nothing has ever been written before — with no bearing on
- * the ledger/budget state these snapshots protect, so a directory holding only that cache reads the same as no
- * directory at all.
+ * Every file under <root>/.sidewise with its bytes, or null when the folder does not exist. Skips index.db (and
+ * its -wal/-shm siblings): it's a disposable read cache (ledger/index.ts) that a plain read (view, --dry-run, a
+ * rejected request) can create or refresh as a side effect, with no bearing on the ledger/budget state these
+ * snapshots protect. Deliberately strict otherwise (pre-ff5f3e8): an empty `.sidewise/` (holding nothing but that
+ * cache) is NOT treated the same as no directory at all — design binding #7 says a dry run, view, or any command
+ * in a project with no ledger yet must not create `.sidewise/` in the first place, so this snapshot must be able
+ * to catch it if one did.
  */
 export function snapshot(root: string): Record<string, string> | null {
   const dir = path.join(root, '.sidewise');
   if (!existsSync(dir)) return null;
   const out: Record<string, string> = {};
   for (const name of readdirSync(dir).sort()) {
-    if (name === 'index.json') continue;
+    if (name.startsWith('index.db')) continue;
     const full = path.join(dir, name);
     out[name] = statSync(full).isDirectory() ? '<dir>' : readFileSync(full, 'latin1');
   }
-  return Object.keys(out).length ? out : null;
+  return out;
 }
 
 /** A failure an agent can act on: exit code, nothing on stdout, one "✖ … → …" line on stderr, no stack frames. */

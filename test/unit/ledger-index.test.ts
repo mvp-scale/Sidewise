@@ -1,11 +1,36 @@
-// The ledger index: nextRunNumber/findRun match a linear scan, catch up incrementally, never trust a stale
-// or corrupt index.json (it's disposable), and never hide ledger corruption (fail closed, same wording as readLedger).
-import { appendFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+// The SQLite ledger index (ledger/index.ts): nextRunNumber/findRun match a linear scan, catch up incrementally,
+// self-heal on corruption (missing, garbage bytes, truncated, stale schema, a fingerprint mismatch), never
+// trust a stale offset, never hide ledger corruption (fail closed, same wording as readLedger), the linear
+// fallback (used when node:sqlite can't be imported, or forced for this test) agrees with it exactly, and
+// dry runs / no-ledger reads create nothing on disk. Host is Node 20 (no node:sqlite): everything here runs
+// against the fallback; the same file, run in the Node 22 container, exercises the real SQLite path too.
+import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, truncateSync, writeFileSync } from 'node:fs';
+import { afterEach, describe, expect, it } from 'vitest';
 import { generateLedgerRecords, toJsonl, writeSyntheticLedger } from '../gen/synthetic-ledger.ts';
+import { formatRunId } from '../../src/ledger/ids.ts';
 import { findRun, isContractRun, isRun, nextRunNumber, readLedger } from '../../src/ledger/log.ts';
-import { loadIndex, readRecordAt } from '../../src/ledger/index.ts';
+import { __testOnly, isSqliteExperimentalWarning, readRecordAt, withIndex } from '../../src/ledger/index.ts';
+import { exactReuse, lookupAnswers } from '../../src/ledger/reuse.ts';
 import { tempProject } from '../helpers/project.ts';
+
+afterEach(() => {
+  __testOnly.forceFallback = false;
+});
+
+/** generateLedgerRecords always numbers its own batch from SW-0001 — right for a fresh ledger, but a real
+ *  "append more to an existing ledger" scenario needs ids that continue past what's already there (a real
+ *  ledger's ids are always unique: nextRunNumber always computes off the CURRENT count). Remaps `idOffset` runs
+ *  are already used, matching the runs table's `id PK` schema — a colliding id would (correctly) INSERT OR
+ *  REPLACE the same row rather than add a new one, exactly like a real duplicate-id ledger would. */
+function remapIds(records: readonly unknown[], idOffset: number): unknown[] {
+  const shift = (id: string): string => formatRunId(Number(id.slice(3)) + idOffset);
+  return records.map((r) => {
+    const rec = r as Record<string, unknown>;
+    if (rec.kind === 'run') return { ...rec, id: shift(rec.id as string) };
+    if (rec.kind === 'outcome') return { ...rec, id: `${shift(rec.of as string)}-outcome`, of: shift(rec.of as string) };
+    return rec;
+  });
+}
 
 describe('the index matches a linear scan', () => {
   it('nextRunNumber and findRun agree with readLedger, at a small size npm test can afford', () => {
@@ -20,15 +45,16 @@ describe('the index matches a linear scan', () => {
     }
   });
 
-  it('catches up from an existing index after more records are appended, without rescanning what it already had', () => {
+  it('catches up from an existing index after more records are appended by another process, without rescanning what it already had', () => {
     const { paths } = tempProject({});
     writeSyntheticLedger(paths, { seed: 'idx-2', runs: 500 });
-    const first = loadIndex(paths);
+    const first = withIndex(paths, (h) => ({ upto: h.upto(), runCount: h.runCount() }));
     expect(first.runCount).toBe(nextRunNumber(paths) - 1);
-    const before = first.upto;
-    appendFileSync(paths.log, toJsonl(generateLedgerRecords({ seed: 'idx-2-more', runs: 50, start: '2026-10-01T00:00:00Z' })));
-    const second = loadIndex(paths);
-    expect(second.upto).toBeGreaterThan(before);
+    // "another process": appended directly to log.jsonl, bypassing appendRun/the lock entirely.
+    const more = remapIds(generateLedgerRecords({ seed: 'idx-2-more', runs: 50, start: '2026-10-01T00:00:00Z' }), 500);
+    appendFileSync(paths.log, toJsonl(more));
+    const second = withIndex(paths, (h) => ({ upto: h.upto(), runCount: h.runCount() }));
+    expect(second.upto).toBeGreaterThan(first.upto);
     expect(second.runCount).toBe(readLedger(paths).filter((r) => r.kind === 'run').length);
   });
 
@@ -46,23 +72,10 @@ describe('the index matches a linear scan', () => {
   it("a corrupt line fails closed with readLedger's exact wording, at the right line number across two catch-ups", () => {
     const { paths } = tempProject({});
     writeSyntheticLedger(paths, { seed: 'idx-4', runs: 3 });
-    loadIndex(paths); // caches an index at upto = end of the first 3 (or more, with outcomes) lines
+    nextRunNumber(paths); // caches an index at upto = end of the first 3 (or more, with outcomes) lines
     const before = readLedger(paths).length;
     appendFileSync(paths.log, 'not json at all\n');
     expect(() => nextRunNumber(paths)).toThrow(`✖ ledger: line ${before + 1} of .sidewise/log.jsonl is not valid JSON → fix or remove that line`);
-  });
-
-  it('a missing or corrupt index.json triggers a silent rebuild, not a failure (the index is disposable)', () => {
-    const { paths } = tempProject({});
-    writeSyntheticLedger(paths, { seed: 'idx-5', runs: 300 });
-    const want = nextRunNumber(paths); // builds and saves index.json
-    writeFileSync(paths.index, '{ not: valid json');
-    expect(nextRunNumber(paths)).toBe(want);
-    // A folder where a file should be: still not fatal for the index. index.json is currently a regular file
-    // (the rebuild above re-saved it), so it has to be removed before it can become a directory at the same path.
-    rmSync(paths.index, { force: true });
-    mkdirSync(paths.index, { recursive: true });
-    expect(nextRunNumber(paths)).toBe(want);
   });
 
   it('a log shorter than the index (replaced or truncated) rebuilds instead of trusting stale offsets', () => {
@@ -70,6 +83,71 @@ describe('the index matches a linear scan', () => {
     writeSyntheticLedger(paths, { seed: 'idx-6', runs: 400 });
     nextRunNumber(paths);
     writeSyntheticLedger(paths, { seed: 'idx-6b', runs: 10 }); // a much shorter, different ledger at the same path
+    expect(nextRunNumber(paths)).toBe(readLedger(paths).filter((r) => r.kind === 'run').length + 1);
+  });
+});
+
+describe('self-healing: index.db missing, corrupted or stale never changes an answer, only speed', () => {
+  it('a missing index.db triggers a silent rebuild, not a failure', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'heal-missing', runs: 300 });
+    const want = nextRunNumber(paths); // builds (and, when SQLite is available, persists) index.db
+    rmSync(paths.index, { force: true });
+    rmSync(`${paths.index}-wal`, { force: true });
+    rmSync(`${paths.index}-shm`, { force: true });
+    expect(nextRunNumber(paths)).toBe(want);
+  });
+
+  it('garbage bytes in index.db (not a database at all) trigger a rebuild', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'heal-garbage', runs: 300 });
+    const want = nextRunNumber(paths);
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.index, 'this is not a sqlite database, just garbage bytes');
+    expect(nextRunNumber(paths)).toBe(want);
+    expect(lookupAnswers(paths, { adapter: 'stub', model: 'stub-1' }, ['nope']).size).toBe(0);
+  });
+
+  it('a truncated index.db (a crash mid-write) triggers a rebuild', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'heal-truncated', runs: 300 });
+    nextRunNumber(paths);
+    if (existsSync(paths.index) && statSync(paths.index).size > 4) {
+      truncateSync(paths.index, Math.floor(statSync(paths.index).size / 3));
+    }
+    const want = readLedger(paths).filter((r) => r.kind === 'run').length + 1;
+    expect(nextRunNumber(paths)).toBe(want);
+  });
+
+  it('an index.db that is a directory is disposable too: never fatal, just costs a rebuild', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'heal-dir', runs: 50 });
+    const want = nextRunNumber(paths);
+    rmSync(paths.index, { force: true, recursive: true });
+    mkdirSync(paths.index, { recursive: true });
+    expect(() => nextRunNumber(paths)).not.toThrow();
+    expect(nextRunNumber(paths)).toBe(want);
+  });
+
+  it('the ledger replaced with an unrelated, different-size one (fingerprint mismatch) rebuilds, never serves the old data', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'heal-fp-a', runs: 200 });
+    nextRunNumber(paths); // index built against the "a" ledger
+    const aIds = readLedger(paths).filter((r) => r.kind === 'run').map((r) => r.id);
+    writeSyntheticLedger(paths, { seed: 'heal-fp-b', runs: 205 }); // same order of magnitude, different content
+    const bRecords = readLedger(paths).filter((r) => r.kind === 'run');
+    expect(nextRunNumber(paths)).toBe(bRecords.length + 1);
+    // findRun for an id that only ever existed in "a" must not resolve to some stale "b" line at the same offset.
+    const staleId = aIds.find((id) => !bRecords.some((r) => r.id === id));
+    if (staleId) expect(findRun(paths, staleId)).toBeUndefined();
+  });
+
+  it('a log that merely grew (log_size increased, same prefix) catches up — never a full rebuild\'s worth of a behavior change', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'heal-grow', runs: 1000 });
+    nextRunNumber(paths);
+    const more = remapIds(generateLedgerRecords({ seed: 'heal-grow-more', runs: 5, start: '2026-10-02T00:00:00Z' }), 1000);
+    appendFileSync(paths.log, toJsonl(more));
     expect(nextRunNumber(paths)).toBe(readLedger(paths).filter((r) => r.kind === 'run').length + 1);
   });
 });
@@ -84,37 +162,83 @@ describe('findRun recovers from a stale or bad index without crashing', () => {
     expect(readRecordAt(paths.log, -1)).toBeUndefined();
   });
 
-  it('a runOffset pointing past EOF (a bad or stale entry) does not crash findRun: it rebuilds once and returns the right answer', () => {
-    const { paths } = tempProject({});
-    writeSyntheticLedger(paths, { seed: 'idx-8', runs: 50 });
-    const linear = readLedger(paths).filter((r) => r.kind === 'run');
-    const realId = linear[0]!.id;
-    const good = loadIndex(paths); // a correct, persisted index
-    const size = statSync(paths.log).size;
-    // Tamper the persisted index directly: a real id's offset, and a nonexistent id's offset, both pushed past
-    // EOF. upto/lineCount/runCount are left matching the real log, so loadIndex's own "log shorter than upto"
-    // check does not catch this — only the individual bad runOffset entries are wrong, which is exactly the
-    // "bad runOffset" case findRun's rebuild-and-retry is for.
-    const tampered = { ...good, runOffset: { ...good.runOffset, [realId]: size + 10_000, 'SW-9999': size + 20_000 } };
-    writeFileSync(paths.index, JSON.stringify(tampered));
-
-    expect(() => findRun(paths, realId)).not.toThrow();
-    expect(findRun(paths, realId)).toEqual(linear.find((r) => r.id === realId));
-    expect(() => findRun(paths, 'SW-9999')).not.toThrow();
-    expect(findRun(paths, 'SW-9999')).toBeUndefined();
-  });
-
-  it('a log truncated after loadIndex does not crash findRun', () => {
+  it('a log truncated after the index was built does not crash findRun', () => {
     const { paths } = tempProject({});
     writeSyntheticLedger(paths, { seed: 'idx-9', runs: 50 });
     const linear = readLedger(paths).filter((r) => r.kind === 'run');
     const lastId = linear.at(-1)!.id;
-    loadIndex(paths); // caches offsets for every run, including lastId near the end
+    nextRunNumber(paths); // caches offsets for every run, including lastId near the end
     const fullText = readFileSync(paths.log, 'utf8');
     writeFileSync(paths.log, fullText.slice(0, Math.floor(fullText.length / 2))); // truncate away the tail
     expect(() => findRun(paths, lastId)).not.toThrow();
     // lastId's line was in the truncated-away tail: genuinely gone now, so undefined, never a crash.
     expect(findRun(paths, lastId)).toBeUndefined();
+  });
+});
+
+describe('the fallback path gives identical results to whatever engine is really available', () => {
+  it('lookupAnswers, exactReuse, nextRunNumber and findRun agree with forceFallback on and off', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'fallback-parity', runs: 600, outcomeRate: 0.4, badRate: 0.3 });
+    const who = { adapter: 'typesafe', model: 'jev-1.13.0' };
+    const records = readLedger(paths).filter(isContractRun);
+    const keys = [...new Set(records.flatMap((r) => Object.values(r.keys)))].slice(0, 5);
+    const ids = readLedger(paths)
+      .filter((r) => r.kind === 'run')
+      .map((r) => r.id);
+
+    __testOnly.forceFallback = false;
+    const a = {
+      count: nextRunNumber(paths),
+      found: ids.map((id) => findRun(paths, id)),
+      reuse: Object.fromEntries(lookupAnswers(paths, who, keys)),
+      exact: exactReuse(paths, who, keys),
+    };
+
+    __testOnly.forceFallback = true;
+    const b = {
+      count: nextRunNumber(paths),
+      found: ids.map((id) => findRun(paths, id)),
+      reuse: Object.fromEntries(lookupAnswers(paths, who, keys)),
+      exact: exactReuse(paths, who, keys),
+    };
+
+    expect(b).toEqual(a);
+  });
+});
+
+describe('dry runs and free reads create nothing on disk when there is no ledger yet', () => {
+  it('withIndex over a missing log never creates .sidewise/, with or without the fallback forced', () => {
+    for (const forceFallback of [false, true]) {
+      __testOnly.forceFallback = forceFallback;
+      const { root, paths } = tempProject({});
+      expect(existsSync(paths.dir)).toBe(false);
+      expect(withIndex(paths, (h) => h.runCount())).toBe(0);
+      expect(withIndex(paths, (h) => h.findOffset('SW-0001'))).toBeUndefined();
+      expect(lookupAnswers(paths, { adapter: 'a', model: 'm' }, ['k']).size).toBe(0);
+      expect(exactReuse(paths, { adapter: 'a', model: 'm' }, ['k'])).toBeUndefined();
+      expect(existsSync(paths.dir)).toBe(false);
+      rmSync(root, { recursive: true, force: true });
+    }
+    __testOnly.forceFallback = false;
+  });
+
+  it('once the log exists, the index may persist — but an empty log (file present, zero bytes) still creates nothing', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.log, '');
+    expect(withIndex(paths, (h) => h.runCount())).toBe(0);
+    expect(existsSync(paths.index)).toBe(false);
+  });
+});
+
+describe('isSqliteExperimentalWarning: silences only node:sqlite\'s own ExperimentalWarning', () => {
+  it('matches the real message, case-insensitively, and nothing else', () => {
+    expect(isSqliteExperimentalWarning({ name: 'ExperimentalWarning', message: 'SQLite is an experimental feature and might change at any time' })).toBe(true);
+    expect(isSqliteExperimentalWarning({ name: 'ExperimentalWarning', message: 'sqlite is EXPERIMENTAL' })).toBe(true);
+    expect(isSqliteExperimentalWarning({ name: 'ExperimentalWarning', message: 'fetch is an experimental feature' })).toBe(false);
+    expect(isSqliteExperimentalWarning({ name: 'DeprecationWarning', message: 'SQLite something' })).toBe(false);
+    expect(isSqliteExperimentalWarning({})).toBe(false);
   });
 });
 

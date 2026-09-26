@@ -8,13 +8,14 @@ export interface SidewisePaths {
   log: string;
   lock: string;
   budget: string;
-  /** The id index sidecar (ledger/index.ts): disposable, rebuildable from log.jsonl, never the source of truth. */
+  /** The id index sidecar (ledger/index.ts): a disposable SQLite db, rebuildable from log.jsonl, never the
+   *  source of truth. Node < 22.13 (no node:sqlite) never creates this file at all — see index.ts's fallback. */
   index: string;
 }
 
 export function pathsFor(root: string): SidewisePaths {
   const dir = path.join(root, '.sidewise');
-  return { root, dir, log: path.join(dir, 'log.jsonl'), lock: path.join(dir, 'lock'), budget: path.join(dir, 'budget.json'), index: path.join(dir, 'index.json') };
+  return { root, dir, log: path.join(dir, 'log.jsonl'), lock: path.join(dir, 'lock'), budget: path.join(dir, 'budget.json'), index: path.join(dir, 'index.db') };
 }
 
 /** The nearest folder at or above cwd holding .sidewise or .git; undefined outside any project. */

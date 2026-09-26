@@ -19,7 +19,7 @@
     "decision-support"
   ],
   "engines": {
-    "node": ">=20.19"
+    "node": ">=22.13"
   },
   "bin": {
     "sidewise": "dist/cli.js"

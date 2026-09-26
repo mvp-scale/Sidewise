@@ -43,7 +43,10 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
   // exactReuse's "not found" case is genuinely O(candidates for that who) — same as the oracle it's checked
   // against, which is O(the whole ledger) — since only a full scan can conclusively rule out any run holding
   // every requested key together. At 6000 runs and 300 multi-key queries that adds up past vitest's default
-  // 5 s; the work itself, not a bug, is why this test gets more room.
+  // 5 s; the work itself, not a bug, is why this test gets more room. Task 29 (revised): the SQL engine adds a
+  // real (small, ~4 ms at this size) per-call open+self-heal-check cost on TOP of that same O(candidates) walk
+  // — 600 calls (lookupAnswers + exactReuse x 300) push this from "fits in 20 s" to "needs ~25-30 s" on a loaded
+  // CI box; 40 s keeps real margin without hiding a genuine regression if the walk itself ever got slower.
   it(
     'across many random (who, keys) queries on a mixed-outcome, multi-provider ledger',
     () => {
@@ -71,7 +74,7 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
         expect(exactReuse(paths, who, keys)).toBe(linearExact(records, who, keys));
       }
     },
-    20_000,
+    40_000,
   );
 
   it('an answer whose original run was later overruled is never reused, even reached through a chain', () => {
@@ -86,10 +89,10 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
 });
 
 // global-constraints.md: "deleting or corrupting the index must never change an answer, a reuse decision, or an
-// id." index.json is disposable by construction (ledger/index.ts rebuilds it from log.jsonl alone whenever it's
-// missing or doesn't parse); this proves that for reuse specifically, not just findRun/nextRunNumber (already
+// id." index.db is disposable by construction (ledger/index.ts self-heals it from log.jsonl alone whenever it's
+// missing or unreadable); this proves that for reuse specifically, not just findRun/nextRunNumber (already
 // covered in ledger-index.test.ts).
-describe('deleting or corrupting index.json never changes a reuse decision', () => {
+describe('deleting or corrupting index.db never changes a reuse decision', () => {
   it('lookupAnswers and exactReuse give the same answers with the index missing, corrupt, or warm', () => {
     const { paths } = tempProject({});
     writeSyntheticLedger(paths, {
@@ -104,7 +107,7 @@ describe('deleting or corrupting index.json never changes a reuse decision', () 
     const allKeys = [...new Set(records.filter(isContractRun).flatMap((r) => Object.values(r.keys)))];
     const keys = allKeys.slice(0, 3);
 
-    // Warm: index.json doesn't exist yet, so this call rebuilds it from scratch.
+    // Warm: index.db doesn't exist yet, so this call builds it from scratch.
     const warmLookup = Object.fromEntries(lookupAnswers(paths, who, keys));
     const warmExact = exactReuse(paths, who, keys);
 
@@ -116,7 +119,7 @@ describe('deleting or corrupting index.json never changes a reuse decision', () 
     expect(Object.fromEntries(lookupAnswers(paths, who, keys))).toEqual(warmLookup);
     expect(exactReuse(paths, who, keys)).toBe(warmExact);
 
-    writeFileSync(paths.index, JSON.stringify({ v: 1, upto: 0, lineCount: 0, runCount: 0, runOffset: {}, blocked: {}, reuseKey: {} })); // a pre-Task-29 index
+    writeFileSync(paths.index, JSON.stringify({ v: 1, upto: 0, lineCount: 0, runCount: 0, runOffset: {}, blocked: {}, reuseKey: {} })); // the old (pre-Task-29-revised) JSON sidecar's shape, at the new .db path — still just garbage bytes to the SQLite/fallback self-heal check
     expect(Object.fromEntries(lookupAnswers(paths, who, keys))).toEqual(warmLookup);
     expect(exactReuse(paths, who, keys)).toBe(warmExact);
   });

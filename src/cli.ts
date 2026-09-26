@@ -24,6 +24,12 @@ import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
 import { clip, hasControlChars } from './util/text.ts';
 
+// The warning filter for node:sqlite's one ExperimentalWarning (Node 22/24) is installed by ledger/index.ts
+// itself, at that module's own top level, before its lazy `import('node:sqlite')` — not here. ESM evaluates an
+// imported module's top-level code (all of index.ts, transitively via log.ts above) before this module's own
+// remaining statements run, so a process.on('warning', ...) call in this file would already be too late to
+// catch a warning index.ts's own top-level await triggers. See ledger/index.ts's isSqliteExperimentalWarning.
+
 // One usage line per command: a usage mistake prints the problem and just the line for that command.
 const LINES = {
   view: 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3]',

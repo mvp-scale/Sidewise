@@ -3,7 +3,7 @@
 import { readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { sidewise } from '../../helpers/cli.ts';
+import { hasNodeSqlite, sidewise } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
@@ -54,14 +54,16 @@ describe('statelessness', () => {
     expect(again.stdout).toContain('$0.00 of $5.00 · 1 of 500 runs');
   });
 
-  it('after runs finish, .sidewise/ holds only log.jsonl, budget.json and index.json (no lock, no temp file)', () => {
+  it('after runs finish, .sidewise/ holds only log.jsonl, budget.json and (with node:sqlite) index.db — no lock, no temp file', () => {
     const root = project();
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
     expect(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']).status).toBe(0);
     expect(sidewise(root, ['budget', 'set', '--runs', '50']).status).toBe(0);
     expect(sidewise(root, ['view', 'src']).status).toBe(0);
     expect(sidewise(root, ['class', 'missing.txt']).status).toBe(2);
-    // index.json is the disposable id-index sidecar (ledger/index.ts): expected here, unlike a lock or .tmp file.
-    expect(readdirSync(path.join(root, '.sidewise')).sort()).toEqual(['budget.json', 'index.json', 'log.jsonl']);
+    // index.db is the disposable id-index sidecar (ledger/index.ts): expected here, unlike a lock or .tmp file —
+    // but only when this test's own Node has node:sqlite; the Node < 22.13 fallback never writes one at all.
+    const expected = ['budget.json', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
+    expect(readdirSync(path.join(root, '.sidewise')).sort()).toEqual(expected);
   });
 });

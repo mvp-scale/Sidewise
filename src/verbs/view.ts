@@ -13,7 +13,8 @@ import { m, type Value } from '../contract/emit.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import { RUN_ID } from '../ledger/ids.ts';
-import { isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type LedgerRecord, type RunRecord } from '../ledger/log.ts';
+import { readRecordAt, stripLines, withIndex } from '../ledger/index.ts';
+import { isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { exactReuse } from '../ledger/reuse.ts';
 import type { Level } from '../lens/request.ts';
@@ -32,11 +33,7 @@ type AnyRun = RunRecord | ContractRun;
 
 const REQUEST_MODE = /^side\s*:/mu;
 
-/** Strips a trailing ":start" or ":start-end" from a `where` entry, same shape evidence/code.ts parses. */
-const stripLines = (entry: string): string => entry.replace(/:(\d+(?:-\d+)?)$/u, '');
-
-function runLine(r: AnyRun, records: readonly LedgerRecord[]): string {
-  const outcome = latestOutcome(records, r.id) ?? 'open';
+function runLine(r: AnyRun, outcome: Outcome | 'open'): string {
   const rehearsal = isRehearsal(r.adapter) ? ' · rehearsal' : '';
   const line = isRun(r)
     ? `${r.id} ${r.ts.slice(0, 10)} ${r.verb} L${r.level} ${r.consensus} ${r.verdict} "${clip(r.focus, 48)}" · ${outcome}`
@@ -63,22 +60,63 @@ function toPlace(target: string, root: string): { place: string } | { stop: stri
   return { place: rel.split(path.sep).join('/') || '.' };
 }
 
-function byPlace(place: string, runs: AnyRun[], records: readonly LedgerRecord[], limit: number): VerbResult {
-  const hits = runs.filter((r) => place === '.' || tagsMatch(r, place) || whereMatches(r, place));
+/** Renders byPlace's response for `hits`, already in ledger append order (oldest first) — shared by the
+ *  full-scan path ('.') and the index-backed path, which differ only in how `hits` and `outcomeOf` were built. */
+function renderPlace(place: string, hits: readonly AnyRun[], outcomeOf: (id: string) => Outcome | undefined, limit: number): VerbResult {
   if (!hits.length) return { exit: 0, text: `sidewise view ${clip(place, 60)} · no runs yet → "sidewise class <request>" starts one` };
   const counts = { held: 0, overruled: 0, failed: 0, open: 0 };
   let rehearsal = 0;
   for (const r of hits) {
     if (isRehearsal(r.adapter)) rehearsal += 1;
-    else counts[latestOutcome(records, r.id) ?? 'open'] += 1;
+    else counts[outcomeOf(r.id) ?? 'open'] += 1;
   }
   const head = `sidewise view ${clip(place, 60)} · ${hits.length} run${hits.length === 1 ? '' : 's'} · held ${counts.held} · overruled ${counts.overruled} · failed ${counts.failed} · open ${counts.open}${rehearsal ? ` · rehearsal ${rehearsal}` : ''}`;
   const shown = hits.slice(-limit).reverse();
   const older = hits.length - shown.length;
-  return { exit: 0, text: [head, ...shown.map((r) => runLine(r, records)), ...(older ? [`… ${older} older → raise the level to see more`] : [])].join('\n') };
+  return {
+    exit: 0,
+    text: [head, ...shown.map((r) => runLine(r, outcomeOf(r.id) ?? 'open')), ...(older ? [`… ${older} older → raise the level to see more`] : [])].join('\n'),
+  };
 }
 
-function byId(id: string, runs: AnyRun[], records: readonly LedgerRecord[], limit: number): VerbResult {
+/** place mode, the full-scan way: every run in the ledger, filtered by whereMatches/tagsMatch. Used for '.'
+ *  (every run — the index's place table has nothing narrower to offer there) and as byPlaceIndexed's own
+ *  fallback if the index can't be used for some reason (paths.log missing is handled the same way either path). */
+function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number): VerbResult {
+  const records = readLedger(paths, { partialTail: true });
+  const runs = records.filter((r): r is AnyRun => isRun(r) || isContractRun(r));
+  const hits = runs.filter((r) => place === '.' || tagsMatch(r, place) || whereMatches(r, place));
+  return renderPlace(place, hits, (id) => latestOutcome(records, id) ?? undefined, limit);
+}
+
+/**
+ * place mode, index-backed (design binding: "place history via the index"): `placeCandidates` narrows to the
+ * ids whose where/tag entries could match `place` (oldest first, by offset), each pread by offset instead of
+ * streaming the whole log. Every candidate is still re-checked against the real record with the EXACT same
+ * whereMatches/tagsMatch predicate byPlaceFullScan uses — the index is a candidate generator, never the final
+ * word — so a stale offset, a missed escape, or any other index quirk can only cost a wasted pread, never a
+ * wrong answer. `outcomesFor` replaces the old per-hit `latestOutcome(records, id)` rescan (O(hits × records))
+ * with one batched query over just the hit ids.
+ */
+function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number): VerbResult {
+  return withIndex(paths, (handle) => {
+    const hits: AnyRun[] = [];
+    for (const { offset } of handle.placeCandidates(place)) {
+      const rec = readRecordAt(paths.log, offset);
+      if (rec && (isRun(rec) || isContractRun(rec)) && (tagsMatch(rec, place) || whereMatches(rec, place))) hits.push(rec);
+    }
+    const outcomes = handle.outcomesFor(hits.map((r) => r.id));
+    return renderPlace(place, hits, (id) => outcomes.get(id), limit);
+  });
+}
+
+function byPlace(place: string, paths: SidewisePaths, limit: number): VerbResult {
+  return place === '.' ? byPlaceFullScan(place, paths, limit) : byPlaceIndexed(place, paths, limit);
+}
+
+function byId(id: string, paths: SidewisePaths, limit: number): VerbResult {
+  const records = readLedger(paths, { partialTail: true }); // never blocks on, or fails over, an append in progress
+  const runs = records.filter((r): r is AnyRun => isRun(r) || isContractRun(r));
   const index = new Map(runs.map((r) => [r.id, r]));
   const self = index.get(id);
   if (!self) return { exit: 2, text: `✖ view: ${id} is not in the ledger → "sidewise view <folder>" lists recent runs` };
@@ -99,13 +137,14 @@ function byId(id: string, runs: AnyRun[], records: readonly LedgerRecord[], limi
       }
     }
   }
+  const outcomeOf = (r: AnyRun): Outcome | 'open' => latestOutcome(records, r.id) ?? 'open';
   return {
     exit: 0,
     text: [
       `sidewise view ${id} · lineage ${up.length} up · ${down.length} down`,
-      ...up.map((r) => `↑ ${runLine(r, records)}`),
-      `▶ ${runLine(self, records)}`,
-      ...down.map((r) => `↓ ${runLine(r, records)}`),
+      ...up.map((r) => `↑ ${runLine(r, outcomeOf(r))}`),
+      `▶ ${runLine(self, outcomeOf(self))}`,
+      ...down.map((r) => `↓ ${runLine(r, outcomeOf(r))}`),
     ].join('\n'),
   };
 }
@@ -169,8 +208,6 @@ export function runView(input: string, level: Level, ctx: ViewContext): VerbResu
 
   const at = RUN_ID.test(input) ? undefined : toPlace(input, ctx.paths.root);
   if (at && 'stop' in at) return { exit: 2, text: at.stop };
-  const records = readLedger(ctx.paths, { partialTail: true }); // never blocks on, or fails over, an append in progress
-  const runs = records.filter((r): r is AnyRun => isRun(r) || isContractRun(r));
   const limit = level * 10;
-  return at ? byPlace(at.place, runs, records, limit) : byId(input, runs, records, limit);
+  return at ? byPlace(at.place, ctx.paths, limit) : byId(input, ctx.paths, limit);
 }

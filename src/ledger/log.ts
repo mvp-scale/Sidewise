@@ -5,7 +5,7 @@
  * Two run shapes: contract runs (`v: 2`, written by every verb) and Plan 1's text-format runs (no `v`, read only).
  * Both count toward SW ids.
  */
-import { accessSync, appendFileSync, constants, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { accessSync, appendFileSync, closeSync, constants, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { ItemStatus } from '../contract/grade.ts';
 import type { UnitRef } from '../contract/layers.ts';
@@ -13,11 +13,10 @@ import type { Answer, Category, Depth, Gate, Layer, Wise } from '../contract/typ
 import type { Consensus } from '../lens/consensus.ts';
 import type { Level, Place, Verb } from '../lens/request.ts';
 import { formatRunId, ulid } from './ids.ts';
-// A deliberate two-way import with index.ts: log.ts calls loadIndex/rebuildIndex/readRecordAt (only inside
-// function bodies, never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the
-// same way. Safe in ESM as long as neither side touches the other's exports before both modules finish loading,
-// which holds here.
-import { loadIndex, readRecordAt, rebuildIndex, type LedgerIndex } from './index.ts';
+// A deliberate two-way import with index.ts: log.ts calls withIndex/readRecordAt (only inside function bodies,
+// never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the same way. Safe in
+// ESM as long as neither side touches the other's exports before both modules finish loading, which holds here.
+import { readRecordAt, withIndex } from './index.ts';
 import { onStore, withLock } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
 import { redact, redactDeep, redactSecrets } from './redact.ts';
@@ -237,21 +236,35 @@ export function readLedger(paths: SidewisePaths, opts: { partialTail?: boolean }
 }
 
 /**
- * The id index (index.ts's scanRange) leaves a trailing line with no `\n` yet unconsumed — "might still be
- * writing," the same partialTail leniency readLedger gives its readers (view, findRun). A writer about to
- * append needs the stricter behavior readLedger's default (non-partialTail) callers already had: an in-progress
- * append from another process (the index is deliberately lock-free, so this can be stale relative to a live
- * writer) must refuse, not look like "ok to write." Since the index has already validated everything up to
- * `upto`, only the unconsumed tail — normally a handful of bytes, never the whole log — needs checking here,
- * with the exact readLedger wording and line number.
+ * The id index leaves a trailing line with no `\n` yet unconsumed — "might still be writing," the same
+ * partialTail leniency readLedger gives its readers (view, findRun). A writer about to append needs the
+ * stricter behavior readLedger's default (non-partialTail) callers already had: an in-progress append from
+ * another process (the index can be stale relative to a live writer) must refuse, not look like "ok to write."
+ * Since the index has already validated everything up to `upto`, only the unconsumed tail — normally zero
+ * bytes, never the whole log — needs checking here, via a targeted read (openSync/readSync at `upto`, never
+ * readFileSync of the whole file), with the exact readLedger wording and line number.
  */
-function checkTail(paths: SidewisePaths, index: LedgerIndex): void {
-  const buf = existsSync(paths.log) ? readFileSync(paths.log) : Buffer.alloc(0);
-  if (buf.length <= index.upto) return;
-  const raw = buf.subarray(index.upto).toString('utf8'); // upto is always \n-aligned (index.ts's scanRange), so
-  if (!raw.trim()) return; // slicing the raw bytes here can never split a multi-byte UTF-8 character
+function checkTail(paths: SidewisePaths, upto: number, lineCount: number): void {
+  if (!existsSync(paths.log)) return;
+  const size = statSync(paths.log).size;
+  if (size <= upto) return;
+  const fd = openSync(paths.log, 'r');
+  let raw: string;
+  try {
+    const buf = Buffer.alloc(size - upto);
+    let got = 0;
+    while (got < buf.length) {
+      const n = readSync(fd, buf, got, buf.length - got, upto + got);
+      if (n <= 0) break;
+      got += n;
+    }
+    raw = buf.subarray(0, got).toString('utf8'); // upto is always \n-aligned, so this can never split a UTF-8 char
+  } finally {
+    closeSync(fd);
+  }
+  if (!raw.trim()) return;
   const shown = shownLog(paths);
-  const lineNo = index.lineCount + 1;
+  const lineNo = lineCount + 1;
   let value: unknown;
   try {
     value = JSON.parse(raw);
@@ -262,17 +275,26 @@ function checkTail(paths: SidewisePaths, index: LedgerIndex): void {
 }
 
 /** Before a paid call: the ledger reads cleanly and can be appended to, so a run we pay for can be logged.
- *  Called on every paid call (pay.ts's preflight), so this goes through the id index (loadIndex) rather than a
- *  full readLedger: catch-up only parses the bytes after the index's `upto`, with the identical fail-closed
- *  LedgerError wording (index.ts's parseLedgerLine reuses this file's own isRecord/error text) — a first-ever
- *  call, or a stale/corrupt index, still does one full scan via rebuildIndex, exactly like readLedger did;
- *  checkTail then covers the one thing the index alone doesn't (see its own comment). The onStore wrap preserves
- *  the same StoreError normalization readLedger got "for free" (loadIndex itself makes no such promise: an
- *  errno failure — log.jsonl replaced by a folder — would otherwise surface as a raw fs error here, unlike
- *  nextRunNumber/findRun's call sites, which are fine surfacing it raw). */
+ *  Called on every paid call (pay.ts's preflight), so this goes through the id index (withIndex) rather than a
+ *  full readLedger: catch-up only parses the bytes after the index's `upto`; a first-ever call, or a
+ *  stale/corrupt index, still does one full scan (a rebuild, or the linear fallback), exactly like readLedger
+ *  did; checkTail then covers the one thing the index alone doesn't (see its own comment). The onStore wrap
+ *  preserves the same StoreError normalization readLedger got "for free" (an errno failure — log.jsonl replaced
+ *  by a folder — would otherwise surface as a raw fs error here, unlike nextRunNumber/findRun's call sites,
+ *  which are fine surfacing it raw). */
 export function checkLedger(paths: SidewisePaths): void {
   withLock(paths.lock, () => {
-    onStore(paths.log, 'read', () => checkTail(paths, loadIndex(paths)));
+    // onStore wraps both steps together (an errno failure from either — e.g. log.jsonl replaced by a folder —
+    // becomes one clean StoreError, not a raw fs error): a LedgerError has no `.code`, so onStore/storeError
+    // passes it straight through unchanged, same as before. withIndex's own callback here only reads two numbers
+    // off the (already self-healed, caught-up) index — it can't itself throw a "real" ledger-corruption error.
+    // checkTail runs as a second, separate step (not inside withIndex's own callback) on purpose: its
+    // LedgerError (genuine tail corruption) must never be mistaken for "SQLite failed" and silently retried
+    // against the linear fallback (which would just rediscover the same corruption a second time, wastefully).
+    onStore(paths.log, 'read', () => {
+      const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));
+      checkTail(paths, at.upto, at.lineCount);
+    });
     if (existsSync(paths.log)) onStore(paths.log, 'write', () => accessSync(paths.log, constants.W_OK));
   });
 }
@@ -288,7 +310,7 @@ function appendLine(paths: SidewisePaths, record: LedgerRecord): void {
 
 /** The next SW number, from the id index (ledger/index.ts) instead of a linear scan. The caller holds the lock. */
 export function nextRunNumber(paths: SidewisePaths): number {
-  return loadIndex(paths).runCount + 1;
+  return withIndex(paths, (h) => h.runCount()) + 1;
 }
 
 /** The record at byte offset `at` if it really is `id`'s run; undefined otherwise (unparseable, or some other
@@ -300,20 +322,20 @@ function matchingRun(at: number, logPath: string, id: string): RunRecord | Contr
 
 /**
  * A run of either shape by SW id, or undefined: one index lookup plus one line read, never a full scan.
- * `runOffset[id] === undefined` is trusted as-is (id genuinely not in the ledger) — no rebuild, so a miss stays
- * O(1) and cheap, which is the whole point of the index. But a *stale* offset (a bad entry, or the log changing
- * between loadIndex's read and this one — truncated or replaced by another process, with no lock held) never
- * crashes and never returns the wrong record: when an offset is found but doesn't check out, the index is
- * rebuilt once from the log as it is right now, and that answer is trusted either way — found, or genuinely
- * not there. A log that's genuinely corrupt (not just a stale offset) still fails closed with readLedger's
- * usual LedgerError, thrown by rebuildIndex itself, not swallowed here.
+ * A missing offset is trusted as-is (id genuinely not in the ledger) — no rebuild, so a miss stays cheap, which
+ * is the whole point of the index. But a *stale* offset (a bad entry, or the log changing between the index
+ * read and this one — truncated or replaced by another process, with no lock held) never crashes and never
+ * returns the wrong record: when an offset is found but doesn't check out, the index is forced to rebuild once
+ * from the log as it is right now, and that answer is trusted either way — found, or genuinely not there. A log
+ * that's genuinely corrupt (not just a stale offset) still fails closed with readLedger's usual LedgerError,
+ * thrown from within that rebuild, not swallowed here.
  */
 export function findRun(paths: SidewisePaths, id: string): RunRecord | ContractRun | undefined {
-  const at = loadIndex(paths).runOffset[id];
+  const at = withIndex(paths, (h) => h.findOffset(id));
   if (at === undefined) return undefined;
   const first = matchingRun(at, paths.log, id);
   if (first) return first;
-  const at2 = rebuildIndex(paths).runOffset[id];
+  const at2 = withIndex(paths, (h) => h.findOffset(id), { forceRebuild: true });
   return at2 === undefined ? undefined : matchingRun(at2, paths.log, id);
 }
 
@@ -351,7 +373,10 @@ export function appendContractRun(paths: SidewisePaths, run: NewContractRun, now
  *  checkTail for an in-progress tail the index alone tolerates — see checkLedger's comment), so a corrupt one
  *  refuses here too. */
 export function appendFailedLocked(paths: SidewisePaths, failed: NewFailed, now: number = Date.now()): FailedRecord {
-  onStore(paths.log, 'read', () => checkTail(paths, loadIndex(paths)));
+  onStore(paths.log, 'read', () => {
+    const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));
+    checkTail(paths, at.upto, at.lineCount);
+  });
   const uid = ulid(now);
   const record: FailedRecord = { kind: 'failed', id: uid, uid, ts: iso(now), ...redactDeep(failed), actor: redactSecrets(failed.actor) };
   appendLine(paths, record);
