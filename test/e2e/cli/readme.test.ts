@@ -28,9 +28,14 @@ describe('README Quickstart, run for real', () => {
     const { root } = tempProject();
     const bin = shimBin();
     const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, SIDEWISE_HOME: root, SIDEWISE_PROVIDER: 'fake', SIDEWISE_ACTOR: 'readme', TYPESAFE_API_KEY: '', AI_GATEWAY_API_KEY: '' };
+    let combined = '';
     for (const line of quickstartCommands()) {
       const r = spawnSync('sh', ['-c', line], { cwd: root, env, encoding: 'utf8' });
       expect(r.status, `"${line}" failed:\n${r.stderr}`).toBe(0);
+      combined += r.stdout;
     }
+    // The README says this runs on the fake provider with no key set; `view` labels fake/chaos runs
+    // "rehearsal" (src/verbs/view.ts), so that label showing up here proves the claim, not just asserts it.
+    expect(combined).toContain('rehearsal');
   });
 });

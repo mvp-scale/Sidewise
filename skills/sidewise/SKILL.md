@@ -30,6 +30,8 @@ sidewise class -              # or pipe it in on stdin
 
 `--dry-run` shows the call and question count with no spend.
 
+With `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` set, calls go to the real classifier. With neither set, every call falls back to the built-in fake provider — free, deterministic, offline, and its answers are canned, not real. `SIDEWISE_PROVIDER=fake|chaos|typesafe` overrides the choice either way.
+
 ## A worked example (class)
 
 Request:

@@ -101,6 +101,8 @@ Claude Code plugin:
 
 Every command below runs unmodified, in order, against a fresh project — `sidewise template class` already asks about the first three lines of `src/user.ts`, so nothing needs editing before `sidewise class` sends it. In a real project, edit the `goal` and `ask` first.
 
+With no `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` in the environment, this runs on the built-in fake provider — free, deterministic, offline, and its answers are canned, not real. Set one of those keys for real answers (or `SIDEWISE_PROVIDER=fake|chaos|typesafe` to choose explicitly).
+
 ```bash
 # sidewise-quickstart
 sidewise template class > review.yaml
