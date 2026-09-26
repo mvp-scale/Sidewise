@@ -43,12 +43,25 @@ export function commonNotes(notes: readonly string[], budgetNote: string): strin
   return [...notes, budgetNote];
 }
 
-/** pass → the verb's own text. fail/unsure → drill the first matching category, in written order. */
+/**
+ * The two fixed strings a non-pass gate can print with nothing concrete to drill into (no ": " in either, so
+ * scalar() leaves them plain — see emit.ts). Both name what's actually true instead of pointing at a
+ * passing item/category, which "why did this fail?" would make of a bare drillNext target.
+ */
+const GOAL_ONLY_NEXT = 'the goal missed though every part passed · fix what is missing, then run it again';
+const ALL_SKIPPED_NEXT = 'every item was skipped · raise depth or narrow over, then run it again';
+
+/**
+ * pass → the verb's own text. Otherwise drill the first category whose own gate matches the subject's overall
+ * gate, in written order. When no category is to blame — every one of them is 'pass', so the overall gate is
+ * non-pass only because the goal itself missed — say so instead of drilling a category that's actually fine.
+ */
 export function outcomeNext(id: string, gate: Gate, graded: readonly CategoryGrade[], categories: readonly Category[], onPass: string): string {
   if (gate === 'pass') return onPass;
   const gateOf = new Map(graded.map((g) => [g.name, g.gate]));
-  const target = categories.find((c) => gateOf.get(c.name) === gate)?.name ?? categories[0]!.name;
-  return drillNext(id, target);
+  const target = categories.find((c) => gateOf.get(c.name) === gate)?.name;
+  if (target) return drillNext(id, target);
+  return categories.every((c) => gateOf.get(c.name) === 'pass') ? GOAL_ONLY_NEXT : drillNext(id, categories[0]!.name);
 }
 
 export function drillNext(id: string, target: string): string {
@@ -56,16 +69,17 @@ export function drillNext(id: string, target: string): string {
 }
 
 /**
- * pass → onPass. Otherwise drill the worst item (worstFirst's own order). A sweep can be non-pass with no
- * failing item at all — every item's own categories clear the bar, but the goal itself doesn't (`worst` is
- * empty then, since worstFirst only counts items whose own categories missed): fall back to the first item
- * actually graded, in written order, the same "give a concrete place to look" move outcomeNext makes via
- * categories[0] when no category matches a failing subject's own gate.
+ * pass → onPass. Otherwise drill the worst item (worstFirst's own order). Two ways a sweep can be non-pass
+ * with nothing to drill into: every item's own categories clear the bar and only the goal misses (`worst` is
+ * empty, `graded` isn't — the goal-only case, same shape as outcomeNext's own categories-all-pass check), or
+ * nothing was graded at all because every item was skipped past the depth cap (both empty). Either way,
+ * pointing drillNext at a passing item ("why did this fail?" on something that didn't) would be worse than
+ * just saying which of the two happened.
  */
 export function sweepNext(id: string, gate: Gate, worst: readonly ItemGrade[], graded: readonly ItemGrade[], onPass: string): string {
   if (gate === 'pass') return onPass;
-  const target = worst[0] ?? graded[0];
-  return target ? drillNext(id, target.id) : onPass; // no graded item at all (an empty sweep): nothing to drill into
+  if (worst.length) return drillNext(id, worst[0]!.id);
+  return graded.length ? GOAL_ONLY_NEXT : ALL_SKIPPED_NEXT;
 }
 
 export function dryRunText(plan: { calls: number; questions: number; items?: number; reused?: number }): string {

@@ -1,9 +1,9 @@
 // respond.ts: pure formatting shared by every verb. Pins the exact strings later batches (16–21) depend on.
 import { describe, expect, it } from 'vitest';
 import type { Value } from '../../src/contract/emit.ts';
-import { gradeCategory, gradeSubject } from '../../src/contract/grade.ts';
-import type { Category } from '../../src/contract/types.ts';
-import { categoryEntry, commonNotes, drillNext, dryRunText, outcomeNext, respondText, shownValue, subjectSide, wiseRecorded } from '../../src/verbs/respond.ts';
+import { gradeCategory, gradeSubject, type ItemGrade } from '../../src/contract/grade.ts';
+import type { Category, Gate } from '../../src/contract/types.ts';
+import { categoryEntry, commonNotes, drillNext, dryRunText, outcomeNext, respondText, shownValue, subjectSide, sweepNext, wiseRecorded } from '../../src/verbs/respond.ts';
 
 const cat = (name: string, pass: Category['pass'], nums: number[]): Category => ({ name, pass, need: 'all', tags: [], questions: nums.map((n) => ({ n, kind: 'yesno' as const, text: `Is ${n}?` })) });
 
@@ -48,6 +48,34 @@ describe('outcomeNext', () => {
   it("pass uses the caller's own text; fail/unsure drill the first matching category, in written order", () => {
     expect(outcomeNext('SW-1', 'pass', graded, cats, 'act on it')).toBe('act on it');
     expect(outcomeNext('SW-1', 'fail', graded, cats, 'act on it')).toBe('sidewise template drill --parent SW-1 --from injection');
+  });
+
+  it('every category passes but the gate is not pass (only the goal missed): says so, not categories[0]', () => {
+    const allPass = [gradeCategory(cats[0]!, () => ({ kind: 'yesno', p: 0.1 })), gradeCategory(cats[1]!, () => ({ kind: 'yesno', p: 0.1 }))];
+    expect(outcomeNext('SW-1', 'fail', allPass, cats, 'act on it')).toBe('the goal missed though every part passed · fix what is missing, then run it again');
+  });
+});
+
+describe('sweepNext', () => {
+  const item = (id: string, ownGate: Gate = 'pass'): ItemGrade => ({ id, layer: 'part', parent: null, status: 'asked', own: [], ownGate, gate: ownGate });
+
+  it("pass uses the caller's own text", () => {
+    expect(sweepNext('SW-1', 'pass', [], [], 'act on it')).toBe('act on it');
+  });
+
+  it('a failing item present: drills worst[0], worstFirst order', () => {
+    const worst = [item('payments/refunds', 'fail'), item('payments', 'fail')];
+    const graded = [item('gateway'), ...worst];
+    expect(sweepNext('SW-1', 'fail', worst, graded, 'act on it')).toBe('sidewise template drill --parent SW-1 --from payments/refunds');
+  });
+
+  it('no failing item, but something was graded (only the goal missed): says so, not a passing item', () => {
+    const graded = [item('gateway'), item('payments')];
+    expect(sweepNext('SW-1', 'fail', [], graded, 'act on it')).toBe('the goal missed though every part passed · fix what is missing, then run it again');
+  });
+
+  it('nothing graded at all (every item skipped past the depth cap): says so', () => {
+    expect(sweepNext('SW-1', 'unsure', [], [], 'act on it')).toBe('every item was skipped · raise depth or narrow over, then run it again');
   });
 });
 

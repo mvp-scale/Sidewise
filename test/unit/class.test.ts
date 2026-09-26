@@ -70,4 +70,23 @@ describe('class', () => {
     expect(r.exit).toBe(2);
     expect(readLedger(paths)).toEqual([]);
   });
+
+  it('a goal that misses the bar while every category passes: next says so, not categories[0]', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query("SELECT * FROM users WHERE id = ?", [id]); }\n' });
+    // injection/access/leaks (pass: no) low; guards (pass: yes) high; severity picks none (a passing level);
+    // route picks ship (the only passing option) — every category passes. Only the goal itself misses.
+    const ALL_PASS: Record<string, number> = { goal: 0.1, '1': 0.1, '2': 0.1, '10': 0.1, '3': 0.9, '6': 0.9, '9': 0.9, '4': 0.1, '5': 0.1, '7': 0.1, '8': 0.1 };
+    const provider = stubProvider({ yes: (q) => ALL_PASS[q.id] ?? 0.5, pick: { '11': 'none', '12': 'ship' } });
+    const r = await runClass(CLASS_YAML, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('gate: fail');
+    expect(r.text).toContain('goal: {gate: fail, p: 0.10}');
+    expect(r.text).toContain('injection: {gate: pass');
+    expect(r.text).toContain('guards: {gate: pass');
+    expect(r.text).toContain('access: {gate: pass');
+    expect(r.text).toContain('leaks: {gate: pass');
+    expect(r.text).toContain('severity: {gate: pass');
+    expect(r.text).toContain('route: {gate: pass');
+    expect(r.text).toContain('next: the goal missed though every part passed · fix what is missing, then run it again');
+  });
 });
