@@ -1,0 +1,256 @@
+// The response format is a contract (AGENTS.md rule 5). These goldens are the contract's own examples; any change
+// to them is a change to what agents read, made on purpose. Every output parses back to the same data.
+import { parse } from 'yaml';
+import { describe, expect, it } from 'vitest';
+import { emit, m, num, scalar, type Value } from '../../src/contract/emit.ts';
+import { seededRandom } from '../../src/util/prng.ts';
+
+const lines = (...xs: string[]): string => `${xs.join('\n')}\n`;
+/** The plain data a Map-built response stands for, numbers rounded as printed. */
+const plain = (v: Value): unknown => {
+  if (v instanceof Map) return Object.fromEntries([...v].map(([k, x]) => [k, plain(x)]));
+  if (Array.isArray(v)) return v.map(plain);
+  return typeof v === 'number' ? Number(num(v)) : v;
+};
+const roundTrip = (doc: Map<string, Value>): void => {
+  expect(parse(emit(doc), { version: '1.2', schema: 'core' })).toEqual(plain(doc));
+};
+
+describe('emit (golden: the contract examples)', () => {
+  it('class', () => {
+    const doc = m(
+      [
+        'side',
+        m(
+          ['id', 'SW-0042'],
+          ['gate', 'fail'],
+          ['goal', m(['gate', 'fail'], ['p', 0.08])],
+          ['injection', m(['gate', 'fail'], ['1', 0.94], ['2', 0.91], ['10', 0.9])],
+          ['guards', m(['gate', 'pass'], ['3', 0.88], ['6', 0.81], ['9', 0.75])],
+          ['access', m(['gate', 'fail'], ['4', 0.86], ['5', 0.84])],
+          ['leaks', m(['gate', 'unsure'], ['7', 0.55], ['8', 0.2])],
+          ['severity', m(['gate', 'fail'], ['11', m(['top', 'high'], ['p', 0.81])])],
+          ['route', m(['gate', 'fail'], ['12', m(['top', 'block'], ['p', 0.97])])],
+          ['consensus', 'STRONG'],
+          ['escalate', false],
+        ),
+      ],
+      ['wise', m(['recorded', ['why', 'area']])],
+      ['next', 'sidewise template drill --parent SW-0042 --from injection'],
+      ['notes', ['budget 1% used ($0.02 of $5.00 · 3 of 500 runs)']],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  id: SW-0042',
+        '  gate: fail',
+        '  goal: {gate: fail, p: 0.08}',
+        '  injection: {gate: fail, 1: 0.94, 2: 0.91, 10: 0.90}',
+        '  guards: {gate: pass, 3: 0.88, 6: 0.81, 9: 0.75}',
+        '  access: {gate: fail, 4: 0.86, 5: 0.84}',
+        '  leaks: {gate: unsure, 7: 0.55, 8: 0.20}',
+        '  severity: {gate: fail, 11: {top: high, p: 0.81}}',
+        '  route: {gate: fail, 12: {top: block, p: 0.97}}',
+        '  consensus: STRONG',
+        '  escalate: false',
+        'wise: {recorded: [why, area]}',
+        'next: sidewise template drill --parent SW-0042 --from injection',
+        'notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]',
+      ),
+    );
+    roundTrip(doc);
+  });
+
+  it('change', () => {
+    const doc = m(
+      [
+        'side',
+        m(
+          ['id', 'SW-0051'],
+          ['gate', 'fail'],
+          ['goal', m(['gate', 'pass'], ['p', 0.84])],
+          ['injection', m(['before', 'fail'], ['after', 'pass'], ['fixed', [1, 2, 10]])],
+          ['guards', m(['before', 'pass'], ['after', 'pass'])],
+          ['access', m(['before', 'fail'], ['after', 'fail'], ['still', [4, 5]])],
+          ['leaks', m(['before', 'unsure'], ['after', 'pass'], ['fixed', [7]])],
+          ['regressed', []],
+        ),
+      ],
+      ['wise', m(['recorded', ['why', 'area', 'parent']])],
+      ['next', 'sidewise template drill --parent SW-0051 --from access'],
+      ['notes', ['2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)']],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  id: SW-0051',
+        '  gate: fail',
+        '  goal: {gate: pass, p: 0.84}',
+        '  injection: {before: fail, after: pass, fixed: [1, 2, 10]}',
+        '  guards: {before: pass, after: pass}',
+        '  access: {before: fail, after: fail, still: [4, 5]}',
+        '  leaks: {before: unsure, after: pass, fixed: [7]}',
+        '  regressed: []',
+        'wise: {recorded: [why, area, parent]}',
+        'next: sidewise template drill --parent SW-0051 --from access',
+        'notes: [2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)]',
+      ),
+    );
+    roundTrip(doc);
+  });
+
+  it('scan: failing is a map of maps, one line per item', () => {
+    const doc = m(
+      [
+        'side',
+        m(
+          ['id', 'SW-0060'],
+          ['gate', 'fail'],
+          ['goal', m(['gate', 'fail'], ['p', 0.21])],
+          ['scanned', m(['file', 6], ['function', 23])],
+          [
+            'failing',
+            m(
+              ['src/handlers/user.ts/findUser', m(['injection', 'fail'], ['access', 'fail'], ['1', 0.93], ['2', 0.88])],
+              ['src/handlers/order.ts/getOrder', m(['access', 'fail'], ['2', 0.79])],
+              ['src/handlers/order.ts/listOrders', m(['access', 'unsure'], ['2', 0.52])],
+            ),
+          ],
+          ['passing', 20],
+          ['reused', 14],
+        ),
+      ],
+      ['wise', m(['recorded', ['why', 'area']])],
+      ['next', 'sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser'],
+      ['notes', ['1 call · 9 questions · budget 4% used ($0.08 of $5.00 · 9 of 500 runs)']],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  id: SW-0060',
+        '  gate: fail',
+        '  goal: {gate: fail, p: 0.21}',
+        '  scanned: {file: 6, function: 23}',
+        '  failing:',
+        '    src/handlers/user.ts/findUser: {injection: fail, access: fail, 1: 0.93, 2: 0.88}',
+        '    src/handlers/order.ts/getOrder: {access: fail, 2: 0.79}',
+        '    src/handlers/order.ts/listOrders: {access: unsure, 2: 0.52}',
+        '  passing: 20',
+        '  reused: 14',
+        'wise: {recorded: [why, area]}',
+        'next: sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser',
+        'notes: [1 call · 9 questions · budget 4% used ($0.08 of $5.00 · 9 of 500 runs)]',
+      ),
+    );
+    roundTrip(doc);
+  });
+
+  it('loop: ids with spaces stay plain; passing is a list', () => {
+    const doc = m(
+      [
+        'side',
+        m(
+          ['id', 'SW-0070'],
+          ['gate', 'fail'],
+          ['goal', m(['gate', 'pass'], ['p', 0.74])],
+          [
+            'failing',
+            m(
+              ['payments', m(['boundaries', 'fail'], ['2', 0.18])],
+              ['payments/refunds', m(['done', 'fail'], ['risk', 'fail'], ['3', 0.22], ['4', 0.91])],
+              ['payments/partial capture', m(['risk', 'unsure'], ['4', 0.48])],
+            ),
+          ],
+          ['passing', ['gateway', 'gateway/guest checkout', 'gateway/saved cards', 'payments/retries', 'ledger']],
+        ),
+      ],
+      ['wise', m(['recorded', ['why', 'area']])],
+      ['next', 'sidewise template drill --parent SW-0070 --from payments/refunds'],
+      ['notes', ['2 calls · 16 questions · budget 3% used ($0.06 of $5.00 · 7 of 500 runs)']],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  id: SW-0070',
+        '  gate: fail',
+        '  goal: {gate: pass, p: 0.74}',
+        '  failing:',
+        '    payments: {boundaries: fail, 2: 0.18}',
+        '    payments/refunds: {done: fail, risk: fail, 3: 0.22, 4: 0.91}',
+        '    payments/partial capture: {risk: unsure, 4: 0.48}',
+        '  passing: [gateway, gateway/guest checkout, gateway/saved cards, payments/retries, ledger]',
+        'wise: {recorded: [why, area]}',
+        'next: sidewise template drill --parent SW-0070 --from payments/refunds',
+        'notes: [2 calls · 16 questions · budget 3% used ($0.06 of $5.00 · 7 of 500 runs)]',
+      ),
+    );
+    roundTrip(doc);
+  });
+
+  it('view: categories is a map of maps; wise records none', () => {
+    const doc = m(
+      [
+        'side',
+        m(
+          ['view', 'src/user.ts:1-3'],
+          ['reuse', 'SW-0042'],
+          ['runs', 7],
+          [
+            'categories',
+            m(
+              ['injection', m(['runs', 5], ['pass', 1], ['fail', 4], ['last', 'SW-0042'])],
+              ['guards', m(['runs', 5], ['pass', 4], ['fail', 1], ['last', 'SW-0042'])],
+              ['leaks', m(['runs', 0])],
+            ),
+          ],
+        ),
+      ],
+      ['wise', m(['recorded', 'none'])],
+      ['next', 'sidewise view SW-0042'],
+      ['notes', ['free']],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  view: src/user.ts:1-3',
+        '  reuse: SW-0042',
+        '  runs: 7',
+        '  categories:',
+        '    injection: {runs: 5, pass: 1, fail: 4, last: SW-0042}',
+        '    guards: {runs: 5, pass: 4, fail: 1, last: SW-0042}',
+        '    leaks: {runs: 0}',
+        'wise: {recorded: none}',
+        'next: sidewise view SW-0042',
+        'notes: [free]',
+      ),
+    );
+    roundTrip(doc);
+  });
+});
+
+describe('scalars', () => {
+  it('plain when safe; quoted when YAML would read something else', () => {
+    expect(['free', 'payments/partial capture', 'src/user.ts:1-3', '2 calls · 16 questions'].map((s) => scalar(s, true))).toEqual([
+      'free',
+      'payments/partial capture',
+      'src/user.ts:1-3',
+      '2 calls · 16 questions',
+    ]);
+    expect(['no', 'true', '1.5', '', ' x', 'a: b', 'a #b', '-x', '{x}', '[x]', "'x"].map((s) => scalar(s, false))).toEqual([
+      '"no"', '"true"', '"1.5"', '""', '" x"', '"a: b"', '"a #b"', '"-x"', '"{x}"', '"[x]"', '"\'x"',
+    ]);
+    expect([scalar('a, b', true), scalar('a, b', false)]).toEqual(['"a, b"', 'a, b']);
+  });
+
+  it('any string survives a round trip in every position (seeded fuzz)', () => {
+    const rnd = seededRandom('emit-fuzz');
+    const alphabet = [...'aZ10.-+ :#?,[]{}"\'!&*|>%@`~/\\·exontru\t=()$;'];
+    for (let i = 0; i < 5000; i++) {
+      let s = '';
+      const len = 1 + Math.floor(rnd() * 8);
+      for (let j = 0; j < len; j++) s += alphabet[Math.floor(rnd() * alphabet.length)];
+      if (s === 'k') continue;
+      roundTrip(m(['side', m(['k', s], ['f', m(['x', s], [s, 1])], ['l', [s, 'b']])], ['next', s], ['notes', [s]]));
+    }
+  });
+});
