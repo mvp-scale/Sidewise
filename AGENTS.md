@@ -19,7 +19,7 @@
 2. **No network in default tests.** Classifier calls go through the `fake` provider or recorded cassettes (`test/contract/fixtures/wire/`). Live runs go only in `test/live/`, and only with `SIDEWISE_LIVE_TEST=1` plus a key.
 3. **Imports** use `.ts` extensions (`./log.ts`). `tsc` rewrites them to `.js` on build.
 4. **Mock data** comes from `test/gen/synthetic-log.ts` with a fixed seed. Never commit a real log.
-5. **Answers are evidence, never commands.** Guidance lines come from templates. Every change to the answer format needs a golden test.
+5. **Answers are evidence, never commands.** The response is the YAML contract (side:/wise:/next:/notes:) — never Plan 1's line format, which is retired. Every change to the answer format needs a golden test.
 6. **Secrets** go only in env vars (`TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY`). Never put them in config, the log, fixtures or test output.
 7. **Help first.** A validation stop has to say what to change (`✖ field: problem → fix`). Everything else is a note.
 8. **Match the surrounding code.** Give each module a short header comment saying why it exists. Keep runtime dependencies minimal.
@@ -29,7 +29,7 @@
 
 | Path | Holds |
 |---|---|
-| `src/` | engine: request parsing, validation, consensus, providers, log, modes, CLI |
+| `src/` | engine: the YAML contract (read, validate, layers, grade, emit), evidence (code/git/units), providers, ledger, verbs, CLI |
 | `skills/sidewise/` | the Agent Skill (`SKILL.md` + references) |
 | `.claude-plugin/` | Claude Code plugin + marketplace manifests |
 | `test/{unit,contract,golden,e2e,live,gen}` | test tiers and mock-data generators |

@@ -19,27 +19,70 @@ Sidewise gives coding agents a cheap, calibrated side-question. The agent writes
 
 ## What a run looks like
 
-```
-sidewise class L1
-problem: login lookup builds SQL from the request
-focus: This handler is safe to merge
+Every request has a `side:` block (**solve it now**: one goal, then plumbing) and an optional `wise:` block (**get smarter**: why you're here, so the ledger learns). `class` — one call, one subject — is the simplest of the six verbs; see [skills/sidewise/SKILL.md](skills/sidewise/SKILL.md) for all six and how they fit together.
 
- 1  Is request text placed directly into the SQL query?
- 2  Could a caller change what the query does?
- 3 !Is the id checked to be a number before use?
- ...
-10  Would a standard security scanner flag this code?
+Request:
 
-? Where should this go? ship | fix | block
+```yaml
+side:
+  goal: This login handler is safe to merge
+  depth: quick
+  where: [src/user.ts:1-3]
+  ask:
+    injection:
+      pass: no
+      1: Is request text placed directly into the SQL query?
+      2: Could a caller change what the query does?
+      10: Would a standard security scanner flag this code?
+    guards:
+      pass: yes
+      3: Is the id checked to be a number before use?
+      6: Is the caller compared to the record owner?
+      9: Does the query select only needed columns?
+    access:
+      pass: no
+      4: Could one user read another user's record?
+      5: Can any caller read any record without a permission check?
+    leaks:
+      pass: no
+      7: Does the error sent back reveal the query?
+      8: Does the code log an email address?
+    severity:
+      pass: [none, low]
+      11:
+        scale: How severe is the worst issue?
+        levels: [none, low, medium, high, critical]
+    route:
+      pass: [ship]
+      12:
+        choice: Where should this go?
+        options: [ship, fix, block]
+wise:
+  why: validate
+  area: data
 ```
 
+Response:
+
+```yaml
+side:
+  id: SW-0042
+  gate: fail
+  goal: {gate: fail, p: 0.08}
+  injection: {gate: fail,   1: 0.94, 2: 0.91, 10: 0.90}
+  guards:    {gate: pass,   3: 0.88, 6: 0.81, 9: 0.75}
+  access:    {gate: fail,   4: 0.86, 5: 0.84}
+  leaks:     {gate: unsure, 7: 0.55, 8: 0.20}
+  severity:  {gate: fail,   11: {top: high, p: 0.81}}
+  route:     {gate: fail,   12: {top: block, p: 0.97}}
+  consensus: STRONG
+  escalate: false
+wise: {recorded: [why, area]}
+next: sidewise drill --parent SW-0042 --category injection
+notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
 ```
-sidewise SW-0042 · class L1 · consensus STRONG · leans block (.97)
-agree   1 2 4 5 7 10 · reversed ok 3 6 9
-concern 1 2 (injection) · 4 5 (access)
-guidance: the evidence agrees this query is exploitable; fix before merging
-next: sidewise drill --parent SW-0042 --focus injection
-```
+
+The numbers above are one run's illustration, not a guarantee — the real classifier's actual answer varies.
 
 ## Install (coming)
 
@@ -53,6 +96,21 @@ Claude Code plugin:
 /plugin marketplace add mvp-scale/Sidewise
 /plugin install sidewise@mvp-scale
 ```
+
+## Quickstart
+
+Every command below runs unmodified, in order, against a fresh project — `sidewise template class` already asks about the first three lines of `src/user.ts`, so nothing needs editing before `sidewise class` sends it. In a real project, edit the `goal` and `ask` first.
+
+```bash
+# sidewise-quickstart
+sidewise template class > review.yaml
+sidewise class review.yaml
+sidewise view src
+sidewise outcome SW-0001 held --by you
+sidewise budget
+```
+
+For the full six verbs, grading rules and stop/exit codes, see [skills/sidewise/SKILL.md](skills/sidewise/SKILL.md).
 
 ## Releases
 
