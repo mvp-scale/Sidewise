@@ -1,15 +1,23 @@
 /**
  * template: prints a request an agent can copy, edit and pipe straight into a verb — never a response, and
- * never touching the ledger or budget. The six files under skills/sidewise/templates/ are CONTRACT.md's own
- * worked examples, shipped with the package so they're available from an installed install, not just the repo.
+ * never spending or writing anything. The files under skills/sidewise/templates/ are CONTRACT.md's own worked
+ * examples, shipped with the package so they're available from an installed install, not just the repo.
  * Only drill's template takes --parent/--from (its stored sample already has both, so it validates unparameterized
- * too); every other verb's flags are refused outright.
+ * too); every other verb's flags are refused outright. template still needs no project to run at all: when
+ * --parent is given and a project happens to be reachable, drill.ts's own two shapes decide which sample fits —
+ * a sweep parent (scan, loop, an earlier sweep drill) keeps this file's `over:`; a one-subject parent (class,
+ * change, an earlier one-subject drill) has no `over:` at all, so drill-subject.yaml is printed instead. A
+ * missing project, an id the ledger doesn't have, or a legacy (Plan 1) run all fall back to the sweep sample,
+ * same as before this looked at the ledger — findRun's own lookup is read-only and never rebuilds anything
+ * onto disk (see log.ts's findRun), so this stays as free as the rest of template.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseDocument } from 'yaml';
 import { VERBS, type Verb } from '../contract/types.ts';
+import { findRun, isContractRun } from '../ledger/log.ts';
+import type { SidewisePaths } from '../ledger/paths.ts';
 import { clip } from '../util/text.ts';
 import type { VerbResult } from './types.ts';
 
@@ -25,13 +33,23 @@ export const TEMPLATE_VERBS: readonly string[] = VERBS;
 // resolves identically before and after tsc.
 const TEMPLATES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'skills', 'sidewise', 'templates');
 
-export function runTemplate(target: string, flags: TemplateFlags = {}): VerbResult {
+/** The sample file name for a drill --parent/--from call: the parent's own shape when the ledger can say (a
+ * sweep run has items, a one-subject run doesn't — same split drill.ts itself branches on), else the sweep
+ * sample, unchanged from before this looked at the ledger at all. */
+function drillSampleFile(parent: string, paths: SidewisePaths | undefined): string {
+  const run = paths && findRun(paths, parent);
+  if (run && isContractRun(run) && run.items === null) return 'drill-subject.yaml';
+  return 'drill.yaml';
+}
+
+export function runTemplate(target: string, flags: TemplateFlags = {}, paths?: SidewisePaths): VerbResult {
   if (!VERBS.includes(target as Verb)) return { exit: 2, text: `✖ template: "${clip(target, 30)}" is not a verb → one of ${VERBS.join(', ')}` };
   if (target !== 'drill' && (flags.parent || flags.from)) return { exit: 2, text: `✖ template: --parent/--from only apply to drill → sidewise template ${target}` };
   if (target === 'drill' && !!flags.parent !== !!flags.from)
     return { exit: 2, text: '✖ template drill: needs both --parent and --from, or neither → sidewise template drill --parent SW-#### --from <item or category>' };
 
-  const raw = readFileSync(path.join(TEMPLATES_DIR, `${target}.yaml`), 'utf8');
+  const file = target === 'drill' && flags.parent ? drillSampleFile(flags.parent, paths) : `${target}.yaml`;
+  const raw = readFileSync(path.join(TEMPLATES_DIR, file), 'utf8');
   if (!flags.parent && !flags.from) return { exit: 0, text: raw };
 
   const doc = parseDocument(raw);

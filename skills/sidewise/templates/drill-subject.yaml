@@ -1,0 +1,12 @@
+side:
+  goal: Find exactly where request text reaches the query
+  parent: SW-0051
+  from: access                     # a category from the parent run, not an item
+  ask:
+    source:
+      pass: no
+      1: Is the value concatenated straight into the string?
+      2: Does it skip a parameterized query?
+wise:
+  why: debug
+  area: data

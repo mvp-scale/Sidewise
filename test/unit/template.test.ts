@@ -4,6 +4,12 @@ import { readRequestText } from '../../src/contract/read.ts';
 import { VERBS } from '../../src/contract/types.ts';
 import { validateRequest } from '../../src/contract/validate.ts';
 import { runTemplate } from '../../src/verbs/template.ts';
+import { runClass } from '../../src/verbs/class.ts';
+import { runScan } from '../../src/verbs/scan.ts';
+import { tempProject } from '../helpers/project.ts';
+import { stubProvider } from '../helpers/stub-provider.ts';
+
+const env = { SIDEWISE_ACTOR: 'r' };
 
 describe('runTemplate', () => {
   it.each(VERBS)('%s: prints a request that validates on its own', (verb) => {
@@ -37,5 +43,53 @@ describe('runTemplate', () => {
     const parsed = readRequestText(r.text);
     const v = parsed.ok && validateRequest(parsed.value, 'drill');
     expect(v && v.ok).toBe(true);
+  });
+
+  it('no ledger reachable: keeps the sweep sample (unchanged today-behaviour) [C-090]', () => {
+    const r = runTemplate('drill', { parent: 'SW-0099', from: 'access' }, undefined);
+    expect(r.text).toContain('over:');
+    expect(r.text).toContain('call: each');
+  });
+
+  describe('drill --parent/--from shaped by the ledger, when one is reachable [C-090]', () => {
+    const classReq =
+      'side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n' +
+      Array.from({ length: 10 }, (_, i) => `      ${i + 1}: is question ${i + 1} true?\n`).join('');
+    const scanReq =
+      'side:\n  goal: handlers stay safe\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: is it unsafe?\n';
+
+    it('a one-subject parent (class): no over:, from: names the category, ask: shaped for it', async () => {
+      const { paths } = tempProject({ 'src/a.ts': 'x' });
+      await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+      const r = runTemplate('drill', { parent: 'SW-0001', from: 'injection' }, paths);
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('parent: SW-0001');
+      expect(r.text).toContain('from: injection');
+      expect(r.text).not.toContain('over:');
+      const parsed = readRequestText(r.text);
+      const v = parsed.ok && validateRequest(parsed.value, 'drill');
+      expect(v && v.ok).toBe(true);
+    });
+
+    it('a sweep parent (scan): keeps the sweep sample, over: and all', async () => {
+      const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(req.id); }\n' });
+      await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+      const r = runTemplate('drill', { parent: 'SW-0001', from: 'src/a.ts/findUser' }, paths);
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('parent: SW-0001');
+      expect(r.text).toContain('from: src/a.ts/findUser');
+      expect(r.text).toContain('over:');
+      expect(r.text).toContain('call: each');
+      const parsed = readRequestText(r.text);
+      const v = parsed.ok && validateRequest(parsed.value, 'drill');
+      expect(v && v.ok).toBe(true);
+    });
+
+    it('an unknown parent id, ledger reachable: keeps the sweep sample rather than stopping', () => {
+      const { paths } = tempProject({});
+      const r = runTemplate('drill', { parent: 'SW-9999', from: 'access' }, paths);
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('over:');
+    });
   });
 });

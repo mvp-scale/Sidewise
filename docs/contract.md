@@ -443,6 +443,9 @@ drill's own `next:` never points at drilling further: on a one-subject parent it
 unchanged items are reused, so it is nearly free. [C-078]
 Wise learns which narrower questions separate the real cause from the noise; they become the drill pattern
 for that category. [C-079]
+`sidewise template drill --parent <id> --from <x>` picks the sample matching that id's own shape when the
+ledger has it: a sweep parent's sample keeps `over:`, a one-subject parent's has no `over:` and `from:` names
+a category instead. No project, or an id the ledger doesn't have, prints the sweep sample, same as always. [C-090]
 
 ---
 

@@ -152,7 +152,9 @@ async function main(argv: string[]): Promise<void> {
     return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome or budget (sidewise --help)`);
   }
 
-  // template needs no project: it never touches paths, the ledger or the budget.
+  // template needs no project to run: it never spends and never writes. When --parent is given, it still tries
+  // a project (to shape the sample to that run) but never insists on one — no project, or the id not in its
+  // ledger, just falls back to the sweep sample (runTemplate's own drillSampleFile).
   if (command === 'template') {
     const twice = givenTwice(rest, ['parent', 'from']);
     if (twice) return finish(2, twice);
@@ -162,7 +164,7 @@ async function main(argv: string[]): Promise<void> {
       options: { parent: { type: 'string' }, from: { type: 'string' } },
     });
     positionalCount('template', positionals, 1, 1);
-    const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from });
+    const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from }, resolvePaths());
     return finish(r.exit, r.text);
   }
 
