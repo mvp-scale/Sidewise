@@ -13,10 +13,11 @@ describe('countTokens', () => {
     expect(countTokens('')).toBe(0);
   });
 
-  // Measured against the real cl100k_base encoder (not assumed): compact json's tightly-packed `":`, `",`, `"}}`
-  // sequences match BPE merges cl100k_base already has (json is heavily represented in its training data), while
-  // yaml's per-line indentation and colons don't compress the same way — so yaml costs MORE tokens here, not
-  // fewer. This is one of this bench's own headline findings (docs/evidence/tokens.md), confirmed the same way
+  // Measured against the real cl100k_base encoder (not assumed): compact json costs fewer tokens than yaml here,
+  // not more — the reverse of the naive chars/4 intuition. Why is an open question this bench can't verify (no
+  // visibility into cl100k_base's training data); a guess is that compact json's tightly-packed `":`, `",`, `"}}`
+  // sequences happen to match BPE merges cl100k_base already has, in a way yaml's per-line indentation and colons
+  // don't. This is one of this bench's own headline findings (docs/evidence/tokens.md), confirmed the same way
   // across every fixture, not a one-off: a real BPE tokenizer, unlike chars/4, can show a counterintuitive result.
   it('is sensitive to structural punctuation, not just length: compact json packs its braces/quotes/colons into fewer merged tokens than yaml\'s per-line indentation does', () => {
     const yaml = 'side:\n  goal: Is it safe\n  where: [src/user.ts]\n';
