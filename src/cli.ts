@@ -10,6 +10,7 @@ import { stringify } from 'yaml';
 import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './budget/budget.ts';
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
+import { JevConfigError } from './classifier/typesafe/config.ts';
 import { RUN_ID } from './ledger/ids.ts';
 import { LockError, StoreError } from './ledger/lock.ts';
 import { appendOutcome, findRun, isContractRun, LedgerError, type Outcome } from './ledger/log.ts';
@@ -124,6 +125,10 @@ function cap(flag: string, raw: string): number | string {
 
 const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop } as const;
 
+/** Most provider-selection failures (no key) are bucketed as provider errors (exit 1); a JevConfigError can
+ *  instead carry exit 2 (P3: a bad SIDEWISE_BASE_URL is a config mistake to fix, not a runtime provider failure). */
+const providerExit = (e: unknown): 1 | 2 => (e instanceof JevConfigError ? e.exit : 1);
+
 /** class, scan, drill and loop share one shape: a request file (or -), optional --dry-run. */
 async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths: SidewisePaths): Promise<void> {
   const twice = givenTwice(rest, ['dry-run']);
@@ -136,7 +141,7 @@ async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths
   try {
     provider = selectProvider(process.env, { chaosState: path.join(paths.dir, 'chaos.json') });
   } catch (e) {
-    return finish(1, (e as Error).message);
+    return finish(providerExit(e), (e as Error).message);
   }
   const r = await RUNNERS[command](read.text, { paths, provider, env: process.env, dryRun: values['dry-run'] });
   return finish(r.exit, r.text);
@@ -231,7 +236,7 @@ async function main(argv: string[]): Promise<void> {
       try {
         provider = selectProvider(process.env, { chaosState: path.join(paths.dir, 'chaos.json') });
       } catch (e) {
-        return finish(1, (e as Error).message);
+        return finish(providerExit(e), (e as Error).message);
       }
       const r = await runChange(text, { paths, provider, env: process.env, dryRun: values['dry-run'] });
       return finish(r.exit, r.text);
@@ -279,6 +284,7 @@ main(process.argv.slice(2)).catch((e: unknown) => {
   if (e instanceof UsageStop) return finish(2, e.message);
   if (e instanceof BudgetError) return finish(3, e.message);
   if (e instanceof LedgerError) return finish(e.exit, e.message);
+  if (e instanceof JevConfigError) return finish(e.exit, e.message);
   if (e instanceof LockError || e instanceof StoreError) return finish(1, e.message);
   const text = (e instanceof Error ? e.message : String(e)).split('\n')[0]!.slice(0, 200);
   finish(1, `✖ sidewise: ${text} → retry; if it repeats, report it with the command you ran`);
