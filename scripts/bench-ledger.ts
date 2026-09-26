@@ -151,6 +151,9 @@ async function benchSize(n: number, seed: string, sampleCalls: number): Promise<
     const { ids, keys, who } = samplePools(records);
     const rows = benchOne(paths, ids, keys, who, sampleCalls, rand);
 
+    // logBytes is the generated ledger's size, unaffected by anything after it. indexBytes/rssMb are read after
+    // benchOne, not right after generation: index.json does not exist until the first index op runs, so reading
+    // it any earlier would always be 0 — not useful evidence of the sidecar's size relative to the log.
     const indexBytes = existsSync(paths.index) ? statSync(paths.index).size : 0;
     const rssMb = process.memoryUsage().rss / 1e6;
     return { n, logBytes, indexBytes, rssMb, rows };
