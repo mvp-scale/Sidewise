@@ -53,10 +53,10 @@ describe('outcomeNext', () => {
 
 describe('dryRunText', () => {
   it('a one-subject plan (no items/reused)', () => {
-    expect(dryRunText({ calls: 1, questions: 11 })).toBe('plan:\n  calls: 1\n  questions: 11\nnotes: [dry run · no call · no spend]\n');
+    expect(dryRunText({ calls: 1, questions: 11 })).toBe('plan:\n  calls: 1\n  questions: 11\nnotes: ["dry run: no call, no spend"]\n');
   });
   it('a sweep plan', () => {
-    expect(dryRunText({ calls: 2, questions: 16, items: 8, reused: 0 })).toBe('plan:\n  calls: 2\n  questions: 16\n  items: 8\n  reused: 0\nnotes: [dry run · no call · no spend]\n');
+    expect(dryRunText({ calls: 2, questions: 16, items: 8, reused: 0 })).toBe('plan:\n  calls: 2\n  questions: 16\n  items: 8\n  reused: 0\nnotes: ["dry run: no call, no spend"]\n');
   });
 });
 

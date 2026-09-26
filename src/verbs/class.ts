@@ -44,13 +44,16 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
-  const toAsk = keyed.filter(([q, k]) => {
+  const toAsk: (typeof keyed)[number][] = [];
+  for (const [q, k] of keyed) {
     const hit = reused.get(k);
-    if (!hit) return true;
-    answers[q.id] = hit.answer;
-    reusedFrom[q.id] = hit.id;
-    return false;
-  });
+    if (hit) {
+      answers[q.id] = hit.answer;
+      reusedFrom[q.id] = hit.id;
+    } else {
+      toAsk.push([q, k]);
+    }
+  }
 
   let costUsd: number | undefined;
   let calls: number;

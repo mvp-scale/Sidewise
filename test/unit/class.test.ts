@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { loadBudget } from '../../src/budget/budget.ts';
+import { EVIDENCE_LIMITS } from '../../src/evidence/code.ts';
 import { isContractRun, readLedger } from '../../src/ledger/log.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { tempProject } from '../helpers/project.ts';
@@ -10,7 +11,8 @@ import { stubProvider } from '../helpers/stub-provider.ts';
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 const env = { SIDEWISE_ACTOR: 'reviewer-7' };
 // The contract's own numbers (P(yes) per question); see plan Decision 3: this gives SPLIT, not the doc's STRONG.
-const P: Record<string, number> = { goal: 0.08, '1': 0.94, '2': 0.91, '10': 0.9, '3': 0.88, '6': 0.81, '9': 0.75, '4': 0.86, '5': 0.84, '7': 0.55, '8': 0.2, '11': 0, '12': 0 };
+// 11 (severity, scale) and 12 (route, choice) aren't yes/no: stubProvider only uses `pick` for those, never `yes`.
+const P: Record<string, number> = { goal: 0.08, '1': 0.94, '2': 0.91, '10': 0.9, '3': 0.88, '6': 0.81, '9': 0.75, '4': 0.86, '5': 0.84, '7': 0.55, '8': 0.2 };
 
 describe('class', () => {
   it('the contract class example: gate, categories, consensus SPLIT (Decision 3), one call, logged as v2', async () => {
@@ -19,6 +21,8 @@ describe('class', () => {
     const r = await runClass(CLASS_YAML, { paths, provider, env, now: () => Date.parse('2026-09-26T12:00:00Z') });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('gate: fail');
+    expect(r.text).toContain('severity: {gate: fail, 11: {top: high, p: 0.90}}');
+    expect(r.text).toContain('route: {gate: fail, 12: {top: block, p: 0.90}}');
     expect(r.text).toContain('consensus: SPLIT');
     expect(r.text).toContain('escalate: true');
     expect(provider.calls).toHaveLength(1);
@@ -44,9 +48,20 @@ describe('class', () => {
     const provider = stubProvider();
     const r = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 13\nnotes: [dry run · no call · no spend]\n');
+    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 13\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
+  });
+
+  it('an oversized source file: the evidence-truncation note comes before the budget note', async () => {
+    const big = 'x'.repeat(EVIDENCE_LIMITS.perFileChars + 5000);
+    const { paths } = tempProject({ 'src/user.ts': big });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const r = await runClass(CLASS_YAML, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain(`notes: [src/user.ts:1-3 truncated to ${EVIDENCE_LIMITS.perFileChars} chars, `);
+    expect(r.text.indexOf('truncated to')).toBeGreaterThan(-1);
+    expect(r.text.indexOf('truncated to')).toBeLessThan(r.text.indexOf('budget'));
   });
 
   it('an invalid request exits 2 before touching the budget or the ledger', async () => {

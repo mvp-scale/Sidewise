@@ -67,9 +67,7 @@ export function dryRunText(plan: { calls: number; questions: number; items?: num
           ...(plan.reused !== undefined ? [['reused', plan.reused] as [string, Value]] : []),
         ),
       ],
-      // "· " (not ": " or ",") stays a plain scalar in a flow list — see emit.ts's scalar(): a colon-space or
-      // comma anywhere would force quotes, or worse, misparse on the way back in (checked against yaml's parser).
-      ['notes', ['dry run · no call · no spend']],
+      ['notes', ['dry run: no call, no spend']],
     ),
   );
 }
