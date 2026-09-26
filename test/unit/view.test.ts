@@ -26,6 +26,23 @@ describe('view', () => {
     expect(runView('perf', 1, paths).text).toContain('SW-0002 2026-09-21 class L1 STRONG concern "second" · open');
   });
 
+  it('labels fake runs and counts them apart from outcomes', () => {
+    const { paths } = tempProject({});
+    appendRun(paths, sampleRun({ focus: 'real' }), at(20));
+    appendRun(paths, sampleRun({ focus: 'rehearsal', adapter: 'fake' }), at(21));
+    appendRun(paths, sampleRun({ focus: 'rehearsal two', adapter: 'fake' }), at(22));
+    appendOutcome(paths, 'SW-0002', 'held', 'owner');
+    expect(runView('src', 1, paths).text).toBe(
+      [
+        'sidewise view src · 3 runs · held 0 · overruled 0 · failed 0 · open 1 · fake 2',
+        'SW-0003 2026-09-22 class L1 STRONG concern "rehearsal two" · open · fake',
+        'SW-0002 2026-09-21 class L1 STRONG concern "rehearsal" · held · fake',
+        'SW-0001 2026-09-20 class L1 STRONG concern "real" · open',
+      ].join('\n'),
+    );
+    expect(runView('SW-0002', 1, paths).text.split('\n')[1]).toBe('▶ SW-0002 2026-09-21 class L1 STRONG concern "rehearsal" · held · fake');
+  });
+
   it('an empty place says how to start', () => {
     const { paths } = tempProject({});
     expect(runView('docs', 1, paths)).toEqual({ exit: 0, text: 'sidewise view docs · no runs yet → "sidewise class <request>" starts one' });
