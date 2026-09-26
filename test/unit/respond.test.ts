@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Value } from '../../src/contract/emit.ts';
 import { gradeCategory, gradeSubject, type ItemGrade } from '../../src/contract/grade.ts';
 import type { Category, Gate } from '../../src/contract/types.ts';
-import { categoryEntry, commonNotes, drillNext, dryRunText, outcomeNext, respondText, shownValue, subjectSide, sweepNext, wiseRecorded } from '../../src/verbs/respond.ts';
+import { categoryEntry, commonNotes, drillNext, dryRunText, outcomeNext, regressionNext, respondText, shownValue, subjectSide, sweepNext, wiseRecorded } from '../../src/verbs/respond.ts';
 
 const cat = (name: string, pass: Category['pass'], nums: number[]): Category => ({ name, pass, need: 'all', tags: [], questions: nums.map((n) => ({ n, kind: 'yesno' as const, text: `Is ${n}?` })) });
 
@@ -76,6 +76,14 @@ describe('sweepNext', () => {
 
   it('nothing graded at all (every item skipped past the depth cap): says so [C-046]', () => {
     expect(sweepNext('SW-1', 'unsure', [], [], 'act on it')).toBe('every item was skipped · raise depth or narrow over, then run it again');
+  });
+});
+
+describe('regressionNext', () => {
+  const cats: Category[] = [cat('injection', 'no', [1, 2]), cat('access', 'no', [3])];
+  it('points at the category the first regressed question belongs to [C-091]', () => {
+    expect(regressionNext('SW-1', [2], cats)).toBe('sidewise template drill --parent SW-1 --from injection');
+    expect(regressionNext('SW-1', [3], cats)).toBe('sidewise template drill --parent SW-1 --from access');
   });
 });
 
