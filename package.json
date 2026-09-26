@@ -50,6 +50,7 @@
     "test:cli": "npm run build && vitest run --project cli",
     "test:chaos": "npm run build && tsx test/chaos/run.ts",
     "test:container": "sh docker/test.sh",
+    "bench:ledger": "tsx scripts/bench-ledger.ts",
     "sidewise": "tsx src/cli.ts",
     "check:clean": "sh scripts/check-clean.sh",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"

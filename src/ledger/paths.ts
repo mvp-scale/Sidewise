@@ -8,11 +8,13 @@ export interface SidewisePaths {
   log: string;
   lock: string;
   budget: string;
+  /** The id index sidecar (ledger/index.ts): disposable, rebuildable from log.jsonl, never the source of truth. */
+  index: string;
 }
 
 export function pathsFor(root: string): SidewisePaths {
   const dir = path.join(root, '.sidewise');
-  return { root, dir, log: path.join(dir, 'log.jsonl'), lock: path.join(dir, 'lock'), budget: path.join(dir, 'budget.json') };
+  return { root, dir, log: path.join(dir, 'log.jsonl'), lock: path.join(dir, 'lock'), budget: path.join(dir, 'budget.json'), index: path.join(dir, 'index.json') };
 }
 
 /** The nearest folder at or above cwd holding .sidewise or .git; undefined outside any project. */

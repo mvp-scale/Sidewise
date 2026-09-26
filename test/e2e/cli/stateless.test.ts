@@ -54,13 +54,14 @@ describe('statelessness', () => {
     expect(again.stdout).toContain('$0.00 of $5.00 · 1 of 500 runs');
   });
 
-  it('after runs finish, .sidewise/ holds only log.jsonl and budget.json (no lock, no temp file)', () => {
+  it('after runs finish, .sidewise/ holds only log.jsonl, budget.json and index.json (no lock, no temp file)', () => {
     const root = project();
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
     expect(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']).status).toBe(0);
     expect(sidewise(root, ['budget', 'set', '--runs', '50']).status).toBe(0);
     expect(sidewise(root, ['view', 'src']).status).toBe(0);
     expect(sidewise(root, ['class', 'missing.txt']).status).toBe(2);
-    expect(readdirSync(path.join(root, '.sidewise')).sort()).toEqual(['budget.json', 'log.jsonl']);
+    // index.json is the disposable id-index sidecar (ledger/index.ts): expected here, unlike a lock or .tmp file.
+    expect(readdirSync(path.join(root, '.sidewise')).sort()).toEqual(['budget.json', 'index.json', 'log.jsonl']);
   });
 });

@@ -13,6 +13,10 @@ import type { Answer, Category, Depth, Gate, Layer, Wise } from '../contract/typ
 import type { Consensus } from '../lens/consensus.ts';
 import type { Level, Place, Verb } from '../lens/request.ts';
 import { formatRunId, ulid } from './ids.ts';
+// A deliberate two-way import with index.ts: log.ts calls loadIndex/readRecordAt (only inside function bodies,
+// never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the same way. Safe in
+// ESM as long as neither side touches the other's exports before both modules finish loading, which holds here.
+import { loadIndex, readRecordAt } from './index.ts';
 import { onStore, withLock } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
 import { redact, redactDeep, redactSecrets } from './redact.ts';
@@ -167,8 +171,12 @@ const iso = (now: number): string => new Date(now).toISOString().replace(/\.\d{3
 const isText = (v: unknown): boolean => typeof v === 'string';
 const isObj = (v: unknown): boolean => !!v && typeof v === 'object' && !Array.isArray(v);
 
-/** Just enough shape for every reader (view, outcome, id counting) to use a record without crashing. */
-function isRecord(v: unknown): v is LedgerRecord {
+/**
+ * Just enough shape for every reader (view, outcome, id counting) to use a record without crashing. Exported
+ * so ledger/index.ts's line parser can reuse it verbatim: the index and readLedger must never disagree about
+ * what counts as a valid record, or the index could silently hide corruption readLedger would catch.
+ */
+export function isRecord(v: unknown): v is LedgerRecord {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
   const r = v as Record<string, unknown>;
   if (r.kind === 'outcome') return [r.id, r.of, r.outcome, r.by, r.ts].every(isText);
@@ -194,6 +202,10 @@ function isRecord(v: unknown): v is LedgerRecord {
   );
 }
 
+/** The ledger's path, shown relative to the project root (never absolute — AGENTS.md: no machine paths in output
+ *  or errors). Shared with ledger/index.ts so a line's error text always names the file the same way readLedger does. */
+export const shownLog = (paths: SidewisePaths): string => path.relative(paths.root, paths.log).split(path.sep).join('/');
+
 /**
  * Every record, in order. A line that isn't a record refuses the whole read (fail closed): ids are counted from it.
  * `partialTail` (readers that don't hold the lock, like view): a bad last line with no trailing newline is skipped,
@@ -201,7 +213,7 @@ function isRecord(v: unknown): v is LedgerRecord {
  */
 export function readLedger(paths: SidewisePaths, opts: { partialTail?: boolean } = {}): LedgerRecord[] {
   const text = onStore(paths.log, 'read', () => (existsSync(paths.log) ? readFileSync(paths.log, 'utf8') : ''));
-  const shown = path.relative(paths.root, paths.log).split(path.sep).join('/');
+  const shown = shownLog(paths);
   const records: LedgerRecord[] = [];
   const lines = text.split('\n');
   lines.forEach((line, i) => {
@@ -240,14 +252,15 @@ function appendLine(paths: SidewisePaths, record: LedgerRecord): void {
   });
 }
 
-/** The next SW number. The caller holds the lock. (Task 27 replaces the linear read with the index.) */
+/** The next SW number, from the id index (ledger/index.ts) instead of a linear scan. The caller holds the lock. */
 export function nextRunNumber(paths: SidewisePaths): number {
-  return readLedger(paths).filter((r) => r.kind === 'run').length + 1;
+  return loadIndex(paths).runCount + 1;
 }
 
-/** A run of either shape by SW id, or undefined. Never blocks on an append in progress. */
+/** A run of either shape by SW id, or undefined: one index lookup plus one line read, never a full scan. */
 export function findRun(paths: SidewisePaths, id: string): RunRecord | ContractRun | undefined {
-  return readLedger(paths, { partialTail: true }).find((r): r is RunRecord | ContractRun => r.kind === 'run' && r.id === id);
+  const at = loadIndex(paths).runOffset[id];
+  return at === undefined ? undefined : (readRecordAt(paths.log, at) as RunRecord | ContractRun);
 }
 
 /** Appends a run with the next SW id. The caller holds the lock (see appendRun, and recordCall in record.ts). */

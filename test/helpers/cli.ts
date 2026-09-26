@@ -43,12 +43,17 @@ export function sidewiseAsync(root: string, args: string[], env: Record<string, 
   });
 }
 
-/** Every file under <root>/.sidewise with its bytes, or null when the folder does not exist. */
+/**
+ * Every file under <root>/.sidewise with its bytes, or null when the folder does not exist. Skips index.json:
+ * it's a disposable read cache (ledger/index.ts) that a plain read (view, --dry-run, a rejected request) can
+ * now create or refresh as a side effect, with no bearing on the ledger/budget state these snapshots protect.
+ */
 export function snapshot(root: string): Record<string, string> | null {
   const dir = path.join(root, '.sidewise');
   if (!existsSync(dir)) return null;
   const out: Record<string, string> = {};
   for (const name of readdirSync(dir).sort()) {
+    if (name === 'index.json') continue;
     const full = path.join(dir, name);
     out[name] = statSync(full).isDirectory() ? '<dir>' : readFileSync(full, 'latin1');
   }

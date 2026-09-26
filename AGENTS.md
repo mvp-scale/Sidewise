@@ -10,6 +10,7 @@
 | CLI end-to-end (builds first) | `npm run test:cli` |
 | Agent chaos harness (capped, costs real money; not part of `npm test`) | `npm run test:chaos` |
 | Clean-room container (Node 22; set `SIDEWISE_NODE_VERSIONS="20 22 24"` for the matrix) | `npm run test:container` |
+| Ledger scale bench (not part of `npm test`; run by hand or nightly) | `npm run bench:ledger -- --sizes 10000,100000` |
 | Check staged files before a commit (also runs as the pre-commit hook) | `npm run check:clean` |
 | Validate the Claude Code plugin and marketplace | `claude plugin validate .` |
 

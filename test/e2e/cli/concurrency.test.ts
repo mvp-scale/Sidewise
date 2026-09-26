@@ -59,7 +59,7 @@ describe('separate processes at once', () => {
     expect(s.runIds).toEqual(expectedIds(ok.length));
     expect(ok.map(printedId).sort()).toEqual(s.runIds);
     expect(s.budgetRuns).toBe(s.counted);
-    expect(s.files).toEqual(['budget.json', 'log.jsonl']);
+    expect(s.files).toEqual(['budget.json', 'index.json', 'log.jsonl']);
   }, 60_000);
 
   it('class and outcome interleaved: every outcome names a logged run, ids stay gap-free, budget agrees', async () => {
@@ -81,7 +81,7 @@ describe('separate processes at once', () => {
     for (const o of outcomes) expect(s.runIds.indexOf(o.of!)).toBeGreaterThanOrEqual(0);
     expect(s.budgetRuns).toBe(s.counted);
     expect(s.counted).toBe(7);
-    expect(s.files).toEqual(['budget.json', 'log.jsonl']);
+    expect(s.files).toEqual(['budget.json', 'index.json', 'log.jsonl']);
   }, 60_000);
 
   it('6 runs racing a cap of 3: at least 3 succeed, the rest are blocked; the cap may be overshot by up to concurrent − 1 (at most 8 runs)', async () => {
@@ -121,6 +121,6 @@ describe('separate processes at once', () => {
     const r = await sidewiseAsync(root, ['class', 'req.yaml']);
     expect(r.status, r.stderr).toBe(0);
     expect(Date.now() - start).toBeLessThan(4500);
-    expect(state(root).files).toEqual(['budget.json', 'log.jsonl']);
+    expect(state(root).files).toEqual(['budget.json', 'index.json', 'log.jsonl']);
   }, 30_000);
 });
