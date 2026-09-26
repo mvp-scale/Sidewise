@@ -17,5 +17,5 @@ export { LockError } from './ledger/lock.ts';
 export * from './budget/budget.ts';
 export * from './evidence/code.ts';
 export * from './verbs/types.ts';
-export { runClass, toQuestions } from './verbs/class.ts';
+export { runClass } from './verbs/class.ts';
 export { runView } from './verbs/view.ts';

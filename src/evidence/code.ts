@@ -1,23 +1,23 @@
 /**
- * Our code as classifier evidence: each `where` place becomes one state entry ("code:<path>[:lines]"),
+ * Our code as classifier evidence: each `where` entry ("path" or "path:start-end") becomes one evidence file,
  * redacted and size-capped. Paths must stay inside the project, symlinks resolved; a folder or a bad line range
- * is a Stop (scan covers folders). This is the one place line ranges are checked.
+ * is a Stop. This is the one place line ranges are checked — schema-check.ts already confirmed the shape.
  */
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
-import type { Place } from '../lens/request.ts';
 import { redact } from '../ledger/redact.ts';
 
 export const EVIDENCE_LIMITS = { perFileChars: 20_000, totalChars: 60_000 } as const;
 
 export interface CodeEvidence {
-  state: Record<string, string>;
+  files: Record<string, string>;
   notes: string[];
 }
 
 export type EvidenceResult = { ok: true; evidence: CodeEvidence } | { ok: false; errors: string[] };
 
 const LINES = /^(\d+)(?:-(\d+))?$/;
+const TAIL = /:(\d+(?:-\d+)?)$/u;
 
 /** "start" or "start-end" with 1 ≤ start ≤ end, else undefined. */
 function lineRange(lines: string): { start: number; end: number } | undefined {
@@ -28,24 +28,31 @@ function lineRange(lines: string): { start: number; end: number } | undefined {
   return start >= 1 && start <= end ? { start, end } : undefined;
 }
 
+/** "path" or "path:lines" (schema-check.ts already confirmed the path itself has no other ":"). */
+function splitWhere(entry: string): { path: string; lines?: string } {
+  const m = TAIL.exec(entry);
+  return m ? { path: entry.slice(0, m.index), lines: m[1]! } : { path: entry };
+}
+
 const isOutside = (rel: string): boolean => rel.startsWith('..') || path.isAbsolute(rel);
 
-export function readCodeEvidence(root: string, where: readonly Place[]): EvidenceResult {
+export function readCodeEvidence(root: string, where: readonly string[]): EvidenceResult {
   const errors: string[] = [];
   const notes: string[] = [];
-  const state: Record<string, string> = {};
+  const files: Record<string, string> = {};
   let total = 0;
-  for (const place of where) {
-    const full = path.resolve(root, place.path);
+  for (const entry of where) {
+    const { path: rawPath, lines } = splitWhere(entry);
+    const full = path.resolve(root, rawPath);
     const rel = path.relative(root, full);
-    const outside = `✖ where: "${place.path}" is outside the project → use a path inside the project`;
+    const outside = `✖ side.where: "${rawPath}" is outside the project → use a path inside the project`;
     if (isOutside(rel)) {
       errors.push(outside);
       continue;
     }
-    const range = place.lines ? lineRange(place.lines) : undefined;
-    if (place.lines && !range) {
-      errors.push(`✖ where: "${place.path}:${place.lines}" has a bad line range → use start-end with 1 ≤ start ≤ end`);
+    const range = lines ? lineRange(lines) : undefined;
+    if (lines && !range) {
+      errors.push(`✖ side.where: "${entry}" has a bad line range → use start-end with 1 ≤ start ≤ end`);
       continue;
     }
     let text: string;
@@ -56,15 +63,15 @@ export function readCodeEvidence(root: string, where: readonly Place[]): Evidenc
         continue;
       }
       if (statSync(full).isDirectory()) {
-        errors.push(`✖ where: "${place.path}" is a folder → name a file (scan covers folders)`);
+        errors.push(`✖ side.where: "${rawPath}" is a folder → name a file (scan covers folders)`);
         continue;
       }
       text = readFileSync(full, 'utf8');
     } catch {
-      errors.push(`✖ where: cannot read "${place.path}" → check the path`);
+      errors.push(`✖ side.where: cannot read "${rawPath}" → check the path`);
       continue;
     }
-    const shown = `${rel.split(path.sep).join('/')}${place.lines ? `:${place.lines}` : ''}`;
+    const shown = `${rel.split(path.sep).join('/')}${lines ? `:${lines}` : ''}`;
     let body = redact(range ? text.split('\n').slice(range.start - 1, range.end).join('\n') : text);
     if (body.length > EVIDENCE_LIMITS.perFileChars) {
       body = body.slice(0, EVIDENCE_LIMITS.perFileChars);
@@ -80,7 +87,7 @@ export function readCodeEvidence(root: string, where: readonly Place[]): Evidenc
       notes.push(`${shown} truncated: evidence limit reached`);
     }
     total += body.length;
-    state[`code:${shown}`] = body;
+    files[shown] = body;
   }
-  return errors.length ? { ok: false, errors } : { ok: true, evidence: { state, notes } };
+  return errors.length ? { ok: false, errors } : { ok: true, evidence: { files, notes } };
 }
