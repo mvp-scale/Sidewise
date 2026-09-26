@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { createFakeAdapter } from '../../src/classifier/fake.ts';
 import { appendOutcome, appendRun, readLedger } from '../../src/ledger/log.ts';
+import { runChange } from '../../src/verbs/change.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runView } from '../../src/verbs/view.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
@@ -121,5 +122,21 @@ describe('view: request mode', () => {
     expect(r.text).toContain('next: sidewise view SW-0001');
     expect(readLedger(paths).length).toBe(linesBefore);
     expect(readFileSync(paths.budget, 'utf8')).toBe(budgetBefore);
+  });
+
+  it('a fixed-and-held category gets no hit ranking: view shows the plain per-category record, nothing else [C-052] [C-067]', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
+    const text =
+      'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: q1?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n';
+    await runClass(text, { paths, provider: stubProvider({ yes: () => 0.9 }), env: {} }); // SW-0001: injection fails
+    await runChange('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', { paths, provider: stubProvider({ yes: () => 0.05 }), env: {} }); // SW-0002: injection now passes
+    appendOutcome(paths, 'SW-0001', 'held', 'owner'); // the yardstick's prediction is confirmed: a "hit"
+    const r = runView(text, 1, { paths, env: {} });
+    // The record is still just runs/pass/fail/last, unranked — recording the hit changed nothing about it
+    // (SW-0001 fails "before", SW-0002 the change's "after" gate passes; nothing above this counts the hit).
+    expect(r.text).toContain('injection: {runs: 2, pass: 1, fail: 1, last: SW-0002}');
+    expect(r.text).not.toContain('best');
+    expect(r.text).not.toContain('hit');
+    expect(r.text).not.toContain('rank');
   });
 });

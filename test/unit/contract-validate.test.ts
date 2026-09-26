@@ -57,7 +57,7 @@ describe('validateRequest', () => {
     expect(stops(cls('    leaks:\n      pass: no\n      1: no\n'), 'class')).toEqual(['✖ question 1: is not a question → write it as text']);
   });
 
-  it('the verb\'s own fields [C-015] [C-062] [C-084]', () => {
+  it('the verb\'s own fields [C-015] [C-062] [C-085]', () => {
     expect(stops(one(TEN).replace('side:\n', 'side:\n  verb: view\n'), 'class')).toEqual(['✖ side.verb: says "view" but you ran class → remove side.verb, or run sidewise view']);
     expect(stops('side:\n  goal: The handler is safe\n', 'class')).toEqual([
       '✖ side.depth: class needs it → add "depth: quick" (10 yes/no questions; standard 20, thorough 30)',
@@ -87,7 +87,7 @@ describe('validateRequest', () => {
     expect(stops(one([1, 2, 3, 4, 5, 6, 7, 8, 9, 11]), 'class')).toEqual(['✖ question numbers: 1 2 3 4 5 6 7 8 9 11 → number them 1…10 with no gaps']);
   });
 
-  it('depth counts yes/no questions only, exactly, for class [C-011] [C-085]', () => {
+  it('depth counts yes/no questions only, exactly, for class [C-011] [C-086]', () => {
     expect(stops(one([1, 2, 3, 4, 5, 6, 7]), 'class')).toEqual(['✖ side.depth: quick needs 10 yes/no questions, got 7 → add 3']);
     expect(stops(one([...TEN, 11, 12]), 'class')).toEqual(['✖ side.depth: quick needs 10 yes/no questions, got 12 → remove 2, or raise the depth']);
     const scaled = cls(`    leaks:\n      pass: no\n${yesno(TEN)}    sev:\n      pass: [low]\n      11:\n        scale: How bad is it?\n        levels: [low, high]\n`);

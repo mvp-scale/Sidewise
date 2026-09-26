@@ -17,7 +17,7 @@ const FILES = {
 };
 
 describe('scan', () => {
-  it('the contract shape: scanned, failing worst first, passing/reused as counts [C-069]', async () => {
+  it('the contract shape: scanned, failing worst first, passing/reused as counts [C-070]', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
     const r = await runScan(REQUEST, { paths, provider, env });
@@ -30,7 +30,7 @@ describe('scan', () => {
     expect(provider.calls).toHaveLength(1); // one call: the function layer (file has no ask categories)
   });
 
-  it('a second scan of unchanged code is free [C-071] [C-072]', async () => {
+  it('a second scan of unchanged code is free [C-072] [C-073]', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
     const r1 = await runScan(REQUEST, { paths, provider, env });
@@ -47,6 +47,10 @@ describe('scan', () => {
     expect(budgetAfterSecond.spentUsd).toBe(budgetAfterFirst.spentUsd);
     const runs = readLedger(paths).filter(isContractRun);
     expect(runs[1]).toMatchObject({ id: 'SW-0002', verb: 'scan', calls: 0 });
+    // [C-073] a sweep run's own top-level categories stays empty; the per-function grading lives only
+    // under items[id].categories (same shape loop.test.ts pins for C-083) — no folder/category query reads
+    // this field for scan today.
+    expect(runs[1]!.categories).toEqual({});
   });
 
   it('a changed function forces exactly one new call carrying only it; the unchanged one stays reused [C-036]', async () => {
@@ -67,7 +71,7 @@ describe('scan', () => {
     expect(r2.text).toContain('reused: 1'); // src/b.ts/good, unchanged, is still free
   });
 
-  it('--dry-run: no provider call, no ledger line', async () => {
+  it('--dry-run: no provider call, no ledger line [C-088]', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider();
     const r = await runScan(REQUEST, { paths, provider, env, dryRun: true });
@@ -93,7 +97,7 @@ describe('scan', () => {
     expect(r.text).toContain('wise: {recorded: [why, area]}');
   });
 
-  it('a goal that misses the bar on an all-passing scan: next says so, not a passing item [C-070]', async () => {
+  it('a goal that misses the bar on an all-passing scan: next says so, not a passing item [C-071]', async () => {
     const { paths } = tempProject(FILES);
     // Every function passes injection (pass: no, low P(yes)); only the goal itself misses the 0.70 bar, so
     // worstFirst has nothing to point at — this used to throw on worst[0]!.id, then (fix round 1) wrongly
@@ -108,7 +112,7 @@ describe('scan', () => {
     expect(r.text).toContain('next: the goal missed though every part passed · fix what is missing, then run it again');
   });
 
-  it('a glob matching nothing and a missed goal: next says every item was skipped, not a crash [C-070]', async () => {
+  it('a glob matching nothing and a missed goal: next says every item was skipped, not a crash [C-071]', async () => {
     const { paths } = tempProject(FILES); // FILES are on disk, but the pattern below matches none of them
     const NOTHING_MATCHES =
       'side:\n  goal: Handlers don\'t trust request input\n  depth: quick\n  over:\n    file: src/nope/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\nwise:\n  why: find\n  area: api\n';

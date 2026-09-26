@@ -27,7 +27,7 @@ describe('checkSchema', () => {
     expect(texts({ ...base(), focus: 'x' })).toEqual(['✖ focus: not a block → the request holds only side: and wise:; put fields under side:']);
   });
 
-  it('side fields: unknown, goal, depth, where, parent, compare, verb, from [C-010]', () => {
+  it('side fields: unknown, goal, depth, where, parent, compare, verb, from [C-010] [C-012]', () => {
     const r = base();
     r.side.level = 1;
     expect(texts(r)).toEqual(['✖ side.level: not a field → use goal, depth, where, parent, ask, over, from, compare or verb']);
@@ -43,6 +43,13 @@ describe('checkSchema', () => {
     const w = base();
     w.side.where = ['src/a b.ts'];
     expect(texts(w)).toEqual(['✖ side.where: "src/a b.ts" is not a path → use a project path, optionally :start-end, with no spaces']);
+    // [C-012] where holds 1-5 paths: 0 and 6 both stop with the exact count message.
+    const none = base();
+    none.side.where = [];
+    expect(texts(none)).toEqual(['✖ side.where: needs 1–5 paths → write where: [path/to/file.ts]']);
+    const six = base();
+    six.side.where = ['a.ts', 'b.ts', 'c.ts', 'd.ts', 'e.ts', 'f.ts'];
+    expect(texts(six)).toEqual(['✖ side.where: needs 1–5 paths → write where: [path/to/file.ts]']);
     const p = base();
     p.side.parent = 'SW-1';
     expect(texts(p)).toEqual(['✖ side.parent: "SW-1" is not a run id → use SW-####']);
@@ -54,7 +61,7 @@ describe('checkSchema', () => {
     expect(texts(v)).toEqual(['✖ side.verb: "judge" → use view, class, change, scan, drill or loop, or leave it out']);
   });
 
-  it('questions: not a question, no "?", too long, a broken scale or choice [C-021]', () => {
+  it('questions: not a question, no "?", too long, a broken scale or choice [C-021] [C-022]', () => {
     const at = (q: unknown): string[] => {
       const r = base();
       r.side.ask.injection[1] = q;

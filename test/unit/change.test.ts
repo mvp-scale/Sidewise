@@ -246,7 +246,7 @@ describe('change', () => {
     expect(r.text).not.toContain('evidence limit reached');
   });
 
-  it('--dry-run: no provider call, no git, questions = n*2+1 (Controller ruling)', async () => {
+  it('--dry-run: no provider call, no git, questions = n*2+1 (Controller ruling) [C-088]', async () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun(), T, 'b'); // SW-0001: 1 question
     const provider = stubProvider();

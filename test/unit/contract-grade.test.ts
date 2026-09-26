@@ -73,7 +73,7 @@ describe('gradeItems (the contract loop example)', () => {
   for (const it of items) for (const n of it.layer === 'part' ? [1, 2] : [3, 4]) answers[`${it.id}#${n}`] = yes(n === 4 ? 0.1 : 0.9);
   Object.assign(answers, { 'payments#2': yes(0.18), 'payments/refunds#3': yes(0.22), 'payments/refunds#4': yes(0.91), 'payments/partial capture#4': yes(0.48) });
 
-  it('an item fails if it or a child fails; the run gate rolls up from the top items and the goal [C-032] [C-082]', () => {
+  it('an item fails if it or a child fails; the run gate rolls up from the top items and the goal [C-032] [C-083]', () => {
     const grades = gradeItems(items, (l) => layers[l] ?? [], () => 'asked', answers);
     expect(grades.get('payments')).toMatchObject({ ownGate: 'fail', gate: 'fail' });
     expect(grades.get('gateway')).toMatchObject({ ownGate: 'pass', gate: 'pass' });

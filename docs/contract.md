@@ -206,7 +206,8 @@ notes: [free]
 Given a request body (a class-shaped draft), view answers in request mode with `view` (the `where` echoed
 back), `reuse` when the exact question set was asked before on unchanged code, `runs` (how many runs have
 touched this place), and `categories` — per category `{runs, pass, fail, last}`, or `{runs: 0}` when it's
-never been asked here. [C-052]
+never been asked here. There is no `best` field yet: nothing ranks "the question set with the best record
+here," even for a category whose fix was later recorded `held`. [C-052]
 `next` is `sidewise view <reuse>` when there's an exact reuse, to read that answer; otherwise it's `sidewise
 class`, and your categories become the first pattern here. [C-053]
 `wise: {recorded: none}` always, and view writes nothing to the ledger — no call, no spend, and its lookups
@@ -271,7 +272,7 @@ side:
   injection: {gate: fail,   1: 0.94, 2: 0.91, 10: 0.90}
   guards:    {gate: pass,   3: 0.88, 6: 0.81, 9: 0.75}
   access:    {gate: fail,   4: 0.86, 5: 0.84}
-  leaks:     {gate: unsure, 7: 0.51, 8: 0.20}
+  leaks:     {gate: unsure, 7: 0.55, 8: 0.20}
   severity:  {gate: fail,   11: {top: high, p: 0.81}}
   route:     {gate: fail,   12: {top: block, p: 0.97}}
   consensus: STRONG
@@ -330,14 +331,19 @@ On `fixed`, record `outcome held` on the parent; on `still`, keep working; anyth
 drill into it. [C-065]
 Called as `sidewise change --parent SW-#### --compare <before>..<after>` (no request file), the goal asked is
 the parent run's own goal, not a fixed placeholder. [C-066]
+The plan is for whether the yardstick predicted correctly to feed a ranking: a category that said `fail`
+and was later `fixed` and proven would count as a hit. **Not shipped yet**: there is no hit count anywhere
+in the ledger record (`ContractRun` carries no field for it), and recording a fix's outcome as `held`
+changes nothing about what `view` shows for that category afterward — the same gap as `view`'s own missing
+`best` field (above). [C-067]
 
 ---
 
 ## scan
 
-**Wise × Know: where in this code should we look?** A sweep across code, read by us. [C-067]
+**Wise × Know: where in this code should we look?** A sweep across code, read by us. [C-068]
 
-**When:** a new codebase, a release check, a PR's changed files, or a vague bug with no location yet. [C-068]
+**When:** a new codebase, a release check, a PR's changed files, or a vague bug with no location yet. [C-069]
 
 ```yaml
 side:
@@ -377,23 +383,23 @@ notes: [1 call (the function layer; files are read, not asked) · budget 4% used
 ```
 
 scan's response shows `failing:` worst first — most failing categories, then most unsure, then written order
-— with `passing:` and `reused:` as counts (never lists), plus `scanned: {layer: count, ...}`. [C-069]
+— with `passing:` and `reused:` as counts (never lists), plus `scanned: {layer: count, ...}`. [C-070]
 `next:` drills into the worst item, or says the goal alone missed when nothing failed, or that every item was
-skipped past the depth cap when nothing was graded at all. [C-070]
+skipped past the depth cap when nothing was graded at all. [C-071]
 An unchanged function on a later scan is answered from the ledger for free: a second scan of unchanged code
-costs nothing. [C-071]
+costs nothing. [C-072]
 Reused answers are stored per function, not per file or per run, so a later scan (or a drill down from it)
 pays only for what actually changed; there is no separate folder- or category-level pattern query yet — a
 sweep run's own top-level `categories` stays empty, and only its per-item grading (read back by that item's
-own id) carries the record. [C-072]
+own id) carries the record. [C-073]
 
 ---
 
 ## drill
 
-**Wise × Judge: why did this one thing fail?** It goes down from one item in a parent run. [C-073]
+**Wise × Judge: why did this one thing fail?** It goes down from one item in a parent run. [C-074]
 
-**When:** after a `fail` or `unsure` from class, scan, loop or change. [C-074]
+**When:** after a `fail` or `unsure` from class, scan, loop or change. [C-075]
 
 ```yaml
 side:
@@ -428,23 +434,23 @@ notes: [1 call · budget 4% used]
 ```
 
 On a sweep parent (scan, loop, or an earlier sweep drill), `from:` names an item, and drill needs `over:` for
-the next layer down under it; the response is shaped like scan's, worst first. [C-075]
+the next layer down under it; the response is shaped like scan's, worst first. [C-076]
 On a one-subject parent (class, change, or an earlier one-subject drill), `from:` names a category instead;
 new, narrower questions go under `ask:` inside it, and the response has the same shape as class's, including
-consensus and escalate. [C-076]
+consensus and escalate. [C-077]
 drill's own `next:` never points at drilling further: on a one-subject parent it says to fix it, then
 `change` against the parent; on a sweep parent it says to fix it and run this same drill again, since
-unchanged items are reused, so it is nearly free. [C-077]
+unchanged items are reused, so it is nearly free. [C-078]
 Wise learns which narrower questions separate the real cause from the noise; they become the drill pattern
-for that category. [C-078]
+for that category. [C-079]
 
 ---
 
 ## loop
 
-**Wise × Prove: does this idea hold up?** A sweep across layers of ideas, written by the agent. [C-079]
+**Wise × Prove: does this idea hold up?** A sweep across layers of ideas, written by the agent. [C-080]
 
-**When:** a design, a plan or a feature request before any code; comparing two designs. [C-080]
+**When:** a design, a plan or a feature request before any code; comparing two designs. [C-081]
 
 ```yaml
 side:
@@ -494,23 +500,23 @@ notes: [2 calls · 16 questions · budget 3% used]
 ```
 
 loop's response shows `failing:` and `passing:` in the order the request was written (tree order), unlike
-scan's worst-first order; `passing:` is a list of item ids, not a count. [C-081]
-An item fails if it or any of its children fails. [C-082]
+scan's worst-first order; `passing:` is a list of item ids, not a count. [C-082]
+An item fails if it or any of its children fails. [C-083]
 Like scan, a loop run's own top-level `categories` stays empty; the full per-item grading (which layer
 structures and questions turned up trouble) is kept in the ledger, on that run, but there is no dedicated
-query yet that mines it into a pattern across runs the way class's per-category history does. [C-083]
+query yet that mines it into a pattern across runs the way class's per-category history does. [C-084]
 
 ---
 
 ## Settled by the agent test (v1.1)
 
-- `side.verb` is optional. The tool name wins, and a mismatch is sent back. [C-084]
-- `depth` counts yes/no questions only; scale and choice don't count. [C-085]
+- `side.verb` is optional. The tool name wins, and a mismatch is sent back. [C-085]
+- `depth` counts yes/no questions only; scale and choice don't count. [C-086]
 - Nested items use `- name: <item>` plus child layers beside it, which is what agents write naturally.
-  Different items may have different child layers. [C-086]
+  Different items may have different child layers. [C-087]
 - `--dry-run` (class, change, scan, drill, loop) reports the calls and question count with no call and no
-  spend, as `plan: {calls, questions, ...}` followed by `notes: ["dry run: no call, no spend"]`. [C-087]
+  spend, as `plan: {calls, questions, ...}` followed by `notes: ["dry run: no call, no spend"]`. [C-088]
 - The engine needs Node ≥ 22.13 to use its `node:sqlite`-backed lookup index; on an older Node (this repo's
   own Node 20 host) it falls back to a slower, always-correct linear scan instead. Either way the ledger
   itself (`.sidewise/log.jsonl`) stays the source of truth: the index is a disposable, self-healing cache
-  that a missing or corrupt copy only costs a rebuild, never a wrong answer. [C-088]
+  that a missing or corrupt copy only costs a rebuild, never a wrong answer. [C-089]

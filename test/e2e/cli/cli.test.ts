@@ -71,6 +71,11 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     const real = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree']);
     expect(real.status).toBe(0);
     expect(real.stdout).toContain('wise: {recorded: [parent]}');
+    // [C-066] the flag form's goal is the parent's own goal (src/cli.ts), not the "The change works"
+    // placeholder — read straight off the ledger, since the response itself never echoes the goal text.
+    const lines = readFileSync(path.join(root, '.sidewise', 'log.jsonl'), 'utf8').trimEnd().split('\n').map((l) => JSON.parse(l));
+    const changeRun = lines.find((l) => l.kind === 'run' && l.verb === 'change');
+    expect(changeRun.goal).toBe('This login handler is safe to merge');
   });
 
   it('view: request mode reuses a class run\'s answers by exact match; place mode still works', () => {

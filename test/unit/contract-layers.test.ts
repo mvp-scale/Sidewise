@@ -74,7 +74,7 @@ describe('checkOver', () => {
 });
 
 describe('expand', () => {
-  it('the contract loop: 3 parts + 5 stories = 8 items, parents first, ids joined by / [C-086]', () => {
+  it('the contract loop: 3 parts + 5 stories = 8 items, parents first, ids joined by / [C-087]', () => {
     const { layers, items } = expand(LOOP);
     expect(layers).toEqual(['part', 'story']);
     expect(ids(items)).toEqual(['gateway', 'gateway/guest checkout', 'gateway/saved cards', 'payments', 'payments/refunds', 'payments/retries', 'payments/partial capture', 'ledger']);

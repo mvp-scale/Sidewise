@@ -9,7 +9,7 @@ const LOOP =
   'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout, saved cards]\n      - name: payments\n        story: [refunds, retries, partial capture]\n      - ledger\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n        2: Can {part} be deployed without the others?\n    story:\n      done:\n        pass: yes\n        3: Is "{story}" testable against {part} as written?\n      risk:\n        pass: no\n        4: Does "{story}" need data {part} doesn\'t own?\nwise:\n  why: validate\n  area: api\n';
 
 describe('loop', () => {
-  it('the contract example: payments and its failing children show up, tree order, worst-target next [C-079] [C-081]', async () => {
+  it('the contract example: payments and its failing children show up, tree order, worst-target next [C-080] [C-082]', async () => {
     const { paths } = tempProject({});
     const yes = (q: { id: string }) =>
       q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
@@ -28,7 +28,7 @@ describe('loop', () => {
     expect(r.run).toBeDefined();
   });
 
-  it('--dry-run: no provider call, no budget file, no ledger line', async () => {
+  it('--dry-run: no provider call, no budget file, no ledger line [C-088]', async () => {
     const { paths } = tempProject({});
     const provider = stubProvider();
     const r = await runLoop(LOOP, { paths, provider, env: {}, dryRun: true });
@@ -64,7 +64,7 @@ describe('loop', () => {
     expect(r.text).toContain('next: the goal missed though every part passed · fix what is missing, then run it again');
   });
 
-  it('the full per-item category record is kept in the ledger even though no per-layer query surfaces it yet [C-083]', async () => {
+  it('the full per-item category record is kept in the ledger even though no per-layer query surfaces it yet [C-084]', async () => {
     const { paths } = tempProject({});
     const yes = (q: { id: string }) =>
       q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;

@@ -27,7 +27,8 @@ describe('class', () => {
     expect(r.text).toContain('escalate: true');
     expect(provider.calls).toHaveLength(1);
     // [C-035] one subject's call state is exactly {goal, code} — no run-level id/ts/actor/task ever reaches
-    // the classifier ([C-023]: those are stamped by the engine afterwards, from the run it logs, not sent).
+    // the classifier ([C-023]: those are stamped by the engine afterwards, from the run it logs, not sent),
+    // and [C-005]: wise (why/area here) never reaches it either — wise is ledger-only context.
     expect(Object.keys(provider.calls[0]!.state)).toEqual(['goal', 'code']);
     // [C-048] question text is never repeated in the response; the agent already has it by number.
     expect(r.text).not.toContain('Is request text placed directly into the SQL query?');
@@ -48,7 +49,7 @@ describe('class', () => {
     expect(loadBudget(paths).state.runs).toBe(1); // the free run isn't counted
   });
 
-  it('--dry-run: no provider call, no budget file, no ledger line [C-087]', async () => {
+  it('--dry-run: no provider call, no budget file, no ledger line [C-088]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x' });
     const provider = stubProvider();
     const r = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });

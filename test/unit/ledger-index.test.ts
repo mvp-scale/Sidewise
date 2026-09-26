@@ -215,7 +215,7 @@ describe('findRun recovers from a stale or bad index without crashing', () => {
 });
 
 describe('the fallback path gives identical results to whatever engine is really available', () => {
-  it('lookupAnswers, exactReuse, nextRunNumber and findRun agree with forceFallback on and off [C-088]', () => {
+  it('lookupAnswers, exactReuse, nextRunNumber and findRun agree with forceFallback on and off [C-089]', () => {
     const { paths } = tempProject({});
     writeSyntheticLedger(paths, { seed: 'fallback-parity', runs: 600, outcomeRate: 0.4, badRate: 0.3 });
     const who = { adapter: 'typesafe', model: 'jev-1.13.0' };
