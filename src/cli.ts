@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './budget/budget.ts';
 import { selectProvider } from './classifier/select.ts';
+import { LockError } from './ledger/lock.ts';
 import { appendOutcome, LedgerError, type Outcome } from './ledger/log.ts';
 import { resolvePaths } from './ledger/paths.ts';
 import type { Level } from './lens/request.ts';
@@ -78,6 +79,6 @@ async function main(argv: string[]): Promise<void> {
 
 main(process.argv.slice(2)).catch((e: unknown) => {
   if (e instanceof BudgetError) return finish(3, e.message);
-  if (e instanceof LedgerError) return finish(1, e.message);
+  if (e instanceof LedgerError || e instanceof LockError) return finish(1, e.message);
   finish(1, `✖ sidewise: ${(e as Error).message}`);
 });

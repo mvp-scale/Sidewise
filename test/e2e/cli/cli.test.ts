@@ -1,6 +1,6 @@
 // Spawns the built binary (dist/cli.js) in a throwaway project with the fake provider: no network, no key.
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { tempProject } from '../../helpers/project.ts';
@@ -63,4 +63,13 @@ describe('sidewise CLI (built)', () => {
     expect(r.stderr).toContain('usage:');
     expect(sidewise(root, ['view']).status).toBe(2);
   });
+
+  it('a held lock exits 1 with one clean "✖ lock:" line, even for a budget command', () => {
+    const { root } = tempProject();
+    mkdirSync(path.join(root, '.sidewise'), { recursive: true });
+    writeFileSync(path.join(root, '.sidewise', 'lock'), `${process.pid}\n`); // this test process: alive
+    const r = sidewise(root, ['budget', 'reset']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toBe('✖ lock: .sidewise/lock is locked → wait for the other run, or delete the lock file if no run is active\n');
+  }, 15_000);
 });

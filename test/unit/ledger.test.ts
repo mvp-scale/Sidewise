@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { formatRunId, ulid } from '../../src/ledger/ids.ts';
-import { withLock } from '../../src/ledger/lock.ts';
+import { LockError, withLock } from '../../src/ledger/lock.ts';
 import { appendOutcome, appendRun, isRun, latestOutcome, readLedger } from '../../src/ledger/log.ts';
 import { findRoot } from '../../src/ledger/paths.ts';
 import { redact, redactDeep } from '../../src/ledger/redact.ts';
@@ -77,6 +77,37 @@ describe('lock', () => {
     mkdirSync(paths.dir, { recursive: true });
     writeFileSync(paths.lock, '');
     expect(() => withLock(paths.lock, () => 1, { timeoutMs: 100, staleMs: 60_000 })).toThrow(/is locked → wait for the other run/);
+  });
+
+  it('a timeout is a LockError naming the lock relative to the project, never "ledger" or an absolute path', () => {
+    const { root, paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.lock, `${process.pid}\n`);
+    let err: unknown;
+    try {
+      withLock(paths.lock, () => 1, { timeoutMs: 100 });
+    } catch (e) {
+      err = e;
+    }
+    expect(err).toBeInstanceOf(LockError);
+    expect((err as Error).message).toBe('✖ lock: .sidewise/lock is locked → wait for the other run, or delete the lock file if no run is active');
+    expect((err as Error).message).not.toContain(root);
+  });
+
+  it('clears a fresh lock at once when its recorded pid is no longer alive', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.lock, '2147483646\n'); // large unused pid: not alive; mtime is now
+    const start = Date.now();
+    expect(withLock(paths.lock, () => 42, { timeoutMs: 1000, staleMs: 30_000 })).toBe(42);
+    expect(Date.now() - start).toBeLessThan(500);
+  });
+
+  it('keeps the age rule for a fresh lock with no parseable pid', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.lock, 'not-a-pid\n');
+    expect(() => withLock(paths.lock, () => 1, { timeoutMs: 100, staleMs: 30_000 })).toThrow(LockError);
   });
 
   it('clears a stale lock', () => {

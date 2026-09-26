@@ -7,6 +7,7 @@
 import { BudgetError, budgetLine, checkBudget, DEFAULT_BUDGET, loadBudget, recordSpend, type BudgetState } from '../budget/budget.ts';
 import type { ClassifierAnswer, ClassifierQuestion, ClassifierResult } from '../classifier/port.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
+import { LockError } from '../ledger/lock.ts';
 import { appendRun, LedgerError, type LoggedPrimitive, type RunRecord } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { formatAnswer, type PrimitiveAnswer } from '../lens/answer.ts';
@@ -84,7 +85,15 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   } catch (e) {
     return { exit: 1, text: `✖ classifier: ${(e as Error).message} → retry later, or set SIDEWISE_PROVIDER=fake to check the request` };
   }
-  const spent = recordSpend(ctx.paths, result.costUsd ?? 0, now());
+  // Spend, then log: sequential, never nested (they share one non-reentrant lock).
+  let spent: BudgetState;
+  try {
+    spent = recordSpend(ctx.paths, result.costUsd ?? 0, now());
+  } catch (e) {
+    if (e instanceof BudgetError) return { exit: 3, text: e.message };
+    if (e instanceof LockError) return { exit: 1, text: `${e.message} (the call was NOT counted against the budget)` };
+    throw e;
+  }
 
   let slots: SlotAnswer[];
   let primitives: { answer: PrimitiveAnswer; logged: LoggedPrimitive }[];
@@ -135,7 +144,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
       now(),
     );
   } catch (e) {
-    if (e instanceof LedgerError) return { exit: 1, text: `${e.message} (the call was counted against the budget)` };
+    if (e instanceof LedgerError || e instanceof LockError) return { exit: 1, text: `${e.message} (the call was counted against the budget)` };
     throw e;
   }
 

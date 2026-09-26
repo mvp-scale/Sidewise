@@ -12,6 +12,7 @@ export * from './ledger/paths.ts';
 export { formatRunId, RUN_ID, ulid } from './ledger/ids.ts';
 export { redact, redactDeep } from './ledger/redact.ts';
 export * from './ledger/log.ts';
+export { LockError } from './ledger/lock.ts';
 export * from './budget/budget.ts';
 export * from './evidence/code.ts';
 export * from './verbs/types.ts';
