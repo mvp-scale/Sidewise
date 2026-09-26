@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { appendOutcome, appendRun } from '../../src/ledger/log.ts';
+import { createFakeAdapter } from '../../src/classifier/fake.ts';
+import { appendOutcome, appendRun, readLedger } from '../../src/ledger/log.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runView } from '../../src/verbs/view.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
@@ -102,5 +104,22 @@ describe('view: request mode', () => {
     const r = runView(draft, 1, { paths, env: {} });
     expect(r.text).toContain('runs: 1');
     expect(r.text).toContain('injection: {runs: 1, pass: 0, fail: 1, last: SW-0001}');
+  });
+
+  it('reuse: the exact same request comes back as reuse, and the view call spends nothing', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
+    // The fake adapter (Task 7) is what providerIdentity({}) names too, so the run and the lookup agree on who answered.
+    const text =
+      'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n';
+    const classResult = await runClass(text, { paths, provider: createFakeAdapter(), env: {} });
+    expect(classResult.exit).toBe(0);
+    const linesBefore = readLedger(paths).length;
+    const budgetBefore = readFileSync(paths.budget, 'utf8');
+    // The SAME request text: same goal, same categories/questions, same where.
+    const r = runView(text, 1, { paths, env: {} });
+    expect(r.text).toContain('reuse: SW-0001');
+    expect(r.text).toContain('next: sidewise view SW-0001');
+    expect(readLedger(paths).length).toBe(linesBefore);
+    expect(readFileSync(paths.budget, 'utf8')).toBe(budgetBefore);
   });
 });
