@@ -22,9 +22,11 @@
  * Schema (slim — no full JSON copy; bodies are read back from the ledger by offset, `readRecordAt`):
  *   meta(key,value): schema_version, upto (bytes indexed), line_count, fp_start + fingerprint (sha256 of the
  *     line ending at upto, for a same-size-or-larger swap statSync's size check alone would miss).
- *   runs(id PK, offset, adapter, model, verb, ts, gate, blocked, wise): `wise` is a small JSON blob — the wise
- *     object plus category names — so a future Wise query can `json_extract` it; nothing bulky (answers,
- *     response, items) is copied here.
+ *   runs(id PK, offset, adapter, model, verb, ts, gate, blocked, wise, parent): `wise` is a small JSON blob — the
+ *     wise object plus category names — so a future Wise query can `json_extract` it; nothing bulky (answers,
+ *     response, items) is copied here. `parent` (indexed) is the run's own `parent` field verbatim (NULL for
+ *     none) — view's lineage walk goes up by id (an ordinary findOffset lookup on the parent id already read
+ *     off the child's own record) and down via `WHERE parent = ?` on this column.
  *   answer_keys(adapter, model, key PK, run_id, qid): the newest holder's *origin* (resolved through
  *     reusedFrom), self-compacting — one row per (who, key) ever asked, overwritten on every later touch.
  *   outcomes(run_id PK, outcome, ts, by): latest outcome per run.
@@ -71,6 +73,9 @@ export interface IndexHandle {
    *  append order, by offset) — matching the order view.ts's byPlace has always shown its "newest N" from. A
    *  candidate SET ONLY — callers still verify against the real record, so a false positive here is harmless. */
   placeCandidates(place: string): Candidate[];
+  /** Every run whose `parent` is exactly this id, oldest first (append order) — view's lineage walk "down". A
+   *  candidate set only, same discipline as placeCandidates: callers re-verify against the real record. */
+  childrenOf(parentId: string): Candidate[];
   /** run id -> its latest outcome, for a small batch of ids (view's outcome counts). */
   outcomesFor(ids: readonly string[]): Map<string, OutcomeRecord['outcome']>;
   /** True when SOME run has ever held this key for (adapter, model) — a raw answer_keys row check, independent
@@ -247,6 +252,7 @@ interface MemoryState {
   reuseKey: Map<string, Map<string, { runId: string; qid: string }>>;
   candidatesByWho: Map<string, Candidate[]>;
   places: { kind: 'where' | 'tag'; val: string; runId: string }[];
+  childrenByParent: Map<string, Candidate[]>;
   outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
   runCount: number;
   upto: number;
@@ -254,7 +260,7 @@ interface MemoryState {
 }
 
 function emptyMemoryState(): MemoryState {
-  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], outcomes: new Map(), runCount: 0, upto: 0, lineCount: 0 };
+  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], childrenByParent: new Map(), outcomes: new Map(), runCount: 0, upto: 0, lineCount: 0 };
 }
 
 function memorySink(state: MemoryState): Sink {
@@ -262,6 +268,11 @@ function memorySink(state: MemoryState): Sink {
     run(rec, offset) {
       state.runCount += 1;
       state.runOffset.set(rec.id, offset);
+      const parent = rec.parent ?? null;
+      if (parent) {
+        if (!state.childrenByParent.has(parent)) state.childrenByParent.set(parent, []);
+        state.childrenByParent.get(parent)!.push({ id: rec.id, offset });
+      }
       if (isContractRun(rec)) {
         const wk = whoKey({ adapter: rec.adapter, model: rec.model });
         if (!state.candidatesByWho.has(wk)) state.candidatesByWho.set(wk, []);
@@ -309,6 +320,7 @@ function handleFromMemory(state: MemoryState): IndexHandle {
         .filter((c): c is Candidate => c.offset !== undefined)
         .sort((a, b) => a.offset - b.offset);
     },
+    childrenOf: (parentId) => state.childrenByParent.get(parentId) ?? [],
     outcomesFor: (ids) => {
       const want = new Set(ids);
       const out = new Map<string, OutcomeRecord['outcome']>();
@@ -359,11 +371,13 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // SQLite engine.
 // ---------------------------------------------------------------------------------------------------------------
 
-// Bumped to 2 (from 1) in fix round 1: outcomes gained a `uid` column (appendOutcome's own no-op "repeat" check
-// now reads the index instead of a full readLedger — it needs the original outcome record's uid back). A stale
-// on-disk index built under version 1 self-heals via the existing schema-version-mismatch rebuild trigger — no
-// migration needed, just a rebuild, which is exactly what self-healing is for.
-const SCHEMA_VERSION = 2;
+// Bumped to 3 (from 2) here: runs gained a `parent` column (+ its own index) so view's "down" lineage walk
+// (WHERE parent = ?) no longer needs a full-ledger scan. Bumped to 2 (from 1) in fix round 1: outcomes gained a
+// `uid` column (appendOutcome's own no-op "repeat" check now reads the index instead of a full readLedger — it
+// needs the original outcome record's uid back). A stale on-disk index built under an older version self-heals
+// via the existing schema-version-mismatch rebuild trigger — no migration needed, just a rebuild, which is
+// exactly what self-healing is for.
+const SCHEMA_VERSION = 3;
 
 const SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -376,9 +390,11 @@ CREATE TABLE runs (
   ts TEXT NOT NULL,
   gate TEXT,
   blocked INTEGER NOT NULL DEFAULT 0,
-  wise TEXT
+  wise TEXT,
+  parent TEXT
 );
 CREATE INDEX idx_runs_adapter_model ON runs(adapter, model, blocked);
+CREATE INDEX idx_runs_parent ON runs(parent);
 CREATE TABLE answer_keys (
   adapter TEXT NOT NULL,
   model TEXT NOT NULL,
@@ -517,7 +533,7 @@ interface SqlStatements {
 
 function prepStatements(db: SqliteDb): SqlStatements {
   return {
-    insertRun: db.prepare('INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)'),
+    insertRun: db.prepare('INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise, parent) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)'),
     insertKey: db.prepare('INSERT OR REPLACE INTO answer_keys (adapter, model, key, run_id, qid) VALUES (?, ?, ?, ?, ?)'),
     insertOutcome: db.prepare('INSERT OR REPLACE INTO outcomes (run_id, outcome, uid, ts, by) VALUES (?, ?, ?, ?, ?)'),
     insertPlace: db.prepare('INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)'),
@@ -538,7 +554,7 @@ function sqlSink(stmts: SqlStatements): Sink {
   return {
     run(rec, offset) {
       const gate = 'gate' in rec ? (rec.gate ?? null) : null;
-      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec));
+      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null);
       if (isContractRun(rec)) {
         for (const [qid, key] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run('where', stripLines(w), rec.id);
@@ -612,6 +628,7 @@ function handleFromSql(db: SqliteDb): IndexHandle {
   );
   const stEverHeld = db.prepare('SELECT 1 FROM answer_keys WHERE adapter = ? AND model = ? AND key = ?');
   const stLatestOutcome = db.prepare('SELECT outcome, uid, ts, by FROM outcomes WHERE run_id = ?');
+  const stChildren = db.prepare('SELECT id, offset FROM runs WHERE parent = ? ORDER BY offset ASC');
 
   return {
     findOffset: (id) => {
@@ -642,6 +659,7 @@ function handleFromSql(db: SqliteDb): IndexHandle {
       return stCandidates.all(adapter, model).map((r) => ({ id: String(r.id), offset: Number(r.offset) }));
     },
     placeCandidates: (place) => stPlaces.all(place, `${escapeLike(place)}/%`, place).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
+    childrenOf: (parentId) => stChildren.all(parentId).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
     outcomesFor: (ids) => {
       const out = new Map<string, OutcomeRecord['outcome']>();
       if (!ids.length) return out;

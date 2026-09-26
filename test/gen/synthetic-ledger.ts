@@ -33,6 +33,10 @@ export interface SynthLedgerOptions {
   providers?: readonly { adapter: string; model: string; weight: number }[];
   /** ISO timestamp the first record's clock starts at; ts then walks forward. */
   start?: string;
+  /** Share of runs (after the first) given a parent: a uniformly random EARLIER run's id in this same batch —
+   *  view's lineage walk (up by id, down by parent) needs real chains to exercise, and 0 (the default) draws no
+   *  extra random numbers at all, so every existing caller's output is untouched. */
+  parentShare?: number;
 }
 
 const DEFAULT_PROVIDERS: readonly { adapter: string; model: string; weight: number }[] = [
@@ -54,7 +58,7 @@ const iso = (now: number): string => new Date(now).toISOString().replace(/\.\d{3
  *  pattern reuse (Task 29) needs to have something to find. */
 const keyFor = (area: string, tag: string, qid: string): string => `k-${fnv1a(`${area}|${tag}|${qid}`).toString(36)}`;
 
-function buildLegacyRun(id: string, uid: string, ts: string, rand: () => number, area: string, tag: string, who: { adapter: string; model: string }): RunRecord {
+function buildLegacyRun(id: string, uid: string, ts: string, rand: () => number, area: string, tag: string, who: { adapter: string; model: string }, parent: string | null): RunRecord {
   const level = (1 + Math.floor(rand() * 3)) as 1 | 2 | 3;
   return {
     kind: 'run',
@@ -78,6 +82,7 @@ function buildLegacyRun(id: string, uid: string, ts: string, rand: () => number,
     model: who.model,
     costUsd: Math.round(rand() * 500) / 10000,
     task: null,
+    ...(parent ? { parent } : {}),
   };
 }
 
@@ -90,6 +95,7 @@ function buildContractRun(
   tag: string,
   who: { adapter: string; model: string },
   sweep: { sweepShare: number; minItems: number; maxItems: number },
+  parent: string | null,
 ): ContractRun {
   const verb: Verb = pick(rand, VERBS);
   const isSweep = rand() < sweep.sweepShare;
@@ -139,7 +145,7 @@ function buildContractRun(
     goal: `${tag} in ${area} is safe`,
     depth: pick(rand, DEPTHS) as Depth,
     where: [`src/${area}/file${Math.floor(rand() * 5)}.ts`],
-    parent: null,
+    parent,
     from: null,
     compare: null,
     wise: rand() < 0.5 ? ({ why: pick(rand, WHYS), area: pick(rand, WISE_AREAS) } satisfies Wise) : null,
@@ -174,6 +180,7 @@ export function generateLedgerRecords(opts: SynthLedgerOptions = {}): unknown[] 
   const [minItems, maxItems] = opts.itemsPerSweep ?? [1, 5];
   const providers = opts.providers ?? DEFAULT_PROVIDERS;
   const totalWeight = providers.reduce((s, p) => s + p.weight, 0);
+  const parentShare = opts.parentShare ?? 0;
 
   const rand = seededRandom(seed);
   const randomBytes = (count: number): Uint8Array => {
@@ -206,8 +213,11 @@ export function generateLedgerRecords(opts: SynthLedgerOptions = {}): unknown[] 
     const id = formatRunId(i + 1);
     const ts = iso(step());
     const uid = nextUid();
+    // parentShare 0 (the default) short-circuits before ever calling rand() here — every existing caller's
+    // random sequence, and so its generated content, is untouched.
+    const parent = parentShare > 0 && i > 0 && rand() < parentShare ? formatRunId(1 + Math.floor(rand() * i)) : null;
 
-    records.push(rand() < legacyShare ? buildLegacyRun(id, uid, ts, rand, area, tag, who) : buildContractRun(id, uid, ts, rand, area, tag, who, { sweepShare, minItems, maxItems }));
+    records.push(rand() < legacyShare ? buildLegacyRun(id, uid, ts, rand, area, tag, who, parent) : buildContractRun(id, uid, ts, rand, area, tag, who, { sweepShare, minItems, maxItems }, parent));
 
     if (rand() < outcomeRate) {
       const bad = rand() < badRate;

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it, afterEach } from 'vitest';
 import { createFakeAdapter } from '../../src/classifier/fake.ts';
 import { __testOnly } from '../../src/ledger/index.ts';
 import { appendOutcome, appendRun, readLedger } from '../../src/ledger/log.ts';
@@ -182,5 +182,73 @@ describe('view <request>: the place lookup via the index matches the old full-le
     expect(runView(text, 1, { paths, env: {} })).toEqual(expected);
     __testOnly.forceFallback = true;
     expect(runView(text, 1, { paths, env: {} })).toEqual(expected);
+  });
+});
+
+// S2: byId's lineage walk now goes through the index (up: findOffset; down: the new `parent` column via
+// handle.childrenOf) instead of building a full id -> record map from readLedger. The expected text below was
+// captured from the UNCHANGED implementation against this exact synthetic ledger (seed 'view-lineage-1', 300
+// runs, parentShare 0.35 for real branching chains), so a match proves the rewrite is byte-identical. SW-0018
+// covers a mid-tree id (2 up, a 2-level "down" BFS); SW-0092 a leaf (deep up, no down); SW-0001 the root (a wide
+// multi-branch "down" truncated at the level-1 limit of 10); SW-9999 the not-found case.
+describe('view <id>: the lineage walk via the index matches the old full-ledger scan [C-055]', () => {
+  it('byte-identical on a realistic ledger with parent chains, on both the SQLite and linear-fallback paths', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'view-lineage-1', runs: 300, outcomeRate: 0.4, badRate: 0.2, parentShare: 0.35 });
+
+    const cases: { id: string; expected: { exit: number; text: string } }[] = [
+      {
+        id: 'SW-0018',
+        expected: {
+          exit: 0,
+          text: [
+            'sidewise view SW-0018 · lineage 2 up · 3 down',
+            '↑ SW-0001 2026-09-01 class thorough pass "cache in auth is safe" · open',
+            '↑ SW-0004 2026-09-01 scan standard unsure "tests in auth is safe" · open',
+            '▶ SW-0018 2026-09-01 view standard unsure "sql in infra is safe" · held',
+            '↓ SW-0024 2026-09-01 loop thorough pass "sql in db is safe" · held',
+            '↓ SW-0182 2026-09-01 view thorough pass "sql in docs is safe" · open',
+            '↓ SW-0092 2026-09-01 drill thorough fail "tokens in db is safe" · open',
+          ].join('\n'),
+        },
+      },
+      {
+        id: 'SW-0092',
+        expected: {
+          exit: 0,
+          text: [
+            'sidewise view SW-0092 · lineage 4 up · 0 down',
+            '↑ SW-0001 2026-09-01 class thorough pass "cache in auth is safe" · open',
+            '↑ SW-0004 2026-09-01 scan standard unsure "tests in auth is safe" · open',
+            '↑ SW-0018 2026-09-01 view standard unsure "sql in infra is safe" · held',
+            '↑ SW-0024 2026-09-01 loop thorough pass "sql in db is safe" · held',
+            '▶ SW-0092 2026-09-01 drill thorough fail "tokens in db is safe" · open',
+          ].join('\n'),
+        },
+      },
+      {
+        id: 'SW-0001',
+        expected: {
+          exit: 0,
+          text: [
+            'sidewise view SW-0001 · lineage 0 up · 8 down',
+            '▶ SW-0001 2026-09-01 class thorough pass "cache in auth is safe" · open',
+            '↓ SW-0004 2026-09-01 scan standard unsure "tests in auth is safe" · open',
+            '↓ SW-0084 2026-09-01 loop standard unsure "deps in docs is safe" · open',
+            '↓ SW-0018 2026-09-01 view standard unsure "sql in infra is safe" · held',
+            '↓ SW-0059 2026-09-01 change thorough pass "secrets in docs is safe" · open',
+            '↓ SW-0116 2026-09-01 class standard pass "secrets in api is safe" · open',
+            '↓ SW-0024 2026-09-01 loop thorough pass "sql in db is safe" · held',
+            '↓ SW-0182 2026-09-01 view thorough pass "sql in docs is safe" · open',
+            '↓ SW-0092 2026-09-01 drill thorough fail "tokens in db is safe" · open',
+          ].join('\n'),
+        },
+      },
+      { id: 'SW-9999', expected: { exit: 2, text: '✖ view: SW-9999 is not in the ledger → "sidewise view <folder>" lists recent runs' } },
+    ];
+
+    for (const { id, expected } of cases) expect(runView(id, 1, { paths, env: {} })).toEqual(expected);
+    __testOnly.forceFallback = true;
+    for (const { id, expected } of cases) expect(runView(id, 1, { paths, env: {} })).toEqual(expected);
   });
 });

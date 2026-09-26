@@ -13,7 +13,7 @@ import { m, type Value } from '../contract/emit.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import { RUN_ID } from '../ledger/ids.ts';
-import { readRecordAt, stripLines, withIndex } from '../ledger/index.ts';
+import { readRecordAt, stripLines, withIndex, type IndexHandle } from '../ledger/index.ts';
 import { isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { exactReuse } from '../ledger/reuse.ts';
@@ -120,39 +120,71 @@ function byPlace(place: string, paths: SidewisePaths, limit: number): VerbResult
   return place === '.' ? byPlaceFullScan(place, paths, limit) : byPlaceIndexed(place, paths, limit);
 }
 
+/** The run at this id, from `handle`'s own offset — undefined for an id it doesn't have, or a stale offset whose
+ *  real record no longer matches (never trusted blindly, same discipline as findRun's matchingRun). */
+function runAt(paths: SidewisePaths, handle: IndexHandle, id: string): AnyRun | undefined {
+  const offset = handle.findOffset(id);
+  if (offset === undefined) return undefined;
+  const rec = readRecordAt(paths.log, offset);
+  return rec && (isRun(rec) || isContractRun(rec)) && rec.id === id ? rec : undefined;
+}
+
+/** Every run whose real record's own `parent` is exactly `parentId`, oldest first — `handle.childrenOf` is a
+ *  candidate set (see its own doc comment); each one is re-read and re-checked before being trusted. */
+function childrenAt(paths: SidewisePaths, handle: IndexHandle, parentId: string): AnyRun[] {
+  const out: AnyRun[] = [];
+  for (const { offset } of handle.childrenOf(parentId)) {
+    const rec = readRecordAt(paths.log, offset);
+    if (rec && (isRun(rec) || isContractRun(rec)) && rec.parent === parentId) out.push(rec);
+  }
+  return out;
+}
+
+/**
+ * view <id>, index-backed (design binding: "lineage via the index"): "up" is an ordinary run-by-id walk (each
+ * ancestor's own `parent` field points at the next one, resolved through the SAME findOffset lookup findRun
+ * uses elsewhere — no schema change needed for this direction); "down" is a level-order walk of the NEW `parent`
+ * column (childrenAt), oldest child first per level — the same order the old full-ledger scan always produced,
+ * since it walked `runs` in ledger append order too. `outcomesFor` replaces the old per-id `latestOutcome`
+ * rescan (O(lineage × ledger)) with one batched query over just the ids actually shown. readOnly: view is free
+ * and read-only, and must never be the thing that persists a catch-up/rebuild of index.db to disk.
+ */
 function byId(id: string, paths: SidewisePaths, limit: number): VerbResult {
-  const records = readLedger(paths, { partialTail: true }); // never blocks on, or fails over, an append in progress
-  const runs = records.filter((r): r is AnyRun => isRun(r) || isContractRun(r));
-  const index = new Map(runs.map((r) => [r.id, r]));
-  const self = index.get(id);
-  if (!self) return { exit: 2, text: `✖ view: ${id} is not in the ledger → "sidewise view <folder>" lists recent runs` };
-  const up: AnyRun[] = [];
-  let cursor = self.parent ? index.get(self.parent) : undefined;
-  while (cursor && up.length < limit) {
-    up.unshift(cursor);
-    cursor = cursor.parent ? index.get(cursor.parent) : undefined;
-  }
-  const down: AnyRun[] = [];
-  const queue = [id];
-  while (queue.length && down.length < limit) {
-    const parent = queue.shift()!;
-    for (const r of runs) {
-      if (r.parent === parent && down.length < limit) {
-        down.push(r);
-        queue.push(r.id);
+  return withIndex(
+    paths,
+    (handle) => {
+      const self = runAt(paths, handle, id);
+      if (!self) return { exit: 2, text: `✖ view: ${id} is not in the ledger → "sidewise view <folder>" lists recent runs` };
+      const up: AnyRun[] = [];
+      let cursor = self.parent ? runAt(paths, handle, self.parent) : undefined;
+      while (cursor && up.length < limit) {
+        up.unshift(cursor);
+        cursor = cursor.parent ? runAt(paths, handle, cursor.parent) : undefined;
       }
-    }
-  }
-  const outcomeOf = (r: AnyRun): Outcome | 'open' => latestOutcome(records, r.id) ?? 'open';
-  return {
-    exit: 0,
-    text: [
-      `sidewise view ${id} · lineage ${up.length} up · ${down.length} down`,
-      ...up.map((r) => `↑ ${runLine(r, outcomeOf(r))}`),
-      `▶ ${runLine(self, outcomeOf(self))}`,
-      ...down.map((r) => `↓ ${runLine(r, outcomeOf(r))}`),
-    ].join('\n'),
-  };
+      const down: AnyRun[] = [];
+      const queue = [id];
+      while (queue.length && down.length < limit) {
+        const parent = queue.shift()!;
+        for (const r of childrenAt(paths, handle, parent)) {
+          if (down.length >= limit) break;
+          down.push(r);
+          queue.push(r.id);
+        }
+      }
+      const outcomes = handle.outcomesFor([...up, self, ...down].map((r) => r.id));
+      const outcomeOf = (r: AnyRun): Outcome | 'open' => outcomes.get(r.id) ?? 'open';
+      return {
+        exit: 0,
+        text: [
+          `sidewise view ${id} · lineage ${up.length} up · ${down.length} down`,
+          ...up.map((r) => `↑ ${runLine(r, outcomeOf(r))}`),
+          `▶ ${runLine(self, outcomeOf(self))}`,
+          ...down.map((r) => `↓ ${runLine(r, outcomeOf(r))}`),
+        ].join('\n'),
+      };
+    },
+    { readOnly: true },
+  );
 }
 
 /** One category's record here: `{runs: 0}` when it's never been asked, else counts and the newest run holding it. */
