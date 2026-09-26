@@ -2,7 +2,8 @@
  * The id index: .sidewise/index.json, a disposable sidecar mapping SW id -> byte offset in log.jsonl. The log
  * stays the source of truth (AGENTS.md): this file is never written to except here, nothing here ever rewrites
  * log.jsonl, and a missing or corrupt index.json just costs the next call a rebuild, never a wrong answer.
- * `nextRunNumber`/`findRun` (log.ts) are the only callers; no verb reads this file directly.
+ * `nextRunNumber`/`findRun`/`checkLedger`/`appendOutcome`/`appendFailedLocked` (log.ts) and `lookupAnswers`/
+ * `exactReuse` (reuse.ts) are the only callers; no verb reads this file directly.
  *
  * Read-side, lock-free, lazy: loadIndex is refreshed only when called, never on append. Catch-up is a byte-range
  * read (openSync + readSync from index.upto to the log's current size), not a re-read of the whole file, so an
@@ -12,10 +13,33 @@
  * pass catchUpIndex uses, starting from an empty index, so there is exactly one place that turns a line into index
  * state. Every append already goes through nextRunNumber under the ledger lock, or is itself a lock-free read
  * (findRun) exactly like readLedger's partialTail behavior — so no new call sites and no new locking are needed.
+ *
+ * v: 2 (Task 29) adds two reuse-serving fields, both populated only for v2 ContractRun lines (legacy RunRecords
+ * carry no keys and are never reusable):
+ *   - reuseKey: "<adapter>|<model>" -> answerKey -> { runId, qid } of the newest run to touch that key, `runId`
+ *     already resolved through reusedFrom to the *origin* that actually holds the answer. Every application of a
+ *     v2 line overwrites this unconditionally — that overwrite is the self-compaction the plan describes: the
+ *     table never grows past one entry per distinct (who, key) ever asked, regardless of how many times it's
+ *     re-asked. It is populated (satisfying the documented interface and giving any future direct-lookup caller
+ *     an O(1) path) but reuse.ts does NOT read it as the primary path for lookupAnswers/exactReuse — see the
+ *     comment on runIdsNewestFirst for why a single compacted slot per key isn't sufficient on its own.
+ *   - runIdsNewestFirst: "<adapter>|<model>" -> every v2 ContractRun id for that pair, newest first (unshifted
+ *     on apply). This does NOT self-compact (same reasoning as runOffset/blocked: any historical id can still be
+ *     asked for). It exists because reuseKey's single "current holder" slot per key is provably insufficient for
+ *     two things Task 11's linear scan actually does: (1) exactReuse needs the newest run whose OWN r.keys covers
+ *     a whole *set* of requested keys together — reuseKey only remembers the latest single-key holder, not which
+ *     runs asked which keys together, so it can't answer a multi-key query. (2) When a key's newest holder is
+ *     later blocked (overruled/failed), the linear scan falls back to an OLDER still-valid holder of the same
+ *     key (it just skips the blocked run and lets the earlier one's map entry stand); reuseKey's unconditional
+ *     overwrite discards that older holder's identity entirely, so a naive "check reuseKey, then check blocked"
+ *     read can silently miss a still-good answer that the linear oracle would have found. runIdsNewestFirst lets
+ *     lookupAnswers/exactReuse walk candidates newest-to-oldest exactly like the linear scan does, using O(1)
+ *     findRun per candidate instead of holding the whole ledger in memory, with an early exit once every
+ *     requested key is found (or, for exactReuse, once one candidate holds them all).
  */
 import { randomBytes } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { isRecord, LedgerError, shownLog, type LedgerRecord } from './log.ts';
+import { isContractRun, isRecord, LedgerError, shownLog, type LedgerRecord } from './log.ts';
 import type { SidewisePaths } from './paths.ts';
 
 export interface LedgerIndex {
@@ -32,9 +56,16 @@ export interface LedgerIndex {
   blocked: Record<string, true>;
   /** v2 only (Task 29 populates this): "<adapter>|<model>" -> answerKey -> newest holder. Always {} at v: 1. */
   reuseKey: Record<string, Record<string, { runId: string; qid: string }>>;
+  /** v2 only (Task 29 populates this): "<adapter>|<model>" -> every contract run id for that pair, newest first. */
+  runIdsNewestFirst: Record<string, string[]>;
 }
 
-const EMPTY_INDEX: LedgerIndex = { v: 1, upto: 0, lineCount: 0, runCount: 0, runOffset: {}, blocked: {}, reuseKey: {} };
+const EMPTY_INDEX: LedgerIndex = { v: 2, upto: 0, lineCount: 0, runCount: 0, runOffset: {}, blocked: {}, reuseKey: {}, runIdsNewestFirst: {} };
+
+/** Rebuild instead of patch once index.json exceeds this share of log.jsonl's size. The real bench (10k/100k,
+ *  docs/evidence/ledger-scale.md) measured indexBytes/logBytes ≈ 0.0292 at n = 10,000 and ≈ 0.0306 at n = 100,000
+ *  (the largest size measured) — 0.05 is the smallest round number (multiples of 0.05) at or above that. */
+export const REBUILD_SIZE_RATIO = 0.05;
 
 /** A chunk size that keeps rebuildIndex's memory use bounded regardless of log.jsonl's size (hundreds of MB at 1M runs). */
 const CHUNK_BYTES = 1 << 20; // 1 MiB
@@ -43,22 +74,34 @@ export const whoKey = (who: { adapter: string; model: string }): string => `${wh
 
 const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 
-/** Just enough shape-checking to trust a stored index.json; anything else is treated as "missing" (disposable). */
+/** Just enough shape-checking to trust a stored index.json; anything else is treated as "missing" (disposable).
+ *  v !== 2 (a v: 1 index from before Task 29, which never populated reuseKey/runIdsNewestFirst) is treated as
+ *  missing too: it can't be trusted for reuse, so loadIndex rebuilds unconditionally rather than trusting it. */
 function isLedgerIndexShape(v: unknown): v is LedgerIndex {
   if (!isPlainObject(v)) return false;
   return (
-    v.v === 1 &&
+    v.v === 2 &&
     typeof v.upto === 'number' &&
     typeof v.lineCount === 'number' &&
     typeof v.runCount === 'number' &&
     isPlainObject(v.runOffset) &&
     isPlainObject(v.blocked) &&
-    isPlainObject(v.reuseKey)
+    isPlainObject(v.reuseKey) &&
+    isPlainObject(v.runIdsNewestFirst)
   );
 }
 
+/** A real (two-level-deep, where it matters) copy: applyLine mutates the per-who nested reuseKey table and
+ *  pushes onto the per-who runIdsNewestFirst array in place, so a shallow `{...index.reuseKey}` would leave
+ *  clone and original sharing (and corrupting each other's view of) the same nested objects/arrays. */
 function cloneIndex(index: LedgerIndex): LedgerIndex {
-  return { ...index, runOffset: { ...index.runOffset }, blocked: { ...index.blocked }, reuseKey: { ...index.reuseKey } };
+  return {
+    ...index,
+    runOffset: { ...index.runOffset },
+    blocked: { ...index.blocked },
+    reuseKey: Object.fromEntries(Object.entries(index.reuseKey).map(([wk, table]) => [wk, { ...table }])),
+    runIdsNewestFirst: Object.fromEntries(Object.entries(index.runIdsNewestFirst).map(([wk, ids]) => [wk, [...ids]])),
+  };
 }
 
 /**
@@ -78,8 +121,9 @@ function parseLedgerLine(raw: string, lineNo: number, shown: string): LedgerReco
   return value;
 }
 
-/** Folds one already-validated line into the index: a run records its offset; an outcome updates `blocked`
- *  (held clears it, overruled/failed sets it — later outcomes for the same id always win, matching "latest"). */
+/** Folds one already-validated line into the index: a run records its offset (a v2 ContractRun also its keys,
+ *  see the header comment for reuseKey/runIdsNewestFirst); an outcome updates `blocked` (held clears it,
+ *  overruled/failed sets it — later outcomes for the same id always win, matching "latest"). */
 function applyLine(next: LedgerIndex, raw: string, startByte: number, lineNo: number, shown: string): void {
   const value = parseLedgerLine(raw, lineNo, shown);
   if (value.kind === 'outcome') {
@@ -90,6 +134,11 @@ function applyLine(next: LedgerIndex, raw: string, startByte: number, lineNo: nu
   if (value.kind !== 'run') return; // 'failed': counted in the budget, not in the id index
   next.runCount += 1;
   next.runOffset[value.id] = startByte;
+  if (!isContractRun(value)) return; // legacy runs carry no keys and are never reusable
+  const wk = whoKey({ adapter: value.adapter, model: value.model });
+  (next.runIdsNewestFirst[wk] ??= []).unshift(value.id);
+  const table = (next.reuseKey[wk] ??= {});
+  for (const [qid, key] of Object.entries(value.keys)) table[key] = { runId: value.reusedFrom[qid] ?? value.id, qid };
 }
 
 /**
@@ -206,10 +255,20 @@ function readStoredIndex(paths: SidewisePaths): LedgerIndex | undefined {
   return isLedgerIndexShape(value) ? value : undefined;
 }
 
-/** Reads index.json, catches it up, or rebuilds it as needed — whichever is required, always persists the result. */
+/** Reads index.json, catches it up, or rebuilds it as needed — whichever is required, always persists the result.
+ *  A stored index that's grown past REBUILD_SIZE_RATIO of the log's size is rebuilt from scratch instead of
+ *  patched: still correct either way (a rebuild and a catch-up converge on the same state), but a full rebuild
+ *  is a few lines and one linear pass, while incrementally garbage-collecting a map that only ever grows
+ *  (runOffset/blocked/runIdsNewestFirst: see the header comment for why those can't self-compact) isn't worth
+ *  building for a file that's disposable by design. The two statSync calls this needs are cheap next to either
+ *  path it's choosing between. */
 export function loadIndex(paths: SidewisePaths): LedgerIndex {
   const existing = readStoredIndex(paths);
-  return existing ? catchUpIndex(paths, existing) : rebuildIndex(paths);
+  if (!existing) return rebuildIndex(paths);
+  const logBytes = existsSync(paths.log) ? statSync(paths.log).size : 0;
+  const indexBytes = existsSync(paths.index) ? statSync(paths.index).size : 0;
+  if (logBytes > 0 && indexBytes > REBUILD_SIZE_RATIO * logBytes) return rebuildIndex(paths);
+  return catchUpIndex(paths, existing);
 }
 
 /**

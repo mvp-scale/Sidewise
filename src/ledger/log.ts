@@ -17,7 +17,7 @@ import { formatRunId, ulid } from './ids.ts';
 // function bodies, never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the
 // same way. Safe in ESM as long as neither side touches the other's exports before both modules finish loading,
 // which holds here.
-import { loadIndex, readRecordAt, rebuildIndex } from './index.ts';
+import { loadIndex, readRecordAt, rebuildIndex, type LedgerIndex } from './index.ts';
 import { onStore, withLock } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
 import { redact, redactDeep, redactSecrets } from './redact.ts';
@@ -236,10 +236,43 @@ export function readLedger(paths: SidewisePaths, opts: { partialTail?: boolean }
   return records;
 }
 
-/** Before a paid call: the ledger reads cleanly and can be appended to, so a run we pay for can be logged. */
+/**
+ * The id index (index.ts's scanRange) leaves a trailing line with no `\n` yet unconsumed — "might still be
+ * writing," the same partialTail leniency readLedger gives its readers (view, findRun). A writer about to
+ * append needs the stricter behavior readLedger's default (non-partialTail) callers already had: an in-progress
+ * append from another process (the index is deliberately lock-free, so this can be stale relative to a live
+ * writer) must refuse, not look like "ok to write." Since the index has already validated everything up to
+ * `upto`, only the unconsumed tail — normally a handful of bytes, never the whole log — needs checking here,
+ * with the exact readLedger wording and line number.
+ */
+function checkTail(paths: SidewisePaths, index: LedgerIndex): void {
+  const buf = existsSync(paths.log) ? readFileSync(paths.log) : Buffer.alloc(0);
+  if (buf.length <= index.upto) return;
+  const raw = buf.subarray(index.upto).toString('utf8'); // upto is always \n-aligned (index.ts's scanRange), so
+  if (!raw.trim()) return; // slicing the raw bytes here can never split a multi-byte UTF-8 character
+  const shown = shownLog(paths);
+  const lineNo = index.lineCount + 1;
+  let value: unknown;
+  try {
+    value = JSON.parse(raw);
+  } catch {
+    throw new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not valid JSON → fix or remove that line`);
+  }
+  if (!isRecord(value)) throw new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not a ledger record → fix or remove that line`);
+}
+
+/** Before a paid call: the ledger reads cleanly and can be appended to, so a run we pay for can be logged.
+ *  Called on every paid call (pay.ts's preflight), so this goes through the id index (loadIndex) rather than a
+ *  full readLedger: catch-up only parses the bytes after the index's `upto`, with the identical fail-closed
+ *  LedgerError wording (index.ts's parseLedgerLine reuses this file's own isRecord/error text) — a first-ever
+ *  call, or a stale/corrupt index, still does one full scan via rebuildIndex, exactly like readLedger did;
+ *  checkTail then covers the one thing the index alone doesn't (see its own comment). The onStore wrap preserves
+ *  the same StoreError normalization readLedger got "for free" (loadIndex itself makes no such promise: an
+ *  errno failure — log.jsonl replaced by a folder — would otherwise surface as a raw fs error here, unlike
+ *  nextRunNumber/findRun's call sites, which are fine surfacing it raw). */
 export function checkLedger(paths: SidewisePaths): void {
   withLock(paths.lock, () => {
-    readLedger(paths);
+    onStore(paths.log, 'read', () => checkTail(paths, loadIndex(paths)));
     if (existsSync(paths.log)) onStore(paths.log, 'write', () => accessSync(paths.log, constants.W_OK));
   });
 }
@@ -314,9 +347,11 @@ export function appendContractRun(paths: SidewisePaths, run: NewContractRun, now
   return withLock(paths.lock, () => appendContractRunLocked(paths, run, now, budget));
 }
 
-/** Appends a failed call. The caller holds the lock. The ledger is read first, so a corrupt one refuses here too. */
+/** Appends a failed call. The caller holds the lock. The ledger is validated first (via the index, plus
+ *  checkTail for an in-progress tail the index alone tolerates — see checkLedger's comment), so a corrupt one
+ *  refuses here too. */
 export function appendFailedLocked(paths: SidewisePaths, failed: NewFailed, now: number = Date.now()): FailedRecord {
-  readLedger(paths);
+  onStore(paths.log, 'read', () => checkTail(paths, loadIndex(paths)));
   const uid = ulid(now);
   const record: FailedRecord = { kind: 'failed', id: uid, uid, ts: iso(now), ...redactDeep(failed), actor: redactSecrets(failed.actor) };
   appendLine(paths, record);
@@ -330,16 +365,19 @@ export function appendRun(paths: SidewisePaths, run: NewRun, now: number = Date.
 /**
  * Appends an outcome for a logged run. The run's latest outcome again, by the same actor, is not appended (an
  * agent retrying is a no-op): `repeat` is true and `record` is the one already there. Another actor's is appended.
+ * "Does the run exist, and what's its actor" is an id lookup, so it uses the index (findRun) instead of a full
+ * scan; "what was the latest outcome already recorded for it" isn't something the index tracks (it only keeps a
+ * blocked/not-blocked boolean per id, not full outcome history with `by`), so that part still reads the ledger.
  */
 export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome, by: string, now: number = Date.now()): { record: OutcomeRecord; repeat: boolean } {
   return withLock(paths.lock, () => {
-    const records = readLedger(paths);
-    const run = records.find((r): r is RunRecord | ContractRun => r.kind === 'run' && r.id === of);
+    const run = findRun(paths, of);
     if (!run) throw new LedgerError(`✖ outcome: ${of} is not in the ledger → check the id with "sidewise view ${of}"`, 2);
     const who = redactSecrets(by); // the same transform the run's actor went through: compare like with like
     if (outcome === 'held' && who === run.actor) {
       throw new LedgerError(`✖ outcome: ${who} asked ${of}, so it can't mark it held → another agent or the owner records "held"`);
     }
+    const records = readLedger(paths);
     const latest = records.filter((r): r is OutcomeRecord => r.kind === 'outcome' && r.of === of).at(-1);
     if (latest?.outcome === outcome && latest.by === who) return { record: latest, repeat: true };
     const record: OutcomeRecord = { kind: 'outcome', id: `${of}-outcome`, uid: ulid(now), ts: iso(now), of, outcome, by: who };

@@ -44,9 +44,12 @@ export function sidewiseAsync(root: string, args: string[], env: Record<string, 
 }
 
 /**
- * Every file under <root>/.sidewise with its bytes, or null when the folder does not exist. Skips index.json:
- * it's a disposable read cache (ledger/index.ts) that a plain read (view, --dry-run, a rejected request) can
- * now create or refresh as a side effect, with no bearing on the ledger/budget state these snapshots protect.
+ * Every file under <root>/.sidewise with its bytes, or null when the folder does not exist OR holds nothing but
+ * index.json. index.json is a disposable read cache (ledger/index.ts) that a plain read (view, --dry-run, a
+ * rejected request, now also lookupAnswers/exactReuse for a sweep's --dry-run reuse count) can create or refresh
+ * as a side effect, including `.sidewise/` itself when nothing has ever been written before — with no bearing on
+ * the ledger/budget state these snapshots protect, so a directory holding only that cache reads the same as no
+ * directory at all.
  */
 export function snapshot(root: string): Record<string, string> | null {
   const dir = path.join(root, '.sidewise');
@@ -57,7 +60,7 @@ export function snapshot(root: string): Record<string, string> | null {
     const full = path.join(dir, name);
     out[name] = statSync(full).isDirectory() ? '<dir>' : readFileSync(full, 'latin1');
   }
-  return out;
+  return Object.keys(out).length ? out : null;
 }
 
 /** A failure an agent can act on: exit code, nothing on stdout, one "✖ … → …" line on stderr, no stack frames. */
