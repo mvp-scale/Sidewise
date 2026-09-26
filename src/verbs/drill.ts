@@ -13,7 +13,7 @@
  */
 import { m } from '../contract/emit.ts';
 import { goalGate, gradeItems, gradeSubject, sweepGate, worstFirst } from '../contract/grade.ts';
-import type { Item } from '../contract/layers.ts';
+import { firstStringLayer, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer, Category } from '../contract/types.ts';
 import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
@@ -73,9 +73,23 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     }
     const root: Item = { id: from, layer: itemRec.layer, name, parent: parentId, fill: itemRec.fill, text: itemText, ...(itemRec.unit ? { unit: itemRec.unit } : {}) };
 
+    // An idea item (from loop, or an earlier idea drill) has no unit — nothing for createCodeResolver to
+    // dispatch on (units.ts's `parent.unit!.kind` would throw). It also has no code to split with "each": the
+    // next layer down has to be a literal list of new ideas, same as loop's own over:, so no resolver runs at
+    // all. A string layer under an idea root is incoherent, not a crash — stop and say so.
+    if (!itemRec.unit) {
+      const badLayer = firstStringLayer(request.side.over!);
+      if (badLayer) {
+        return {
+          exit: 2,
+          text: `✖ side.over.${badLayer}: "${clip(from, 40)}" is an idea, not code → give ${badLayer} as a list of items (there is nothing to split with each)`,
+        };
+      }
+    }
+
     const notes: string[] = [];
     const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-    const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes), root });
+    const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
 
     if (ctx.dryRun) return sweepDryRun(plan);
 

@@ -116,6 +116,24 @@ export function mapLayers(over: Record<string, unknown>): LayerMap {
 /** What a string layer may be: scan starts with a file pattern; later layers (and drill's) may be "each". */
 export type StringRule = 'scan' | 'each-only' | 'none';
 
+/** The first layer, at any depth, written as a string ("each" or a pattern) rather than a list of items — or
+ * null if every layer in `over` is a plain list. drill.ts uses this to tell an idea continuation (drilling a
+ * loop item, which has no code to split with "each") from a code one (drilling a scan item), before it ever
+ * calls a resolver — an idea item has no unit, so createCodeResolver has nothing to dispatch on. */
+export function firstStringLayer(over: Record<string, unknown>): string | null {
+  for (const [layer, v] of Object.entries(over)) {
+    if (typeof v === 'string') return layer;
+    if (!Array.isArray(v)) continue;
+    for (const raw of v) {
+      const it = parseItem(raw);
+      if ('problem' in it) continue;
+      const found = firstStringLayer(it.children);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 /**
  * Problems with the items as written: shape, names, duplicates, string layers, and more than `cap` listed
  * items in one layer. Code layers are counted later, by the verb (the cap there counts items asked).

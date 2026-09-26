@@ -2,6 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { appendRun, isContractRun, readLedger } from '../../src/ledger/log.ts';
 import { runClass } from '../../src/verbs/class.ts';
+import { runLoop } from '../../src/verbs/loop.ts';
 import { runScan } from '../../src/verbs/scan.ts';
 import { runDrill } from '../../src/verbs/drill.ts';
 import { runView } from '../../src/verbs/view.ts';
@@ -104,6 +105,35 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     expect(r.text).toBe('plan:\n  calls: 1\n  questions: 1\n  items: 1\n  reused: 0\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths).filter(isContractRun)).toHaveLength(1); // just the scan parent, SW-0001
+  });
+});
+
+describe('drill: a sweep parent (loop) — an idea item has no unit, unlike scan/class [C-075] [C-076]', () => {
+  const loopReq =
+    'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout]\n      - name: payments\n        story: [refunds]\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n    story:\n      done:\n        pass: yes\n        2: Is "{story}" testable against {part} as written?\n';
+
+  it('drilling into an idea item with a new list of ideas works (no code to resolve, so no resolver is needed)', async () => {
+    const { paths } = tempProject({});
+    const yes = (q: { id: string }) => (q.id === 'payments/refunds#2' ? 0.2 : 0.9);
+    await runLoop(loopReq, { paths, provider: stubProvider({ yes }), env }); // SW-0001
+    const drillReq =
+      'side:\n  goal: find why refunds is unsound\n  parent: SW-0001\n  from: payments/refunds\n  depth: quick\n  over:\n    cause:\n      - double charge\n      - silent failure\n  ask:\n    cause:\n      risk:\n        pass: yes\n        1: Is {cause} handled today?\n';
+    const drillYes = (q: { id: string }) => (q.id === 'payments/refunds/double charge#1' ? 0.2 : 0.9);
+    const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: drillYes }), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('gate: fail');
+    expect(r.text).toContain('payments/refunds/double charge: {risk: fail, 1: 0.20}');
+  });
+
+  it('drilling into an idea item with "each" cannot resolve code that does not exist — a clean stop, not a crash', async () => {
+    const { paths } = tempProject({});
+    const yes = (q: { id: string }) => (q.id === 'payments/refunds#2' ? 0.2 : 0.9);
+    await runLoop(loopReq, { paths, provider: stubProvider({ yes }), env }); // SW-0001
+    const drillReq =
+      'side:\n  goal: find why refunds is unsound\n  parent: SW-0001\n  from: payments/refunds\n  depth: quick\n  over:\n    cause: each\n  ask:\n    cause:\n      risk:\n        pass: yes\n        1: Is {cause} handled today?\n';
+    const r = await runDrill(drillReq, { paths, provider: stubProvider(), env });
+    expect(r.exit).toBe(2);
+    expect(r.text).toBe('✖ side.over.cause: "payments/refunds" is an idea, not code → give cause as a list of items (there is nothing to split with each)');
   });
 });
 
