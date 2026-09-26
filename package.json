@@ -51,6 +51,7 @@
     "test:chaos": "npm run build && tsx test/chaos/run.ts",
     "test:container": "sh docker/test.sh",
     "bench:ledger": "tsx scripts/bench-ledger.ts",
+    "bench:tokens": "tsx scripts/bench-tokens.ts",
     "sidewise": "tsx src/cli.ts",
     "check:clean": "sh scripts/check-clean.sh",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
@@ -58,6 +59,7 @@
   "devDependencies": {
     "@types/node": "20.19.43",
     "ajv": "8.20.0",
+    "js-tiktoken": "1.0.21",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vitest": "4.1.11"
