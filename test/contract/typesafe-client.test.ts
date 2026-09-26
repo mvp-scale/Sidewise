@@ -131,6 +131,11 @@ describe('TypeSafe client, recorded transactions', () => {
     expect(err.message).toMatch(/must be in \[0, 1\]/);
     expect(err.retryable).toBe(false);
   });
+
+  it('reads TypeSafe\'s real error shape {error: {type, message}}, not [object Object] (P7)', async () => {
+    expect((await failure('errors/401.json')).message).toBe('HTTP 401: invalid api key');
+    expect((await failure('errors/422.json')).message).toBe('HTTP 422: questions must not be empty');
+  });
 });
 
 describe('resolveJevConfig', () => {
