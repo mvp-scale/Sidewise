@@ -235,6 +235,6 @@ describe('environment', () => {
 
   it('an unknown SIDEWISE_PROVIDER: one clean line, no doubled prefix', () => {
     const root = projectWithRun();
-    expect(expectCleanStop(unchanged(root, ['class', 'req.txt'], { env: { SIDEWISE_PROVIDER: 'bogus' } }), 1)).toBe('✖ provider: "bogus" is not a provider → use fake or typesafe');
+    expect(expectCleanStop(unchanged(root, ['class', 'req.txt'], { env: { SIDEWISE_PROVIDER: 'bogus' } }), 1)).toBe('✖ provider: "bogus" is not a provider → use fake, chaos or typesafe');
   });
 });
