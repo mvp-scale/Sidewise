@@ -23,7 +23,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const notes: string[] = [];
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-  const plan = planSweep(request, who, ctx.paths, { resolve: createCodeResolver(ctx.paths.root, notes) });
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
 
   if (ctx.dryRun) return sweepDryRun(plan);
 

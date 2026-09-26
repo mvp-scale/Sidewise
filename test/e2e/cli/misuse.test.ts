@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from '
 import os from 'node:os';
 import path from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { expectCleanStop, sidewise, snapshot, type CliResult } from '../../helpers/cli.ts';
+import { expectCleanStop, sidewise, snapshot, snapshotLedgerAndBudget, type CliResult } from '../../helpers/cli.ts';
 import { tempProject, USER_TS } from '../../helpers/project.ts';
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
@@ -179,7 +179,12 @@ describe('outcome', () => {
   it('the same outcome twice is recorded once; the second call says so and exits 0', () => {
     const first = sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']);
     expect(first).toMatchObject({ status: 0, stdout: 'sidewise outcome SW-0001 failed · by owner\n', stderr: '' });
-    const again = unchanged(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']);
+    // Not the strict unchanged() helper: a repeated outcome still validates the tail through the index first
+    // (appendOutcome's own checkTail/latestOutcomeOf), which legitimately catches the index up to the outcome
+    // `first` just appended — correct self-healing, not a change to the LEDGER or BUDGET this "no-op" promises.
+    const beforeAgain = snapshotLedgerAndBudget(root);
+    const again = sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']);
+    expect(snapshotLedgerAndBudget(root)).toEqual(beforeAgain);
     expect(again).toMatchObject({ status: 0, stdout: 'sidewise outcome SW-0001 failed · already recorded by owner\n', stderr: '' });
     // The same outcome from a different actor is a second judgement: appended.
     expect(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'reviewer-2'])).toMatchObject({ status: 0, stdout: 'sidewise outcome SW-0001 failed · by reviewer-2\n' });

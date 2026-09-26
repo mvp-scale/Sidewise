@@ -76,10 +76,13 @@ function groupByLayer(items: readonly Item[]): Map<string, Item[]> {
 }
 
 /**
- * planSweep(request, who, paths, opts) — pure except for the one batched ledger read (lookupAnswers).
+ * planSweep(request, who, paths, dryRun, opts) — pure except for the one batched ledger read (lookupAnswers).
  * No resolver: loop's over: is always plain arrays (checkOver's 'none' rule), so expand never needs one.
+ * `dryRun`: threaded into lookupAnswers as `readOnly` — a sweep verb's --dry-run reply (sweepDryRun) is built
+ * from THIS plan, so a plan built for a dry run must never persist a catch-up/rebuild of index.db to disk
+ * (design binding "dry runs and free reads write nothing"); a real run's plan self-heals as before.
  */
-export function planSweep(request: Request, who: Who, paths: SidewisePaths, opts: ExpandOptions = {}): SweepPlan {
+export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryRun: boolean, opts: ExpandOptions = {}): SweepPlan {
   const { layers, items } = expand(request.side.over!, opts);
   const itemsByLayer = groupByLayer(items);
 
@@ -98,7 +101,7 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, opts
   allKeys.push(goalKey);
 
   // One lookup for every key collected above — not one per item.
-  const reused = lookupAnswers(paths, who, allKeys);
+  const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun });
 
   const cap = DEPTH_COUNT[request.side.depth ?? 'quick'];
   const keys = new Map<string, string>();

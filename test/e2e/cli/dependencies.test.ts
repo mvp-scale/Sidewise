@@ -3,7 +3,7 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { expectCleanStop, sidewise, snapshot } from '../../helpers/cli.ts';
+import { expectCleanStop, sidewise, snapshot, snapshotLedgerAndBudget } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
@@ -30,14 +30,19 @@ describe('a corrupt log', () => {
   it('a truncated last line (no newline): class and outcome refuse; view reads past it (an append may be in progress)', () => {
     const root = projectWithRun();
     appendFileSync(path.join(root, '.sidewise', 'log.jsonl'), '{"kind":"run","id":"SW-00');
-    const before = snapshot(root);
+    // snapshotLedgerAndBudget, not the strict snapshot(): a truncated tail is NOT a mid-file parse error — the
+    // incomplete last line is left unconsumed by the scanner (an append may be in progress), so class's own
+    // preflight can still successfully self-heal (build or catch up) the index over the valid PREFIX before its
+    // separate, stricter tail check refuses the command — legitimate self-healing, not a violation of "nothing
+    // is spent or logged." log.jsonl and budget.json are what must stay untouched here.
+    const before = snapshotLedgerAndBudget(root);
     const stop = '✖ ledger: line 2 of .sidewise/log.jsonl is not valid JSON → fix or remove that line';
     expect(expectCleanStop(sidewise(root, ['class', 'req.yaml']), 1)).toBe(stop);
     expect(expectCleanStop(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']), 1)).toBe(stop);
     const view = sidewise(root, ['view', 'src']);
     expect(view).toMatchObject({ status: 0, stderr: '' });
     expect(view.stdout).toMatch(/^sidewise view src · 1 run /);
-    expect(snapshot(root)).toEqual(before);
+    expect(snapshotLedgerAndBudget(root)).toEqual(before);
   });
 });
 

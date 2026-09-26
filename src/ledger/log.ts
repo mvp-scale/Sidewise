@@ -299,11 +299,31 @@ export function checkLedger(paths: SidewisePaths): void {
   });
 }
 
+/** True when the log doesn't need a "\n" inserted before the next line: missing, empty, or already ends in one.
+ *  Reads only the LAST BYTE of the file (openSync/readSync at size-1) — never readFileSync of the whole log,
+ *  which used to cost ~55% of a paid call's own time at 100k just to answer this one-byte question. */
+function logEndsCleanly(logPath: string): boolean {
+  let size: number;
+  try {
+    size = statSync(logPath).size;
+  } catch {
+    return true; // no file yet: nothing to need a break from
+  }
+  if (size === 0) return true;
+  const fd = openSync(logPath, 'r');
+  try {
+    const buf = Buffer.alloc(1);
+    const got = readSync(fd, buf, 0, 1, size - 1);
+    return got === 1 && buf[0] === 0x0a;
+  } finally {
+    closeSync(fd);
+  }
+}
+
 function appendLine(paths: SidewisePaths, record: LedgerRecord): void {
   onStore(paths.log, 'write', () => {
     mkdirSync(paths.dir, { recursive: true });
-    const current = existsSync(paths.log) ? readFileSync(paths.log, 'utf8') : '';
-    const needsBreak = current.length > 0 && !current.endsWith('\n');
+    const needsBreak = !logEndsCleanly(paths.log);
     appendFileSync(paths.log, `${needsBreak ? '\n' : ''}${JSON.stringify(record)}\n`);
   });
 }
@@ -329,13 +349,18 @@ function matchingRun(at: number, logPath: string, id: string): RunRecord | Contr
  * from the log as it is right now, and that answer is trusted either way — found, or genuinely not there. A log
  * that's genuinely corrupt (not just a stale offset) still fails closed with readLedger's usual LedgerError,
  * thrown from within that rebuild, not swallowed here.
+ * Always `readOnly`: findRun is a pure query, called both inside an already-held lock (appendOutcome) and,
+ * just as often, outside any lock at all (change/drill resolving side.parent, including during --dry-run,
+ * before preflight ever runs) — it must never be the thing that takes the ledger lock to rebuild/catch up the
+ * on-disk index on a real writer's behalf. When the on-disk index isn't already fresh, it falls back to an
+ * in-memory scan instead (always correct, just not persisted) rather than write anything to disk.
  */
 export function findRun(paths: SidewisePaths, id: string): RunRecord | ContractRun | undefined {
-  const at = withIndex(paths, (h) => h.findOffset(id));
+  const at = withIndex(paths, (h) => h.findOffset(id), { readOnly: true });
   if (at === undefined) return undefined;
   const first = matchingRun(at, paths.log, id);
   if (first) return first;
-  const at2 = withIndex(paths, (h) => h.findOffset(id), { forceRebuild: true });
+  const at2 = withIndex(paths, (h) => h.findOffset(id), { forceRebuild: true, readOnly: true });
   return at2 === undefined ? undefined : matchingRun(at2, paths.log, id);
 }
 
@@ -391,8 +416,16 @@ export function appendRun(paths: SidewisePaths, run: NewRun, now: number = Date.
  * Appends an outcome for a logged run. The run's latest outcome again, by the same actor, is not appended (an
  * agent retrying is a no-op): `repeat` is true and `record` is the one already there. Another actor's is appended.
  * "Does the run exist, and what's its actor" is an id lookup, so it uses the index (findRun) instead of a full
- * scan; "what was the latest outcome already recorded for it" isn't something the index tracks (it only keeps a
- * blocked/not-blocked boolean per id, not full outcome history with `by`), so that part still reads the ledger.
+ * scan; "what was the latest outcome already recorded for it" now goes through the index's own outcomes table
+ * (latestOutcomeOf — outcome, uid, ts and by, self-compacting to the newest one per run id) instead of a full
+ * readLedger scan, which used to cost the whole ledger's worth of parsing just to answer a single id's question.
+ * This whole function already holds paths.lock, so the withIndex calls below self-heal under that SAME lock
+ * (withLockIfNeeded sees it's already ours) rather than taking a second one. Also validates the tail (same
+ * discipline as checkLedger/appendFailedLocked, via checkTail): findRun's own read tolerates an in-progress
+ * append (it only needs `of`'s own line, found well before any corrupt/truncated tail); an outcome append is
+ * itself a write, so — like every other write path — it must refuse on a bad or in-progress tail rather than
+ * append past it. Previously this fell out incidentally of a full, non-partialTail readLedger scan; now that
+ * the "latest outcome" lookup goes through the index instead (see below), the tail check is explicit.
  */
 export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome, by: string, now: number = Date.now()): { record: OutcomeRecord; repeat: boolean } {
   return withLock(paths.lock, () => {
@@ -402,9 +435,14 @@ export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome
     if (outcome === 'held' && who === run.actor) {
       throw new LedgerError(`✖ outcome: ${who} asked ${of}, so it can't mark it held → another agent or the owner records "held"`);
     }
-    const records = readLedger(paths);
-    const latest = records.filter((r): r is OutcomeRecord => r.kind === 'outcome' && r.of === of).at(-1);
-    if (latest?.outcome === outcome && latest.by === who) return { record: latest, repeat: true };
+    onStore(paths.log, 'read', () => {
+      const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));
+      checkTail(paths, at.upto, at.lineCount);
+    });
+    const latest = withIndex(paths, (h) => h.latestOutcomeOf(of));
+    if (latest && latest.outcome === outcome && latest.by === who) {
+      return { record: { kind: 'outcome', id: `${of}-outcome`, uid: latest.uid, ts: latest.ts, of, outcome, by: who }, repeat: true };
+    }
     const record: OutcomeRecord = { kind: 'outcome', id: `${of}-outcome`, uid: ulid(now), ts: iso(now), of, outcome, by: who };
     appendLine(paths, record);
     return { record, repeat: false };

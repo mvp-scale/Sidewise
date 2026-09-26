@@ -82,59 +82,81 @@ function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: str
 
 /** Key → the newest reusable answer for it, for the keys asked about. The fast path (above) resolves most keys
  *  in O(1); whatever it can't, the fallback walks candidates newest first, so a key whose newest holder is now
- *  blocked still correctly falls back further to an older still-valid holder of the same key. */
-export function lookupAnswers(paths: SidewisePaths, who: Who, keys: readonly string[]): Map<string, Reusable> {
+ *  blocked still correctly falls back further to an older still-valid holder of the same key. Before that walk,
+ *  `everHeld` drops any key that NO run has ever held at all (the answer_keys table proves it conclusively) —
+ *  the common "genuinely new question" reuse MISS, which used to pay for walking every candidate run for the
+ *  provider only to confirm what a single missing row already proved. `opts.readOnly`: threaded through to
+ *  withIndex for callers that must never persist a catch-up/rebuild here (a sweep verb's --dry-run planning,
+ *  which still needs to know what WOULD reuse — design binding "dry runs... write nothing").
+ *  `out` is built INSIDE the withIndex callback (never captured from outside it): withIndex retries `fn` from
+ *  scratch against the in-memory fallback if the SQL attempt throws partway through, so a partially-filled `out`
+ *  from that aborted attempt must never survive into the retry — building it fresh per `fn` invocation is what
+ *  guarantees that. */
+export function lookupAnswers(paths: SidewisePaths, who: Who, keys: readonly string[], opts: { readOnly?: boolean } = {}): Map<string, Reusable> {
   const want = new Set(keys);
-  const out = new Map<string, Reusable>();
-  if (!want.size) return out;
-  withIndex(paths, (handle) => {
-    const remaining = new Set(want);
-    for (const key of want) {
-      const hit = fastReuse(paths, handle, who, key);
-      if (hit) {
-        out.set(key, hit);
-        remaining.delete(key);
+  if (!want.size) return new Map();
+  return withIndex(
+    paths,
+    (handle) => {
+      const out = new Map<string, Reusable>();
+      const remaining = new Set<string>();
+      for (const key of want) {
+        const hit = fastReuse(paths, handle, who, key);
+        if (hit) {
+          out.set(key, hit);
+          continue;
+        }
+        if (handle.everHeld(who.adapter, who.model, key)) remaining.add(key); // else: nobody ever held it — a walk could never find it either
       }
-    }
-    if (remaining.size) {
-      for (const { offset } of handle.candidates(who.adapter, who.model)) {
-        if (!remaining.size) break;
-        const run = readCandidate(paths, offset, who);
-        if (!run) continue;
-        for (const [qid, key] of Object.entries(run.keys)) {
-          if (!remaining.has(key)) continue;
-          const answer = run.answers[qid];
-          const origin = run.reusedFrom[qid] ?? run.id;
-          if (answer && !handle.isBlocked(origin)) {
-            out.set(key, { id: origin, answer });
-            remaining.delete(key);
+      if (remaining.size) {
+        for (const { offset } of handle.candidates(who.adapter, who.model)) {
+          if (!remaining.size) break;
+          const run = readCandidate(paths, offset, who);
+          if (!run) continue;
+          for (const [qid, key] of Object.entries(run.keys)) {
+            if (!remaining.has(key)) continue;
+            const answer = run.answers[qid];
+            const origin = run.reusedFrom[qid] ?? run.id;
+            if (answer && !handle.isBlocked(origin)) {
+              out.set(key, { id: origin, answer });
+              remaining.delete(key);
+            }
           }
         }
       }
-    }
-  });
-  return out;
+      return out;
+    },
+    { readOnly: opts.readOnly ?? false },
+  );
 }
 
 /**
  * The newest run (same provider and model) that holds every key, none of them traced back (through reusedFrom)
- * to a run that is now overruled or failed: its answer can be reused whole.
+ * to a run that is now overruled or failed: its answer can be reused whole. Always readOnly: exactReuse's only
+ * caller (view's request mode) is a free, read-only verb — it must never persist a catch-up/rebuild.
+ * If ANY requested key was never held by any run at all (everHeld false), no single run could possibly hold
+ * every one of them — that's provable without a walk, the same reuse-MISS shortcut lookupAnswers uses.
  */
 export function exactReuse(paths: SidewisePaths, who: Who, keys: readonly string[]): string | undefined {
   if (!keys.length) return undefined;
-  return withIndex(paths, (handle) => {
-    for (const { offset } of handle.candidates(who.adapter, who.model)) {
-      const run = readCandidate(paths, offset, who);
-      if (!run) continue;
-      const qidOf = new Map(Object.entries(run.keys).map(([qid, key]) => [key, qid]));
-      const holds = keys.every((k) => {
-        const qid = qidOf.get(k);
-        if (qid === undefined) return false;
-        const origin = run.reusedFrom[qid] ?? run.id;
-        return !handle.isBlocked(origin);
-      });
-      if (holds) return run.id;
-    }
-    return undefined;
-  });
+  return withIndex(
+    paths,
+    (handle) => {
+      if (keys.some((k) => !handle.everHeld(who.adapter, who.model, k))) return undefined;
+      for (const { offset } of handle.candidates(who.adapter, who.model)) {
+        const run = readCandidate(paths, offset, who);
+        if (!run) continue;
+        const qidOf = new Map(Object.entries(run.keys).map(([qid, key]) => [key, qid]));
+        const holds = keys.every((k) => {
+          const qid = qidOf.get(k);
+          if (qid === undefined) return false;
+          const origin = run.reusedFrom[qid] ?? run.id;
+          return !handle.isBlocked(origin);
+        });
+        if (holds) return run.id;
+      }
+      return undefined;
+    },
+    { readOnly: true },
+  );
 }

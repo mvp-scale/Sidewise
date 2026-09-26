@@ -1,9 +1,10 @@
 // The index-backed lookupAnswers/exactReuse must agree with a from-scratch linear scan, at a size that
 // exercises repeated keys, mixed outcomes, and more than one (adapter, model) — every knob reuse depends on.
-import { rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { writeSyntheticLedger } from '../gen/synthetic-ledger.ts';
 import { isContractRun, readLedger, type LedgerRecord } from '../../src/ledger/log.ts';
+import { __testOnly } from '../../src/ledger/index.ts';
 import { exactReuse, lookupAnswers, type Who } from '../../src/ledger/reuse.ts';
 import { tempProject } from '../helpers/project.ts';
 import { seededRandom } from '../gen/prng.ts';
@@ -34,7 +35,17 @@ function linearExact(records: readonly LedgerRecord[], who: Who, keys: readonly 
   for (let i = records.length - 1; i >= 0; i--) {
     const r = records[i]!;
     if (!isContractRun(r) || r.adapter !== who.adapter || r.model !== who.model || blocked.has(r.id)) continue;
-    if (keys.every((k) => new Set(Object.values(r.keys)).has(k))) return r.id;
+    // A key "holds" only if its ORIGIN (reusedFrom[qid], or r itself when it asked fresh) is unblocked — not
+    // merely that r itself isn't blocked. The generator this file's other tests use never populates reusedFrom
+    // (every generated run is its own origin), so this distinction was previously untested here; a real chain
+    // (see the dedicated test below) needs it to be a faithful oracle for exactReuse, which checks exactly this.
+    const holds = keys.every((k) => {
+      const qid = Object.entries(r.keys).find(([, key]) => key === k)?.[0];
+      if (qid === undefined) return false;
+      const origin = r.reusedFrom[qid] ?? r.id;
+      return !blocked.has(origin);
+    });
+    if (holds) return r.id;
   }
   return undefined;
 }
@@ -85,6 +96,103 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
     const anyKey = [...new Set(records.filter(isContractRun).flatMap((r) => Object.values(r.keys)))][0]!;
     expect(lookupAnswers(paths, who, [anyKey]).size).toBe(0);
     expect(exactReuse(paths, who, [anyKey])).toBeUndefined();
+  });
+
+  // The generator above (writeSyntheticLedger/generateLedgerRecords) always sets reusedFrom: {} — every run is
+  // its own origin, so the previous test's "even reached through a chain" never actually built one. This test
+  // hand-writes a REAL chain: two runs (SW-0002, SW-0003) whose own reusedFrom points back at a common origin
+  // (SW-0001), plus a separate "blocked newest holder" pair (SW-0004 older/valid, SW-0005 newer/blocked) for
+  // the same key — exactly the two gaps a profiling review flagged as untested.
+  it('a real multi-hop reusedFrom chain traces back to its true origin, and a blocked newest holder falls back to an older valid one', () => {
+    const { paths } = tempProject({});
+    const who: Who = { adapter: 'typesafe', model: 'jev-1.13.0' };
+    const mkAnswer = (p: number): unknown => ({ kind: 'yesno', p });
+    const mkRun = (id: string, ts: string, keys: Record<string, string>, answers: Record<string, unknown>, reusedFrom: Record<string, string>): string =>
+      JSON.stringify({
+        kind: 'run',
+        v: 2,
+        id,
+        uid: `${id}-u`,
+        ts,
+        verb: 'class',
+        actor: 'agent',
+        task: null,
+        goal: `goal for ${id}`,
+        depth: 'quick',
+        where: ['src/a.ts'],
+        parent: null,
+        from: null,
+        compare: null,
+        wise: null,
+        ask: { categories: [], layers: [] },
+        over: null,
+        items: null,
+        answers,
+        keys,
+        reusedFrom,
+        categories: {},
+        gate: 'pass',
+        goalGate: 'pass',
+        goalP: 0.9,
+        consensus: 'STRONG',
+        response: `side:\n  id: ${id}\n`,
+        notes: [],
+        adapter: who.adapter,
+        model: who.model,
+        costUsd: 0.01,
+        calls: 1,
+      });
+
+    const lines = [
+      // SW-0001: the true origin of k-chain.
+      mkRun('SW-0001', '2026-09-01T00:00:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, {}),
+      // SW-0002: reuses k-chain FROM SW-0001 — a real hop.
+      mkRun('SW-0002', '2026-09-01T00:05:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, { '1': 'SW-0001' }),
+      // SW-0003: reuses k-chain from SW-0001 too — a second, independent hop from the same origin.
+      mkRun('SW-0003', '2026-09-01T00:10:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, { '1': 'SW-0001' }),
+      // SW-0004: an older, independent fresh ask of k-newest (its own origin).
+      mkRun('SW-0004', '2026-09-01T00:15:00Z', { '1': 'k-newest' }, { '1': mkAnswer(0.2) }, {}),
+      // SW-0005: a LATER, independent fresh ask of the SAME key (also its own origin) — the "newest holder"
+      // the answer_keys table's self-compacting design would otherwise overwrite SW-0004's row with.
+      mkRun('SW-0005', '2026-09-01T00:20:00Z', { '1': 'k-newest' }, { '1': mkAnswer(0.3) }, {}),
+    ];
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.log, `${lines.join('\n')}\n`);
+    // SW-0001 (the chain's true origin) and SW-0005 (the newest k-newest holder) are both overruled.
+    appendFileSync(
+      paths.log,
+      `${JSON.stringify({ kind: 'outcome', id: 'SW-0001-outcome', uid: 'o1', ts: '2026-09-01T00:25:00Z', of: 'SW-0001', outcome: 'overruled', by: 'owner' })}\n`,
+    );
+    appendFileSync(
+      paths.log,
+      `${JSON.stringify({ kind: 'outcome', id: 'SW-0005-outcome', uid: 'o2', ts: '2026-09-01T00:26:00Z', of: 'SW-0005', outcome: 'overruled', by: 'owner' })}\n`,
+    );
+
+    const records = readLedger(paths);
+
+    // The chain: k-chain must be unreusable everywhere, even via B or C, since its true origin is blocked —
+    // not just "SW-0001 itself is blocked" but "everything that ever copied from it is blocked too."
+    expect(lookupAnswers(paths, who, ['k-chain']).size).toBe(0);
+    expect(exactReuse(paths, who, ['k-chain'])).toBeUndefined();
+    expect(Object.fromEntries(lookupAnswers(paths, who, ['k-chain']))).toEqual(Object.fromEntries(linearLookup(records, who, ['k-chain'])));
+    expect(exactReuse(paths, who, ['k-chain'])).toBe(linearExact(records, who, ['k-chain']));
+
+    // The blocked-newest-holder case: SW-0005 (newest) is blocked, so the older, still-valid SW-0004 must be
+    // the one found — the self-compacting answer_keys table's single "current holder" row for k-newest points
+    // at SW-0005, so this only works if the fallback correctly walks PAST a blocked current holder.
+    const gotNewest = lookupAnswers(paths, who, ['k-newest']);
+    expect(gotNewest.get('k-newest')?.id).toBe('SW-0004');
+    expect(Object.fromEntries(gotNewest)).toEqual(Object.fromEntries(linearLookup(records, who, ['k-newest'])));
+    expect(exactReuse(paths, who, ['k-newest'])).toBe(linearExact(records, who, ['k-newest']));
+
+    // Cross-check against the fallback engine too: both engines must agree, not just each agree with the oracle.
+    __testOnly.forceFallback = true;
+    try {
+      expect(Object.fromEntries(lookupAnswers(paths, who, ['k-chain', 'k-newest']))).toEqual(Object.fromEntries(linearLookup(records, who, ['k-chain', 'k-newest'])));
+      expect(exactReuse(paths, who, ['k-newest'])).toBe(linearExact(records, who, ['k-newest']));
+    } finally {
+      __testOnly.forceFallback = false;
+    }
   });
 });
 

@@ -3,7 +3,9 @@
  * every read log.ts/reuse.ts/view.ts do against log.jsonl. The log stays the source of truth (AGENTS.md): this
  * file never rewrites log.jsonl, and a missing/corrupt/stale index just costs the next call a rebuild — never a
  * wrong answer. Task 29 (revised): replaces the JSON sidecar (index.json) built in ff5f3e8 with this module,
- * evidence in lab/research/2026-09-26-sqlite-spike.md and lab/research/2026-09-26-ledger-lookup-comparison.md.
+ * Evidence for the design lives in this repo's own dated research notes (kept out of the public tree).
+ * Fix round 1 (a profiling review) narrowed the index strategy itself back out of scope for now — this file's
+ * schema and on-disk layout are not being tuned further here; see docs/evidence/ledger-scale.md's own note.
  *
  * Two engines behind one `withIndex` entry point, both fed by ONE line-interpretation (`applyLine`/`Sink`), so
  * they can never disagree about what a line means — only about where the answer is stored:
@@ -71,6 +73,16 @@ export interface IndexHandle {
   placeCandidates(place: string): Candidate[];
   /** run id -> its latest outcome, for a small batch of ids (view's outcome counts). */
   outcomesFor(ids: readonly string[]): Map<string, OutcomeRecord['outcome']>;
+  /** True when SOME run has ever held this key for (adapter, model) — a raw answer_keys row check, independent
+   *  of whether that holder is currently blocked. False proves conclusively that no candidate walk could ever
+   *  find this key (the linear oracle would find nothing either, since no run's own `keys` map ever held it),
+   *  so lookupAnswers/exactReuse skip the O(candidates) walk entirely for a key nobody ever asked — the common
+   *  "genuinely new question" case a reuse MISS pays for today. */
+  everHeld(adapter: string, model: string, key: string): boolean;
+  /** The latest recorded outcome for one run id (outcome + who recorded it + its own uid/ts), or undefined if
+   *  none yet — appendOutcome's own "is this exactly the same outcome, by the same actor, already there?"
+   *  no-op check, without a full ledger scan. */
+  latestOutcomeOf(id: string): { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string } | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -235,7 +247,7 @@ interface MemoryState {
   reuseKey: Map<string, Map<string, { runId: string; qid: string }>>;
   candidatesByWho: Map<string, Candidate[]>;
   places: { kind: 'where' | 'tag'; val: string; runId: string }[];
-  outcomes: Map<string, OutcomeRecord['outcome']>;
+  outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
   runCount: number;
   upto: number;
   lineCount: number;
@@ -266,7 +278,7 @@ function memorySink(state: MemoryState): Sink {
     outcome(rec) {
       if (rec.outcome === 'held') state.blocked.delete(rec.of);
       else state.blocked.add(rec.of);
-      state.outcomes.set(rec.of, rec.outcome);
+      state.outcomes.set(rec.of, { outcome: rec.outcome, uid: rec.uid, ts: rec.ts, by: rec.by });
     },
   };
 }
@@ -300,9 +312,11 @@ function handleFromMemory(state: MemoryState): IndexHandle {
     outcomesFor: (ids) => {
       const want = new Set(ids);
       const out = new Map<string, OutcomeRecord['outcome']>();
-      for (const [id, outcome] of state.outcomes) if (want.has(id)) out.set(id, outcome);
+      for (const [id, rec] of state.outcomes) if (want.has(id)) out.set(id, rec.outcome);
       return out;
     },
+    everHeld: (adapter, model, key) => state.reuseKey.get(whoKey({ adapter, model }))?.has(key) ?? false,
+    latestOutcomeOf: (id) => state.outcomes.get(id),
   };
 }
 
@@ -345,7 +359,11 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // SQLite engine.
 // ---------------------------------------------------------------------------------------------------------------
 
-const SCHEMA_VERSION = 1;
+// Bumped to 2 (from 1) in fix round 1: outcomes gained a `uid` column (appendOutcome's own no-op "repeat" check
+// now reads the index instead of a full readLedger — it needs the original outcome record's uid back). A stale
+// on-disk index built under version 1 self-heals via the existing schema-version-mismatch rebuild trigger — no
+// migration needed, just a rebuild, which is exactly what self-healing is for.
+const SCHEMA_VERSION = 2;
 
 const SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -372,6 +390,7 @@ CREATE TABLE answer_keys (
 CREATE TABLE outcomes (
   run_id TEXT PRIMARY KEY,
   outcome TEXT NOT NULL,
+  uid TEXT NOT NULL,
   ts TEXT NOT NULL,
   by TEXT NOT NULL
 );
@@ -398,9 +417,13 @@ interface SqliteDb {
 }
 type DatabaseSyncCtor = new (location: string) => SqliteDb;
 
-/** Test-only fault injection: forces every withIndex call to take the fallback path, to prove it gives the same
- *  answers as SQLite without needing a corrupt Node build. Never set outside a test. */
-export const __testOnly = { forceFallback: false };
+/** Test-only fault injection: `forceFallback` forces every withIndex call to take the fallback path, to prove it
+ *  gives the same answers as SQLite without needing a corrupt Node build. `throwOnCandidates`, when true, makes
+ *  the NEXT `candidates()` call on a real SQL handle throw once (then clears itself) — simulating a query that
+ *  fails partway through an otherwise-successful `fn`, so a caller like lookupAnswers can be proven to fall back
+ *  to the linear scan with identical results and no state leaked from the aborted attempt. Never set outside a
+ *  test. */
+export const __testOnly = { forceFallback: false, throwOnCandidates: false };
 
 /** True for the one warning node:sqlite prints (once per process) on Node 22/24: an ExperimentalWarning naming
  *  SQLite. Every other warning (including a differently-worded ExperimentalWarning) is left alone — matched by
@@ -410,42 +433,63 @@ export function isSqliteExperimentalWarning(w: { name?: string; message?: string
   return w.name === 'ExperimentalWarning' && /sqlite/iu.test(w.message ?? '');
 }
 
-// An emitWarning wrapper, not a process.on('warning', ...) listener: Node still prints the ORIGINAL default
-// text for a warning even when a 'warning' listener is attached (verified directly — that event does not
-// suppress the default console output for this one, unlike what the Node docs imply for a plain
-// process.emitWarning() call; node:sqlite's own experimental-feature warning apparently doesn't honor it).
-// Wrapping emitWarning itself intercepts BEFORE Node's own default handling ever runs, so the swallowed case
-// prints nothing and everything else still goes through the original emitWarning unchanged.
-// Installed here — BEFORE the dynamic import below, in the same module, same synchronous top-level run — rather
-// than in cli.ts: ESM evaluates an imported module's own top-level code (this whole file) BEFORE the importing
-// module's (cli.ts's) subsequent statements run, so wrapping emitWarning from cli.ts would still be too late to
-// catch a warning this module's own top-level await triggers below.
-const originalEmitWarning = process.emitWarning.bind(process);
-process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
-  const message = typeof warning === 'string' ? warning : warning.message;
-  const type = typeof rest[0] === 'string' ? rest[0] : ((rest[0] as { type?: string } | undefined)?.type ?? '');
-  if (isSqliteExperimentalWarning({ name: type, message })) return;
-  return (originalEmitWarning as (...args: unknown[]) => void)(warning, ...rest);
-}) as typeof process.emitWarning;
+let warningFilterInstalled = false;
+
+/** An emitWarning wrapper, not a process.on('warning', ...) listener: Node still prints the ORIGINAL default
+ *  text for a warning even when a 'warning' listener is attached (verified directly, in the Node 22 container —
+ *  that event does not suppress the default console output for this one, unlike what the Node docs imply for a
+ *  plain process.emitWarning() call; node:sqlite's own experimental-feature warning apparently doesn't honor
+ *  it). Wrapping emitWarning itself intercepts BEFORE Node's own default handling ever runs, so the swallowed
+ *  case prints nothing and everything else still goes through the original emitWarning unchanged. Installed
+ *  lazily, from getSqliteCtor() below, right before node:sqlite is ever touched for real — never as a side
+ *  effect of merely importing this module (this file is reachable from the library's own public export,
+ *  src/index.ts, not just the CLI entry; a library consumer who never asks the ledger for anything must never
+ *  have process.emitWarning silently rewritten underneath it). Verified directly (Node 22 container): the
+ *  warning fires at `new DatabaseSync(...)` construction time, not at module resolution, so installing it here
+ *  — before getSqliteCtor() ever returns a constructor a caller can construct — is still early enough. */
+function installSqliteWarningFilter(): void {
+  if (warningFilterInstalled) return;
+  warningFilterInstalled = true;
+  const originalEmitWarning = process.emitWarning.bind(process);
+  process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
+    const message = typeof warning === 'string' ? warning : warning.message;
+    const type = typeof rest[0] === 'string' ? rest[0] : ((rest[0] as { type?: string } | undefined)?.type ?? '');
+    if (isSqliteExperimentalWarning({ name: type, message })) return;
+    return (originalEmitWarning as (...args: unknown[]) => void)(warning, ...rest);
+  }) as typeof process.emitWarning;
+}
 
 /**
- * node:sqlite, loaded lazily with a dynamic import — but resolved via a top-level await, not on first use inside
- * withIndex. Every ledger call in this codebase (nextRunNumber, findRun, checkLedger, lookupAnswers, exactReuse,
- * appendOutcome, …) is synchronous, called from synchronous code throughout ledger/ and verbs/; making them async
- * to await a per-call dynamic import would cascade `await` through pay.ts and every verb, well past "keep
- * exported ledger function signatures the same so verb code changes stay minimal." A top-level await here still
- * imports it lazily (only this module, only once, never a static top-of-file import that would hard-fail the
- * whole module graph on Node < 22.13) — but ESM module evaluation order means every importer of this module
- * (log.ts, reuse.ts, and everything downstream) waits for it to settle before their own top-level code runs, so
- * by the time any withIndex call happens, `sqliteCtor` is already whichever it's going to be. A built-in module
- * needs no disk I/O to resolve, so this costs a couple of microtasks at process start, not a real async wait.
+ * node:sqlite's DatabaseSync, resolved lazily and SYNCHRONOUSLY on first real use — never at module import time,
+ * and never async. `process.getBuiltinModule` (present since Node 22.3; simply absent as a function on earlier
+ * Nodes, including this repo's Node 20 host — verified directly, it's `undefined` there, not a throw) resolves a
+ * built-in module by id without `import()`'s promise: on Node < 22.13 it either doesn't exist as a function, or
+ * returns undefined for an id it doesn't recognize yet, so `sqliteCtor` ends up `null` either way, exactly like
+ * today's fallback. This replaces a top-level `await import('node:sqlite')`: every ledger call in this codebase
+ * (nextRunNumber, findRun, checkLedger, lookupAnswers, exactReuse, appendOutcome, …) is synchronous, so a
+ * per-call dynamic import would have cascaded `await` through pay.ts and every verb — but a top-level await had
+ * its own cost this fix round removes: it ran (and, with it, installed the warning filter and touched
+ * process.emitWarning) the instant this module was FIRST IMPORTED, by anything — including a library consumer
+ * who only wants `redact` or `formatRunId` and will never touch the ledger. Resolved once and cached (`null`
+ * means "resolved to unavailable," `undefined` means "not yet asked").
  */
-let sqliteCtor: DatabaseSyncCtor | null = null;
-try {
-  const mod = await import('node:sqlite');
-  sqliteCtor = mod.DatabaseSync as unknown as DatabaseSyncCtor;
-} catch {
-  sqliteCtor = null; // Node < 22.13, or any other import failure: every call falls back from here on.
+let sqliteCtor: DatabaseSyncCtor | null | undefined;
+
+function getSqliteCtor(): DatabaseSyncCtor | null {
+  if (sqliteCtor !== undefined) return sqliteCtor;
+  const getBuiltin = (process as unknown as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
+  if (typeof getBuiltin !== 'function') {
+    sqliteCtor = null;
+    return null;
+  }
+  installSqliteWarningFilter(); // before node:sqlite is touched at all, even just to read DatabaseSync off it
+  try {
+    const mod = getBuiltin('node:sqlite') as { DatabaseSync?: unknown } | undefined;
+    sqliteCtor = typeof mod?.DatabaseSync === 'function' ? (mod.DatabaseSync as unknown as DatabaseSyncCtor) : null;
+  } catch {
+    sqliteCtor = null;
+  }
+  return sqliteCtor;
 }
 
 function getMeta(db: SqliteDb, key: string): string | undefined {
@@ -469,7 +513,7 @@ function prepStatements(db: SqliteDb): SqlStatements {
   return {
     insertRun: db.prepare('INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)'),
     insertKey: db.prepare('INSERT OR REPLACE INTO answer_keys (adapter, model, key, run_id, qid) VALUES (?, ?, ?, ?, ?)'),
-    insertOutcome: db.prepare('INSERT OR REPLACE INTO outcomes (run_id, outcome, ts, by) VALUES (?, ?, ?, ?)'),
+    insertOutcome: db.prepare('INSERT OR REPLACE INTO outcomes (run_id, outcome, uid, ts, by) VALUES (?, ?, ?, ?, ?)'),
     insertPlace: db.prepare('INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)'),
     updateBlocked: db.prepare('UPDATE runs SET blocked = ? WHERE id = ?'),
   };
@@ -498,7 +542,7 @@ function sqlSink(stmts: SqlStatements): Sink {
       }
     },
     outcome(rec) {
-      stmts.insertOutcome.run(rec.of, rec.outcome, rec.ts, rec.by);
+      stmts.insertOutcome.run(rec.of, rec.outcome, rec.uid, rec.ts, rec.by);
       stmts.updateBlocked.run(rec.outcome === 'held' ? 0 : 1, rec.of);
     },
   };
@@ -560,6 +604,8 @@ function handleFromSql(db: SqliteDb): IndexHandle {
     `SELECT DISTINCT r.id AS id, r.offset AS offset FROM places p JOIN runs r ON r.id = p.run_id ` +
       `WHERE (p.kind = 'where' AND (p.val = ? OR p.val LIKE ? ESCAPE '\\')) OR (p.kind = 'tag' AND p.val = ?) ORDER BY r.offset ASC`,
   );
+  const stEverHeld = db.prepare('SELECT 1 FROM answer_keys WHERE adapter = ? AND model = ? AND key = ?');
+  const stLatestOutcome = db.prepare('SELECT outcome, uid, ts, by FROM outcomes WHERE run_id = ?');
 
   return {
     findOffset: (id) => {
@@ -580,7 +626,15 @@ function handleFromSql(db: SqliteDb): IndexHandle {
       const row = stReuseHit.get(adapter, model, key);
       return row ? { runId: String(row.runId), qid: String(row.qid), offset: Number(row.offset), blocked: Number(row.blocked) !== 0 } : undefined;
     },
-    candidates: (adapter, model) => stCandidates.all(adapter, model).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
+    candidates: (adapter, model) => {
+      // Test-only fault injection (__testOnly.throwOnCandidates): consumed once, so a retried attempt (the
+      // fallback runSqlite falls back to after catching this) never trips it a second time.
+      if (__testOnly.throwOnCandidates) {
+        __testOnly.throwOnCandidates = false;
+        throw new Error('injected SQLite fault (test only)');
+      }
+      return stCandidates.all(adapter, model).map((r) => ({ id: String(r.id), offset: Number(r.offset) }));
+    },
     placeCandidates: (place) => stPlaces.all(place, `${escapeLike(place)}/%`, place).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
     outcomesFor: (ids) => {
       const out = new Map<string, OutcomeRecord['outcome']>();
@@ -588,6 +642,11 @@ function handleFromSql(db: SqliteDb): IndexHandle {
       const stmt = db.prepare(`SELECT run_id AS runId, outcome FROM outcomes WHERE run_id IN (${ids.map(() => '?').join(',')})`);
       for (const row of stmt.all(...ids)) out.set(String(row.runId), row.outcome as OutcomeRecord['outcome']);
       return out;
+    },
+    everHeld: (adapter, model, key) => !!stEverHeld.get(adapter, model, key),
+    latestOutcomeOf: (id) => {
+      const row = stLatestOutcome.get(id);
+      return row ? { outcome: row.outcome as OutcomeRecord['outcome'], uid: String(row.uid), ts: String(row.ts), by: String(row.by) } : undefined;
     },
   };
 }
@@ -611,6 +670,16 @@ function tmpDbPath(dbPath: string): string {
 
 function rmDbFiles(dbPath: string): void {
   for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
+    if (existsSync(f)) rmSync(f, { force: true });
+  }
+}
+
+/** Only the -wal/-shm siblings, never the main file — used right before a rename replaces the main file, so a
+ *  stale WAL/SHM left over from the file being REPLACED (normal operation always checkpoints and removes these
+ *  on close, verified directly, but this guards an abnormal prior state) can never be misread against the new
+ *  main file's content after the rename. */
+function rmSiblingWalShm(dbPath: string): void {
+  for (const f of [`${dbPath}-wal`, `${dbPath}-shm`]) {
     if (existsSync(f)) rmSync(f, { force: true });
   }
 }
@@ -649,7 +718,20 @@ function rebuildToDisk(paths: SidewisePaths, Db: DatabaseSyncCtor): SqliteDb {
     throw e;
   }
   db.close();
-  rmDbFiles(paths.index); // drop any existing final file (+ its -wal/-shm) before the rename replaces it
+  // Atomic replace: renameSync (same filesystem, same directory) never leaves a window where paths.index doesn't
+  // exist — a concurrent reader sees either the old file or the new one, never neither. Only a directory (the
+  // "index.db is a directory" self-heal case) has to be cleared first — rename(2) refuses to replace one with a
+  // plain file. rmSiblingWalShm still runs first: it clears any WAL/SHM belonging to the file being REPLACED,
+  // which the rename itself wouldn't touch (they're separate files with their own names) and which would
+  // otherwise apply, now stale, to the just-renamed-in content.
+  if (existsSync(paths.index)) {
+    try {
+      if (statSync(paths.index).isDirectory()) rmSync(paths.index, { recursive: true, force: true });
+    } catch {
+      /* stat failed: leave it, renameSync surfaces its own error */
+    }
+  }
+  rmSiblingWalShm(paths.index);
   renameSync(tmp, paths.index);
   return new Db(paths.index);
 }
@@ -679,9 +761,39 @@ function catchUpInPlace(db: SqliteDb, paths: SidewisePaths): void {
 
 type OpenCheck = { ok: true; db: SqliteDb; fresh: boolean } | { ok: false; db?: SqliteDb };
 
+/** A near-free truncation check (two header-only pragma reads, no page-by-page scan): a healthy SQLite file's
+ *  actual size is always page_count * page_size. A mismatch is the truncation/crash-mid-write signature
+ *  `PRAGMA quick_check` also catches, at a fraction of quick_check's cost (which walks every b-tree page — on
+ *  the profiling review that ran on every single open, ~99% of a point call's own time at 100k). Deciding
+ *  whether quick_check is worth running AT ALL, rather than running it unconditionally, is the fix: consumers
+ *  already re-verify what they read from the ledger (readRecordAt's own bounds/parse checks, findRun's own
+ *  re-match against the id, view's own whereMatches re-check against the real record), so a bad PAGE deeper in
+ *  the file that this cheap check can't see costs the next self-heal a rebuild, never a wrong answer — running
+ *  the expensive scan on every open bought a guarantee the design doesn't actually need. */
+function sizeLooksSane(db: SqliteDb, dbPath: string): boolean {
+  try {
+    const pageCount = Number((db.prepare('PRAGMA page_count').get() as { page_count?: unknown } | undefined)?.page_count ?? -1);
+    const pageSize = Number((db.prepare('PRAGMA page_size').get() as { page_size?: unknown } | undefined)?.page_size ?? -1);
+    if (!(pageCount >= 0) || !(pageSize > 0)) return false;
+    return pageCount * pageSize === statSync(dbPath).size;
+  } catch {
+    return false;
+  }
+}
+
+function quickCheckOk(db: SqliteDb): boolean {
+  try {
+    const quick = db.prepare('PRAGMA quick_check').get();
+    return !!quick && quick.quick_check === 'ok';
+  } catch {
+    return false;
+  }
+}
+
 /** Opens index.db and checks it against the live log, WITHOUT taking the lock (a pure read): missing, an open
- *  failure, a failed quick_check, a schema mismatch, a log shorter than `upto`, or a fingerprint mismatch all
- *  come back not-ok (needs a rebuild); a log that's merely grown comes back ok/not-fresh (needs a catch-up). */
+ *  failure, a suspicious size (escalated to the expensive quick_check to confirm), a schema mismatch, a log
+ *  shorter than `upto`, or a fingerprint mismatch all come back not-ok (needs a rebuild); a log that's merely
+ *  grown comes back ok/not-fresh (needs a catch-up). */
 function tryOpenAndCheck(paths: SidewisePaths, Db: DatabaseSyncCtor): OpenCheck {
   if (!existsSync(paths.index)) return { ok: false };
   let db: SqliteDb;
@@ -691,8 +803,9 @@ function tryOpenAndCheck(paths: SidewisePaths, Db: DatabaseSyncCtor): OpenCheck 
     return { ok: false };
   }
   try {
-    const quick = db.prepare('PRAGMA quick_check').get();
-    if (!quick || quick.quick_check !== 'ok') return { ok: false, db };
+    // quick_check runs only on suspicion (the cheap size check failing) — never unconditionally. See
+    // sizeLooksSane's own comment for why the cheap check is enough on the common warm-open path.
+    if (!sizeLooksSane(db, paths.index) && !quickCheckOk(db)) return { ok: false, db };
     if (getMeta(db, 'schema_version') !== String(SCHEMA_VERSION)) return { ok: false, db };
     const { upto } = readMetaState(db);
     const size = existsSync(paths.log) ? statSync(paths.log).size : 0;
@@ -714,19 +827,48 @@ function safeClose(db: SqliteDb): void {
   }
 }
 
-function ensureFreshDb(paths: SidewisePaths, Db: DatabaseSyncCtor, forceRebuild: boolean): SqliteDb {
-  if (!forceRebuild) {
+/** Runs inside paths.lock: re-checks freshness before doing any work, since another process may have already
+ *  caught up or rebuilt the on-disk index while this call waited for the lock (a real race under load — N
+ *  processes each finding the index missing/stale at once must not each rebuild it in turn). Only catches up or
+ *  rebuilds if STILL needed after that re-check. */
+function refreshUnderLock(paths: SidewisePaths, Db: DatabaseSyncCtor): SqliteDb {
+  const check = tryOpenAndCheck(paths, Db);
+  if (check.ok) {
+    if (!check.fresh) catchUpInPlace(check.db, paths);
+    return check.db;
+  }
+  if (check.db) safeClose(check.db);
+  return rebuildToDisk(paths, Db);
+}
+
+/**
+ * `opts.readOnly`: a caller that must never write index.db to disk (view, --dry-run's ledger lookups, findRun,
+ * exactReuse — design binding "dry runs and free reads write nothing," and the writers'-lock liveness fix: a
+ * 100k rebuild can hold paths.lock for many seconds, well past withLock's own 5 s timeout, so a casual read
+ * must never be the thing that triggers one under that same lock and makes a REAL writer time out). A readOnly
+ * caller that finds the on-disk index already fresh uses it (a plain open + a few small reads — verified
+ * directly that this creates no -wal/-shm side files and leaves the main file's bytes untouched); anything less
+ * than fresh, readOnly returns undefined here so runSqlite falls back to the in-memory linear scan instead —
+ * never taking the lock, never calling catchUpInPlace/rebuildToDisk. A non-readOnly caller behaves as before:
+ * self-heals on disk under the lock, re-checking freshness once inside it (refreshUnderLock) rather than
+ * blindly repeating whatever the pre-lock check already found.
+ */
+function ensureFreshDb(paths: SidewisePaths, Db: DatabaseSyncCtor, opts: { forceRebuild: boolean; readOnly: boolean }): SqliteDb | undefined {
+  if (!opts.forceRebuild) {
     const check = tryOpenAndCheck(paths, Db);
+    if (check.ok && check.fresh) return check.db;
     if (check.ok) {
-      if (check.fresh) return check.db;
-      return withLockIfNeeded(paths.lock, () => {
-        catchUpInPlace(check.db, paths);
-        return check.db;
-      });
+      if (opts.readOnly) {
+        safeClose(check.db);
+        return undefined;
+      }
+      safeClose(check.db);
+      return withLockIfNeeded(paths.lock, () => refreshUnderLock(paths, Db));
     }
     if (check.db) safeClose(check.db);
   }
-  return withLockIfNeeded(paths.lock, () => rebuildToDisk(paths, Db));
+  if (opts.readOnly) return undefined;
+  return withLockIfNeeded(paths.lock, () => refreshUnderLock(paths, Db));
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -737,29 +879,36 @@ function ensureFreshDb(paths: SidewisePaths, Db: DatabaseSyncCtor, forceRebuild:
  * Opens (self-healing) the index, calls `fn` with an IndexHandle, closes it, and returns fn's result. A project
  * with no ledger yet (log.jsonl missing or empty) never touches disk: `fn` sees a handle over an empty in-memory
  * index (design binding #7 — dry runs, view, and any command before the first write create nothing). Otherwise
- * tries node:sqlite first; if it can't be imported or ANY call in this whole attempt throws (open, self-heal,
- * catch-up/rebuild, or a query inside `fn`), falls back to a full linear scan, in memory, never persisted — the
- * next WRITE path (an actual append) is what rebuilds the on-disk index, not this read.
+ * tries node:sqlite first; if it can't be imported or a SQLite/open call in this whole attempt throws (open,
+ * self-heal, catch-up/rebuild, or a query inside `fn`), falls back to a full linear scan, in memory, never
+ * persisted — the next WRITE path (an actual append) is what rebuilds the on-disk index, not this read. A
+ * genuine LedgerError (corrupt ledger CONTENT, discovered while scanning) is never swallowed into that fallback
+ * — it means the ledger itself is bad, not that SQLite failed, and re-scanning it via the memory engine would
+ * only rediscover the same corruption a second time; it propagates straight to the caller, same as readLedger.
  * `forceRebuild`: skip the freshness check and always rebuild — findRun's retry when a specific offset it
  * already has doesn't check out (the log changed between one call and the next, in a lock-free read).
+ * `readOnly`: never persist a catch-up or rebuild to disk for this call — see ensureFreshDb's own comment.
  */
-export function withIndex<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, opts: { forceRebuild?: boolean } = {}): T {
+export function withIndex<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, opts: { forceRebuild?: boolean; readOnly?: boolean } = {}): T {
   const logStat = existsSync(paths.log) ? statSync(paths.log) : undefined;
   if (!logStat || logStat.size === 0) return fn(handleFromMemory(emptyMemoryState()));
 
-  return runSqlite(paths, fn, opts.forceRebuild ?? false);
+  return runSqlite(paths, fn, { forceRebuild: opts.forceRebuild ?? false, readOnly: opts.readOnly ?? false });
 }
 
-function runSqlite<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, forceRebuild: boolean): T {
+function runSqlite<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, opts: { forceRebuild: boolean; readOnly: boolean }): T {
   try {
-    if (__testOnly.forceFallback || !sqliteCtor) throw new Error('node:sqlite unavailable');
-    const db = ensureFreshDb(paths, sqliteCtor, forceRebuild);
+    const Db = __testOnly.forceFallback ? null : getSqliteCtor();
+    if (!Db) throw new Error('node:sqlite unavailable');
+    const db = ensureFreshDb(paths, Db, opts);
+    if (!db) return fn(buildMemoryHandle(paths)); // readOnly, and the on-disk index wasn't already fresh
     try {
       return fn(handleFromSql(db));
     } finally {
       safeClose(db);
     }
-  } catch {
+  } catch (e) {
+    if (e instanceof LedgerError) throw e; // genuine ledger corruption: fail closed, never silently retried
     return fn(buildMemoryHandle(paths));
   }
 }

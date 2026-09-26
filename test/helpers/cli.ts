@@ -2,19 +2,29 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { isSqliteExperimentalWarning } from '../../src/ledger/index.ts';
 
 export const CLI = path.resolve('dist/cli.js');
 
 /** True when this test run's own Node has node:sqlite (>= 22.13) — the same test-running process the CLI
  *  subprocess inherits its `node` binary from, so this predicts whether a real run persists .sidewise/index.db
- *  (SQLite) or leaves nothing on disk for the index (the Node < 22.13 fallback, e.g. this repo's Node 20 host). */
-export const hasNodeSqlite = await (async () => {
-  try {
-    await import('node:sqlite');
-    return true;
-  } catch {
-    return false;
-  }
+ *  (SQLite) or leaves nothing on disk for the index (the Node < 22.13 fallback, e.g. this repo's Node 20 host).
+ *  Resolving node:sqlite at all fires its own deferred ExperimentalWarning the first time any process does it
+ *  (verified directly — asynchronous, printed after the resolving call returns). Wraps process.emitWarning
+ *  first, the same way ledger/index.ts's own installSqliteWarningFilter does, so this shared test helper (loaded
+ *  by many e2e test files, well before any of them touch the CLI or the ledger for real) doesn't itself leak raw
+ *  warning noise into every container test run. */
+export const hasNodeSqlite = (() => {
+  const getBuiltin = (process as unknown as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
+  if (typeof getBuiltin !== 'function') return false;
+  const original = process.emitWarning.bind(process);
+  process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
+    const message = typeof warning === 'string' ? warning : warning.message;
+    const type = typeof rest[0] === 'string' ? rest[0] : ((rest[0] as { type?: string } | undefined)?.type ?? '');
+    if (isSqliteExperimentalWarning({ name: type, message })) return;
+    return (original as (...args: unknown[]) => void)(warning, ...rest);
+  }) as typeof process.emitWarning;
+  return !!getBuiltin('node:sqlite');
 })();
 
 export interface CliResult {
@@ -56,23 +66,44 @@ export function sidewiseAsync(root: string, args: string[], env: Record<string, 
 }
 
 /**
- * Every file under <root>/.sidewise with its bytes, or null when the folder does not exist. Skips index.db (and
- * its -wal/-shm siblings): it's a disposable read cache (ledger/index.ts) that a plain read (view, --dry-run, a
- * rejected request) can create or refresh as a side effect, with no bearing on the ledger/budget state these
- * snapshots protect. Deliberately strict otherwise (pre-ff5f3e8): an empty `.sidewise/` (holding nothing but that
- * cache) is NOT treated the same as no directory at all — design binding #7 says a dry run, view, or any command
- * in a project with no ledger yet must not create `.sidewise/` in the first place, so this snapshot must be able
- * to catch it if one did.
+ * Every file under <root>/.sidewise with its bytes, or null when the folder does not exist. Strict (pre-ff5f3e8,
+ * and no longer skipping index.db*, per fix round 1's binding 7): an empty `.sidewise/` is NOT treated the same
+ * as no directory at all, and index.db/-wal/-shm are now VISIBLE to this snapshot — design binding #7 says a dry
+ * run, view, or any command in a project with no ledger yet must not create `.sidewise/` in the first place, and
+ * that --dry-run/view must never create or rewrite index.db in a project that already has one (they're read-only
+ * against the index — see ledger/index.ts's `readOnly` option); this snapshot has to be able to catch either
+ * violation. Safe to compare byte-for-byte across a read-only call: verified directly that a plain SQLite open
+ * plus a handful of small reads (no write transaction) leaves index.db's own bytes untouched and creates no
+ * -wal/-shm siblings, and that a write transaction that throws and rolls back leaves no trace either once the
+ * connection closes — only an index.db actually rebuilt or caught up on disk changes what this snapshot sees.
  */
 export function snapshot(root: string): Record<string, string> | null {
   const dir = path.join(root, '.sidewise');
   if (!existsSync(dir)) return null;
   const out: Record<string, string> = {};
   for (const name of readdirSync(dir).sort()) {
-    if (name.startsWith('index.db')) continue;
     const full = path.join(dir, name);
     out[name] = statSync(full).isDirectory() ? '<dir>' : readFileSync(full, 'latin1');
   }
+  return out;
+}
+
+/**
+ * Like snapshot(), but drops index.db* — for the small set of cases where a REAL write-path command (one that
+ * takes the ledger lock, even though its net effect on the ledger/budget is a no-op or a refusal) legitimately
+ * catches up or rebuilds the on-disk index as a side effect: a repeated `outcome` that resolves to "already
+ * recorded" still validates the tail through the index first, and a `class`/`outcome` refused by a corrupt TAIL
+ * can still successfully index the valid PREFIX before the tail check itself throws. Both are correct, designed
+ * self-healing (index writes happen under the same lock as any other ledger touch, and never change an answer,
+ * only speed) — not a violation of "dry runs and free reads write nothing" (snapshot() itself, strict by
+ * default, is what catches THAT). Use this only where the point of the test is "the LEDGER and BUDGET are
+ * unchanged," not "nothing on disk changed at all."
+ */
+export function snapshotLedgerAndBudget(root: string): Record<string, string> | null {
+  const full = snapshot(root);
+  if (!full) return full;
+  const out: Record<string, string> = {};
+  for (const [name, content] of Object.entries(full)) if (!name.startsWith('index.db')) out[name] = content;
   return out;
 }
 

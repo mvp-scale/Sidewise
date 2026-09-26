@@ -20,7 +20,7 @@ const WHO = { adapter: 'stub', model: 'stub-1' };
 describe('planSweep + runSweep (the contract loop example)', () => {
   it('2 calls, one per layer, 16 item-questions asked (goal excluded from the count)', async () => {
     const { paths } = tempProject({});
-    const plan = planSweep(req(), WHO, paths);
+    const plan = planSweep(req(), WHO, paths, false);
     expect(plan.planned.map((p) => p.layer)).toEqual(['part', 'story']);
     expect(plan.planned.every((p) => p.call !== null)).toBe(true);
     expect(plan.askedQuestions).toBe(16);
@@ -38,7 +38,7 @@ describe('planSweep + runSweep (the contract loop example)', () => {
       'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout, saved cards]\n      - name: payments\n        story: [refunds, retries, partial capture]\n      - ledger\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n        2: Can {part} be deployed without the others, unlike before?\n    story:\n      done:\n        pass: yes\n        3: Is "{story}" testable against {part} as written?\n      risk:\n        pass: no\n        4: Does "{story}" need data {part} doesn\'t own?\n';
     const v = validateRequest((readRequestText(RETARGETED) as { ok: true; value: unknown }).value, 'loop');
     if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
-    const plan = planSweep(v.request, WHO, paths);
+    const plan = planSweep(v.request, WHO, paths, false);
     const partCall = plan.planned.find((p) => p.layer === 'part')!;
     expect(partCall.call).not.toBeNull();
     // Only question 2 (retargeted) is missing for every part item; question 1 stays reused for all of them.
@@ -53,7 +53,7 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     const { paths } = tempProject({});
     const provider = stubProvider({ yes: () => 0.9 });
     await runLoop(LOOP, { paths, provider, env: {} });
-    const plan2 = planSweep(req(), WHO, paths);
+    const plan2 = planSweep(req(), WHO, paths, false);
     expect(plan2.planned.every((p) => p.call === null)).toBe(true);
     const r = await runSweep({ paths, provider, env: {} }, 'loop', plan2);
     expect(r.ok && r.value.costUsd).toBe(0);
@@ -65,7 +65,7 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     const provider = stubProvider({ yes: () => 0.9 });
     // A real loop.ts run logs each item's answer via record(); seed the ledger with one, then replan.
     await runLoop(LOOP, { paths, provider, env: {} });
-    const plan2 = planSweep(req(), WHO, paths);
+    const plan2 = planSweep(req(), WHO, paths, false);
     expect(plan2.planned.every((p) => p.call === null)).toBe(true);
   });
 
@@ -94,7 +94,7 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     expect(seedRun.exit).toBe(0);
 
     // 15 items total, cap 10 (quick): 3 reused for free, 12 need asking — only the first 10 of those fit.
-    const plan = planSweep(makeRequest(names), WHO, paths);
+    const plan = planSweep(makeRequest(names), WHO, paths, false);
     const p = plan.planned[0]!;
     expect(p.itemIds).toHaveLength(10);
     expect(p.itemIds[0]).toBe('part3'); // part0-2 were reused, not asked

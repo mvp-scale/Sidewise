@@ -99,15 +99,21 @@ function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number): Ve
  * with one batched query over just the hit ids.
  */
 function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number): VerbResult {
-  return withIndex(paths, (handle) => {
-    const hits: AnyRun[] = [];
-    for (const { offset } of handle.placeCandidates(place)) {
-      const rec = readRecordAt(paths.log, offset);
-      if (rec && (isRun(rec) || isContractRun(rec)) && (tagsMatch(rec, place) || whereMatches(rec, place))) hits.push(rec);
-    }
-    const outcomes = handle.outcomesFor(hits.map((r) => r.id));
-    return renderPlace(place, hits, (id) => outcomes.get(id), limit);
-  });
+  // readOnly: view is free and read-only (design binding "dry runs and free reads write nothing") — it must
+  // never be the thing that persists a catch-up or rebuild of index.db to disk.
+  return withIndex(
+    paths,
+    (handle) => {
+      const hits: AnyRun[] = [];
+      for (const { offset } of handle.placeCandidates(place)) {
+        const rec = readRecordAt(paths.log, offset);
+        if (rec && (isRun(rec) || isContractRun(rec)) && (tagsMatch(rec, place) || whereMatches(rec, place))) hits.push(rec);
+      }
+      const outcomes = handle.outcomesFor(hits.map((r) => r.id));
+      return renderPlace(place, hits, (id) => outcomes.get(id), limit);
+    },
+    { readOnly: true },
+  );
 }
 
 function byPlace(place: string, paths: SidewisePaths, limit: number): VerbResult {

@@ -15,7 +15,32 @@ import { tempProject } from '../helpers/project.ts';
 
 afterEach(() => {
   __testOnly.forceFallback = false;
+  __testOnly.throwOnCandidates = false;
 });
+
+/** True on this test run's own Node (>= 22.13): guards the handful of tests here that need to manipulate
+ *  index.db's own SQL content directly, which only means something when node:sqlite is real. Host is Node 20
+ *  (this predicts `false` there, skipping those specific tests — the fallback never persists a db file to
+ *  manipulate); the same file, run in the Node 22 container, exercises them for real.
+ *  Resolving node:sqlite AT ALL — a plain `await import(...)`, OR `process.getBuiltinModule` — fires its own
+ *  deferred ExperimentalWarning the first time any process does it (verified directly: the warning prints
+ *  asynchronously, after the resolving call returns, whether that call constructs a DatabaseSync or not). This
+ *  probe wraps process.emitWarning first, the same way ledger/index.ts's own installSqliteWarningFilter does,
+ *  so this file's own capability check doesn't leak raw warning noise — duplicated here (not imported) because
+ *  ledger/index.ts's resolver is private, and this file must be able to probe availability BEFORE any test
+ *  calls into production code, not after. */
+const hasNodeSqlite = (() => {
+  const getBuiltin = (process as unknown as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
+  if (typeof getBuiltin !== 'function') return false;
+  const original = process.emitWarning.bind(process);
+  process.emitWarning = ((warning: string | Error, ...rest: unknown[]) => {
+    const message = typeof warning === 'string' ? warning : warning.message;
+    const type = typeof rest[0] === 'string' ? rest[0] : ((rest[0] as { type?: string } | undefined)?.type ?? '');
+    if (isSqliteExperimentalWarning({ name: type, message })) return;
+    return (original as (...args: unknown[]) => void)(warning, ...rest);
+  }) as typeof process.emitWarning;
+  return !!getBuiltin('node:sqlite');
+})();
 
 /** generateLedgerRecords always numbers its own batch from SW-0001 — right for a fresh ledger, but a real
  *  "append more to an existing ledger" scenario needs ids that continue past what's already there (a real
@@ -150,6 +175,19 @@ describe('self-healing: index.db missing, corrupted or stale never changes an an
     appendFileSync(paths.log, toJsonl(more));
     expect(nextRunNumber(paths)).toBe(readLedger(paths).filter((r) => r.kind === 'run').length + 1);
   });
+
+  it.skipIf(!hasNodeSqlite)('a stale schema_version in an otherwise-healthy index.db triggers a rebuild, not a failure', async () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'heal-schema', runs: 300 });
+    const want = nextRunNumber(paths); // builds and persists a real index.db
+    const { DatabaseSync } = (await import('node:sqlite')) as unknown as { DatabaseSync: new (p: string) => { exec(sql: string): void; close(): void } };
+    const db = new DatabaseSync(paths.index);
+    db.exec("UPDATE meta SET value = '999999' WHERE key = 'schema_version'");
+    db.close();
+    // The stale-schema db must never be trusted as-is (a mismatched schema means the column shapes this code
+    // expects may not even be there): nextRunNumber must rebuild it from the log and give the SAME right answer.
+    expect(nextRunNumber(paths)).toBe(want);
+  });
 });
 
 describe('findRun recovers from a stale or bad index without crashing', () => {
@@ -204,6 +242,35 @@ describe('the fallback path gives identical results to whatever engine is really
     };
 
     expect(b).toEqual(a);
+  });
+});
+
+describe('a query that throws mid-fn falls back cleanly, with no leaked partial state', () => {
+  it.skipIf(!hasNodeSqlite)('lookupAnswers gives the identical result whether or not candidates() throws partway through', () => {
+    const { paths } = tempProject({});
+    // outcomeRate 0.5 / badRate 1: roughly half the keys' current holders are blocked (falling to the
+    // candidates() walk, where the injected fault lands) and roughly half are not (resolved by the fast path
+    // first, so `out` already has entries by the time the walk — and the fault — would run).
+    writeSyntheticLedger(paths, {
+      seed: 'fault-inject',
+      runs: 150,
+      outcomeRate: 0.5,
+      badRate: 1,
+      providers: [{ adapter: 'typesafe', model: 'jev-1.13.0', weight: 1 }],
+    });
+    nextRunNumber(paths); // build and persist a real index.db so candidates() below runs against real SQLite
+    const who = { adapter: 'typesafe', model: 'jev-1.13.0' };
+    const records = readLedger(paths).filter(isContractRun);
+    const allKeys = [...new Set(records.flatMap((r) => Object.values(r.keys)))].slice(0, 8);
+
+    const clean = lookupAnswers(paths, who, allKeys);
+
+    __testOnly.throwOnCandidates = true;
+    const withFault = lookupAnswers(paths, who, allKeys);
+    // The fault must have actually fired (proving this test exercises the walk, not just the fast path) and
+    // then cleared itself (consumed exactly once, by the failed SQL attempt — never re-thrown by the retry).
+    expect(__testOnly.throwOnCandidates).toBe(false);
+    expect(Object.fromEntries(withFault)).toEqual(Object.fromEntries(clean));
   });
 });
 

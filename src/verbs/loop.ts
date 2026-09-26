@@ -20,7 +20,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const { request } = loaded;
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-  const plan = planSweep(request, who, ctx.paths);
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
 
   if (ctx.dryRun) return sweepDryRun(plan);
 

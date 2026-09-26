@@ -62,8 +62,9 @@ const DEFAULT_SIZES = [10_000, 100_000];
 // 1-3 keys/run for its own callers — test/unit/ledger-index.test.ts and the reuse-scale test — and isn't
 // reused here so that generator's existing behavior/timing stays untouched). 10-20 answer keys/run, drawn from
 // a bounded (area x tag x qid x bucket) pool so keys genuinely repeat across runs — the "same question asked
-// again" pattern reuse depends on, and the realism gap lab/research/2026-09-26-ledger-lookup-comparison.md
-// found in the default synthetic mix (index/log ratio ~0.03 there vs ~0.24 for real fake-provider `class` runs).
+// again" pattern reuse depends on, and the realism gap this repo's own dated research notes found (kept out of
+// the public tree) in the default synthetic mix (index/log ratio ~0.03 there vs ~0.24 for real fake-provider
+// `class` runs).
 // ---------------------------------------------------------------------------------------------------------------
 
 const AREAS = ['auth', 'payments', 'search', 'ingest', 'ui', 'api', 'jobs', 'cache'] as const;
