@@ -1,0 +1,19 @@
+/** @mvpscale/sidewise: the library surface behind the `sidewise` CLI. */
+export * from './lens/request.ts';
+export { parseRequest, type ParseResult } from './lens/parse.ts';
+export { validate, type Validation } from './lens/validate.ts';
+export * from './lens/consensus.ts';
+export { formatAnswer, guidance, MAX_LINES, type AnswerInput, type PrimitiveAnswer } from './lens/answer.ts';
+export * from './classifier/port.ts';
+export { createFakeAdapter, FAKE_MODEL } from './classifier/fake.ts';
+export { createTypesafeAdapter } from './classifier/typesafe/adapter.ts';
+export { selectProvider } from './classifier/select.ts';
+export * from './ledger/paths.ts';
+export { formatRunId, RUN_ID, ulid } from './ledger/ids.ts';
+export { redact, redactDeep } from './ledger/redact.ts';
+export * from './ledger/log.ts';
+export * from './budget/budget.ts';
+export * from './evidence/code.ts';
+export * from './verbs/types.ts';
+export { runClass, toQuestions } from './verbs/class.ts';
+export { runView } from './verbs/view.ts';
