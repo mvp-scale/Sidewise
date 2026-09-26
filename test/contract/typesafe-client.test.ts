@@ -25,9 +25,14 @@ const config = (over: Partial<JevConfig> = {}): JevConfig => ({
 const noul = { p1: noulQuestion('Is request text placed directly into the SQL query?') };
 const LEVELS = ['none', 'low', 'medium', 'high', 'critical'];
 
-async function failure(file: string, over: Partial<JevConfig> = {}): Promise<JevApiError> {
-  const r = replay(loadCassette(file));
-  const err = await createJevClient(config(over), { fetch: r.fetch })
+/** No real waiting: a retryable status keeps retrying (P8), so this repeats the SAME cassette enough times
+ *  (default 3: one attempt plus the 2 retries the client allows) that the FINAL attempt still fails with the
+ *  status/body under test — a non-retryable status (401, 422, a malformed 200) never gets past attempt 1, so
+ *  the extra copies are simply unused there. */
+async function failure(file: string, over: Partial<JevConfig> = {}, copies = 3): Promise<JevApiError> {
+  const c = loadCassette(file);
+  const r = replay(...Array<typeof c>(copies).fill(c));
+  const err = await createJevClient(config(over), { fetch: r.fetch, sleep: async () => {} })
     .ask({ state: {}, questions: noul })
     .then(() => null, (e: unknown) => e);
   expect(err).toBeInstanceOf(JevApiError);
@@ -135,6 +140,42 @@ describe('TypeSafe client, recorded transactions', () => {
   it('reads TypeSafe\'s real error shape {error: {type, message}}, not [object Object] (P7)', async () => {
     expect((await failure('errors/401.json')).message).toBe('HTTP 401: invalid api key');
     expect((await failure('errors/422.json')).message).toBe('HTTP 422: questions must not be empty');
+  });
+});
+
+describe('bounded retry on 429/529 (P8)', () => {
+  it('429 then 200: succeeds after one retry, honouring the server\'s Retry-After', async () => {
+    const r = replay(loadCassette('errors/429.json'), loadCassette('noul/ok.json'));
+    const waits: number[] = [];
+    const res = await createJevClient(config(), { fetch: r.fetch, sleep: async (ms) => void waits.push(ms) }).ask({ state: {}, questions: noul });
+    expect(res.answers.p1).toEqual({ type: 'noul', probability: 0.91, confidence: 0.82 });
+    expect(r.sent).toHaveLength(2); // one retry: the first 429, then the successful attempt
+    expect(waits).toEqual([1000]); // errors/429.json's own Retry-After: 1 (seconds), not the backoff default
+  });
+
+  it('529 three times: fails after 3 attempts (1 + 2 retries), backing off between them', async () => {
+    const c = loadCassette('errors/529.json');
+    const r = replay(c, c, c);
+    const waits: number[] = [];
+    const err = await createJevClient(config(), { fetch: r.fetch, sleep: async (ms) => void waits.push(ms) })
+      .ask({ state: {}, questions: noul })
+      .then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(JevApiError);
+    expect((err as JevApiError).status).toBe(529);
+    expect(r.sent).toHaveLength(3); // never a 4th attempt: 2 retries is the cap
+    expect(waits).toHaveLength(2); // one wait between attempt 1→2 and another between 2→3
+    expect(waits.every((ms) => ms > 0 && ms <= 10_000)).toBe(true); // capped per the P8 ruling
+  });
+
+  it('401 never retries: one attempt, no wait', async () => {
+    const r = replay(loadCassette('errors/401.json'));
+    const waits: number[] = [];
+    const err = await createJevClient(config(), { fetch: r.fetch, sleep: async (ms) => void waits.push(ms) })
+      .ask({ state: {}, questions: noul })
+      .then(() => null, (e: unknown) => e);
+    expect(err).toBeInstanceOf(JevApiError);
+    expect(r.sent).toHaveLength(1);
+    expect(waits).toHaveLength(0);
   });
 });
 
