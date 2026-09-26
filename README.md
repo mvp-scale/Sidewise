@@ -14,7 +14,7 @@ Sidewise gives coding agents a cheap, calibrated side-question. The agent writes
 - **Irreversible stays human.** Delete, deploy, drop and pay are always the agent's or owner's call.
 - **Every answer gets graded.** Outcomes (held · overruled · failed) are logged next to the question that produced them.
 - **It finds what your agents are bad at.** Overruled, failed and split answers roll up into weak spots, but only with enough evidence to be believed.
-- **Budgeted.** Daily and per-session caps, and it fails closed.
+- **Budgeted, no surprises.** A hard spend cap that only you reset. It fails closed.
 - **Runs where your agents run.** One CLI and one MCP server, with native setup for Claude Code, Codex, Gemini CLI, Cursor, VS Code/Copilot and more.
 
 ## What a run looks like
