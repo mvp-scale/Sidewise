@@ -99,6 +99,44 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
+  it('change: a regression alone fails the gate; next: names it, not the goal [C-091]', () => {
+    const doc = m(
+      [
+        'side',
+        m(
+          ['id', 'SW-0052'],
+          ['gate', 'fail'],
+          ['goal', m(['gate', 'pass'], ['p', 0.81])],
+          ['injection', m(['before', 'fail'], ['after', 'pass'], ['fixed', [1, 2, 10]])],
+          ['guards', m(['before', 'pass'], ['after', 'pass'])],
+          ['access', m(['before', 'pass'], ['after', 'pass'])],
+          ['leaks', m(['before', 'unsure'], ['after', 'pass'], ['fixed', [7]])],
+          ['regressed', [5]],
+        ),
+      ],
+      ['wise', m(['recorded', ['why', 'area', 'parent']])],
+      ['next', 'sidewise template drill --parent SW-0052 --from access'],
+      ['notes', ['2 states · budget 2% used']],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  id: SW-0052',
+        '  gate: fail',
+        '  goal: {gate: pass, p: 0.81}',
+        '  injection: {before: fail, after: pass, fixed: [1, 2, 10]}',
+        '  guards: {before: pass, after: pass}',
+        '  access: {before: pass, after: pass}',
+        '  leaks: {before: unsure, after: pass, fixed: [7]}',
+        '  regressed: [5]',
+        'wise: {recorded: [why, area, parent]}',
+        'next: sidewise template drill --parent SW-0052 --from access',
+        'notes: [2 states · budget 2% used]',
+      ),
+    );
+    roundTrip(doc);
+  });
+
   it('scan: failing is a map of maps, one line per item [C-049]', () => {
     const doc = m(
       [

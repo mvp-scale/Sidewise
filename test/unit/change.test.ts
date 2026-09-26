@@ -128,7 +128,7 @@ describe('change', () => {
     expect(r.text).toContain('injection: {before: pass, after: fail}');
   });
 
-  it('the top gate fails from a regression alone, even though the "after" category still passes on its own (need: any)', async () => {
+  it('the top gate fails from a regression alone, even though the "after" category still passes on its own (need: any) [C-091]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
     const parent = sampleContractRun({
       where: ['src/a.ts'],
@@ -157,6 +157,7 @@ describe('change', () => {
     // goal passes; question 1 passes both before and after; only question 2 regresses. With need: any, the
     // "after" category grades pass on its own (question 1 alone clears it) and so would combine() alone — only
     // the regressed-length override (change.ts) can be forcing gate: fail here, which is what this test pins.
+    // The fake/stub provider pins these answers so the regression-only case is forced deterministically.
     const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : q.id === 'after:2' ? 0.95 : 0.05) });
     const r = await runChange('side:\n  goal: verify no regressions\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', {
       paths,
@@ -168,6 +169,11 @@ describe('change', () => {
     expect(r.text).toContain('injection: {before: pass, after: pass}'); // the "after" category is clean on its own
     expect(r.text).toContain('regressed: [2]');
     expect(r.text).toContain('gate: fail'); // ...yet the top gate still fails, from the regression alone
+    // outcomeNext's own "which category matches the overall gate?" search finds nothing here (injection itself
+    // grades pass), so unpatched this fell through to GOAL_ONLY_NEXT ("the goal missed though every part
+    // passed") even though the goal passed too — regressed: must be named instead, per C-065.
+    expect(r.text).not.toContain('the goal missed though every part passed');
+    expect(r.text).toContain('next: sidewise template drill --parent SW-0002 --from injection');
   });
 
   it('two real git refs: fixed/still/regressed come from the actual file content across two commits, not the ref name or question id [C-064]', async (ctx) => {

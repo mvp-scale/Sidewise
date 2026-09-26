@@ -329,6 +329,25 @@ after) and `still` (ones that don't); anything in the run-wide `regressed` list 
 now) can alone fail the gate even when every `after` category passes on its own. [C-064]
 On `fixed`, record `outcome held` on the parent; on `still`, keep working; anything in `regressed`, revert or
 drill into it. [C-065]
+
+```yaml
+side:
+  id: SW-0052
+  gate: fail                       # access regressed even though it (and the goal) grade pass on their own
+  goal: {gate: pass, p: 0.81}
+  injection: {before: fail, after: pass, fixed: [1, 2, 10]}
+  guards:    {before: pass, after: pass}
+  access:    {before: pass, after: pass}
+  leaks:     {before: unsure, after: pass, fixed: [7]}
+  regressed: [5]
+wise: {recorded: [why, area, parent]}
+next: sidewise template drill --parent SW-0052 --from access
+notes: [2 states · budget 2% used]
+```
+
+A non-empty `regressed` takes priority over the usual "which category matches the overall gate?" search:
+`next:` names the category the first regressed question belongs to, even when every `after` category (and the
+goal) grades pass on its own — the case above, where nothing but `regressed` explains the `fail`. [C-091]
 Called as `sidewise change --parent SW-#### --compare <before>..<after>` (no request file), the goal asked is
 the parent run's own goal, not a fixed placeholder. [C-066]
 The plan is for whether the yardstick predicted correctly to feed a ranking: a category that said `fail`

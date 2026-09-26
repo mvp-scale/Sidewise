@@ -15,7 +15,7 @@ import { lookupAnswers, type Reusable } from '../ledger/reuse.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { actorOf, askAll, preflight, record, recordFree, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, dryRunText, outcomeNext, respondText, wiseRecorded } from './respond.ts';
+import { commonNotes, dryRunText, outcomeNext, regressionNext, respondText, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 /** Every unreused question goes in one call; the reused ones are answered (and credited) for free. null when nothing to ask. */
@@ -143,7 +143,12 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     respondText(
       m(['id', id], ['gate', gate], ['goal', m(['gate', goal.gate], ['p', goal.p])], ...catEntries, ['regressed', regressed]),
       wiseRecorded(request.wise, ['parent']),
-      outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
+      // A regression alone can fail the gate even when every "after" category passes on its own (C-064) —
+      // outcomeNext's gate-matching search would then find nothing and wrongly blame the goal (GOAL_ONLY_NEXT).
+      // regressed takes priority: name it, per C-065 (revert or drill into it). [C-091]
+      regressed.length
+        ? regressionNext(id, regressed, categories)
+        : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
       commonNotes([...loaded.notes, ...evidenceNotes], `2 states · ${budget}`),
     );
 

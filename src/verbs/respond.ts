@@ -69,6 +69,19 @@ export function drillNext(id: string, target: string): string {
 }
 
 /**
+ * Anything in `regressed` can alone fail change's gate even when every "after" category grades pass on its
+ * own (a `need: any` category clearing on a question that never regressed, say) — outcomeNext's own "which
+ * category matches the overall gate?" search then finds nothing and falls back to GOAL_ONLY_NEXT, which is
+ * wrong here: the goal can pass too. C-065: anything regressed should be reverted or drilled into; next:
+ * points at the category the first regressed question belongs to (regressed is sorted, so this is stable).
+ */
+export function regressionNext(id: string, regressed: readonly number[], categories: readonly Category[]): string {
+  const first = regressed[0]!;
+  const target = categories.find((c) => c.questions.some((q) => q.n === first))?.name ?? categories[0]!.name;
+  return drillNext(id, target);
+}
+
+/**
  * pass → onPass. Otherwise drill the worst item (worstFirst's own order). Two ways a sweep can be non-pass
  * with nothing to drill into: every item's own categories clear the bar and only the goal misses (`worst` is
  * empty, `graded` isn't — the goal-only case, same shape as outcomeNext's own categories-all-pass check), or
