@@ -39,6 +39,20 @@ describe('TypeSafe adapter', () => {
   it('refuses to start without a key', () => {
     expect(() => createTypesafeAdapter({})).toThrow(/no TypeSafe key/);
   });
+
+  it('a sweep item sends instructions {item, question}, answered under "<item id>#<n>"', async () => {
+    const c = loadCassette('sweep/ok.json');
+    const r = replay(c);
+    const res = await createTypesafeAdapter(env, { fetch: r.fetch }).ask(
+      [
+        { type: 'noul', id: 'payments#1', ask: 'Does payments own one clear responsibility?', item: 'payments' },
+        { type: 'noul', id: 'ledger#1', ask: 'Does ledger own one clear responsibility?', item: 'ledger' },
+      ],
+      { goal: 'The checkout redesign is sound', items: { payments: 'payments', ledger: 'ledger' } },
+    );
+    expect(r.sent[0]).toMatchObject(c.expectRequest!);
+    expect(res.answers['payments#1']).toEqual({ type: 'noul', probability: 0.31 });
+  });
 });
 
 describe('selectProvider', () => {

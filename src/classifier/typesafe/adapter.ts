@@ -1,7 +1,8 @@
 /**
  * The `typesafe` ClassifierPort adapter, the only place Sidewise talks to a vendor. Every ask is ONE POST:
  * yes/no questions as noul, scales as score (criteria = the levels), choices as choice (criteria =
- * {option: option}), all in one questions map.
+ * {option: option}), all in one questions map. A question about a sweep item sends structured instructions
+ * {item, question}, so the classifier knows which entry of state.items it is about.
  */
 import type { ClassifierAnswer, ClassifierPort } from '../port.ts';
 import { choiceQuestion, createJevClient, hasKey, JevConfigError, noulQuestion, resolveJevConfig, scoreQuestion, type JevQuestion, type JsonValue } from './client.ts';
@@ -21,7 +22,7 @@ export function createTypesafeAdapter(env: Record<string, string | undefined> = 
       if (!questions.length) return { answers: {}, costUsd: 0 };
       const wire: Record<string, JevQuestion> = {};
       for (const q of questions) {
-        const instructions: JsonValue = q.ask;
+        const instructions: JsonValue = q.item === undefined ? q.ask : { item: q.item, question: q.ask };
         wire[q.id] = q.type === 'noul' ? noulQuestion(instructions) : q.type === 'score' ? scoreQuestion(instructions, q.levels) : choiceQuestion(instructions, Object.keys(q.options));
       }
       const res = await client.ask({ state: state as { [key: string]: JsonValue }, questions: wire });

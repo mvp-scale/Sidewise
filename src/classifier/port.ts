@@ -7,6 +7,8 @@ export interface NoulQuestion {
   readonly type: 'noul';
   readonly id: string;
   readonly ask: string;
+  /** A sweep item's id: the question is about that entry of state.items (sent as {item, question}). */
+  readonly item?: string;
 }
 
 export interface ScoreQuestionSpec {
@@ -15,6 +17,8 @@ export interface ScoreQuestionSpec {
   readonly ask: string;
   /** Level labels, low to high, 2-10 of them. */
   readonly levels: readonly string[];
+  /** A sweep item's id: the question is about that entry of state.items (sent as {item, question}). */
+  readonly item?: string;
 }
 
 export interface ChoiceQuestionSpec {
@@ -23,6 +27,8 @@ export interface ChoiceQuestionSpec {
   readonly ask: string;
   /** option key -> description, 2-255 of them. */
   readonly options: Record<string, string>;
+  /** A sweep item's id: the question is about that entry of state.items (sent as {item, question}). */
+  readonly item?: string;
 }
 
 export type ClassifierQuestion = NoulQuestion | ScoreQuestionSpec | ChoiceQuestionSpec;
@@ -62,3 +68,7 @@ export interface ClassifierPort {
   readonly model: string;
   ask(questions: readonly ClassifierQuestion[], state: ClassifierState): Promise<ClassifierResult>;
 }
+
+/** Providers whose answers are rehearsals, never evidence: labelled in every answer, never reused by a real run. */
+export const REHEARSAL_ADAPTERS: readonly string[] = ['fake', 'chaos'];
+export const isRehearsal = (adapter: string): boolean => REHEARSAL_ADAPTERS.includes(adapter);
