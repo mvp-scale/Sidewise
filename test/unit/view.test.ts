@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { createFakeAdapter } from '../../src/classifier/fake.ts';
+import { __testOnly } from '../../src/ledger/index.ts';
 import { appendOutcome, appendRun, readLedger } from '../../src/ledger/log.ts';
 import { runChange } from '../../src/verbs/change.ts';
 import { runClass } from '../../src/verbs/class.ts';
@@ -8,6 +9,11 @@ import { runView } from '../../src/verbs/view.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleRun } from '../helpers/runs.ts';
+import { writeSyntheticLedger } from '../gen/synthetic-ledger.ts';
+
+afterEach(() => {
+  __testOnly.forceFallback = false;
+});
 
 const at = (day: number) => Date.parse(`2026-09-${String(day).padStart(2, '0')}T12:00:00Z`);
 
@@ -138,5 +144,43 @@ describe('view: request mode', () => {
     expect(r.text).not.toContain('best');
     expect(r.text).not.toContain('hit');
     expect(r.text).not.toContain('rank');
+  });
+});
+
+// S1: runRequestMode's place lookup now goes through the index (handle.placeCandidates) instead of a full
+// readLedger scan. The expected text below was captured from the UNCHANGED implementation against this exact
+// synthetic ledger (seed 'view-req-1', 300 runs — a mix of class/scan/change/loop/view verbs, legacy and
+// contract shapes, and outcome lines) before the index-backed rewrite, so a match here proves the rewrite is
+// byte-identical, not just "close." `src/nowhere/ghost.ts` is a real file on disk that no run's `where` ever
+// touches — the "place with no runs" case, folded into the same multi-place request.
+describe('view <request>: the place lookup via the index matches the old full-ledger scan [C-050] [C-052]', () => {
+  it('byte-identical on a realistic mixed ledger, on both the SQLite and linear-fallback paths', () => {
+    const { paths } = tempProject({ 'src/infra/file4.ts': 'export const x = 1;\n', 'src/nowhere/ghost.ts': 'export const y = 1;\n' });
+    writeSyntheticLedger(paths, { seed: 'view-req-1', runs: 300, outcomeRate: 0.4, badRate: 0.2, sweepShare: 0.1 });
+    const text = 'side:\n  goal: what do we know about infra file 4 and a place with no runs\n  where: [src/infra/file4.ts, src/nowhere/ghost.ts]\n';
+    const expected = {
+      exit: 0,
+      text:
+        [
+          'side:',
+          '  view: src/infra/file4.ts, src/nowhere/ghost.ts',
+          '  runs: 13',
+          '  categories:',
+          '    migration: {runs: 2, pass: 0, fail: 1, last: SW-0074}',
+          '    perf: {runs: 3, pass: 2, fail: 1, last: SW-0215}',
+          '    tests: {runs: 2, pass: 0, fail: 2, last: SW-0144}',
+          '    tokens: {runs: 3, pass: 0, fail: 1, last: SW-0255}',
+          '    deps: {runs: 1, pass: 0, fail: 0, last: SW-0203}',
+          '    sql: {runs: 1, pass: 1, fail: 0, last: SW-0282}',
+          '    cache: {runs: 1, pass: 0, fail: 1, last: SW-0296}',
+          'wise: {recorded: none}',
+          'next: sidewise class',
+          'notes: [free]',
+        ].join('\n') + '\n',
+    };
+
+    expect(runView(text, 1, { paths, env: {} })).toEqual(expected);
+    __testOnly.forceFallback = true;
+    expect(runView(text, 1, { paths, env: {} })).toEqual(expected);
   });
 });

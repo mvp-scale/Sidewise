@@ -172,6 +172,31 @@ function categoryEntry(name: string, runsHere: readonly ContractRun[]): [string,
   return [name, runs ? m(['runs', runs], ['pass', pass], ['fail', fail], ['last', last!]) : m(['runs', 0])];
 }
 
+/**
+ * Request mode's own place lookup, index-backed: every requested `where` entry's candidates (handle.
+ * placeCandidates — the same lookup byPlaceIndexed uses) are unioned by offset (a run matching more than one
+ * requested place is read, and counted, only once) and read back in ledger append order — the order
+ * categoryEntry's own "last match wins" logic depends on to find each category's newest holder. Only contract
+ * runs (v2) count, same as before; a candidate whose real record doesn't actually match any requested place (a
+ * place-table hit from a legacy tag, or the LIKE-prefix's own false positive) is dropped, never trusted blindly.
+ */
+function runsForPlaces(paths: SidewisePaths, places: readonly string[]): ContractRun[] {
+  return withIndex(
+    paths,
+    (handle) => {
+      const offsets = new Set<number>();
+      for (const place of places) for (const c of handle.placeCandidates(place)) offsets.add(c.offset);
+      const hits: ContractRun[] = [];
+      for (const offset of [...offsets].sort((a, b) => a - b)) {
+        const rec = readRecordAt(paths.log, offset);
+        if (rec && isContractRun(rec) && places.some((place) => whereMatches(rec, place))) hits.push(rec);
+      }
+      return hits;
+    },
+    { readOnly: true },
+  );
+}
+
 /** Request mode: the contract's own view shape. loadRequest and readCodeEvidence stop it exactly as class does. */
 function runRequestMode(text: string, ctx: ViewContext): VerbResult {
   const loaded = loadRequest(text, 'view');
@@ -182,8 +207,7 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
 
   const places = request.side.where.map(stripLines);
-  const allRuns = readLedger(ctx.paths, { partialTail: true }).filter(isContractRun);
-  const runsHere = allRuns.filter((r) => places.some((place) => whereMatches(r, place)));
+  const runsHere = runsForPlaces(ctx.paths, places);
 
   const categoryNames = request.side.categories.length
     ? request.side.categories.map((c) => c.name)
