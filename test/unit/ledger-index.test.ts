@@ -1,10 +1,10 @@
 // The ledger index: nextRunNumber/findRun match a linear scan, catch up incrementally, never trust a stale
 // or corrupt index.json (it's disposable), and never hide ledger corruption (fail closed, same wording as readLedger).
-import { appendFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { generateLedgerRecords, toJsonl, writeSyntheticLedger } from '../gen/synthetic-ledger.ts';
 import { findRun, isContractRun, isRun, nextRunNumber, readLedger } from '../../src/ledger/log.ts';
-import { loadIndex } from '../../src/ledger/index.ts';
+import { loadIndex, readRecordAt } from '../../src/ledger/index.ts';
 import { tempProject } from '../helpers/project.ts';
 
 describe('the index matches a linear scan', () => {
@@ -71,6 +71,50 @@ describe('the index matches a linear scan', () => {
     nextRunNumber(paths);
     writeSyntheticLedger(paths, { seed: 'idx-6b', runs: 10 }); // a much shorter, different ledger at the same path
     expect(nextRunNumber(paths)).toBe(readLedger(paths).filter((r) => r.kind === 'run').length + 1);
+  });
+});
+
+describe('findRun recovers from a stale or bad index without crashing', () => {
+  it('readRecordAt returns undefined (never throws) for an offset at or past EOF', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'idx-7', runs: 20 });
+    const size = statSync(paths.log).size;
+    expect(readRecordAt(paths.log, size)).toBeUndefined(); // exactly at EOF
+    expect(readRecordAt(paths.log, size + 10_000)).toBeUndefined(); // well past EOF
+    expect(readRecordAt(paths.log, -1)).toBeUndefined();
+  });
+
+  it('a runOffset pointing past EOF (a bad or stale entry) does not crash findRun: it rebuilds once and returns the right answer', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'idx-8', runs: 50 });
+    const linear = readLedger(paths).filter((r) => r.kind === 'run');
+    const realId = linear[0]!.id;
+    const good = loadIndex(paths); // a correct, persisted index
+    const size = statSync(paths.log).size;
+    // Tamper the persisted index directly: a real id's offset, and a nonexistent id's offset, both pushed past
+    // EOF. upto/lineCount/runCount are left matching the real log, so loadIndex's own "log shorter than upto"
+    // check does not catch this — only the individual bad runOffset entries are wrong, which is exactly the
+    // "bad runOffset" case findRun's rebuild-and-retry is for.
+    const tampered = { ...good, runOffset: { ...good.runOffset, [realId]: size + 10_000, 'SW-9999': size + 20_000 } };
+    writeFileSync(paths.index, JSON.stringify(tampered));
+
+    expect(() => findRun(paths, realId)).not.toThrow();
+    expect(findRun(paths, realId)).toEqual(linear.find((r) => r.id === realId));
+    expect(() => findRun(paths, 'SW-9999')).not.toThrow();
+    expect(findRun(paths, 'SW-9999')).toBeUndefined();
+  });
+
+  it('a log truncated after loadIndex does not crash findRun', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'idx-9', runs: 50 });
+    const linear = readLedger(paths).filter((r) => r.kind === 'run');
+    const lastId = linear.at(-1)!.id;
+    loadIndex(paths); // caches offsets for every run, including lastId near the end
+    const fullText = readFileSync(paths.log, 'utf8');
+    writeFileSync(paths.log, fullText.slice(0, Math.floor(fullText.length / 2))); // truncate away the tail
+    expect(() => findRun(paths, lastId)).not.toThrow();
+    // lastId's line was in the truncated-away tail: genuinely gone now, so undefined, never a crash.
+    expect(findRun(paths, lastId)).toBeUndefined();
   });
 });
 

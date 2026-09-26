@@ -13,10 +13,11 @@ import type { Answer, Category, Depth, Gate, Layer, Wise } from '../contract/typ
 import type { Consensus } from '../lens/consensus.ts';
 import type { Level, Place, Verb } from '../lens/request.ts';
 import { formatRunId, ulid } from './ids.ts';
-// A deliberate two-way import with index.ts: log.ts calls loadIndex/readRecordAt (only inside function bodies,
-// never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the same way. Safe in
-// ESM as long as neither side touches the other's exports before both modules finish loading, which holds here.
-import { loadIndex, readRecordAt } from './index.ts';
+// A deliberate two-way import with index.ts: log.ts calls loadIndex/rebuildIndex/readRecordAt (only inside
+// function bodies, never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the
+// same way. Safe in ESM as long as neither side touches the other's exports before both modules finish loading,
+// which holds here.
+import { loadIndex, readRecordAt, rebuildIndex } from './index.ts';
 import { onStore, withLock } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
 import { redact, redactDeep, redactSecrets } from './redact.ts';
@@ -257,10 +258,30 @@ export function nextRunNumber(paths: SidewisePaths): number {
   return loadIndex(paths).runCount + 1;
 }
 
-/** A run of either shape by SW id, or undefined: one index lookup plus one line read, never a full scan. */
+/** The record at byte offset `at` if it really is `id`'s run; undefined otherwise (unparseable, or some other
+ *  record entirely — readRecordAt never throws for either, it just can't produce a match at that offset). */
+function matchingRun(at: number, logPath: string, id: string): RunRecord | ContractRun | undefined {
+  const record = readRecordAt(logPath, at);
+  return record && record.kind === 'run' && record.id === id ? (record as RunRecord | ContractRun) : undefined;
+}
+
+/**
+ * A run of either shape by SW id, or undefined: one index lookup plus one line read, never a full scan.
+ * `runOffset[id] === undefined` is trusted as-is (id genuinely not in the ledger) — no rebuild, so a miss stays
+ * O(1) and cheap, which is the whole point of the index. But a *stale* offset (a bad entry, or the log changing
+ * between loadIndex's read and this one — truncated or replaced by another process, with no lock held) never
+ * crashes and never returns the wrong record: when an offset is found but doesn't check out, the index is
+ * rebuilt once from the log as it is right now, and that answer is trusted either way — found, or genuinely
+ * not there. A log that's genuinely corrupt (not just a stale offset) still fails closed with readLedger's
+ * usual LedgerError, thrown by rebuildIndex itself, not swallowed here.
+ */
 export function findRun(paths: SidewisePaths, id: string): RunRecord | ContractRun | undefined {
   const at = loadIndex(paths).runOffset[id];
-  return at === undefined ? undefined : (readRecordAt(paths.log, at) as RunRecord | ContractRun);
+  if (at === undefined) return undefined;
+  const first = matchingRun(at, paths.log, id);
+  if (first) return first;
+  const at2 = rebuildIndex(paths).runOffset[id];
+  return at2 === undefined ? undefined : matchingRun(at2, paths.log, id);
 }
 
 /** Appends a run with the next SW id. The caller holds the lock (see appendRun, and recordCall in record.ts). */

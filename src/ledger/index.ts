@@ -13,6 +13,7 @@
  * state. Every append already goes through nextRunNumber under the ledger lock, or is itself a lock-free read
  * (findRun) exactly like readLedger's partialTail behavior — so no new call sites and no new locking are needed.
  */
+import { randomBytes } from 'node:crypto';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { isRecord, LedgerError, shownLog, type LedgerRecord } from './log.ts';
 import type { SidewisePaths } from './paths.ts';
@@ -128,10 +129,20 @@ function scanRange(fd: number, from: number, to: number, next: LedgerIndex, show
   next.lineCount = line;
 }
 
-/** tmp-then-rename, like budget.ts's write — but the index is disposable, so a failed write (index.json is a
- *  directory, disk full, permission denied) is swallowed: it only costs the next call a rebuild, never a failure. */
+/**
+ * tmp-then-rename, like budget.ts's write — but budget.ts can get away with one fixed tmp name because every
+ * budget write happens under the ledger lock (one writer at a time, by construction). Index writes are
+ * lock-free by design (this file's header: "no new locking"), so two readers can call saveIndex at the same
+ * moment. A shared tmp name would let one writer's in-progress tmp file be overwritten by the other before
+ * either renames it, corrupting whichever version gets renamed into place — exactly the half-written state
+ * tmp-then-rename exists to prevent. Each call gets its own tmp name (pid + random bytes), so concurrent
+ * writers never touch each other's file; whichever finishes its rename last simply wins with an equally
+ * correct result (both computed the same catch-up from the same immutable already-written log bytes).
+ * The index is disposable either way, so a failed write (index.json is a directory, disk full, permission
+ * denied) is swallowed: it only costs the next call a rebuild, never a failure.
+ */
 export function saveIndex(paths: SidewisePaths, index: LedgerIndex): void {
-  const tmp = `${paths.index}.tmp`;
+  const tmp = `${paths.index}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
   try {
     mkdirSync(paths.dir, { recursive: true });
     writeFileSync(tmp, JSON.stringify(index));
@@ -201,21 +212,44 @@ export function loadIndex(paths: SidewisePaths): LedgerIndex {
   return existing ? catchUpIndex(paths, existing) : rebuildIndex(paths);
 }
 
-/** Reads one line of log.jsonl starting at `offset` (to the next \n, or EOF) and parses it. Grows its read
- *  window exponentially from 4 KiB so a normal-sized line costs one small read, not one read of the whole file. */
-export function readRecordAt(logPath: string, offset: number): LedgerRecord {
-  const fd = openSync(logPath, 'r');
+/**
+ * Reads one line of log.jsonl starting at `offset` (to the next \n, or EOF) and parses it, or returns undefined
+ * if it can't: `offset` at or past the log's current size, or the bytes there don't parse as JSON. This is
+ * never an error on its own — a stale `runOffset` (a bad entry, or the log changed between loadIndex reading
+ * it and this call) is exactly the situation findRun's rebuild-and-retry is for, never a raw crash. Grows its
+ * read window exponentially from 4 KiB so a normal-sized line costs one small read, not one read of the whole
+ * file. Any filesystem hiccup mid-read (the log disappeared, a permission change) gets the same treatment:
+ * "couldn't read a record here," not a thrown error — the caller already knows how to recover from that.
+ */
+export function readRecordAt(logPath: string, offset: number): LedgerRecord | undefined {
+  if (offset < 0) return undefined;
+  let fd: number;
+  try {
+    fd = openSync(logPath, 'r');
+  } catch {
+    return undefined;
+  }
   try {
     const size = statSync(logPath).size;
-    let chunkSize = Math.min(4096, Math.max(1, size - offset));
+    if (offset >= size) return undefined; // a stale offset: the log is shorter than the index claims
+    let chunkSize = Math.min(4096, size - offset);
     for (;;) {
       const buf = Buffer.alloc(chunkSize);
       const got = readSync(fd, buf, 0, chunkSize, offset);
+      if (got <= 0) return undefined; // shouldn't happen given the bounds check above, but never trust it blindly
       const nl = buf.subarray(0, got).indexOf(0x0a);
-      if (nl !== -1) return JSON.parse(buf.toString('utf8', 0, nl)) as LedgerRecord;
-      if (offset + got >= size) return JSON.parse(buf.toString('utf8', 0, got)) as LedgerRecord; // EOF, no trailing \n
+      const complete = nl !== -1 ? buf.toString('utf8', 0, nl) : offset + got >= size ? buf.toString('utf8', 0, got) : null;
+      if (complete !== null) {
+        try {
+          return JSON.parse(complete) as LedgerRecord;
+        } catch {
+          return undefined; // garbled at this offset: stale, not a crash
+        }
+      }
       chunkSize = Math.min(chunkSize * 2, size - offset);
     }
+  } catch {
+    return undefined;
   } finally {
     closeSync(fd);
   }
