@@ -106,6 +106,14 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths).filter(isContractRun)).toHaveLength(1); // just the scan parent, SW-0001
   });
+
+  it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
+    await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9, adapter: 'fake' }), env });
+    const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.96, adapter: 'fake' }), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('adapter fake · not evidence');
+  });
 });
 
 describe('drill: a sweep parent (loop) — an idea item has no unit, unlike scan/class [C-075] [C-076]', () => {
@@ -179,5 +187,13 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     expect(r.text).toBe('plan:\n  calls: 1\n  questions: 3\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths).filter(isContractRun)).toHaveLength(1); // just the class parent, SW-0001
+  });
+
+  it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
+    await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9, adapter: 'fake' }), env });
+    const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95, adapter: 'fake' }), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('adapter fake · not evidence');
   });
 });

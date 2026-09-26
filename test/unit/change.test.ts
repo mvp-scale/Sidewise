@@ -287,4 +287,21 @@ describe('change', () => {
     expect(r.text).toContain('regressed: []');
     expect(r.text).toContain('next: sidewise outcome SW-0001 held --by <you>');
   });
+
+  it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
+    const parent = sampleContractRun({
+      where: ['src/a.ts'],
+      ask: { categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
+      answers: { goal: { kind: 'yesno', p: 0.1 }, '1': { kind: 'yesno', p: 0.05 } },
+      keys: { goal: 'k-goal', '1': 'k-1' },
+      categories: { injection: 'pass' },
+      gate: 'pass',
+    });
+    appendContractRun(paths, parent, T, 'b'); // SW-0001
+    const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : 0.05), adapter: 'fake' });
+    const r = await runChange('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('adapter fake · not evidence');
+  });
 });

@@ -78,7 +78,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
       ),
       wiseRecorded(request.wise),
       sweepNext(id, gate, worst, graded, 'act on it'),
-      commonNotes([...loaded.notes, ...notes], `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`),
+      commonNotes([...loaded.notes, ...notes], `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`, ctx.provider.adapter),
     );
 
   const run: NewContractRun = {

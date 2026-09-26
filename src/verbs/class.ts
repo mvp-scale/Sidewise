@@ -90,7 +90,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
       ]),
       wiseRecorded(request.wise),
       outcomeNext(id, subject.gate, subject.categories, request.side.categories, 'act on it'),
-      commonNotes([...loaded.notes, ...evidence.evidence.notes], budget),
+      commonNotes([...loaded.notes, ...evidence.evidence.notes], budget, ctx.provider.adapter),
     );
 
   const run: NewContractRun = {

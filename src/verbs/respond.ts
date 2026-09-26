@@ -3,6 +3,7 @@
  * the `side:`/`plan:` Value tree and hands it to emit.ts. Pins the exact shapes later verbs (change, loop, scan,
  * drill) depend on — a change here is a change to what every verb prints.
  */
+import { isRehearsal } from '../classifier/port.ts';
 import { emit, m, type Value } from '../contract/emit.ts';
 import type { CategoryGrade, ItemGrade, Shown, SubjectGrade } from '../contract/grade.ts';
 import type { Category, Gate, Wise } from '../contract/types.ts';
@@ -38,9 +39,11 @@ export function respondText(side: Map<string, Value>, wise: Value, next: string,
   return emit(m(['side', side], ['wise', m(['recorded', wise])], ['next', next], ['notes', [...notes]]));
 }
 
-/** Validation and evidence notes first; the budget note is always last. */
-export function commonNotes(notes: readonly string[], budgetNote: string): string[] {
-  return [...notes, budgetNote];
+/** Validation and evidence notes first; a rehearsal adapter (fake, chaos — port.ts's own REHEARSAL_ADAPTERS)
+ * gets a "not evidence" label next (BRIEF §5: "the fake provider (labeled not evidence)"), so an agent can't
+ * mistake a rehearsal answer for a real one just by skimming notes; the budget note is always last. */
+export function commonNotes(notes: readonly string[], budgetNote: string, adapter?: string): string[] {
+  return [...notes, ...(adapter && isRehearsal(adapter) ? [`adapter ${adapter} · not evidence`] : []), budgetNote];
 }
 
 /**

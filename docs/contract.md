@@ -162,6 +162,9 @@ When every category (or item) passes and only the goal itself missed, `next:` in
 though every part passed, since there's nothing to drill into; in a sweep where every item was skipped past
 the depth cap, it says so instead of naming one. [C-046]
 `notes:` always ends with the budget line; any validation or evidence notes come first. [C-047]
+A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, offline, canned) adds `adapter
+<name> · not evidence` to `notes:`, right before the budget line, on every verb that calls the classifier
+(class, scan, drill, loop, change) — so a rehearsal answer is never mistaken for real evidence. [C-092]
 Question text is never repeated in a response; the agent has it by number. [C-048]
 A sweep response lists category gates per item and shows probabilities only for questions that didn't clear
 the bar; the full numbers are in the ledger. [C-049]

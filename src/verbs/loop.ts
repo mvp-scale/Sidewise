@@ -67,7 +67,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
       m(['id', id], ['gate', gate], ['goal', m(['gate', goal], ['p', goalAnswer?.p ?? 0])], ['failing', failing], ['passing', passing]),
       wiseRecorded(request.wise),
       sweepNext(id, gate, worst, graded, 'act on it'),
-      commonNotes(loaded.notes, `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`),
+      commonNotes(loaded.notes, `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`, ctx.provider.adapter),
     );
 
   const run: NewContractRun = {

@@ -95,4 +95,12 @@ describe('class', () => {
     expect(r.text).toContain('route: {gate: pass');
     expect(r.text).toContain('next: the goal missed though every part passed · fix what is missing, then run it again');
   });
+
+  it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' }, adapter: 'fake' });
+    const r = await runClass(CLASS_YAML, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('notes: [adapter fake · not evidence, budget');
+  });
 });

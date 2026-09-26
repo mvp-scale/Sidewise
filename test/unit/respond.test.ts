@@ -79,6 +79,19 @@ describe('sweepNext', () => {
   });
 });
 
+describe('commonNotes', () => {
+  it('no adapter given, or a real one (typesafe, stub): no label', () => {
+    expect(commonNotes([], 'budget 0% used')).toEqual(['budget 0% used']);
+    expect(commonNotes([], 'budget 0% used', 'typesafe')).toEqual(['budget 0% used']);
+    expect(commonNotes([], 'budget 0% used', 'stub')).toEqual(['budget 0% used']);
+  });
+
+  it('a rehearsal adapter (fake, chaos) is labeled "not evidence", after other notes, before budget [C-092]', () => {
+    expect(commonNotes(['a validation note'], 'budget 0% used', 'fake')).toEqual(['a validation note', 'adapter fake · not evidence', 'budget 0% used']);
+    expect(commonNotes([], 'budget 0% used', 'chaos')).toEqual(['adapter chaos · not evidence', 'budget 0% used']);
+  });
+});
+
 describe('regressionNext', () => {
   const cats: Category[] = [cat('injection', 'no', [1, 2]), cat('access', 'no', [3])];
   it('points at the category the first regressed question belongs to [C-091]', () => {

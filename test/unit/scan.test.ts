@@ -127,4 +127,12 @@ describe('scan', () => {
     expect(r.text).toContain('reused: 0');
     expect(r.text).toContain('next: every item was skipped · raise depth or narrow over, then run it again');
   });
+
+  it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
+    const { paths } = tempProject(FILES);
+    const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1), adapter: 'fake' });
+    const r = await runScan(REQUEST, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('adapter fake · not evidence');
+  });
 });

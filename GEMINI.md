@@ -29,7 +29,7 @@ sidewise class -              # or pipe it in on stdin
 
 `--dry-run` shows the call and question count with no spend.
 
-With `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` set, calls go to the real classifier. With neither set, every call falls back to the built-in fake provider — free, deterministic, offline, and its answers are canned, not real. `SIDEWISE_PROVIDER=fake|chaos|typesafe` overrides the choice either way.
+With `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` set, calls go to the real classifier. With neither set, every call falls back to the built-in fake provider — free, deterministic, offline, and its answers are canned, not real; every response says so, with `adapter fake · not evidence` in `notes:` (the chaos provider labels itself the same way). `SIDEWISE_PROVIDER=fake|chaos|typesafe` overrides the choice either way.
 
 ## A worked example (class)
 
@@ -91,7 +91,7 @@ side:
   escalate: true
 wise: {recorded: [why, area]}
 next: sidewise template drill --parent SW-0001 --from guards
-notes: [budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
+notes: [adapter fake · not evidence, budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
 ```
 
 The `id`, `gate` and probabilities above are one run's illustration, not a guarantee — they'll differ every time you run it.

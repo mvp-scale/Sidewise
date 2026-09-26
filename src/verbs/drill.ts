@@ -134,7 +134,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
         m(['id', id], ['gate', gate], ['goal', m(['gate', goalGrade], ['p', goalAnswer.p])], ['failing', failing], ['passing', passing]),
         wiseRecorded(request.wise),
         worst.length ? REDRILL_NEXT : sweepNext(id, gate, worst, graded, 'act on it'),
-        commonNotes([...loaded.notes, ...notes], `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`),
+        commonNotes([...loaded.notes, ...notes], `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`, ctx.provider.adapter),
       );
 
     const run: NewContractRun = {
@@ -242,7 +242,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       ]),
       wiseRecorded(request.wise),
       oneSubjectNext(subject.gate),
-      commonNotes([...loaded.notes, ...evidence.evidence.notes], budget),
+      commonNotes([...loaded.notes, ...evidence.evidence.notes], budget, ctx.provider.adapter),
     );
 
   const run: NewContractRun = {

@@ -78,4 +78,13 @@ describe('loop', () => {
     expect(r.run.items?.['payments']?.categories).toEqual({ boundaries: 'fail' });
     expect(r.run.items?.['payments/refunds']?.categories).toEqual({ done: 'fail', risk: 'fail' });
   });
+
+  it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
+    const { paths } = tempProject({});
+    const yes = (q: { id: string }) =>
+      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
+    const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes, adapter: 'fake' }), env: {} });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('adapter fake · not evidence');
+  });
 });

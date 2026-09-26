@@ -149,7 +149,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
       regressed.length
         ? regressionNext(id, regressed, categories)
         : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
-      commonNotes([...loaded.notes, ...evidenceNotes], `2 states · ${budget}`),
+      commonNotes([...loaded.notes, ...evidenceNotes], `2 states · ${budget}`, ctx.provider.adapter),
     );
 
   const run: NewContractRun = {

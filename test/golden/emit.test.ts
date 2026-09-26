@@ -4,6 +4,7 @@ import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { emit, m, num, scalar, type Value } from '../../src/contract/emit.ts';
 import { seededRandom } from '../../src/util/prng.ts';
+import { commonNotes } from '../../src/verbs/respond.ts';
 
 const lines = (...xs: string[]): string => `${xs.join('\n')}\n`;
 /** The plain data a Map-built response stands for, numbers rounded as printed. */
@@ -17,6 +18,26 @@ const roundTrip = (doc: Map<string, Value>): void => {
 };
 
 describe('emit (golden: the contract examples)', () => {
+  it('a rehearsal adapter labels notes: "not evidence", right before the budget line [C-092]', () => {
+    const doc = m(
+      ['side', m(['id', 'SW-0001'], ['gate', 'pass'])],
+      ['wise', m(['recorded', 'none'])],
+      ['next', 'act on it'],
+      ['notes', commonNotes(['a validation note'], 'budget 0% used ($0.00 of $5.00 · 1 of 500 runs)', 'fake')],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  id: SW-0001',
+        '  gate: pass',
+        'wise: {recorded: none}',
+        'next: act on it',
+        'notes: [a validation note, adapter fake · not evidence, budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]',
+      ),
+    );
+    roundTrip(doc);
+  });
+
   it('class [C-018] [C-043]', () => {
     const doc = m(
       [
