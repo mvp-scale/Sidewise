@@ -1,5 +1,6 @@
 // Real concurrency: separate processes of the built CLI launched together, as agents in parallel do.
-// Bounded to at most 10 processes per test (shared machine).
+// Bounded to at most 10 processes per test (shared machine). Whatever the exit codes, budget and ledger agree:
+// budget runs == run records + failed records (spend and log are one lock section).
 import { spawn } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -15,14 +16,16 @@ interface Line {
 }
 
 /** Every log line parsed (a line that doesn't parse fails the test), plus the budget file. */
-function state(root: string): { lines: Line[]; runIds: string[]; budgetRuns: number; files: string[] } {
+function state(root: string): { lines: Line[]; runIds: string[]; counted: number; budgetRuns: number; files: string[] } {
   const dir = path.join(root, '.sidewise');
   const lines = readFileSync(path.join(dir, 'log.jsonl'), 'utf8')
     .split('\n')
     .filter((l) => l.trim())
     .map((l) => JSON.parse(l) as Line);
   const budget = JSON.parse(readFileSync(path.join(dir, 'budget.json'), 'utf8')) as { runs: number };
-  return { lines, runIds: lines.filter((l) => l.kind === 'run').map((l) => l.id), budgetRuns: budget.runs, files: readdirSync(dir).sort() };
+  const runIds = lines.filter((l) => l.kind === 'run').map((l) => l.id);
+  const counted = runIds.length + lines.filter((l) => l.kind === 'failed').length;
+  return { lines, runIds, counted, budgetRuns: budget.runs, files: readdirSync(dir).sort() };
 }
 
 const expectedIds = (n: number): string[] => Array.from({ length: n }, (_, i) => `SW-${String(i + 1).padStart(4, '0')}`);
@@ -36,7 +39,7 @@ function project(): string {
 }
 
 describe('separate processes at once', () => {
-  it('10 × class on a fresh project: unique gap-free ids, every line parses, budget runs == logged runs', async () => {
+  it('10 × class on a fresh project: unique gap-free ids, every line parses, budget runs == run + failed records', async () => {
     const root = project();
     const results = await Promise.all(Array.from({ length: 10 }, () => sidewiseAsync(root, ['class', 'req.txt'])));
     for (const r of results) expect(r.status === 0 || isLockTimeout(r), `${r.status} ${r.stderr}`).toBe(true);
@@ -44,7 +47,7 @@ describe('separate processes at once', () => {
     const s = state(root);
     expect(s.runIds).toEqual(expectedIds(ok.length));
     expect(ok.map(printedId).sort()).toEqual(s.runIds);
-    expect(s.budgetRuns).toBe(s.runIds.length);
+    expect(s.budgetRuns).toBe(s.counted);
     expect(s.files).toEqual(['budget.json', 'log.jsonl']);
   }, 60_000);
 
@@ -65,7 +68,8 @@ describe('separate processes at once', () => {
     const outcomes = s.lines.filter((l) => l.kind === 'outcome');
     expect(outcomes).toHaveLength(4);
     for (const o of outcomes) expect(s.runIds.indexOf(o.of!)).toBeGreaterThanOrEqual(0);
-    expect(s.budgetRuns).toBe(7);
+    expect(s.budgetRuns).toBe(s.counted);
+    expect(s.counted).toBe(7);
     expect(s.files).toEqual(['budget.json', 'log.jsonl']);
   }, 60_000);
 
@@ -81,11 +85,14 @@ describe('separate processes at once', () => {
     expect(ok.length).toBeLessThanOrEqual(3 + (6 - 1));
     const s = state(root);
     expect(s.runIds).toEqual(expectedIds(ok.length));
-    expect(s.budgetRuns).toBe(ok.length);
+    expect(s.budgetRuns).toBe(s.counted);
+    expect(s.counted).toBe(ok.length);
     expect(sidewise(root, ['class', 'req.txt']).status).toBe(3); // over the cap now: blocked until reset
   }, 60_000);
 
-  it('a process killed (SIGKILL) while holding the lock: the next run proceeds without the 5 s wait', async () => {
+  // The dead holder's lock is broken once it is 2 s old (the grace for a pid in another namespace), so the next run
+  // takes about 2 s plus its own run time; 4.5 s leaves room on a loaded machine and still proves no 5 s timeout.
+  it('a process killed (SIGKILL) while holding the lock: the next run proceeds after the 2 s grace, not the 5 s timeout', async () => {
     const root = project();
     const lock = path.join(root, '.sidewise', 'lock');
     const holder = spawn(
@@ -102,7 +109,7 @@ describe('separate processes at once', () => {
     const start = Date.now();
     const r = await sidewiseAsync(root, ['class', 'req.txt']);
     expect(r.status, r.stderr).toBe(0);
-    expect(Date.now() - start).toBeLessThan(3000);
+    expect(Date.now() - start).toBeLessThan(4500);
     expect(state(root).files).toEqual(['budget.json', 'log.jsonl']);
   }, 30_000);
 });

@@ -3,7 +3,7 @@
  * `sidewise budget reset` (the owner) starts a fresh budget, so there are no surprise bills. The run cap
  * always applies, including when a provider does not report cost. A corrupt file refuses to run (fail closed).
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { onStore, withLock } from '../ledger/lock.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 
@@ -86,13 +86,23 @@ export function checkBudget(s: BudgetState): { ok: true } | { ok: false; message
   return { ok: true };
 }
 
+/** Counts one call. The caller holds the lock. Returns the state before (for a rollback) and after. */
+export function spendLocked(paths: SidewisePaths, costUsd: number, now: number = Date.now()): { before: BudgetState | undefined; after: BudgetState } {
+  const before = read(paths);
+  const s = before ?? fresh(now);
+  const after = { ...s, spentUsd: s.spentUsd + (Number.isFinite(costUsd) ? Math.max(0, costUsd) : 0), runs: s.runs + 1 };
+  write(paths, after);
+  return { before, after };
+}
+
+/** Undoes spendLocked when the matching ledger line could not be written. The caller holds the lock. */
+export function restoreLocked(paths: SidewisePaths, before: BudgetState | undefined): void {
+  if (before) write(paths, before);
+  else onStore(paths.budget, 'write', () => rmSync(paths.budget, { force: true }));
+}
+
 export function recordSpend(paths: SidewisePaths, costUsd: number, now: number = Date.now()): BudgetState {
-  return withLock(paths.lock, () => {
-    const s = read(paths) ?? fresh(now);
-    const next = { ...s, spentUsd: s.spentUsd + (Number.isFinite(costUsd) ? Math.max(0, costUsd) : 0), runs: s.runs + 1 };
-    write(paths, next);
-    return next;
-  });
+  return withLock(paths.lock, () => spendLocked(paths, costUsd, now).after);
 }
 
 export function resetBudget(paths: SidewisePaths, now: number = Date.now()): BudgetState {

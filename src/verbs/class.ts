@@ -1,14 +1,16 @@
 /**
  * class: "does the evidence support this one focus?" One pass through the lens:
  *   parse → validate (help first) → budget gate → read our code → check the ledger → one classifier ask →
- *   count the spend → check the answers → consensus → log the run → the ≤ 6-line answer.
+ *   check the answers → consensus → count the spend and log the run (one lock section) → the ≤ 6-line answer.
+ * A paid call with a junk answer is counted and logged as a `failed` record, so the budget and ledger agree.
  * Nothing reaches the provider or the ledger unredacted; nothing is logged or spent for an invalid request.
  */
-import { BudgetError, budgetLine, checkBudget, DEFAULT_BUDGET, loadBudget, recordSpend, type BudgetState } from '../budget/budget.ts';
+import { BudgetError, budgetLine, checkBudget, DEFAULT_BUDGET, loadBudget, type BudgetState } from '../budget/budget.ts';
 import type { ClassifierAnswer, ClassifierQuestion, ClassifierResult } from '../classifier/port.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import { LockError, StoreError } from '../ledger/lock.ts';
-import { appendRun, checkLedger, LedgerError, type LoggedPrimitive, type RunRecord } from '../ledger/log.ts';
+import { checkLedger, LedgerError, type LoggedPrimitive, type RunRecord } from '../ledger/log.ts';
+import { recordCall } from '../ledger/record.ts';
 import { redact } from '../ledger/redact.ts';
 import { formatAnswer, type PrimitiveAnswer } from '../lens/answer.ts';
 import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
@@ -118,17 +120,15 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   } catch (e) {
     return { exit: 1, text: `✖ classifier: ${oneLine(e)} → retry later, or set SIDEWISE_PROVIDER=fake to check the request` };
   }
-  // A port is only a promise: whatever came back, count the call, then check the answers before using them.
+  // A port is only a promise: whatever came back, check the answers before using them. Either way the call was
+  // made, so it is counted, and its spend and its ledger line are written together (recordCall: one lock section).
   const costUsd = usableCost((result as Partial<ClassifierResult> | null)?.costUsd);
-  // Spend, then log: sequential, never nested (they share one non-reentrant lock).
-  let spent: BudgetState;
-  try {
-    spent = recordSpend(ctx.paths, costUsd ?? 0, now());
-  } catch (e) {
-    if (e instanceof BudgetError) return { exit: 3, text: e.message };
+  const actor = ctx.env.SIDEWISE_ACTOR?.trim() || req.perspective || 'agent';
+  const notCounted = (e: unknown): VerbResult => {
+    if (e instanceof BudgetError) return { exit: 3, text: `${e.message} (the call was NOT counted against the budget)` };
     if (isStoreFailure(e)) return { exit: 1, text: `${e.message} (the call was NOT counted against the budget)` };
     throw e;
-  }
+  };
 
   let slots: SlotAnswer[];
   let primitives: { answer: PrimitiveAnswer; logged: LoggedPrimitive }[];
@@ -138,7 +138,13 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     slots = readSlots(req, answers);
     primitives = req.primitives.map((p, i) => readPrimitive(p, answers[primitiveId(i)]));
   } catch (e) {
-    return { exit: 1, text: `✖ classifier: ${(e as Error).message} → retry; the call was counted against the budget` };
+    const reason = (e as Error).message;
+    try {
+      recordCall(ctx.paths, costUsd ?? 0, { failed: { verb: 'class', actor, adapter: ctx.provider.adapter, model: ctx.provider.model, costUsd: costUsd ?? null, reason } }, now());
+    } catch (err) {
+      return notCounted(err);
+    }
+    return { exit: 1, text: `✖ classifier: ${reason} → retry; the call was counted against the budget` };
   }
 
   const consensus = computeConsensus(slots);
@@ -154,35 +160,38 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const perspective = req.perspective || 'agent';
 
   let run: RunRecord;
+  let spent: BudgetState;
   try {
-    run = appendRun(
+    ({ record: run, budget: spent } = recordCall(
       ctx.paths,
+      costUsd ?? 0,
       {
-        verb: 'class',
-        level: req.level,
-        actor: ctx.env.SIDEWISE_ACTOR?.trim() || perspective,
-        perspective,
-        where: req.where,
-        problem: req.problem,
-        tags: req.tags,
-        focus: req.focus,
-        ...(req.parent ? { parent: req.parent } : {}),
-        slots: slots.map((s, i) => ({ pos: s.pos, text: req.slots[i]!.text, reverse: s.reverse, p: s.p })),
-        primitives: primitives.map((p) => p.logged),
-        consensus: consensus.consensus,
-        verdict: consensus.verdict,
-        ...(lean && lean.kind === 'direction' ? { lean: { option: lean.top, p: lean.p } } : {}),
-        notes,
-        adapter: ctx.provider.adapter,
-        model: ctx.provider.model,
-        costUsd: costUsd ?? null,
-        task: ctx.env.SIDEWISE_TASK?.trim() || null,
+        run: {
+          verb: 'class',
+          level: req.level,
+          actor,
+          perspective,
+          where: req.where,
+          problem: req.problem,
+          tags: req.tags,
+          focus: req.focus,
+          ...(req.parent ? { parent: req.parent } : {}),
+          slots: slots.map((s, i) => ({ pos: s.pos, text: req.slots[i]!.text, reverse: s.reverse, p: s.p })),
+          primitives: primitives.map((p) => p.logged),
+          consensus: consensus.consensus,
+          verdict: consensus.verdict,
+          ...(lean && lean.kind === 'direction' ? { lean: { option: lean.top, p: lean.p } } : {}),
+          notes,
+          adapter: ctx.provider.adapter,
+          model: ctx.provider.model,
+          costUsd: costUsd ?? null,
+          task: ctx.env.SIDEWISE_TASK?.trim() || null,
+        },
       },
       now(),
-    );
+    ));
   } catch (e) {
-    if (isStoreFailure(e)) return { exit: 1, text: `${e.message} (the call was counted against the budget)` };
-    throw e;
+    return notCounted(e);
   }
 
   const escalate = req.level === 3 || v.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE_PREFIX));

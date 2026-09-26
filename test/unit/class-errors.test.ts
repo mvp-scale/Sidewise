@@ -1,6 +1,8 @@
 // Dependencies fail: the provider times out or answers junk, the log is corrupt, a file can't be written.
-// Each ends in exit 1 (or 3 for the budget) with one clean line, the run is never logged, and the answer says
-// whether the call was counted against the budget. A problem we can see before the call stops before the call.
+// Each ends in exit 1 (or 3 for the budget) with one clean line, and the answer says whether the call was
+// counted. Budget and ledger always agree: budget runs == run records + failed records (a paid call whose answer
+// was junk is logged as a `failed` record in the same lock section as its spend). A problem we can see before
+// the call stops before the call.
 import { appendFileSync, chmodSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadBudget } from '../../src/budget/budget.ts';
@@ -41,6 +43,22 @@ async function answersWith(over: Record<string, unknown>): Promise<Record<string
 
 const COUNTED = '→ retry; the call was counted against the budget';
 
+/** The invariant: every counted call has exactly one run or failed record. */
+function expectAgree(paths: SidewisePaths): void {
+  const logged = readLedger(paths).filter((r) => r.kind === 'run' || r.kind === 'failed').length;
+  expect(loadBudget(paths).state.runs).toBe(logged);
+}
+
+/** A counted call with a junk answer: one `failed` record and no run. */
+function expectFailedOnly(paths: SidewisePaths, reason: RegExp, costUsd: number | null = 0): void {
+  const records = readLedger(paths);
+  expect(records).toHaveLength(1);
+  expect(records[0]).toMatchObject({ kind: 'failed', verb: 'class', actor: 'reviewer-7', adapter: 'stub', model: 'stub-1', costUsd });
+  expect((records[0] as { reason: string }).reason).toMatch(reason);
+  expect((records[0] as { uid: string }).uid).toHaveLength(26);
+  expectAgree(paths);
+}
+
 describe('the provider fails', () => {
   it('a timeout: exit 1, not logged, NOT counted', async () => {
     const { paths } = tempProject();
@@ -62,45 +80,43 @@ describe('the provider fails', () => {
     expect(long.text.length).toBeLessThan(300);
   });
 
-  it('junk instead of answers: exit 1, not logged, counted (the call was made)', async () => {
+  it('junk instead of answers: exit 1, counted (the call was made), logged as a failed record', async () => {
     for (const junk of [null, 'garbage', { answers: null }, { answers: 'x' }, { answers: { s1: 'yes' } }, { answers: [] }]) {
       const { paths } = tempProject();
       const r = await runClass(classRequest(), { paths, provider: junkProvider(junk), env });
       expect(r.exit).toBe(1);
       expect(r.text).toMatch(/^✖ classifier: [^\n]+ → retry; the call was counted against the budget$/);
-      expect(readLedger(paths)).toEqual([]);
-      expect(loadBudget(paths).state.runs).toBe(1);
+      expectFailedOnly(paths, /./, null); // junk carries no usable cost
     }
   });
 
-  it('answers missing some slot ids: exit 1, not logged, counted', async () => {
+  it('answers missing some slot ids: exit 1, counted, a failed record', async () => {
     const { paths } = tempProject();
     const answers = await answersWith({});
     delete answers.s4;
     const r = await runClass(classRequest(), { paths, provider: junkProvider({ answers, costUsd: 0 }), env });
     expect(r).toEqual({ exit: 1, text: `✖ classifier: no yes/no answer for slot 4 ${COUNTED}` });
-    expect(readLedger(paths)).toEqual([]);
-    expect(loadBudget(paths).state.runs).toBe(1);
+    expectFailedOnly(paths, /^no yes\/no answer for slot 4$/);
   });
 
-  it('probabilities outside 0..1, NaN or infinite: exit 1, never logged', async () => {
+  it('probabilities outside 0..1, NaN or infinite: exit 1, never logged as a run', async () => {
     for (const p of [1.5, -0.1, Number.NaN, Number.POSITIVE_INFINITY]) {
       const { paths } = tempProject();
       const answers = await answersWith({ s2: { type: 'noul', probability: p } });
       const r = await runClass(classRequest(), { paths, provider: junkProvider({ answers, costUsd: 0 }), env });
       expect(r).toEqual({ exit: 1, text: `✖ classifier: slot 2 probability ${p} is not between 0 and 1 ${COUNTED}` });
-      expect(readLedger(paths)).toEqual([]);
+      expectFailedOnly(paths, /^slot 2 probability/);
     }
   });
 
-  it('a primitive distribution with NaN or a negative value: exit 1, never logged', async () => {
+  it('a primitive distribution with NaN or a negative value: exit 1, never logged as a run', async () => {
     for (const bad of [Number.NaN, -0.2]) {
       const { paths } = tempProject();
       const answers = await answersWith({ p2: { type: 'choice', choice: 'ship', probabilities: { ship: bad, fix: 0.5, block: 0.5 }, confidence: 0.5 } });
       const r = await runClass(classRequest(), { paths, provider: junkProvider({ answers, costUsd: 0 }), env });
       expect(r.exit).toBe(1);
       expect(r.text).toBe(`✖ classifier: "Where should this go?" has a probability ${bad} that is not between 0 and 1 ${COUNTED}`);
-      expect(readLedger(paths)).toEqual([]);
+      expectFailedOnly(paths, /has a probability/);
     }
   });
 
@@ -138,7 +154,8 @@ describe('the log is corrupt: refuse with a fix, before any call or spend', () =
     expect(provider.calls).toHaveLength(0);
     expect(loadBudget(paths).state.runs).toBe(0);
     expect(readFileSync(paths.log, 'utf8')).toBe(before);
-    expect(() => runView('src', 1, paths)).toThrow(LedgerError);
+    if (tail.endsWith('\n')) expect(() => runView('src', 1, paths)).toThrow(LedgerError);
+    else expect(runView('src', 1, paths).exit).toBe(0); // an unterminated last line may be an append in progress
   });
 });
 
@@ -153,7 +170,7 @@ describe('a file cannot be written', () => {
     expect(loadBudget(paths).state.runs).toBe(0);
   });
 
-  it('the log becomes a directory during the call: exit 1, counted, not logged', async () => {
+  it('the log becomes a directory during the call: exit 1, NOT counted, nothing logged (one section)', async () => {
     const { paths } = tempProject();
     const stub = stubProvider();
     const provider: ClassifierPort = {
@@ -167,8 +184,24 @@ describe('a file cannot be written', () => {
     };
     const r = await runClass(classRequest(), { paths, provider, env });
     expect(r.exit).toBe(1);
-    expect(r.text).toMatch(/^✖ files: cannot [a-z]+ \.sidewise\/log\.jsonl \(EISDIR\) → .* \(the call was counted against the budget\)$/);
-    expect(loadBudget(paths).state.runs).toBe(1);
+    expect(r.text).toMatch(/^✖ files: cannot [a-z]+ \.sidewise\/log\.jsonl \(EISDIR\) → .* \(the call was NOT counted against the budget\)$/);
+    expect(loadBudget(paths).state.runs).toBe(0);
+  });
+
+  it('the log is corrupted during the call: the spend is rolled back, exit 1, NOT counted', async () => {
+    const { paths } = tempProject();
+    const stub = stubProvider();
+    const provider: ClassifierPort = {
+      ...stub,
+      ask: async (q, s) => {
+        const r = await stub.ask(q, s);
+        appendFileSync(paths.log, 'garbage\n');
+        return r;
+      },
+    };
+    const r = await runClass(classRequest(), { paths, provider, env });
+    expect(r).toEqual({ exit: 1, text: '✖ ledger: line 1 of .sidewise/log.jsonl is not valid JSON → fix or remove that line (the call was NOT counted against the budget)' });
+    expect(loadBudget(paths).state.runs).toBe(0);
   });
 
   it('budget.json is a directory: refused like a corrupt budget (exit 3)', async () => {

@@ -63,7 +63,27 @@ export interface OutcomeRecord {
   by: string;
 }
 
-export type LedgerRecord = RunRecord | OutcomeRecord;
+/**
+ * A paid call whose answer could not be used (junk, missing answers, probabilities outside 0..1). It carries no
+ * SW id (run ids stay gap-free) but is counted in the budget, so budget runs == run records + failed records.
+ */
+export interface FailedRecord {
+  kind: 'failed';
+  /** The record's ulid (a failed call has no SW-#### id). */
+  id: string;
+  uid: string;
+  ts: string;
+  verb: Verb;
+  actor: string;
+  adapter: string;
+  model: string;
+  costUsd: number | null;
+  reason: string;
+}
+
+export type NewFailed = Omit<FailedRecord, 'kind' | 'id' | 'uid' | 'ts'>;
+
+export type LedgerRecord = RunRecord | OutcomeRecord | FailedRecord;
 
 export class LedgerError extends Error {
   /** 1: the ledger itself is the problem · 2: the caller asked for something the ledger doesn't hold. */
@@ -85,6 +105,7 @@ function isRecord(v: unknown): v is LedgerRecord {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
   const r = v as Record<string, unknown>;
   if (r.kind === 'outcome') return [r.id, r.of, r.outcome, r.by, r.ts].every(isText);
+  if (r.kind === 'failed') return [r.id, r.ts, r.verb, r.actor, r.adapter, r.model, r.reason].every(isText);
   if (r.kind !== 'run') return false;
   return (
     [r.id, r.ts, r.verb, r.focus, r.consensus, r.verdict, r.adapter].every(isText) &&
@@ -96,20 +117,30 @@ function isRecord(v: unknown): v is LedgerRecord {
   );
 }
 
-/** Every record, in order. A line that isn't a record refuses the whole read (fail closed): ids are counted from it. */
-export function readLedger(paths: SidewisePaths): LedgerRecord[] {
+/**
+ * Every record, in order. A line that isn't a record refuses the whole read (fail closed): ids are counted from it.
+ * `partialTail` (readers that don't hold the lock, like view): a bad last line with no trailing newline is skipped,
+ * since it may be an append in progress. Writers always read strictly, under the lock.
+ */
+export function readLedger(paths: SidewisePaths, opts: { partialTail?: boolean } = {}): LedgerRecord[] {
   const text = onStore(paths.log, 'read', () => (existsSync(paths.log) ? readFileSync(paths.log, 'utf8') : ''));
   const shown = path.relative(paths.root, paths.log).split(path.sep).join('/');
   const records: LedgerRecord[] = [];
-  text.split('\n').forEach((line, i) => {
+  const lines = text.split('\n');
+  lines.forEach((line, i) => {
     if (!line.trim()) return;
+    const inProgress = opts.partialTail === true && i === lines.length - 1; // the last segment has no newline after it
     let value: unknown;
     try {
       value = JSON.parse(line);
     } catch {
+      if (inProgress) return;
       throw new LedgerError(`✖ ledger: line ${i + 1} of ${shown} is not valid JSON → fix or remove that line`);
     }
-    if (!isRecord(value)) throw new LedgerError(`✖ ledger: line ${i + 1} of ${shown} is not a ledger record → fix or remove that line`);
+    if (!isRecord(value)) {
+      if (inProgress) return;
+      throw new LedgerError(`✖ ledger: line ${i + 1} of ${shown} is not a ledger record → fix or remove that line`);
+    }
     records.push(value);
   });
   return records;
@@ -132,18 +163,30 @@ function appendLine(paths: SidewisePaths, record: LedgerRecord): void {
   });
 }
 
+/** Appends a run with the next SW id. The caller holds the lock (see appendRun, and recordCall in record.ts). */
+export function appendRunLocked(paths: SidewisePaths, run: NewRun, now: number = Date.now()): RunRecord {
+  const count = readLedger(paths).filter(isRun).length;
+  const record: RunRecord = { kind: 'run', id: formatRunId(count + 1), uid: ulid(now), ts: iso(now), ...redactDeep(run), actor: redactSecrets(run.actor) };
+  appendLine(paths, record);
+  return record;
+}
+
+/** Appends a failed call. The caller holds the lock. The ledger is read first, so a corrupt one refuses here too. */
+export function appendFailedLocked(paths: SidewisePaths, failed: NewFailed, now: number = Date.now()): FailedRecord {
+  readLedger(paths);
+  const uid = ulid(now);
+  const record: FailedRecord = { kind: 'failed', id: uid, uid, ts: iso(now), ...redactDeep(failed), actor: redactSecrets(failed.actor) };
+  appendLine(paths, record);
+  return record;
+}
+
 export function appendRun(paths: SidewisePaths, run: NewRun, now: number = Date.now()): RunRecord {
-  return withLock(paths.lock, () => {
-    const count = readLedger(paths).filter(isRun).length;
-    const record: RunRecord = { kind: 'run', id: formatRunId(count + 1), uid: ulid(now), ts: iso(now), ...redactDeep(run), actor: redactSecrets(run.actor) };
-    appendLine(paths, record);
-    return record;
-  });
+  return withLock(paths.lock, () => appendRunLocked(paths, run, now));
 }
 
 /**
- * Appends an outcome for a logged run. The same outcome as the run's latest is not appended again (an agent
- * retrying is a no-op): `repeat` is true and `record` is the one already there.
+ * Appends an outcome for a logged run. The run's latest outcome again, by the same actor, is not appended (an
+ * agent retrying is a no-op): `repeat` is true and `record` is the one already there. Another actor's is appended.
  */
 export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome, by: string, now: number = Date.now()): { record: OutcomeRecord; repeat: boolean } {
   return withLock(paths.lock, () => {
@@ -155,7 +198,7 @@ export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome
       throw new LedgerError(`✖ outcome: ${who} asked ${of}, so it can't mark it held → another agent or the owner records "held"`);
     }
     const latest = records.filter((r): r is OutcomeRecord => r.kind === 'outcome' && r.of === of).at(-1);
-    if (latest?.outcome === outcome) return { record: latest, repeat: true };
+    if (latest?.outcome === outcome && latest.by === who) return { record: latest, repeat: true };
     const record: OutcomeRecord = { kind: 'outcome', id: `${of}-outcome`, uid: ulid(now), ts: iso(now), of, outcome, by: who };
     appendLine(paths, record);
     return { record, repeat: false };

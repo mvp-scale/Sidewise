@@ -9,9 +9,9 @@ import { RUN_ID } from '../ledger/ids.ts';
 import { isRun, latestOutcome, readLedger, type LedgerRecord, type RunRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import type { Level } from '../lens/request.ts';
+import { clip, hasControlChars } from '../util/text.ts';
 import type { VerbResult } from './types.ts';
 
-const clip = (s: string, n: number): string => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 // A fake-provider run is a rehearsal, not evidence: labelled on its line and kept out of the outcome counts.
 const isFake = (r: RunRecord): boolean => r.adapter === 'fake';
@@ -22,11 +22,9 @@ function runLine(r: RunRecord, records: readonly LedgerRecord[]): string {
   return `${clip(`${r.id} ${r.ts.slice(0, 10)} ${r.verb} L${r.level} ${r.consensus} ${r.verdict} "${clip(r.focus, 48)}" · ${outcome}`, 120 - label.length)}${label}`;
 }
 
-const CONTROL = /[\u0000-\u001f\u007f]/;
-
 /** A folder, a tag or a path as a project-relative place; an absolute path inside the project is fine. */
 function toPlace(target: string, root: string): { place: string } | { stop: string } {
-  if (CONTROL.test(target)) return { stop: '✖ view: the target has control characters → use a folder, a tag, or SW-####' };
+  if (hasControlChars(target)) return { stop: '✖ view: the target has control characters → use a folder, a tag, or SW-####' };
   if (!path.isAbsolute(target) && !target.split(/[\\/]/).includes('..')) return { place: target.replace(/^\.\//, '').replace(/\/+$/, '') || '.' };
   const rel = path.relative(root, path.resolve(root, target));
   if (rel.startsWith('..') || path.isAbsolute(rel)) return { stop: `✖ view: "${clip(target, 60)}" is outside the project → use a folder inside it, a tag, or SW-####` };
@@ -83,7 +81,7 @@ function byId(id: string, runs: RunRecord[], records: readonly LedgerRecord[], l
 export function runView(target: string, level: Level, paths: SidewisePaths): VerbResult {
   const at = RUN_ID.test(target) ? undefined : toPlace(target, paths.root);
   if (at && 'stop' in at) return { exit: 2, text: at.stop };
-  const records = readLedger(paths);
+  const records = readLedger(paths, { partialTail: true }); // never blocks on, or fails over, an append in progress
   const runs = records.filter(isRun);
   const limit = level * 10;
   return at ? byPlace(at.place, runs, records, limit) : byId(target, runs, records, limit);
