@@ -6,7 +6,7 @@
  * same agent, at once (AGENTS.md rule 1: stay light on shared machines).
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { redact } from '../../src/ledger/redact.ts';
@@ -24,6 +24,9 @@ export interface AgentRunResult {
   durationMs: number;
   costUsd: number | null;
   summary: string;
+  /** The exact --model value passed for this run (CLAUDE_MODEL/GEMINI_MODEL below) — the evidence doc must be
+   * able to say which model actually ran, not just which agent. */
+  model: string;
 }
 
 // The one cap that actually works for both CLIs (see task-25-brief.md): a hard wall-clock kill.
@@ -79,22 +82,26 @@ function checkGemini(): Availability {
   const ver = spawnSync('gemini', ['--version'], { encoding: 'utf8' });
   if (ver.error) return { ok: false, reason: 'gemini CLI not found on PATH' };
   const scratch = mkdtempSync(path.join(os.tmpdir(), 'sidewise-chaos-probe-'));
-  const probe = spawnSync('gemini', ['-p', 'reply with the word ok', '-o', 'json', '--skip-trust'], {
-    cwd: scratch,
-    timeout: PROBE_TIMEOUT_MS,
-    killSignal: 'SIGKILL',
-    encoding: 'utf8',
-  });
-  if (probe.error || probe.status !== 0) {
-    return { ok: false, reason: `gemini CLI not available or not authenticated (${short(probe.stderr || String(probe.error ?? 'no output'))})` };
-  }
   try {
-    const parsed = JSON.parse(probe.stdout) as { response?: unknown };
-    if (typeof parsed.response !== 'string') return { ok: false, reason: 'gemini CLI not available or not authenticated (no response field)' };
-  } catch {
-    return { ok: false, reason: 'gemini CLI not available or not authenticated (unparseable output)' };
+    const probe = spawnSync('gemini', ['-p', 'reply with the word ok', '-o', 'json', '--skip-trust'], {
+      cwd: scratch,
+      timeout: PROBE_TIMEOUT_MS,
+      killSignal: 'SIGKILL',
+      encoding: 'utf8',
+    });
+    if (probe.error || probe.status !== 0) {
+      return { ok: false, reason: `gemini CLI not available or not authenticated (${short(probe.stderr || String(probe.error ?? 'no output'))})` };
+    }
+    try {
+      const parsed = JSON.parse(probe.stdout) as { response?: unknown };
+      if (typeof parsed.response !== 'string') return { ok: false, reason: 'gemini CLI not available or not authenticated (no response field)' };
+    } catch {
+      return { ok: false, reason: 'gemini CLI not available or not authenticated (unparseable output)' };
+    }
+    return { ok: true };
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
   }
-  return { ok: true };
 }
 
 interface Outcome {
@@ -183,5 +190,6 @@ export function runAgentOnScenario(kind: AgentKind, scenario: ChaosScenario, pro
   const start = Date.now();
   const outcome = kind === 'claude' ? runClaude(prompt, projectRoot, env) : runGemini(prompt, projectRoot, env);
   const durationMs = Date.now() - start;
-  return { agent: kind, scenarioId: scenario.id, durationMs, ...outcome };
+  const model = kind === 'claude' ? CLAUDE_MODEL : GEMINI_MODEL;
+  return { agent: kind, scenarioId: scenario.id, durationMs, model, ...outcome };
 }

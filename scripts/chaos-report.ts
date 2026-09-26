@@ -29,7 +29,8 @@ function asRun(v: unknown): AgentRunResult {
   if (typeof r.durationMs !== 'number') return bad('runs[].durationMs');
   if (typeof r.costUsd !== 'number' && r.costUsd !== null) return bad('runs[].costUsd');
   if (typeof r.summary !== 'string') return bad('runs[].summary');
-  return { agent: r.agent, scenarioId: r.scenarioId, ok: r.ok, exitCode: r.exitCode, durationMs: r.durationMs, costUsd: r.costUsd, summary: r.summary };
+  if (typeof r.model !== 'string') return bad('runs[].model');
+  return { agent: r.agent, scenarioId: r.scenarioId, ok: r.ok, exitCode: r.exitCode, durationMs: r.durationMs, costUsd: r.costUsd, summary: r.summary, model: r.model };
 }
 
 function asSkipped(v: unknown): { agent: AgentKind; reason: string } {
@@ -61,6 +62,21 @@ const CAPS = [
   'timeout is the *only* cap, stated here plainly rather than pretending otherwise.',
 ].join(' ');
 
+const SCOPE = [
+  'What this run does not prove: it is 3 scenarios, run once each, against these specific models only — a',
+  "different model, prompt, or a second run of the same scenario could behave differently. gemini's cost is",
+  "unknown by construction (its JSON output carries no dollar figure), not merely unmeasured this time.",
+].join(' ');
+
+/** Which --model value actually ran for each agent, read off the runs themselves (never assumed) — empty when
+ * every agent was skipped, so nothing ran with any model. */
+function modelsLine(runs: readonly AgentRunResult[]): string {
+  const seen = new Map<AgentKind, string>();
+  for (const r of runs) if (!seen.has(r.agent)) seen.set(r.agent, r.model);
+  if (seen.size === 0) return 'Models: no agent ran, so no model was used.';
+  return `Models: ${[...seen.entries()].map(([agent, model]) => `${agent} ran with \`--model ${model}\``).join('; ')}.`;
+}
+
 export function renderChaosDoc(results: ChaosResults): string {
   const lines: string[] = [];
   lines.push('# Agent chaos run');
@@ -68,6 +84,10 @@ export function renderChaosDoc(results: ChaosResults): string {
   lines.push(`Generated ${results.generatedAt} by \`scripts/chaos-report.ts\` from \`test/fixtures/chaos/recorded-results.json\`.`);
   lines.push('');
   lines.push(CAPS);
+  lines.push('');
+  lines.push(modelsLine(results.runs));
+  lines.push('');
+  lines.push(SCOPE);
   lines.push('');
   if (results.skipped.length > 0) {
     lines.push('## Skipped');
@@ -80,10 +100,12 @@ export function renderChaosDoc(results: ChaosResults): string {
   if (results.runs.length === 0) {
     lines.push('No agent ran a scenario (every agent was skipped).');
   } else {
-    lines.push('| agent | scenario | ok | exit | duration | cost | summary |');
-    lines.push('|---|---|---|---|---|---|---|');
+    lines.push('| agent | model | scenario | ok | exit | duration | cost | summary |');
+    lines.push('|---|---|---|---|---|---|---|---|');
     for (const r of results.runs) {
-      lines.push(`| ${r.agent} | ${r.scenarioId} | ${r.ok ? 'yes' : 'no'} | ${r.exitCode ?? 'n/a'} | ${fmtDuration(r.durationMs)} | ${fmtCost(r.costUsd)} | ${cell(r.summary)} |`);
+      lines.push(
+        `| ${r.agent} | ${r.model} | ${r.scenarioId} | ${r.ok ? 'yes' : 'no'} | ${r.exitCode ?? 'n/a'} | ${fmtDuration(r.durationMs)} | ${fmtCost(r.costUsd)} | ${cell(r.summary)} |`,
+      );
     }
   }
   lines.push('');

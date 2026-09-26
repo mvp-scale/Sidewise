@@ -4,6 +4,7 @@
   "runs": [
     {
       "agent": "claude",
+      "model": "sonnet",
       "scenarioId": "clean",
       "durationMs": 7057,
       "ok": true,
@@ -13,6 +14,7 @@
     },
     {
       "agent": "claude",
+      "model": "sonnet",
       "scenarioId": "retry-after-503",
       "durationMs": 9642,
       "ok": true,
@@ -22,6 +24,7 @@
     },
     {
       "agent": "claude",
+      "model": "sonnet",
       "scenarioId": "malformed-answer",
       "durationMs": 5204,
       "ok": true,
@@ -31,6 +34,7 @@
     },
     {
       "agent": "gemini",
+      "model": "flash",
       "scenarioId": "clean",
       "durationMs": 10146,
       "ok": true,
@@ -40,6 +44,7 @@
     },
     {
       "agent": "gemini",
+      "model": "flash",
       "scenarioId": "retry-after-503",
       "durationMs": 14965,
       "ok": true,
@@ -49,6 +54,7 @@
     },
     {
       "agent": "gemini",
+      "model": "flash",
       "scenarioId": "malformed-answer",
       "durationMs": 9748,
       "ok": true,
