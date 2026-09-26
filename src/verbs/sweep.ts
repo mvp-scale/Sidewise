@@ -8,6 +8,8 @@
  * The goal question rides on the first layer that ends up with a call; if its own answer is reused, it never
  * needs one at all. A skipped item is graded 'unsure' (Plan 2a decision 5): none of its questions are asked or
  * pulled from reuse, so it never shows up half-answered.
+ * sweepDryRun/recordSweep are the two bits of a sweep verb's own wiring (its --dry-run reply and its
+ * paid/free ledger epilogue) that don't vary by verb at all — loop, scan and drill share them verbatim.
  */
 import { DEPTH_COUNT } from '../contract/types.ts';
 import type { Answer, Request, Verb } from '../contract/types.ts';
@@ -15,11 +17,13 @@ import { expand, type ExpandOptions, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, itemQuestions, itemsState, type AskedQuestion } from '../contract/translate.ts';
 import type { ItemStatus } from '../contract/grade.ts';
 import type { ClassifierState } from '../classifier/port.ts';
+import type { NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type Who } from '../ledger/reuse.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
-import { askAll, type PlannedCall, type Step } from './pay.ts';
-import type { VerbContext } from './types.ts';
+import { askAll, record, recordFree, type PlannedCall, type Step } from './pay.ts';
+import { dryRunText } from './respond.ts';
+import type { VerbContext, VerbResult } from './types.ts';
 
 export interface PlannedLayer {
   layer: string;
@@ -194,4 +198,22 @@ export async function runSweep(
   const asked = await askAll(ctx, verb, calls);
   if (!asked.ok) return asked;
   return { ok: true, value: { answers: { ...plan.answers, ...asked.value.answers }, costUsd: asked.value.costUsd, statusOf } };
+}
+
+/** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. Needs nothing beyond the plan. */
+export function sweepDryRun(plan: SweepPlan): VerbResult {
+  const calls = plan.planned.filter((p) => p.call !== null).length;
+  const askedItems = plan.planned.reduce((n, p) => n + p.itemIds.length, 0);
+  const skippedItems = plan.planned.reduce((n, p) => n + p.skipped.length, 0);
+  return {
+    exit: 0,
+    text: dryRunText({ calls, questions: plan.askedQuestions, items: plan.items.length, reused: plan.items.length - askedItems - skippedItems }),
+  };
+}
+
+/** A sweep verb's epilogue: log the run — free when it made no call, paid otherwise — and answer with its response. */
+export function recordSweep(ctx: VerbContext, calls: number, costUsd: number | undefined, run: NewContractRun): VerbResult {
+  const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
+  if (!rec.ok) return rec.result;
+  return { exit: 0, text: rec.value.run.response, run: rec.value.run };
 }

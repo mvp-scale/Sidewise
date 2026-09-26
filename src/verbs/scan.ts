@@ -10,10 +10,10 @@ import { m, type Value } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
 import { createCodeResolver } from '../evidence/units.ts';
 import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
-import { actorOf, preflight, record, recordFree } from './pay.ts';
+import { actorOf, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
-import { commonNotes, drillNext, dryRunText, respondText, sweepEntry, wiseRecorded } from './respond.ts';
-import { planSweep, runSweep } from './sweep.ts';
+import { commonNotes, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 export async function runScan(text: string, ctx: VerbContext): Promise<VerbResult> {
@@ -25,15 +25,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const plan = planSweep(request, who, ctx.paths, { resolve: createCodeResolver(ctx.paths.root, notes) });
 
-  if (ctx.dryRun) {
-    const calls = plan.planned.filter((p) => p.call).length;
-    const askedItems = plan.planned.reduce((n, p) => n + p.itemIds.length, 0);
-    const skippedItems = plan.planned.reduce((n, p) => n + p.skipped.length, 0);
-    return {
-      exit: 0,
-      text: dryRunText({ calls, questions: plan.askedQuestions, items: plan.items.length, reused: plan.items.length - askedItems - skippedItems }),
-    };
-  }
+  if (ctx.dryRun) return sweepDryRun(plan);
 
   const pre = preflight(ctx);
   if (!pre.ok) return pre.result;
@@ -85,7 +77,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
         ['reused', reused],
       ),
       wiseRecorded(request.wise),
-      gate === 'pass' ? 'act on it' : drillNext(id, worst[0]!.id),
+      sweepNext(id, gate, worst, graded, 'act on it'),
       commonNotes([...loaded.notes, ...notes], `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`),
     );
 
@@ -119,7 +111,5 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
     calls,
   };
 
-  const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
-  if (!rec.ok) return rec.result;
-  return { exit: 0, text: rec.value.run.response, run: rec.value.run };
+  return recordSweep(ctx, calls, costUsd, run);
 }

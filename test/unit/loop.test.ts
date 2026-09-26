@@ -48,4 +48,19 @@ describe('loop', () => {
     expect(r.text).toContain('next: act on it');
     expect(r.text).toContain('passing: [gateway, payments]');
   });
+
+  it('a goal that misses the bar on an all-passing sweep: next falls back to the first item, not a crash', async () => {
+    const { paths } = tempProject({});
+    const ALL_PASS =
+      'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - gateway\n      - payments\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\nwise:\n  why: validate\n  area: api\n';
+    // Every item's own category clears the bar; only the goal itself misses — worstFirst has nothing to point
+    // at, so this used to throw on worst!.id.
+    const yes = (q: { id: string }) => (q.id === 'goal' ? 0.1 : 0.95);
+    const r = await runLoop(ALL_PASS, { paths, provider: stubProvider({ yes }), env: {} });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('gate: fail');
+    expect(r.text).toContain('goal: {gate: fail, p: 0.10}');
+    expect(r.text).toContain('passing: [gateway, payments]');
+    expect(r.text).toContain('next: sidewise template drill --parent SW-0001 --from gateway');
+  });
 });

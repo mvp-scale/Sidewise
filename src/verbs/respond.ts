@@ -55,6 +55,19 @@ export function drillNext(id: string, target: string): string {
   return `sidewise template drill --parent ${id} --from ${target}`;
 }
 
+/**
+ * pass → onPass. Otherwise drill the worst item (worstFirst's own order). A sweep can be non-pass with no
+ * failing item at all — every item's own categories clear the bar, but the goal itself doesn't (`worst` is
+ * empty then, since worstFirst only counts items whose own categories missed): fall back to the first item
+ * actually graded, in written order, the same "give a concrete place to look" move outcomeNext makes via
+ * categories[0] when no category matches a failing subject's own gate.
+ */
+export function sweepNext(id: string, gate: Gate, worst: readonly ItemGrade[], graded: readonly ItemGrade[], onPass: string): string {
+  if (gate === 'pass') return onPass;
+  const target = worst[0] ?? graded[0];
+  return target ? drillNext(id, target.id) : onPass; // no graded item at all (an empty sweep): nothing to drill into
+}
+
 export function dryRunText(plan: { calls: number; questions: number; items?: number; reused?: number }): string {
   return emit(
     m(

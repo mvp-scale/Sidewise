@@ -1,5 +1,8 @@
 // scan: a code sweep with per-function reuse. Review Focus #2: a second scan of unchanged code is free.
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { loadBudget } from '../../src/budget/budget.ts';
 import { readLedger, isContractRun } from '../../src/ledger/log.ts';
 import { runScan } from '../../src/verbs/scan.ts';
 import { tempProject } from '../helpers/project.ts';
@@ -30,12 +33,38 @@ describe('scan', () => {
   it('a second scan of unchanged code is free', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
-    await runScan(REQUEST, { paths, provider, env });
+    const r1 = await runScan(REQUEST, { paths, provider, env });
+    const budgetAfterFirst = loadBudget(paths).state;
     const r2 = await runScan(REQUEST, { paths, provider, env });
     expect(provider.calls).toHaveLength(1); // still just the one call from the first run
     expect(r2.text).toContain('reused: 2');
+    // The second run's ledger line answers identically to the first: same worst-first failing entry.
+    expect(r1.text).toContain('src/a.ts/bad: {injection: fail, 1: 0.90}');
+    expect(r2.text).toContain('src/a.ts/bad: {injection: fail, 1: 0.90}');
+    // Free really means free: budget spend and run count unchanged by the second (all-reused) run.
+    const budgetAfterSecond = loadBudget(paths).state;
+    expect(budgetAfterSecond.runs).toBe(budgetAfterFirst.runs);
+    expect(budgetAfterSecond.spentUsd).toBe(budgetAfterFirst.spentUsd);
     const runs = readLedger(paths).filter(isContractRun);
     expect(runs[1]).toMatchObject({ id: 'SW-0002', verb: 'scan', calls: 0 });
+  });
+
+  it('a changed function forces exactly one new call carrying only it; the unchanged one stays reused', async () => {
+    const { root, paths } = tempProject(FILES);
+    const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
+    await runScan(REQUEST, { paths, provider, env });
+    expect(provider.calls).toHaveLength(1);
+
+    // Same function name, same file, different body: its answer key (keyed on the function's own text) no
+    // longer matches the ledger, so only this one function is asked again.
+    writeFileSync(path.join(root, 'src/a.ts'), 'export function bad(req) { return db.query(`y ${req.id}`); }\n');
+
+    const r2 = await runScan(REQUEST, { paths, provider, env });
+    expect(provider.calls).toHaveLength(2); // exactly one new call
+    const secondCall = provider.calls[1]!;
+    expect(secondCall.questions.map((q) => q.id)).toEqual(['src/a.ts/bad#1']); // only the changed function is asked
+    expect(Object.keys(secondCall.state.items ?? {})).toEqual(['src/a.ts/bad']); // and it carries only that function
+    expect(r2.text).toContain('reused: 1'); // src/b.ts/good, unchanged, is still free
   });
 
   it('--dry-run: no provider call, no ledger line', async () => {
@@ -62,5 +91,19 @@ describe('scan', () => {
     const provider = stubProvider({ yes: () => 0.9 });
     const r = await runScan(REQUEST, { paths, provider, env });
     expect(r.text).toContain('wise: {recorded: [why, area]}');
+  });
+
+  it('a goal that misses the bar on an all-passing scan: next falls back to the first item, not a crash', async () => {
+    const { paths } = tempProject(FILES);
+    // Every function passes injection (pass: no, low P(yes)); only the goal itself misses the 0.70 bar, so
+    // worstFirst has nothing to point at — this used to throw on worst[0]!.id.
+    const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.1 : 0.1) });
+    const r = await runScan(REQUEST, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('gate: fail');
+    expect(r.text).toContain('goal: {gate: fail, p: 0.10}');
+    expect(r.text).toContain('passing: 2');
+    expect(r.text).toContain('failing: {}');
+    expect(r.text).toContain('next: sidewise template drill --parent SW-0001 --from src/a.ts/bad');
   });
 });
