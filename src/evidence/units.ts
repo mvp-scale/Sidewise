@@ -7,7 +7,7 @@
  * that can't be read is a note, not a stop. readUnit is the mirror operation for drill: the ledger stores a
  * unit (path + kind + lines), not the source text itself, so the code may have moved since the parent run.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import type { Item, Resolved, Resolver, UnitRef } from '../contract/layers.ts';
 import { expandGlob, MAX_FILES } from './glob.ts';
@@ -34,9 +34,15 @@ function readFiles(root: string, spec: string, notes: string[]): Resolved[] {
   if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
   const out: Resolved[] = [];
   for (const rel of files) {
+    const full = path.join(root, rel);
     let text: string;
     try {
-      text = readFileSync(path.join(root, rel), 'utf8');
+      // Defense in depth, mirroring code.ts/git.ts: expandGlob's own walk never follows a symlink, but a
+      // symlinked directory named in the pattern's static prefix (its first, wildcard-free segment) is
+      // handed straight to readdirSync, which does follow it. Resolve symlinks on both sides and treat an
+      // escape the same as any other unreadable file, below.
+      if (isOutside(path.relative(realpathSync(root), realpathSync(full)))) throw new Error('outside');
+      text = readFileSync(full, 'utf8');
     } catch {
       // The directory walk (expandGlob) and this read aren't atomic: the file may have vanished, or become
       // unreadable, in between. Either way, that one file contributes nothing rather than failing the sweep.
@@ -86,9 +92,13 @@ export function createCodeResolver(root: string, notes: string[]): Resolver {
 export function readUnit(root: string, unit: UnitRef): UnitReadResult {
   const full = path.resolve(root, unit.path);
   const rel = path.relative(root, full);
-  if (isOutside(rel)) return { ok: false, error: `"${unit.path}" is outside the project` };
+  const outside: UnitReadResult = { ok: false, error: `"${unit.path}" is outside the project` };
+  if (isOutside(rel)) return outside;
   let text: string;
   try {
+    // Resolve symlinks on both sides, like code.ts/git.ts: a link inside the project that points outside it
+    // is still outside. A dangling link throws here too, and falls through to the same "cannot read" below.
+    if (isOutside(path.relative(realpathSync(root), realpathSync(full)))) return outside;
     text = readFileSync(full, 'utf8');
   } catch {
     return { ok: false, error: `cannot read "${unit.path}"` };

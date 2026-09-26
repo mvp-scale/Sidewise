@@ -1,5 +1,6 @@
 // Code units: the resolver scan (file → function → call) and drill (a stored unit → its calls) share.
-import { readFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { expand } from '../../src/contract/layers.ts';
@@ -47,15 +48,39 @@ describe('createCodeResolver', () => {
     ]);
   });
 
-  it('a file matching the pattern that can\'t be read is skipped, with a note; the rest still resolve', () => {
+  it.skipIf(process.getuid?.() === 0)('a file matching the pattern that can\'t be read is skipped, with a note; the rest still resolve', () => {
     const { root } = tempProject({ 'src/a.ts': 'export function f() {}\n', 'src/b.ts': 'export function g() {}\n' });
-    rmSync(path.join(root, 'src/b.ts')); // the race: expandGlob's own walk can't list a file gone by read time
+    const bPath = path.join(root, 'src/b.ts');
+    chmodSync(bPath, 0o000); // real EACCES on read, with expandGlob's own walk still listing the file
+    try {
+      const notes: string[] = [];
+      const { items } = expand({ file: 'src/*.ts' }, { resolve: createCodeResolver(root, notes) });
+      expect(items.map((i) => i.id)).toEqual(['src/a.ts']);
+      expect(notes).toEqual(['src/b.ts: could not read, skipped']);
+    } finally {
+      chmodSync(bPath, 0o644);
+    }
+  });
+
+  it('a symlinked directory named in the pattern is not read, even though the walk itself follows it', (ctx) => {
+    // expandGlob's own Dirent-type check skips a symlink found *while walking* a real directory (proven by
+    // glob.test.ts's "never follows a symlink out of the project"). But when the symlink is itself the
+    // pattern's static prefix (no wildcard before it), it's handed straight to readdirSync, which — unlike
+    // a Dirent check on an entry — does follow it when opening a path. This is the second-order gap the
+    // read-time realpath guard in readFiles defends against.
+    const { root } = tempProject({ 'src/a.ts': 'export function f() {}\n' });
+    const outside = mkdtempSync(path.join(os.tmpdir(), 'sidewise-outside-'));
+    writeFileSync(path.join(outside, 'secret.ts'), 'TOP SECRET\n');
+    try {
+      symlinkSync(outside, path.join(root, 'linked'));
+    } catch {
+      ctx.skip(); // no symlink support here
+      return;
+    }
     const notes: string[] = [];
-    const { items } = expand({ file: 'src/*.ts' }, { resolve: createCodeResolver(root, notes) });
-    expect(items.map((i) => i.id)).toEqual(['src/a.ts']);
-    // (this exercises the same "unreadable" path createCodeResolver must handle for a file the glob DID still
-    // list — e.g. a permission change mid-walk. The implementer may instead spy on readFileSync to force one
-    // ENOENT while expandGlob still reports the file, if that's more direct than racing the real filesystem.)
+    const { items } = expand({ file: 'linked/*.ts' }, { resolve: createCodeResolver(root, notes) });
+    expect(items).toEqual([]);
+    expect(notes).toEqual(['linked/secret.ts: could not read, skipped']);
   });
 });
 
@@ -76,5 +101,35 @@ describe('readUnit', () => {
     expect(readUnit(root, { path: 'src/gone.ts', kind: 'file', name: 'src/gone.ts', lines: '1-1' })).toEqual({ ok: false, error: 'cannot read "src/gone.ts"' });
     expect(readUnit(root, { path: 'src/a.ts', kind: 'function', name: 'f', lines: '5-9' })).toEqual({ ok: false, error: '"src/a.ts:5-9" is past the end of the file now' });
     expect(readUnit(root, { path: '../outside.ts', kind: 'file', name: 'x', lines: '1-1' })).toEqual({ ok: false, error: '"../outside.ts" is outside the project' });
+  });
+
+  it('a symlink inside the project pointing outside it: the outside error, not the outside file\'s contents', (ctx) => {
+    const { root } = tempProject({ 'src/a.ts': 'x\n' });
+    const outside = mkdtempSync(path.join(os.tmpdir(), 'sidewise-outside-'));
+    writeFileSync(path.join(outside, 'secret.ts'), 'TOP SECRET\n');
+    try {
+      symlinkSync(path.join(outside, 'secret.ts'), path.join(root, 'src', 'link.ts'));
+    } catch {
+      ctx.skip(); // no symlink support here
+      return;
+    }
+    expect(readUnit(root, { path: 'src/link.ts', kind: 'file', name: 'src/link.ts', lines: '1-1' })).toEqual({
+      ok: false,
+      error: '"src/link.ts" is outside the project',
+    });
+  });
+
+  it('a dangling symlink: the unreadable error, not a throw', (ctx) => {
+    const { root } = tempProject({ 'src/a.ts': 'x\n' });
+    try {
+      symlinkSync(path.join(root, 'src', 'never-existed.ts'), path.join(root, 'src', 'dangling.ts'));
+    } catch {
+      ctx.skip(); // no symlink support here
+      return;
+    }
+    expect(readUnit(root, { path: 'src/dangling.ts', kind: 'file', name: 'src/dangling.ts', lines: '1-1' })).toEqual({
+      ok: false,
+      error: 'cannot read "src/dangling.ts"',
+    });
   });
 });
