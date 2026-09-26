@@ -1,7 +1,7 @@
 /**
- * The ≤ 6-line answer: header (consensus, lean, fake label) · evidence (which slots) · other primitives ·
- * guidance (templated evidence, never an order) · next · notes (budget first). Its wording is a contract
- * pinned by test/golden/answer.test.ts.
+ * The ≤ 6-line answer: header (consensus, lean, fake label) · evidence (which slots, clipped to 120) · other
+ * primitives (clipped to 120) · guidance (templated evidence, never an order) · next · notes (budget first, clipped
+ * to 160). Its wording is a contract pinned by test/golden/answer.test.ts. Total bytes must stay ≤ 600.
  */
 import type { ConsensusResult } from './consensus.ts';
 import type { Level, Verb } from './request.ts';
@@ -67,6 +67,6 @@ export function formatAnswer(a: AnswerInput): string {
   lines.push(`guidance: ${guidance(r, a.focus, a.escalate)}`);
   lines.push(`next: sidewise outcome ${a.id} held|overruled|failed --by <actor>`);
   const tail = [a.budget, ...a.notes].filter(Boolean).join('; ');
-  if (tail) lines.push(`notes: ${clip(tail, 120)}`);
+  if (tail) lines.push(`notes: ${clip(tail, 160)}`);
   return lines.join('\n');
 }
