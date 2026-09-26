@@ -44,17 +44,26 @@ function staticPrefix(pattern: string): string {
   return fixed.join('/');
 }
 
-/** Files under root matching the pattern, sorted, at most MAX_FILES. */
+/** Files under root matching the pattern, sorted, at most MAX_FILES. A pattern with a `..` segment or an
+ * absolute path is rejected outright (no files, not truncated); `walk` also refuses to read outside root,
+ * as defense in depth, though `rel` is built only from real directory entries and should never leave it. */
 export function expandGlob(root: string, pattern: string): { files: string[]; truncated: boolean } {
   const clean = pattern.replace(/^\.\//u, '');
+  if (path.isAbsolute(clean) || clean.split('/').includes('..')) return { files: [], truncated: false };
   const re = globToRegExp(clean);
   const files: string[] = [];
   let truncated = false;
+  const rootResolved = path.resolve(root);
   const walk = (rel: string): void => {
+    const dir = path.resolve(root, rel);
+    if (dir !== rootResolved && !dir.startsWith(rootResolved + path.sep)) return;
     let entries;
     try {
-      entries = readdirSync(path.join(root, rel), { withFileTypes: true });
+      entries = readdirSync(dir, { withFileTypes: true });
     } catch {
+      // Intentionally swallowed: a pattern's static prefix may not exist (e.g. "nope/*.ts"), or a
+      // directory may be unreadable or removed mid-walk. Either way, that subtree contributes no files
+      // rather than failing the whole expansion.
       return;
     }
     for (const e of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {

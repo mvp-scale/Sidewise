@@ -1,5 +1,5 @@
 // File patterns: *, **, ?, {a,b}; relative to the project; no symlinks, no generated folders; capped.
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -50,5 +50,20 @@ describe('expandGlob', () => {
     const r = expandGlob(root, 'many/*.ts');
     expect(r.files).toHaveLength(500);
     expect(r.truncated).toBe(true);
+  });
+
+  it('rejects a pattern that tries to escape the project root, even when a matching file really exists there', () => {
+    const { root } = tempProject({ 'src/a.ts': '' });
+    // '../x/*.ts' and 'src/../../x/*.ts' both resolve to the same sibling of root: root's parent + '/x'.
+    const outside = path.join(path.dirname(root), 'x');
+    mkdirSync(outside, { recursive: true });
+    writeFileSync(path.join(outside, 'secret.ts'), 'x');
+    try {
+      expect(expandGlob(root, '../x/*.ts')).toEqual({ files: [], truncated: false });
+      expect(expandGlob(root, 'src/../../x/*.ts')).toEqual({ files: [], truncated: false });
+      expect(expandGlob(root, path.join(outside, '*.ts'))).toEqual({ files: [], truncated: false });
+    } finally {
+      rmSync(outside, { recursive: true, force: true });
+    }
   });
 });

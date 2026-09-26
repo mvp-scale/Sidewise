@@ -53,4 +53,15 @@ describe('splitCalls', () => {
     const lo = splitFunctions(SRC).find((u) => u.name === 'OrderService.listOrders')!;
     expect(splitCalls(lo.text).map((c) => c.name)).toEqual(['this.db.all', 'log', 'this.cache.get']);
   });
+
+  it('a long dotted chain with no calls does not blow up: one real call still found, quickly', () => {
+    const chain = Array.from({ length: 10_000 }, (_, i) => `p${String(i).padStart(5, '0')}`).join('.');
+    expect(chain.length).toBeGreaterThan(60_000);
+    const src = `function f() {\n  ${chain};\n  real();\n}\n`;
+    const started = performance.now();
+    const calls = splitCalls(src);
+    const elapsed = performance.now() - started;
+    expect(calls.map((c) => c.name)).toEqual(['real']);
+    expect(elapsed).toBeLessThan(1000);
+  });
 });

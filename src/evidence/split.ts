@@ -245,26 +245,102 @@ function expressionOrBlock(masked: string, from: number): number {
   return masked[k] === '{' ? matching(masked, k) : expressionEnd(masked, k);
 }
 
-const CALL = /([A-Za-z_$][\w$]*(?:\s*\??\.\s*[A-Za-z_$][\w$]*)*)\s*(?:<[^<>()]*>)?\s*\(/gu;
 const NOT_CALLS = new Set(['if', 'for', 'while', 'switch', 'catch', 'function', 'return', 'typeof', 'super', 'import', 'await', 'new', 'yield', 'void', 'delete', 'in', 'of', 'with']);
+
+const isIdentStart = (c: string | undefined): boolean => c !== undefined && /[A-Za-z_$]/u.test(c);
+const isIdentPart = (c: string | undefined): boolean => c !== undefined && /[\w$]/u.test(c);
+const isSpace = (c: string | undefined): boolean => c !== undefined && /\s/u.test(c);
+
+/** End index (exclusive) of the identifier starting at `at` (masked[at] must be an identifier-start char). */
+function identEnd(masked: string, at: number): number {
+  let k = at + 1;
+  while (isIdentPart(masked[k])) k += 1;
+  return k;
+}
+
+/** First index at or after `at` that isn't whitespace. */
+function skipSpace(masked: string, at: number): number {
+  let k = at;
+  while (isSpace(masked[k])) k += 1;
+  return k;
+}
+
+/** If a clean `<...>` generic-argument list (no nested <, >, ( or )) starts at `at`, the index right after
+ * its closing `>`; else -1. Mirrors the old CALL regex's `(?:<[^<>()]*>)?`. */
+function genericsEnd(masked: string, at: number): number {
+  if (masked[at] !== '<') return -1;
+  let k = at + 1;
+  while (k < masked.length && !'<>()'.includes(masked[k]!)) k += 1;
+  return masked[k] === '>' ? k + 1 : -1;
+}
+
+/**
+ * From a chain start, the longest `IDENT(.IDENT)*` prefix immediately followed (past optional whitespace
+ * and an optional `<...>` generic list) by `(`, or null if no prefix qualifies. A single forward pass
+ * builds the segment boundaries once, then the (much shorter) backtrack over those boundaries checks for
+ * a trailing call — replacing a regex whose equivalent backtracking was over characters, not segments,
+ * and went quadratic on a long call-less dotted chain.
+ */
+function chainCall(masked: string, start: number): { nameEnd: number; openParen: number } | null {
+  const ends: number[] = [identEnd(masked, start)];
+  let k = ends[0]!;
+  for (;;) {
+    const j = skipSpace(masked, k);
+    let dot = -1;
+    if (masked[j] === '?' && masked[j + 1] === '.') dot = j + 2;
+    else if (masked[j] === '.') dot = j + 1;
+    if (dot < 0) break;
+    const afterDot = skipSpace(masked, dot);
+    if (!isIdentStart(masked[afterDot])) break;
+    k = identEnd(masked, afterDot);
+    ends.push(k);
+  }
+  for (let idx = ends.length - 1; idx >= 0; idx--) {
+    const end = ends[idx]!;
+    let j = skipSpace(masked, end);
+    const afterGenerics = genericsEnd(masked, j);
+    if (afterGenerics >= 0) j = skipSpace(masked, afterGenerics);
+    if (masked[j] === '(') return { nameEnd: end, openParen: j };
+  }
+  return null;
+}
 
 /** The calls inside one function's source, in order; each unit is the line(s) the call sits on. */
 export function splitCalls(fnSrc: string): Unit[] {
   const masked = maskCode(fnSrc);
   const bodyOpen = masked.indexOf('{');
   const units: Unit[] = [];
-  for (const hit of masked.matchAll(CALL)) {
-    if (hit.index <= bodyOpen) continue;
-    const before = masked[hit.index - 1];
-    if (before !== undefined && /[\w$.]/u.test(before)) continue;
-    const name = hit[1]!.replace(/\s+/gu, '');
-    if (NOT_CALLS.has(name.split(/\??\./u)[0]!)) continue;
-    const open = hit.index + hit[0].length - 1;
-    const close = matching(masked, open);
-    const end = close < 0 ? open : close;
-    const lineStart = fnSrc.lastIndexOf('\n', hit.index) + 1;
-    const lineEnd = fnSrc.indexOf('\n', end);
-    units.push({ name, start: lineAt(fnSrc, hit.index), end: lineAt(fnSrc, end), text: fnSrc.slice(lineStart, lineEnd < 0 ? fnSrc.length : lineEnd) });
+  const n = masked.length;
+  let i = 0;
+  while (i < n) {
+    if (!isIdentStart(masked[i])) {
+      i += 1;
+      continue;
+    }
+    const prev = i > 0 ? masked[i - 1] : undefined;
+    if (prev !== undefined && /[\w$.]/u.test(prev)) {
+      // Not a legal chain start (mid-identifier, or right after a dot): skip just this identifier. Every
+      // interior identifier of a chain is reached this way, in one pass, instead of being re-tried as its
+      // own chain start.
+      i = identEnd(masked, i);
+      continue;
+    }
+    const hit = chainCall(masked, i);
+    if (!hit) {
+      i = identEnd(masked, i);
+      continue;
+    }
+    if (i > bodyOpen) {
+      const name = masked.slice(i, hit.nameEnd).replace(/\s+/gu, '');
+      if (!NOT_CALLS.has(name.split(/\??\./u)[0]!)) {
+        const close = matching(masked, hit.openParen);
+        const end = close < 0 ? hit.openParen : close;
+        const lineStart = fnSrc.lastIndexOf('\n', i) + 1;
+        const lineEnd = fnSrc.indexOf('\n', end);
+        units.push({ name, start: lineAt(fnSrc, i), end: lineAt(fnSrc, end), text: fnSrc.slice(lineStart, lineEnd < 0 ? fnSrc.length : lineEnd) });
+      }
+    }
+    i = hit.openParen + 1;
   }
   return dedupe(units);
 }
