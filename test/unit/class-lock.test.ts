@@ -17,12 +17,13 @@ const holdLock = (paths: SidewisePaths): void => {
 };
 
 // appendRun takes the lock after recordSpend releases it; grab it in between to hit the ledger path.
+const hold = vi.hoisted(() => ({ ledger: false }));
 vi.mock('../../src/ledger/log.ts', async (importOriginal) => {
   const real = await importOriginal<typeof import('../../src/ledger/log.ts')>();
   return {
     ...real,
     appendRun: (paths: SidewisePaths, ...rest: [never, number?]) => {
-      if (process.env.SIDEWISE_TEST_HOLD_LEDGER === '1') holdLock(paths);
+      if (hold.ledger) holdLock(paths);
       return real.appendRun(paths, ...rest);
     },
   };
@@ -41,12 +42,12 @@ describe('class under a held lock', () => {
 
   it('lock held when logging the run: exit 1, counted, nothing logged', async () => {
     const { paths } = tempProject();
-    process.env.SIDEWISE_TEST_HOLD_LEDGER = '1';
+    hold.ledger = true;
     try {
       const r = await runClass(classRequest(), { paths, provider: stubProvider(), env: {} });
       expect(r).toEqual({ exit: 1, text: '✖ lock: .sidewise/lock is locked → wait for the other run, or delete the lock file if no run is active (the call was counted against the budget)' });
     } finally {
-      delete process.env.SIDEWISE_TEST_HOLD_LEDGER;
+      hold.ledger = false;
     }
     expect(loadBudget(paths).state.runs).toBe(1);
     expect(readLedger(paths)).toEqual([]);
