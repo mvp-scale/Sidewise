@@ -16,6 +16,9 @@ type Spawn = typeof spawnSync;
 
 const FATAL = /fatal: (invalid object name|Path .* does not exist)/u;
 
+/** Decision 2: change reads whole files, never line ranges. Exported so change.ts can dedupe it across the two states. */
+export const WHOLE_FILE_NOTE = 'reading whole files: line ranges may not match the parent run';
+
 /** A string git would read as an option, not a ref: it must never be handed to git. */
 export const isGitOption = (ref: string): boolean => ref.startsWith('-');
 
@@ -113,6 +116,6 @@ export function readGitEvidence(root: string, ref: string, field: 'before' | 'af
   }
 
   if (errors.length) return { ok: false, errors };
-  if (read) notes.push('reading whole files: line ranges may not match the parent run');
+  if (read) notes.push(WHOLE_FILE_NOTE);
   return { ok: true, files, notes };
 }

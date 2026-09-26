@@ -1,4 +1,5 @@
 /** A throwaway project folder with source files and its own .sidewise ledger. */
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -14,4 +15,20 @@ export function tempProject(files: Record<string, string> = { 'src/user.ts': USE
     writeFileSync(full, text);
   }
   return { root, paths: pathsFor(root) };
+}
+
+/** git init, with a throwaway local identity so `gitCommit` works even with no global git config. For change's git-ref tests; callers skip when `hasGit()` is false. */
+export function gitInit(root: string): void {
+  spawnSync('git', ['init', '-q'], { cwd: root, stdio: 'ignore' });
+  spawnSync('git', ['config', 'user.email', 'sidewise-test@example.com'], { cwd: root, stdio: 'ignore' });
+  spawnSync('git', ['config', 'user.name', 'sidewise-test'], { cwd: root, stdio: 'ignore' });
+  spawnSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: root, stdio: 'ignore' });
+}
+
+/** Stages everything and commits; returns the new commit's full hash, usable directly as a `compare` ref. */
+export function gitCommit(root: string, message = 'wip'): string {
+  spawnSync('git', ['add', '-A'], { cwd: root, stdio: 'ignore' });
+  spawnSync('git', ['commit', '-q', '-m', message], { cwd: root, stdio: 'ignore' });
+  const rev = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  return rev.stdout.trim();
 }

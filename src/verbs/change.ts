@@ -8,7 +8,7 @@
 import { combine, gradeSubject, goalGate, type Mark } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions, type AskedQuestion } from '../contract/translate.ts';
 import type { Answer } from '../contract/types.ts';
-import { readGitEvidence } from '../evidence/git.ts';
+import { readGitEvidence, WHOLE_FILE_NOTE } from '../evidence/git.ts';
 import { findRun, isContractRun, type NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type Reusable } from '../ledger/reuse.ts';
@@ -50,7 +50,8 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   if (parent.items !== null) return { exit: 2, text: `✖ side.parent: ${parent.id} was a sweep → run the sweep again (unchanged items are reused for free)` };
 
   const categories = parent.ask.categories;
-  const paths = parent.where.map((w) => w.split(':')[0]!);
+  // Two ranges on one file (parent.where can hold both) must read and charge it once, not once per range.
+  const paths = [...new Set(parent.where.map((w) => w.split(':')[0]!))];
 
   if (ctx.dryRun) {
     const n = categories.flatMap((c) => c.questions).length;
@@ -129,12 +130,21 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
 
   const gate = regressed.length > 0 ? 'fail' : combine([goal.gate, ...afterCatsGrade.categories.map((c) => c.gate)]);
 
+  // Both states can add WHOLE_FILE_NOTE (once per call, per git.ts); shown once here, since it's one fact about the run.
+  let sawWholeFileNote = false;
+  const evidenceNotes = [...before.notes, ...after.notes].filter((n) => {
+    if (n !== WHOLE_FILE_NOTE) return true;
+    if (sawWholeFileNote) return false;
+    sawWholeFileNote = true;
+    return true;
+  });
+
   const response = (id: string, budget: string): string =>
     respondText(
       m(['id', id], ['gate', gate], ['goal', m(['gate', goal.gate], ['p', goal.p])], ...catEntries, ['regressed', regressed]),
       wiseRecorded(request.wise, ['parent']),
       outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
-      commonNotes([...loaded.notes, ...before.notes, ...after.notes], `2 states · ${budget}`),
+      commonNotes([...loaded.notes, ...evidenceNotes], `2 states · ${budget}`),
     );
 
   const run: NewContractRun = {
