@@ -65,6 +65,24 @@ describe('lock', () => {
     utimesSync(paths.lock, old, old);
     expect(withLock(paths.lock, () => 42, { timeoutMs: 100, staleMs: 30_000 })).toBe(42);
   });
+
+  it('clears a stale lock recorded against a pid that is no longer alive', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.lock, '2147483646\n'); // large unused pid: not alive
+    const old = new Date(Date.now() - 120_000);
+    utimesSync(paths.lock, old, old);
+    expect(withLock(paths.lock, () => 42, { timeoutMs: 100, staleMs: 30_000 })).toBe(42);
+  });
+
+  it('does not reclaim an old lock whose recorded pid is still alive', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.lock, `${process.pid}\n`); // this test process: definitely alive
+    const old = new Date(Date.now() - 120_000);
+    utimesSync(paths.lock, old, old);
+    expect(() => withLock(paths.lock, () => 1, { timeoutMs: 100, staleMs: 30_000 })).toThrow(/is locked → wait for the other run/);
+  });
 });
 
 describe('log', () => {
@@ -100,6 +118,14 @@ describe('log', () => {
     appendOutcome(paths, 'SW-0001', 'overruled', 'reviewer');
     appendOutcome(paths, 'SW-0001', 'held', 'owner');
     expect(latestOutcome(readLedger(paths), 'SW-0001')).toBe('held');
+  });
+
+  it('redacts secrets in the by field before writing an outcome', () => {
+    const { paths } = tempProject({});
+    appendRun(paths, sampleRun({ actor: 'reviewer' }));
+    appendOutcome(paths, 'SW-0001', 'held', `owner ${GH_TOKEN}`);
+    expect(readFileSync(paths.log, 'utf8')).not.toContain(GH_TOKEN);
+    expect(readLedger(paths).find((r) => r.kind === 'outcome')).toMatchObject({ by: 'owner [redacted]' });
   });
 
   it('gives unique sequential ids when 4 processes append at once', async () => {

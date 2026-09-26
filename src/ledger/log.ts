@@ -10,7 +10,7 @@ import type { Level, Place, Verb } from '../lens/request.ts';
 import { formatRunId, ulid } from './ids.ts';
 import { withLock } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
-import { redactDeep } from './redact.ts';
+import { redact, redactDeep } from './redact.ts';
 
 export type Outcome = 'held' | 'overruled' | 'failed';
 
@@ -114,7 +114,7 @@ export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome
     if (outcome === 'held' && by === run.actor) {
       throw new LedgerError(`✖ outcome: ${by} asked ${of}, so it can't mark it held → another agent or the owner records "held"`);
     }
-    const record: OutcomeRecord = { kind: 'outcome', id: `${of}-outcome`, uid: ulid(now), ts: iso(now), of, outcome, by };
+    const record: OutcomeRecord = { kind: 'outcome', id: `${of}-outcome`, uid: ulid(now), ts: iso(now), of, outcome, by: redact(by) };
     appendLine(paths, record);
     return record;
   });
