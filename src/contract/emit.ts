@@ -14,7 +14,7 @@ const RESERVED = /^(?:true|false|null|~|yes|no|on|off|y|n)$/iu;
 /** Strings the YAML 1.2 core schema would read as a number. */
 const NUMBER_LIKE = /^(?:[-+]?(?:\d+|\d*\.\d+|\d+\.\d*)(?:[eE][-+]?\d+)?|0x[0-9a-fA-F]+|0o[0-7]+|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/u;
 const INDICATOR = /^[-?:,[\]{}#&*!|>'"%@`]/u;
-const BLOCK_TOP = new Set(['side', 'plan']);
+const BLOCK_TOP = new Set(['side', 'plan', 'doctor']);
 
 /** A string as a plain scalar when that is safe in this context, else double-quoted (JSON is valid YAML). */
 export function scalar(s: string, flow: boolean): string {

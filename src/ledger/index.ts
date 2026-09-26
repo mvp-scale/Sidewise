@@ -492,6 +492,12 @@ function getSqliteCtor(): DatabaseSyncCtor | null {
   return sqliteCtor;
 }
 
+/** True when node:sqlite is available in this runtime (Node ≥ 22.13); false when every ledger read/write here
+ *  uses the always-correct linear fallback instead (`sidewise doctor`, P5, reports this). */
+export function sqliteAvailable(): boolean {
+  return getSqliteCtor() !== null;
+}
+
 function getMeta(db: SqliteDb, key: string): string | undefined {
   const row = db.prepare('SELECT value FROM meta WHERE key = ?').get(key);
   return row ? String(row.value) : undefined;

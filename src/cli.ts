@@ -18,6 +18,7 @@ import { resolvePaths, type SidewisePaths } from './ledger/paths.ts';
 import type { Level } from './lens/request.ts';
 import { runChange } from './verbs/change.ts';
 import { runClass } from './verbs/class.ts';
+import { runDoctor } from './verbs/doctor.ts';
 import { runDrill } from './verbs/drill.ts';
 import { runLoop } from './verbs/loop.ts';
 import { runScan } from './verbs/scan.ts';
@@ -42,6 +43,7 @@ const LINES = {
   template: 'sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]',
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
+  doctor: 'sidewise doctor',
 } as const;
 type Command = keyof typeof LINES;
 const USAGE = `usage:\n${Object.values(LINES).map((l) => `  ${l}`).join('\n')}`;
@@ -154,7 +156,7 @@ async function main(argv: string[]): Promise<void> {
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome or budget (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget or doctor (sidewise --help)`);
   }
 
   // template needs no project to run: it never spends and never writes. When --parent is given, it still tries
@@ -170,6 +172,15 @@ async function main(argv: string[]): Promise<void> {
     });
     positionalCount('template', positionals, 1, 1);
     const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from }, resolvePaths());
+    return finish(r.exit, r.text);
+  }
+
+  // doctor (P5) needs no project either: it reports whether one is found rather than insisting on one, and it
+  // never spends or writes — free, so it never has to wait for preflight's own project/budget/ledger checks.
+  if (command === 'doctor') {
+    const { positionals } = args('doctor', { args: rest, allowPositionals: true, options: {} });
+    positionalCount('doctor', positionals, 0, 0);
+    const r = runDoctor(process.env, resolvePaths());
     return finish(r.exit, r.text);
   }
 
