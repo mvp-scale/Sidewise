@@ -50,6 +50,7 @@
     "test:install": "npm run build && vitest run --project install",
     "test:chaos": "npm run build && tsx test/chaos/run.ts",
     "test:container": "sh docker/test.sh",
+    "test:flows": "sh scripts/flows.sh",
     "bench:ledger": "tsx scripts/bench-ledger.ts",
     "bench:tokens": "tsx scripts/bench-tokens.ts",
     "sidewise": "tsx src/cli.ts",
