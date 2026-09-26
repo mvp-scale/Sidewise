@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { appendOutcome, appendRun } from '../../src/ledger/log.ts';
+import { runClass } from '../../src/verbs/class.ts';
 import { runView } from '../../src/verbs/view.ts';
+import { stubProvider } from '../helpers/stub-provider.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleRun } from '../helpers/runs.ts';
 
@@ -14,7 +16,7 @@ describe('view', () => {
     appendRun(paths, sampleRun({ focus: 'third' }), at(22));
     appendOutcome(paths, 'SW-0001', 'held', 'owner');
     appendOutcome(paths, 'SW-0003', 'overruled', 'owner');
-    expect(runView('src/api', 1, paths)).toEqual({
+    expect(runView('src/api', 1, { paths, env: {} })).toEqual({
       exit: 0,
       text: [
         'sidewise view src/api · 2 runs · held 1 · overruled 1 · failed 0 · open 0',
@@ -22,39 +24,39 @@ describe('view', () => {
         'SW-0001 2026-09-20 class L1 STRONG concern "first" · held',
       ].join('\n'),
     });
-    expect(runView('./src/', 1, paths).text.split('\n')[0]).toBe('sidewise view src · 3 runs · held 1 · overruled 1 · failed 0 · open 1');
-    expect(runView('perf', 1, paths).text).toContain('SW-0002 2026-09-21 class L1 STRONG concern "second" · open');
+    expect(runView('./src/', 1, { paths, env: {} }).text.split('\n')[0]).toBe('sidewise view src · 3 runs · held 1 · overruled 1 · failed 0 · open 1');
+    expect(runView('perf', 1, { paths, env: {} }).text).toContain('SW-0002 2026-09-21 class L1 STRONG concern "second" · open');
   });
 
-  it('labels fake runs and counts them apart from outcomes', () => {
+  it('labels rehearsal runs (fake, chaos) and counts them apart from outcomes', () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun({ focus: 'real' }), at(20));
     appendRun(paths, sampleRun({ focus: 'rehearsal', adapter: 'fake' }), at(21));
     appendRun(paths, sampleRun({ focus: 'rehearsal two', adapter: 'fake' }), at(22));
     appendOutcome(paths, 'SW-0002', 'held', 'owner');
-    expect(runView('src', 1, paths).text).toBe(
+    expect(runView('src', 1, { paths, env: {} }).text).toBe(
       [
-        'sidewise view src · 3 runs · held 0 · overruled 0 · failed 0 · open 1 · fake 2',
-        'SW-0003 2026-09-22 class L1 STRONG concern "rehearsal two" · open · fake',
-        'SW-0002 2026-09-21 class L1 STRONG concern "rehearsal" · held · fake',
+        'sidewise view src · 3 runs · held 0 · overruled 0 · failed 0 · open 1 · rehearsal 2',
+        'SW-0003 2026-09-22 class L1 STRONG concern "rehearsal two" · open · rehearsal',
+        'SW-0002 2026-09-21 class L1 STRONG concern "rehearsal" · held · rehearsal',
         'SW-0001 2026-09-20 class L1 STRONG concern "real" · open',
       ].join('\n'),
     );
-    expect(runView('SW-0002', 1, paths).text.split('\n')[1]).toBe('▶ SW-0002 2026-09-21 class L1 STRONG concern "rehearsal" · held · fake');
+    expect(runView('SW-0002', 1, { paths, env: {} }).text.split('\n')[1]).toBe('▶ SW-0002 2026-09-21 class L1 STRONG concern "rehearsal" · held · rehearsal');
   });
 
   it('an empty place says how to start', () => {
     const { paths } = tempProject({});
-    expect(runView('docs', 1, paths)).toEqual({ exit: 0, text: 'sidewise view docs · no runs yet → "sidewise class <request>" starts one' });
+    expect(runView('docs', 1, { paths, env: {} })).toEqual({ exit: 0, text: 'sidewise view docs · no runs yet → "sidewise class <request>" starts one' });
   });
 
   it('shows 10 runs at L1 and says how many are older', () => {
     const { paths } = tempProject({});
     for (let i = 0; i < 12; i++) appendRun(paths, sampleRun({ focus: `run ${i}` }));
-    const lines = runView('src', 1, paths).text.split('\n');
+    const lines = runView('src', 1, { paths, env: {} }).text.split('\n');
     expect(lines).toHaveLength(12);
     expect(lines[11]).toBe('… 2 older → raise the level to see more');
-    expect(runView('src', 2, paths).text.split('\n')).toHaveLength(13);
+    expect(runView('src', 2, { paths, env: {} }).text.split('\n')).toHaveLength(13);
   });
 
   it('a run id shows its lineage up and down', () => {
@@ -62,7 +64,7 @@ describe('view', () => {
     appendRun(paths, sampleRun({ focus: 'root' }), at(20));
     appendRun(paths, sampleRun({ focus: 'child', parent: 'SW-0001' }), at(21));
     appendRun(paths, sampleRun({ focus: 'grandchild', parent: 'SW-0002' }), at(22));
-    expect(runView('SW-0002', 1, paths).text).toBe(
+    expect(runView('SW-0002', 1, { paths, env: {} }).text).toBe(
       [
         'sidewise view SW-0002 · lineage 1 up · 1 down',
         '↑ SW-0001 2026-09-20 class L1 STRONG concern "root" · open',
@@ -74,6 +76,31 @@ describe('view', () => {
 
   it('an unknown id exits 2 with a fix', () => {
     const { paths } = tempProject({});
-    expect(runView('SW-0099', 1, paths)).toEqual({ exit: 2, text: '✖ view: SW-0099 is not in the ledger → "sidewise view <folder>" lists recent runs' });
+    expect(runView('SW-0099', 1, { paths, env: {} })).toEqual({ exit: 2, text: '✖ view: SW-0099 is not in the ledger → "sidewise view <folder>" lists recent runs' });
+  });
+});
+
+describe('view: request mode', () => {
+  it('the contract example, no history: runs 0, next class, free', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
+    const text = 'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n';
+    const r = runView(text, 1, { paths, env: {} });
+    expect(r.exit).toBe(0);
+    expect(r.text).toBe(
+      ['side:', '  view: src/user.ts:1-3', '  runs: 0', '  categories:', '    injection: {runs: 0}', 'wise: {recorded: none}', 'next: sidewise class', 'notes: [free]'].join('\n') + '\n',
+    );
+  });
+
+  it('with history: per-category counts, and reuse when the exact question set was asked before', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
+    // First: a real class run on this file with this exact category (Task 15's runClass), so it lands in the ledger as v2.
+    await runClass(
+      'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n',
+      { paths, provider: stubProvider({ yes: () => 0.9 }), env: {} },
+    );
+    const draft = 'side:\n  goal: yes it is\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n';
+    const r = runView(draft, 1, { paths, env: {} });
+    expect(r.text).toContain('runs: 1');
+    expect(r.text).toContain('injection: {runs: 1, pass: 0, fail: 1, last: SW-0001}');
   });
 });

@@ -134,7 +134,7 @@ async function main(argv: string[]): Promise<void> {
       const { values, positionals } = args('view', { args: rest, allowPositionals: true, options: { level: { type: 'string', default: '1' } } });
       positionalCount('view', positionals, 1, 1);
       if (!['1', '2', '3'].includes(values.level)) return finish(2, `✖ --level: "${clip(values.level, 20)}" is not a level → use --level 1, 2 or 3`);
-      const r = runView(positionals[0]!, Number(values.level) as Level, paths);
+      const r = runView(positionals[0]!, Number(values.level) as Level, { paths, env: process.env });
       return finish(r.exit, r.text);
     }
     case 'outcome': {

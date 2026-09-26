@@ -1,25 +1,57 @@
 /**
- * view: "what do we already know here?" Free and read-only (no classifier, no budget). A folder or tag shows the
- * newest 10/20/30 runs with outcome counts (fake-provider runs labelled and counted apart); a run id shows its
- * lineage (parents up, children down).
- * The hot cache (Plan 2) replaces this linear read without changing the output.
+ * view: "what do we already know here?" Free and read-only (no classifier call, no budget, no ledger write).
+ * Three modes on one input string: a `side:`/JSON draft is request mode (the contract's own cache check —
+ * runs, per-category record, and `reuse` when the exact question set was asked before); otherwise the raw
+ * string is a place (a folder or tag, showing the newest 10/20/30 runs with outcome counts) or a run id
+ * (showing its lineage up and down). Rehearsal-adapter runs (fake, chaos) are labelled and counted apart.
+ * The hot cache (Plan 2) replaces the linear reads without changing the output.
  */
 import path from 'node:path';
+import { providerIdentity } from '../classifier/select.ts';
+import { isRehearsal } from '../classifier/port.ts';
+import { m, type Value } from '../contract/emit.ts';
+import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
+import { readCodeEvidence } from '../evidence/code.ts';
 import { RUN_ID } from '../ledger/ids.ts';
-import { isRun, latestOutcome, readLedger, type LedgerRecord, type RunRecord } from '../ledger/log.ts';
+import { isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type LedgerRecord, type RunRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
+import { exactReuse } from '../ledger/reuse.ts';
 import type { Level } from '../lens/request.ts';
 import { clip, hasControlChars } from '../util/text.ts';
+import { loadRequest, stopText } from './request.ts';
+import { respondText, wiseRecorded } from './respond.ts';
 import type { VerbResult } from './types.ts';
 
+/** view never spends and never picks a live provider: just enough of VerbContext to read the ledger and evidence. */
+export interface ViewContext {
+  paths: SidewisePaths;
+  env: Record<string, string | undefined>;
+}
 
-// A fake-provider run is a rehearsal, not evidence: labelled on its line and kept out of the outcome counts.
-const isFake = (r: RunRecord): boolean => r.adapter === 'fake';
+type AnyRun = RunRecord | ContractRun;
 
-function runLine(r: RunRecord, records: readonly LedgerRecord[]): string {
+const REQUEST_MODE = /^side\s*:/mu;
+
+/** Strips a trailing ":start" or ":start-end" from a `where` entry, same shape evidence/code.ts parses. */
+const stripLines = (entry: string): string => entry.replace(/:(\d+(?:-\d+)?)$/u, '');
+
+function runLine(r: AnyRun, records: readonly LedgerRecord[]): string {
   const outcome = latestOutcome(records, r.id) ?? 'open';
-  const label = isFake(r) ? ' · fake' : '';
-  return `${clip(`${r.id} ${r.ts.slice(0, 10)} ${r.verb} L${r.level} ${r.consensus} ${r.verdict} "${clip(r.focus, 48)}" · ${outcome}`, 120 - label.length)}${label}`;
+  const rehearsal = isRehearsal(r.adapter) ? ' · rehearsal' : '';
+  const line = isRun(r)
+    ? `${r.id} ${r.ts.slice(0, 10)} ${r.verb} L${r.level} ${r.consensus} ${r.verdict} "${clip(r.focus, 48)}" · ${outcome}`
+    : `${r.id} ${r.ts.slice(0, 10)} ${r.verb} ${r.depth ?? '-'} ${r.gate} "${clip(r.goal, 48)}" · ${outcome}`;
+  return `${clip(line, 120 - rehearsal.length)}${rehearsal}`;
+}
+
+const tagsMatch = (r: AnyRun, place: string): boolean => isRun(r) && r.tags.includes(place);
+
+function whereMatches(r: AnyRun, place: string): boolean {
+  if (isRun(r)) return r.where.some((w) => w.path === place || w.path.startsWith(`${place}/`));
+  return r.where.some((w) => {
+    const p = stripLines(w);
+    return p === place || p.startsWith(`${place}/`);
+  });
 }
 
 /** A folder, a tag or a path as a project-relative place; an absolute path inside the project is fine. */
@@ -31,32 +63,32 @@ function toPlace(target: string, root: string): { place: string } | { stop: stri
   return { place: rel.split(path.sep).join('/') || '.' };
 }
 
-function byPlace(place: string, runs: RunRecord[], records: readonly LedgerRecord[], limit: number): VerbResult {
-  const hits = runs.filter((r) => place === '.' || r.tags.includes(place) || r.where.some((w) => w.path === place || w.path.startsWith(`${place}/`)));
+function byPlace(place: string, runs: AnyRun[], records: readonly LedgerRecord[], limit: number): VerbResult {
+  const hits = runs.filter((r) => place === '.' || tagsMatch(r, place) || whereMatches(r, place));
   if (!hits.length) return { exit: 0, text: `sidewise view ${clip(place, 60)} · no runs yet → "sidewise class <request>" starts one` };
   const counts = { held: 0, overruled: 0, failed: 0, open: 0 };
-  let fake = 0;
+  let rehearsal = 0;
   for (const r of hits) {
-    if (isFake(r)) fake += 1;
+    if (isRehearsal(r.adapter)) rehearsal += 1;
     else counts[latestOutcome(records, r.id) ?? 'open'] += 1;
   }
-  const head = `sidewise view ${clip(place, 60)} · ${hits.length} run${hits.length === 1 ? '' : 's'} · held ${counts.held} · overruled ${counts.overruled} · failed ${counts.failed} · open ${counts.open}${fake ? ` · fake ${fake}` : ''}`;
+  const head = `sidewise view ${clip(place, 60)} · ${hits.length} run${hits.length === 1 ? '' : 's'} · held ${counts.held} · overruled ${counts.overruled} · failed ${counts.failed} · open ${counts.open}${rehearsal ? ` · rehearsal ${rehearsal}` : ''}`;
   const shown = hits.slice(-limit).reverse();
   const older = hits.length - shown.length;
   return { exit: 0, text: [head, ...shown.map((r) => runLine(r, records)), ...(older ? [`… ${older} older → raise the level to see more`] : [])].join('\n') };
 }
 
-function byId(id: string, runs: RunRecord[], records: readonly LedgerRecord[], limit: number): VerbResult {
+function byId(id: string, runs: AnyRun[], records: readonly LedgerRecord[], limit: number): VerbResult {
   const index = new Map(runs.map((r) => [r.id, r]));
   const self = index.get(id);
   if (!self) return { exit: 2, text: `✖ view: ${id} is not in the ledger → "sidewise view <folder>" lists recent runs` };
-  const up: RunRecord[] = [];
+  const up: AnyRun[] = [];
   let cursor = self.parent ? index.get(self.parent) : undefined;
   while (cursor && up.length < limit) {
     up.unshift(cursor);
     cursor = cursor.parent ? index.get(cursor.parent) : undefined;
   }
-  const down: RunRecord[] = [];
+  const down: AnyRun[] = [];
   const queue = [id];
   while (queue.length && down.length < limit) {
     const parent = queue.shift()!;
@@ -78,11 +110,67 @@ function byId(id: string, runs: RunRecord[], records: readonly LedgerRecord[], l
   };
 }
 
-export function runView(target: string, level: Level, paths: SidewisePaths): VerbResult {
-  const at = RUN_ID.test(target) ? undefined : toPlace(target, paths.root);
+/** One category's record here: `{runs: 0}` when it's never been asked, else counts and the newest run holding it. */
+function categoryEntry(name: string, runsHere: readonly ContractRun[]): [string, Value] {
+  let runs = 0;
+  let pass = 0;
+  let fail = 0;
+  let last: string | undefined;
+  for (const r of runsHere) {
+    const gate = r.categories[name];
+    if (gate === undefined) continue;
+    runs += 1;
+    if (gate === 'pass') pass += 1;
+    else if (gate === 'fail') fail += 1;
+    last = r.id; // ledger order is append order, so the last match seen is the newest
+  }
+  return [name, runs ? m(['runs', runs], ['pass', pass], ['fail', fail], ['last', last!]) : m(['runs', 0])];
+}
+
+/** Request mode: the contract's own view shape. loadRequest and readCodeEvidence stop it exactly as class does. */
+function runRequestMode(text: string, ctx: ViewContext): VerbResult {
+  const loaded = loadRequest(text, 'view');
+  if (!loaded.ok) return loaded.result;
+  const { request } = loaded;
+
+  const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
+
+  const places = request.side.where.map(stripLines);
+  const allRuns = readLedger(ctx.paths, { partialTail: true }).filter(isContractRun);
+  const runsHere = allRuns.filter((r) => places.some((place) => whereMatches(r, place)));
+
+  const categoryNames = request.side.categories.length
+    ? request.side.categories.map((c) => c.name)
+    : [...new Set(runsHere.flatMap((r) => Object.keys(r.categories)))];
+
+  let reuse: string | undefined;
+  if (request.side.categories.length > 0) {
+    const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
+    const evidenceStr = subjectEvidence(evidence.evidence.files);
+    const keys = questions.map((q) => answerKey(evidenceStr, q));
+    const who = providerIdentity(ctx.env);
+    reuse = exactReuse(ctx.paths, who, keys);
+  }
+
+  const next = reuse ? `sidewise view ${reuse}` : 'sidewise class';
+  const side = m(
+    ['view', request.side.where.join(', ')],
+    ...(reuse ? [['reuse', reuse] as [string, Value]] : []),
+    ['runs', runsHere.length],
+    ['categories', m(...categoryNames.map((name) => categoryEntry(name, runsHere)))],
+  );
+  return { exit: 0, text: respondText(side, wiseRecorded(null), next, ['free']) };
+}
+
+export function runView(input: string, level: Level, ctx: ViewContext): VerbResult {
+  const trimmed = input.trim();
+  if (REQUEST_MODE.test(trimmed) || trimmed.startsWith('{')) return runRequestMode(input, ctx);
+
+  const at = RUN_ID.test(input) ? undefined : toPlace(input, ctx.paths.root);
   if (at && 'stop' in at) return { exit: 2, text: at.stop };
-  const records = readLedger(paths, { partialTail: true }); // never blocks on, or fails over, an append in progress
-  const runs = records.filter(isRun);
+  const records = readLedger(ctx.paths, { partialTail: true }); // never blocks on, or fails over, an append in progress
+  const runs = records.filter((r): r is AnyRun => isRun(r) || isContractRun(r));
   const limit = level * 10;
-  return at ? byPlace(at.place, runs, records, limit) : byId(target, runs, records, limit);
+  return at ? byPlace(at.place, runs, records, limit) : byId(input, runs, records, limit);
 }
