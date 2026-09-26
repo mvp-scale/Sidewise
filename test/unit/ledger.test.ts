@@ -36,6 +36,28 @@ describe('redact', () => {
     expect(redact('api_key = "abcdef123456"')).toBe('api_key = [redacted]');
   });
 
+  it('hides env-style, JSON and Bearer secrets whose key only contains the keyword', () => {
+    const v = 'Zq' + '9x'.repeat(8); // 18 chars, no known token prefix
+    for (const key of ['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'GITHUB_TOKEN', 'DB_PASSWORD', 'STRIPE_SECRET_KEY']) {
+      expect(redact(`${key}=${v}`)).toBe(`${key}=[redacted]`);
+      expect(redact(`export ${key}="${v}"`)).toBe(`export ${key}=[redacted]`);
+    }
+    expect(redact(`{"apiKey": "${v}"}`)).toBe('{"apiKey": [redacted]}');
+    expect(redact(`{ "client_secret" : "${v}" }`)).toBe('{ "client_secret" : [redacted] }');
+    expect(redact(`Authorization: Bearer ${v}`)).toBe('Authorization: Bearer [redacted]');
+    expect(redact(`headers.set('authorization', 'bearer ${v}')`)).toBe(`headers.set('authorization', 'bearer [redacted]')`);
+  });
+
+  it('leaves ordinary code words alone (accepted tradeoff: a long value after a secret-ish name is redacted)', () => {
+    expect(redact('const parts = tokenize(input);')).toBe('const parts = tokenize(input);');
+    expect(redact('const secretsCount = 3;')).toBe('const secretsCount = 3;');
+    expect(redact('function checkPassword(user: User) {')).toBe('function checkPassword(user: User) {');
+    expect(redact('password: string;')).toBe('password: string;');
+    expect(redact('const bearer = header.split(" ")[1];')).toBe('const bearer = header.split(" ")[1];');
+    // The accepted over-redaction: a secret-ish name assigned from a long expression loses the expression.
+    expect(redact('const tokenCount = countTokens(input);')).toBe('const tokenCount = [redacted]');
+  });
+
   it('redactDeep walks objects and arrays and leaves non-strings alone', () => {
     expect(redactDeep({ a: [`x ${GH_TOKEN}`], n: 3, b: { c: 'dev@example.com' } })).toEqual({ a: ['x [redacted]'], n: 3, b: { c: '[redacted]' } });
   });
