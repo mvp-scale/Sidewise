@@ -13,16 +13,14 @@ import type { Value } from '../contract/emit.ts';
 import { gradeSubject } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer } from '../contract/types.ts';
-import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers } from '../ledger/reuse.ts';
 import { staleNotes } from '../ledger/stale.ts';
-import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
+import { commonNotes, consensusAndEscalate, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 const CAP_NOTE = 'would be blocked: the budget cap is already reached';
@@ -93,14 +91,8 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const keys: Record<string, string> = {};
   for (const [q, k] of keyed) keys[q.id] = k;
 
-  // Consensus: only the request's yes/no category questions (never the goal, never scale/choice).
-  const slots: SlotAnswer[] = request.side.categories
-    .filter((c) => c.questions[0]?.kind === 'yesno')
-    .flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === 'yes', p: (answers[String(q.n)] as { kind: 'yesno'; p: number }).p })));
-  const consensus = computeConsensus(slots).consensus;
-
+  const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
   const subject = gradeSubject(request.side.categories, answers);
-  const escalate = consensus !== 'STRONG' || request.side.depth === 'thorough' || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
 
   // Which prior runs this run's answers came from, when any were reused — not just that reuse happened.
   const reusedRunIds = reusedIds(reusedFrom);

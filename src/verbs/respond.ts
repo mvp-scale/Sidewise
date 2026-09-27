@@ -6,7 +6,9 @@
 import { isRehearsal } from '../classifier/port.ts';
 import { emit, m, type Value } from '../contract/emit.ts';
 import type { CategoryGrade, ItemGrade, Shown, SubjectGrade } from '../contract/grade.ts';
-import type { Category, Gate, Wise } from '../contract/types.ts';
+import type { Answer, Category, Depth, Gate, Wise } from '../contract/types.ts';
+import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
+import { computeConsensus, type Consensus, type SlotAnswer } from '../lens/consensus.ts';
 
 /** A bare number for yes/no; {top, p} for scale/choice. */
 export function shownValue(s: Shown): Value {
@@ -32,6 +34,23 @@ export function subjectSide(id: string, gate: Gate, subject: SubjectGrade, extra
  *  verb's response says which prior runs its answers came from, not just that some were reused. */
 export function reusedIds(reusedFrom: Record<string, string>): string[] {
   return [...new Set(Object.values(reusedFrom))].sort();
+}
+
+/** class and drill's one-subject shape both derive consensus and escalate the same way: consensus is the
+ *  yes/no category answers only (never the goal, never scale/choice); escalate fires on non-STRONG consensus,
+ *  `depth: thorough`, or a goal that reads as irreversible (validate.ts's own IRREVERSIBLE_NOTE). */
+export function consensusAndEscalate(
+  categories: readonly Category[],
+  answers: Record<string, Answer>,
+  depth: Depth | null | undefined,
+  notes: readonly string[],
+): { consensus: Consensus; escalate: boolean } {
+  const slots: SlotAnswer[] = categories
+    .filter((c) => c.questions[0]?.kind === 'yesno')
+    .flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === 'yes', p: (answers[String(q.n)] as { kind: 'yesno'; p: number }).p })));
+  const consensus = computeConsensus(slots).consensus;
+  const escalate = consensus !== 'STRONG' || depth === 'thorough' || notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
+  return { consensus, escalate };
 }
 
 /** `wise: {recorded: [...]}` fields, or the string "none" when nothing was recorded. */

@@ -17,18 +17,16 @@ import { goalGate, gradeItems, gradeSubject, sweepGate, worstFirst } from '../co
 import { firstStringLayer, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer, Category, Request } from '../contract/types.ts';
-import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import { createCodeResolver, readUnit } from '../evidence/units.ts';
 import { findRun, isContractRun, type ItemRecord, type NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers } from '../ledger/reuse.ts';
-import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
 import { clip } from '../util/text.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, reusedIds, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
-import { planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
+import { commonNotes, consensusAndEscalate, COST_ESTIMATED_NOTE, dryRunText, reusedIds, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 /** A sweep parent's fail/unsure next: fix the worst item, then re-run this drill — cheap, since sweep.ts
@@ -93,13 +91,8 @@ async function runOneSubjectProof(
   const keys: Record<string, string> = {};
   for (const [q, k] of keyed) keys[q.id] = k;
 
-  const slots: SlotAnswer[] = request.side.categories
-    .filter((c) => c.questions[0]?.kind === 'yesno')
-    .flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === 'yes', p: (answers[String(q.n)] as { kind: 'yesno'; p: number }).p })));
-  const consensus = computeConsensus(slots).consensus;
-
+  const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
   const subject = gradeSubject(request.side.categories, answers);
-  const escalate = consensus !== 'STRONG' || request.side.depth === 'thorough' || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
 
   const oneSubjectNext = (gate: 'pass' | 'fail' | 'unsure', id: string): string =>
     gate === 'pass' ? 'act on it' : `fix it, then sidewise change --parent ${changeParent(id)} --compare <before>..<after>`;
@@ -244,18 +237,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
 
     const calls = plan.planned.filter((p) => p.call !== null).length;
 
-    const items: Record<string, ItemRecord> = {};
-    for (const it of plan.items) {
-      const g = grades.get(it.id)!;
-      items[it.id] = {
-        layer: it.layer,
-        fill: it.fill,
-        ...(it.unit ? { unit: it.unit } : {}),
-        status: statusOf(it.id),
-        gate: g.gate,
-        categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate])),
-      };
-    }
+    const items = itemRecords(plan.items, grades);
 
     // Combines sweepNext's own never-drill-a-passing-item edge cases (goal-only-missed, everything skipped)
     // with drill's own rule: when there IS a worst item to fix, say so and re-run — never drill further.

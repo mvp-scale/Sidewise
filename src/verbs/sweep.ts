@@ -15,9 +15,9 @@ import { DEPTH_COUNT } from '../contract/types.ts';
 import type { Answer, Request, Verb } from '../contract/types.ts';
 import { expand, type ExpandOptions, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, itemQuestions, itemsState, type AskedQuestion } from '../contract/translate.ts';
-import type { ItemStatus } from '../contract/grade.ts';
+import type { ItemGrade, ItemStatus } from '../contract/grade.ts';
 import type { ClassifierState } from '../classifier/port.ts';
-import type { NewContractRun } from '../ledger/log.ts';
+import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type Who } from '../ledger/reuse.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
@@ -210,8 +210,8 @@ export async function runSweep(
   return { ok: true, value: { answers: { ...plan.answers, ...asked.value.answers }, costUsd: asked.value.costUsd, costEstimated: asked.value.costEstimated, statusOf } };
 }
 
-/** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. `identity` is P2's route/base
- *  URL (providerIdentity(ctx.env)) — the only thing beyond the plan itself this needs. */
+/** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. `identity` is the route/base
+ *  URL a real call would use (providerIdentity(ctx.env)) — the only thing beyond the plan itself this needs. */
 export function sweepDryRun(plan: SweepPlan, identity: { route: string; baseURL: string | null }): VerbResult {
   const calls = plan.planned.filter((p) => p.call !== null).length;
   const askedItems = plan.planned.reduce((n, p) => n + p.itemIds.length, 0);
@@ -234,4 +234,22 @@ export function recordSweep(ctx: VerbContext, calls: number, costUsd: number | u
   const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
   if (!rec.ok) return rec.result;
   return { exit: 0, text: rec.value.run.response, run: rec.value.run };
+}
+
+/** Every item's stored record, from its own layer/fill/unit passthrough plus this run's grade — the same shape
+ *  loop, scan and drill (sweep-parent branch) all build a `run.items` map out of. */
+export function itemRecords(items: readonly Item[], grades: ReadonlyMap<string, ItemGrade>): Record<string, ItemRecord> {
+  const out: Record<string, ItemRecord> = {};
+  for (const it of items) {
+    const g = grades.get(it.id)!;
+    out[it.id] = {
+      layer: it.layer,
+      fill: it.fill,
+      ...(it.unit ? { unit: it.unit } : {}),
+      status: g.status,
+      gate: g.gate,
+      categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate])),
+    };
+  }
+  return out;
 }

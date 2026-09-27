@@ -11,11 +11,11 @@ import { m, type Value } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
 import { expandGlob } from '../evidence/glob.ts';
 import { createCodeResolver } from '../evidence/units.ts';
-import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
+import type { NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
 import { commonNotes, COST_ESTIMATED_NOTE, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
-import { planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
+import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 // A scan only ever looks at what over: names — nothing says so if that misses the file most likely
@@ -74,18 +74,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
 
   const calls = plan.planned.filter((p) => p.call !== null).length;
 
-  const items: Record<string, ItemRecord> = {};
-  for (const it of plan.items) {
-    const g = grades.get(it.id)!;
-    items[it.id] = {
-      layer: it.layer,
-      fill: it.fill,
-      ...(it.unit ? { unit: it.unit } : {}),
-      status: statusOf(it.id),
-      gate: g.gate,
-      categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate])),
-    };
-  }
+  const items = itemRecords(plan.items, grades);
 
   const response = (id: string, budget: string): string =>
     respondText(
