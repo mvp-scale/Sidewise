@@ -28,6 +28,12 @@ export function subjectSide(id: string, gate: Gate, subject: SubjectGrade, extra
   );
 }
 
+/** Every distinct run id an answer was reused from, sorted. Empty when nothing was reused (fix #6: a one-subject
+ *  verb's response says which prior runs its answers came from, not just that some were reused). */
+export function reusedIds(reusedFrom: Record<string, string>): string[] {
+  return [...new Set(Object.values(reusedFrom))].sort();
+}
+
 /** `wise: {recorded: [...]}` fields, or the string "none" when nothing was recorded. */
 export function wiseRecorded(wise: Wise | null, extra?: readonly string[]): Value {
   const fields = [...(wise?.why ? ['why'] : []), ...(wise?.area ? ['area'] : []), ...(extra ?? [])];
@@ -99,8 +105,12 @@ export function sweepNext(id: string, gate: Gate, worst: readonly ItemGrade[], g
 }
 
 /** P2: `route` (direct/gateway/custom, or fake/chaos) names what would answer; `baseURL` is shown only when
- *  there is one (fake/chaos have none) — never the key. */
-export function dryRunText(plan: { calls: number; questions: number; items?: number; reused?: number; route: string; baseURL?: string | null }): string {
+ *  there is one (fake/chaos have none) — never the key. `extraNotes` (fix #5b): e.g. a budget cap already
+ *  reached, so a dry run can say a real run would be blocked without itself failing. */
+export function dryRunText(
+  plan: { calls: number; questions: number; items?: number; reused?: number; route: string; baseURL?: string | null },
+  extraNotes: readonly string[] = [],
+): string {
   return emit(
     m(
       [
@@ -114,10 +124,14 @@ export function dryRunText(plan: { calls: number; questions: number; items?: num
           ...(plan.baseURL ? [['baseURL', plan.baseURL] as [string, Value]] : []),
         ),
       ],
-      ['notes', ['dry run: no call, no spend']],
+      ['notes', ['dry run: no call, no spend', ...extraNotes]],
     ),
   );
 }
+
+/** Fix #4: on the direct route TypeSafe reports no cost at all; when the answering model has a published rate
+ *  (see typesafe/answers.ts), the cost is estimated from tokens instead of left at $0.00 — and this note says so. */
+export const COST_ESTIMATED_NOTE = 'cost estimated from tokens (no live pricing reported)';
 
 /** A sweep item that isn't all-pass: its own failing/unsure categories, then its failing/unsure questions, merged and sorted. */
 export function sweepEntry(g: ItemGrade): [string, Value] {

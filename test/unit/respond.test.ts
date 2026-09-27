@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Value } from '../../src/contract/emit.ts';
 import { gradeCategory, gradeSubject, type ItemGrade } from '../../src/contract/grade.ts';
 import type { Category, Gate } from '../../src/contract/types.ts';
-import { categoryEntry, commonNotes, drillNext, dryRunText, outcomeNext, regressionNext, respondText, shownValue, subjectSide, sweepNext, wiseRecorded } from '../../src/verbs/respond.ts';
+import { categoryEntry, commonNotes, drillNext, dryRunText, outcomeNext, regressionNext, respondText, reusedIds, shownValue, subjectSide, sweepNext, wiseRecorded } from '../../src/verbs/respond.ts';
 
 const cat = (name: string, pass: Category['pass'], nums: number[]): Category => ({ name, pass, need: 'all', tags: [], questions: nums.map((n) => ({ n, kind: 'yesno' as const, text: `Is ${n}?` })) });
 
@@ -110,6 +110,22 @@ describe('dryRunText', () => {
   it('shows the base URL when the route has one (P2)', () => {
     expect(dryRunText({ calls: 1, questions: 3, route: 'direct', baseURL: 'https://api.typesafe.ai' })).toBe(
       'plan:\n  calls: 1\n  questions: 3\n  route: direct\n  baseURL: https://api.typesafe.ai\nnotes: ["dry run: no call, no spend"]\n',
+    );
+  });
+});
+
+describe('reusedIds', () => {
+  it('every distinct run id an answer was reused from, sorted; empty when nothing was reused [C-131]', () => {
+    expect(reusedIds({})).toEqual([]);
+    expect(reusedIds({ '1': 'SW-0002', '2': 'SW-0001', goal: 'SW-0002' })).toEqual(['SW-0001', 'SW-0002']);
+  });
+});
+
+describe('dryRunText extraNotes (fix #5b)', () => {
+  it('appends extra notes after the fixed "dry run" note, keeping the default empty', () => {
+    expect(dryRunText({ calls: 1, questions: 3, route: 'fake' })).toBe('plan:\n  calls: 1\n  questions: 3\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    expect(dryRunText({ calls: 0, questions: 0, reused: 3, route: 'fake' }, ['would be blocked: budget cap already reached'])).toBe(
+      'plan:\n  calls: 0\n  questions: 0\n  reused: 3\n  route: fake\nnotes: ["dry run: no call, no spend", "would be blocked: budget cap already reached"]\n',
     );
   });
 });

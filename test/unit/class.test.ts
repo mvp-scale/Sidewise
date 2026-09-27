@@ -37,7 +37,7 @@ describe('class', () => {
     expect(loadBudget(paths).state.runs).toBe(1);
   });
 
-  it('an identical second run makes no call and is free', async () => {
+  it('an identical second run makes no call and is free, and says which run it reused [C-130]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
     await runClass(CLASS_YAML, { paths, provider, env });
@@ -48,6 +48,7 @@ describe('class', () => {
     expect(runs[1]).toMatchObject({ id: 'SW-0002', calls: 0 });
     expect(loadBudget(paths).state.runs).toBe(1); // the free run isn't counted
     expect(r2.text).not.toContain('budget file created'); // only the run that actually created it says so
+    expect(r2.text).toContain('reused: [SW-0001]'); // [C-130] fix #6: which run's answers this one reused
   });
 
   it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {

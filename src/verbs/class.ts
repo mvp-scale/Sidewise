@@ -6,6 +6,7 @@
  *   is free (BRIEF §5: sweeps and one-subject runs reuse alike).
  */
 import { providerIdentity } from '../classifier/select.ts';
+import type { Value } from '../contract/emit.ts';
 import { gradeSubject } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer } from '../contract/types.ts';
@@ -17,7 +18,7 @@ import { lookupAnswers } from '../ledger/reuse.ts';
 import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, dryRunText, outcomeNext, respondText, subjectSide, wiseRecorded } from './respond.ts';
+import { commonNotes, dryRunText, outcomeNext, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 export async function runClass(text: string, ctx: VerbContext): Promise<VerbResult> {
@@ -85,11 +86,14 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const subject = gradeSubject(request.side.categories, answers);
   const escalate = consensus !== 'STRONG' || request.side.depth === 'thorough' || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
 
+  // fix #6: which prior runs this run's answers came from, when any were reused — not just that reuse happened.
+  const reusedRunIds = reusedIds(reusedFrom);
   const response = (id: string, budget: string): string =>
     respondText(
       subjectSide(id, subject.gate, subject, [
         ['consensus', consensus],
         ['escalate', escalate],
+        ...(reusedRunIds.length ? [['reused', reusedRunIds] as [string, Value]] : []),
       ]),
       wiseRecorded(request.wise),
       outcomeNext(id, subject.gate, subject.categories, request.side.categories, 'act on it'),
