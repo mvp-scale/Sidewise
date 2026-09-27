@@ -12,7 +12,7 @@ export const AREAS = ['data', 'api', 'ui', 'auth', 'hosting', 'build', 'tests'] 
 export type Why = (typeof WHYS)[number];
 export type Area = (typeof AREAS)[number];
 
-/** The wise catalog (owner ruling, 2026-09-27): three more optional, closed fields alongside why/area. */
+/** The wise catalog: three more optional, closed fields alongside why/area. */
 export const STAGES = ['design', 'build', 'review', 'pre-merge', 'post-fix', 'release'] as const;
 export const CHANGES = ['feature', 'fix', 'refactor', 'dependency', 'config'] as const;
 export const RISKS = ['low', 'medium', 'high'] as const;

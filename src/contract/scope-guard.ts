@@ -1,13 +1,12 @@
 /**
- * The scope guard (lessons-2026-09-27.md §4.3 option (a)): out-of-scope evidence is the root of every
- * unreliable answer — a question that depends on code outside `where` still gets a confident-looking mid-range
- * number back from the classifier. This is a hidden per-category probe, "can this be judged from the code
- * shown?", plus what a low answer does to that category's own gate.
+ * The scope guard: out-of-scope evidence is the root of every unreliable answer — a question that depends on
+ * code outside `where` still gets a confident-looking mid-range number back from the classifier. This is a
+ * hidden per-category probe, "can this be judged from the code shown?", plus what a low answer does to that
+ * category's own gate.
  *
- * BUILT BUT NOT WIRED IN. The v1-maturity plan (Phase B) requires a before/after measurement on a small fixed
- * set before a piece that changes what gets asked can ship — see lab/research/2026-09-27-phase-b-measure.md,
- * which records that no TYPESAFE_API_KEY/AI_GATEWAY_API_KEY was available to run it this round. These two
- * functions are ready and unit-tested, but nothing calls them yet. Wiring this in later needs:
+ * BUILT BUT NOT WIRED IN. Wiring this in changes what gets asked, so it needs a before/after measurement on a
+ * small fixed set first, plus an owner call on the result. These two functions are ready and unit-tested, but
+ * nothing calls them yet. Wiring this in later needs:
  *   1. one extra `scopeProbeQuestion(name)` added alongside a category's own questions in class.ts (only for
  *      categories being freshly asked, not reused — a reused answer already came from evidence that passed
  *      this check once);
