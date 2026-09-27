@@ -1,6 +1,6 @@
 /**
- * `sidewise help <verb>`: purpose, when to use it, one annotated example, and that verb's own sharp rules
- * (lessons-2026-09-27.md §3.2) — the ones that caused a first-try reject in real use.
+ * `sidewise help <verb>`: purpose, when to use it, one annotated example, and that verb's own sharp rules —
+ * the ones that caused a first-try reject in real use.
  */
 import type { Verb } from '../contract/types.ts';
 import { ruleLines } from './rules.ts';

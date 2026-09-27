@@ -1,14 +1,13 @@
 /**
- * `sidewise help`: the one-screen contract card, free and no project needed — seeded from the play agent's own
- * onboarding notes (lab/research/2026-09-27-play-agent/AGENT.md), which is proven content: it's what got a real
- * agent from zero to its first successful run. `help <verb>`/`help <topic>` go deeper; this stays one screen.
+ * `sidewise help`: the one-screen contract card, free and no project needed. `help <verb>`/`help <topic>` go
+ * deeper; this stays one screen.
  */
 import { ruleLines } from './rules.ts';
 
 export function card(): string {
   return [
     'Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence,',
-    'never a command. Think of it as a citable second opinion (SW-0017), not a linter.',
+    'never a command. Think of it as a citable second opinion, not a linter.',
     '',
     '## Invoke it',
     'In Claude Code: call the `sidewise` MCP tool directly — same args as the CLI (e.g. args: ["class", "-"]),',

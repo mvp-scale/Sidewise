@@ -1,6 +1,6 @@
 /**
- * `sidewise help [verb|topic]`: free, no project needed — lessons-2026-09-27.md §3, "the guidance must live in
- * the tool, not beside it". `help` alone prints the one-screen contract card; `help <verb>` (view, class,
+ * `sidewise help [verb|topic]`: free, no project needed — the guidance lives in the tool, not beside it.
+ * `help` alone prints the one-screen contract card; `help <verb>` (view, class,
  * change, scan, drill, loop) goes deeper on one verb; `help <topic>` (authoring, verdict, wise, reuse) covers a
  * cross-cutting rule. Never spends, never touches the ledger. cli.ts wires this in as the `help` command.
  */

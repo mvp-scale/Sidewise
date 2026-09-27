@@ -1,5 +1,5 @@
 /**
- * One rule list shared by the validator and `help` (lessons-2026-09-27.md §3): every fact here is built from the
+ * One rule list shared by the validator and `help`: every fact here is built from the
  * SAME constants schema-check.ts/validate.ts check against (contract/types.ts), never retyped as a separate
  * literal — so a future change to a closed list or a count shows up in `help` for free, and the two can't drift
  * apart again. test/unit/help.test.ts asserts every entry's text appears verbatim in the `help` output it names.

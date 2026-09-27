@@ -1,5 +1,5 @@
 /**
- * `sidewise help <topic>`: cross-cutting rules that don't belong to one verb (lessons-2026-09-27.md §3.3):
+ * `sidewise help <topic>`: cross-cutting rules that don't belong to one verb:
  * authoring (how to write a request), verdict (how to read one), wise (the ledger's own context fields),
  * reuse (what answers are free and why).
  */
