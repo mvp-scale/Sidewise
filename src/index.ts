@@ -1,9 +1,5 @@
 /** @mvpscale/sidewise: the library surface behind the `sidewise` CLI. */
-export * from './lens/request.ts';
-export { parseRequest, type ParseResult } from './lens/parse.ts';
-export { validate, type Validation } from './lens/validate.ts';
 export * from './lens/consensus.ts';
-export { formatAnswer, guidance, MAX_LINES, type AnswerInput, type PrimitiveAnswer } from './lens/answer.ts';
 export * from './classifier/port.ts';
 export { createFakeAdapter, FAKE_MODEL } from './classifier/fake.ts';
 export { createTypesafeAdapter } from './classifier/typesafe/adapter.ts';
@@ -15,7 +11,8 @@ export * from './ledger/log.ts';
 export { recordCall } from './ledger/record.ts';
 export { LockError } from './ledger/lock.ts';
 export * from './budget/budget.ts';
-// 'Request' collides with lens/request.ts's Plan 1 Request (Task 32 owns removing that one) — named explicitly.
+// Named 'ContractRequest': until Task 32, this collided with lens/request.ts's Plan 1 'Request' (now deleted);
+// kept as the exported alias so nothing downstream has to be renamed.
 export {
   VERBS,
   type Verb,

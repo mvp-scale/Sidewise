@@ -1,6 +1,9 @@
-/** The request model every verb shares: header, envelope fields, numbered yes/no slots and up to 5 primitives. */
-export { VERBS, type Verb } from '../contract/types.ts';
-import type { Verb } from '../contract/types.ts';
+/**
+ * What's left of Plan 1's request model after the YAML contract retired its text format (Task 23): `Level`
+ * (view's L1/2/3) and `Place` (the plain-text place/id-mode run history, and the legacy `RunRecord.where`
+ * shape `ledger/log.ts` still reads). `VERBS`/`Verb` live in `contract/types.ts` now; nothing else here
+ * survived.
+ */
 export type Level = 1 | 2 | 3;
 
 export interface Place {
@@ -9,35 +12,3 @@ export interface Place {
   lines?: string;
   area?: string;
 }
-
-export interface Slot {
-  pos: number;
-  text: string;
-  /** Reverse-keyed (`!`): "yes" is the good answer. */
-  reverse: boolean;
-}
-
-export type PrimitiveKind = 'bool' | 'scale' | 'direction';
-
-export interface Primitive {
-  kind: PrimitiveKind;
-  text: string;
-  /** Scale levels (low to high) or direction options; empty for bool. */
-  options: string[];
-}
-
-export interface Request {
-  verb: Verb;
-  level: Level;
-  perspective: string;
-  where: Place[];
-  problem: string;
-  tags: string[];
-  focus: string;
-  parent?: string;
-  slots: Slot[];
-  primitives: Primitive[];
-}
-
-export const SLOTS_PER_LEVEL: Record<Level, number> = { 1: 10, 2: 20, 3: 30 };
-export const MAX_PRIMITIVES = 5;

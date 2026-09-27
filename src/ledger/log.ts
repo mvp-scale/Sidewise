@@ -9,9 +9,9 @@ import { accessSync, appendFileSync, closeSync, constants, existsSync, mkdirSync
 import path from 'node:path';
 import type { ItemStatus } from '../contract/grade.ts';
 import type { UnitRef } from '../contract/layers.ts';
-import type { Answer, Category, Depth, Gate, Layer, Wise } from '../contract/types.ts';
+import type { Answer, Category, Depth, Gate, Layer, Verb, Wise } from '../contract/types.ts';
 import type { Consensus } from '../lens/consensus.ts';
-import type { Level, Place, Verb } from '../lens/request.ts';
+import type { Level, Place } from '../lens/request.ts';
 import { formatRunId, ulid } from './ids.ts';
 // A deliberate two-way import with index.ts: log.ts calls withIndex/readRecordAt (only inside function bodies,
 // never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the same way. Safe in
