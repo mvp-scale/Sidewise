@@ -41,8 +41,8 @@ import { runReport } from './verbs/report.ts';
 import { runScan } from './verbs/scan.ts';
 import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
-import { runAgent } from './help/agent.ts';
-import { HELP_TOPICS, runHelp } from './help/index.ts';
+import { AGENT_EXTRAS, runAgent } from './help/agent.ts';
+import { HELP_EXTRAS, HELP_TOPICS, runHelp } from './help/index.ts';
 import { VERBS } from './contract/types.ts';
 import { resolveMcpActor } from './mcp/actor.ts';
 import { nodeVersionStop } from './util/node-version.ts';
@@ -69,8 +69,8 @@ const LINES = {
   loop: 'sidewise loop <request-file | -> [--dry-run]',
   template:
     'sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  ·  or: --from <request.yaml> [--where <path>]... [--goal <text>]',
-  help: `sidewise help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}|report]`,
-  agent: `sidewise agent [${VERBS.join('|')}]`,
+  help: `sidewise help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}|${HELP_EXTRAS.join('|')}]`,
+  agent: `sidewise agent [${VERBS.join('|')}|${AGENT_EXTRAS.join('|')}]`,
   report: 'sidewise report [hits|patterns|history]',
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',

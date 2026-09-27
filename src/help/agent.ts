@@ -85,6 +85,8 @@ function reportCard(): string {
 /** Non-verb targets `agent` recognizes, beyond the six verbs above. */
 const AGENT_TOPICS: Record<string, () => string> = { probe: probeCard, outcome: outcomeCard, budget: budgetCard, report: reportCard };
 const agentExtras = (): string[] => Object.keys(AGENT_TOPICS);
+/** Re-exported for the CLI's own usage line, the same way help/index.ts's HELP_EXTRAS already is. */
+export const AGENT_EXTRAS: readonly string[] = Object.keys(AGENT_TOPICS);
 
 export function runAgent(target?: string): VerbResult {
   if (target === undefined || target === '') return { exit: 0, text: overview() };
