@@ -86,7 +86,16 @@ The numbers above are one run's illustration, not a guarantee — the real class
 
 ## Install
 
-Run this inside the project you want Sidewise in:
+**Claude Code: install the plugin and set your key in its options, that's all.**
+
+```
+/plugin marketplace add mvp-scale/Sidewise
+/plugin install sidewise@mvp-scale
+```
+
+Claude prompts for a TypeSafe API key and an AI Gateway key (both masked, both optional — leave them empty to use the free fake provider). The plugin bundles its own CLI and its own MCP tool; nothing else to install, no npm, no PATH. Testing from a clone of this repo: `/plugin marketplace add /path/to/your/clone` instead of the GitHub form.
+
+**Everyone else (a bare terminal, Codex, Gemini CLI, ...):** run this inside the project you want Sidewise in:
 
 ```bash
 npx @mvpscale/sidewise init
@@ -99,8 +108,6 @@ npx @mvpscale/sidewise init
 - It sets up `.sidewise/`, this project's run history, which git ignores.
 
 Re-running `init` changes nothing that's already right. In a second project it only enables that project. `sidewise uninstall` reverses it for this project; add `--all` to also remove the key and the CLI.
-
-**Just the Claude plugin:** `/plugin marketplace add mvp-scale/Sidewise`, then `/plugin install sidewise@mvp-scale`. The plugin still needs the CLI and a key, so run `npx @mvpscale/sidewise init --no-claude` once.
 
 **Just the CLI:** `npm install -g @mvpscale/sidewise` (global; may need sudo), `npm install -g --prefix ~/.local @mvpscale/sidewise` (no sudo; `~/.local/bin` must be on PATH) or `npm install -D @mvpscale/sidewise` (this project; run `npx sidewise`). Then add a key with `sidewise init`, or `export TYPESAFE_API_KEY=…`.
 
