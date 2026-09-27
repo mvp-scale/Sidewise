@@ -597,8 +597,12 @@ query yet that mines it into a pattern across runs the way class's per-category 
   the budget file, the id index, or `sidewise init`'s own explicit project step — so a project that never ran
   `init` is still covered on its very first run, not committing its run history by accident. [C-101]
 - `sidewise doctor`'s `project:` line names the project root and whether the Claude Code plugin is enabled for
-  it specifically (project scope), separately from the `plugin:` line's overall install state — using Sidewise
-  is always scoped to a project, so this is the answer that actually matters day to day. [C-102]
+  it — true for a project-scope install (checked from wherever this process runs, which is how Claude Code's
+  own project scope is itself resolved), for a user-scope install (it covers every project, this one included),
+  and, best-effort, for a local-scope install too (`claude plugin list --json` carries no per-entry project
+  path to check against, so local scope is treated the same permissive way as project scope rather than guessed
+  at further) — separately from the `plugin:` line's overall install state. Using Sidewise is always scoped to
+  a project, so this is the answer that actually matters day to day. [C-102]
 - The Claude Code plugin bundles a stdio MCP server (`sidewise mcp`, hand-rolled, no SDK dependency) with one
   tool, `sidewise`, taking `{ args: string[], stdin?: string }`. It runs exactly what `sidewise <args…>` would
   run, in-process, treating `stdin` as what real stdin would have supplied, and returns the same text output
