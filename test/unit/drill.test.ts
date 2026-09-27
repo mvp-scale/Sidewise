@@ -56,6 +56,21 @@ describe('drill: parent and from resolution', () => {
     expect(r.text).toContain('next: fix it, then sidewise change --parent SW-0002 --compare <before>..<after>');
   });
 
+  // C-171: a sweep item's own whole-file range is Sidewise's own choice (scan's file-layer item), not a
+  // user-typed where: — part 1 turning an oversized where: entry into a stop must never reach this path.
+  it('a sweep parent, no over:, from: names an oversized FILE-layer item — still proves flat, no stop [C-171]', async () => {
+    const big = Array.from({ length: 1000 }, () => 'x'.repeat(30)).join('\n'); // well over the per-file evidence limit
+    const { paths } = tempProject({ 'src/big.ts': big });
+    const scanReq =
+      'side:\n  goal: handlers stay safe\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: is it unsafe?\n';
+    await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.1 }), env }); // SW-0001; src/big.ts has no functions, just the file item
+    const req = 'side:\n  goal: check the whole file\n  parent: SW-0001\n  from: src/big.ts\n  ask:\n    injection:\n      pass: no\n      1: is it unsafe?\n';
+    const r = await runDrill(req, { paths, provider: stubProvider({ yes: () => 0.2 }), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).not.toContain('too big to send');
+    expect(r.text).toContain('gate:');
+  });
+
   // The item exists but is an idea (loop's own kind, no unit) — nothing to prove flatly without over:.
   it('a sweep parent (loop), no over:, from: names an idea item — a clean stop, not a crash', async () => {
     const { paths } = tempProject({});

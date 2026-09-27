@@ -17,7 +17,7 @@ import { goalGate, gradeItems, gradeSubject, sweepGate, worstFirst } from '../co
 import { firstStringLayer, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer, Category, Request } from '../contract/types.ts';
-import { readCodeEvidence } from '../evidence/code.ts';
+import { readCodeEvidence, type ReadCodeEvidenceOptions } from '../evidence/code.ts';
 import { createCodeResolver, readUnit } from '../evidence/units.ts';
 import { findRun, isContractRun, type ItemRecord, type NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
@@ -48,8 +48,9 @@ async function runOneSubjectProof(
   request: Request,
   where: readonly string[],
   changeParent: (id: string) => string,
+  evidenceOpts?: ReadCodeEvidenceOptions,
 ): Promise<VerbResult> {
-  const evidence = readCodeEvidence(ctx.paths.root, where);
+  const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, 'drill') };
 
   const identity = providerIdentity(ctx.env);
@@ -180,7 +181,9 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
           text: `✖ side.from: "${clip(request.side.from!, 40)}" has no code → add over: with the next layer down, or drill an item scan found (sidewise template drill --parent ${parent.id} --from ${request.side.from})`,
         };
       }
-      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id);
+      // C-171: this range is the item's own whole-file/function/call span, chosen by scan/loop's own resolver,
+      // never typed by a user — an oversized one still gets truncated with a note, not stopped.
+      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, { stopOnOversize: false });
     }
 
     const from = request.side.from!;

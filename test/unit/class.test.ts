@@ -113,15 +113,30 @@ describe('class', () => {
     expect(r.text).toContain('would be blocked: the budget cap is already reached');
   });
 
-  it('an oversized source file: the evidence-truncation note comes before the budget note [C-047]', async () => {
+  it('a risky-looking goal: the irreversible note comes before the budget note [C-047]', async () => {
+    const RISKY_YAML = CLASS_YAML.replace('This login handler is safe to merge', 'This will delete the login handler safely');
+    const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const r = await runClass(RISKY_YAML, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('looks irreversible');
+    expect(r.text.indexOf('looks irreversible')).toBeGreaterThan(-1);
+    expect(r.text.indexOf('looks irreversible')).toBeLessThan(r.text.indexOf('budget'));
+  });
+
+  // C-169: a where: entry the user typed, over the per-file limit, is a stop — never a silent truncation —
+  // and class checks evidence before touching the budget or the ledger at all (a bad path is a request
+  // problem, not a paid one), same as any other evidence error.
+  it('an oversized source file: class stops before spending, and points at the agent card [C-169]', async () => {
     const big = 'x'.repeat(EVIDENCE_LIMITS.perFileChars + 5000);
     const { paths } = tempProject({ 'src/user.ts': big });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
     const r = await runClass(CLASS_YAML, { paths, provider, env });
-    expect(r.exit).toBe(0);
-    expect(r.text).toContain(`notes: [src/user.ts:1-3 truncated to ${EVIDENCE_LIMITS.perFileChars} chars, `);
-    expect(r.text.indexOf('truncated to')).toBeGreaterThan(-1);
-    expect(r.text.indexOf('truncated to')).toBeLessThan(r.text.indexOf('budget'));
+    expect(r.exit).toBe(2);
+    expect(r.text).toContain('too big to send');
+    expect(r.text).toContain('→ see: sidewise agent class');
+    expect(provider.calls).toHaveLength(0);
+    expect(readLedger(paths)).toEqual([]);
   });
 
   it('an invalid request exits 2 before touching the budget or the ledger [C-002]', async () => {

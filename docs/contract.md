@@ -64,6 +64,14 @@ Drill goes down from one item, named by `from:`, in a parent run's own arrays. [
 `depth` is `quick` · `standard` · `thorough` = 10 · 20 · 30: one subject asks exactly that many yes/no
 questions in total (scale/choice don't count); a sweep asks at most that many items per layer. [C-011]
 `where` is 1–5 project paths, each optionally `:start-end`; the code there is read and redacted. [C-012]
+A `where:` entry over the per-file limit (20,000 chars, after redaction) is a stop, not a silent truncation: a
+whole file (no `:start-end`) names its own line count and asks for a range; a range that's already this big
+asks to be narrowed further. [C-169]
+Several `where:` entries that together cross the 60,000-char total are a stop the same way, naming which entry
+doesn't fit — the same silent-cut problem, just across entries instead of within one. [C-170]
+The one exception is evidence Sidewise itself picked, never a user-typed `where:` — today, only `drill`
+continuing flat from one coded sweep item with no further `over:` (its own whole-file/function/call range) —
+which still truncates with a note, since there's no `where:` for anyone to narrow. [C-171]
 `ask` holds categories → `pass` + numbered questions for one subject, or layer → categories for a sweep. [C-013]
 `over` is sweeps-only: nested arrays that define the layers. [C-014]
 `from`, `parent` and `compare` apply only to drill and change. [C-015]
