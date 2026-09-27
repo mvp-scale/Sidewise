@@ -985,12 +985,12 @@ var require_stringifyComment = __commonJS({
   "node_modules/yaml/dist/stringify/stringifyComment.js"(exports) {
     "use strict";
     var stringifyComment = (str) => str.replace(/^(?!$)(?: $)?/gm, "#");
-    function indentComment(comment, indent2) {
+    function indentComment(comment, indent3) {
       if (/^\n+$/.test(comment))
         return comment.substring(1);
-      return indent2 ? comment.replace(/^(?! *$)/gm, indent2) : comment;
+      return indent3 ? comment.replace(/^(?! *$)/gm, indent3) : comment;
     }
-    var lineComment = (str, indent2, comment) => str.endsWith("\n") ? indentComment(comment, indent2) : comment.includes("\n") ? "\n" + indentComment(comment, indent2) : (str.endsWith(" ") ? "" : " ") + comment;
+    var lineComment = (str, indent3, comment) => str.endsWith("\n") ? indentComment(comment, indent3) : comment.includes("\n") ? "\n" + indentComment(comment, indent3) : (str.endsWith(" ") ? "" : " ") + comment;
     exports.indentComment = indentComment;
     exports.lineComment = lineComment;
     exports.stringifyComment = stringifyComment;
@@ -1004,17 +1004,17 @@ var require_foldFlowLines = __commonJS({
     var FOLD_FLOW = "flow";
     var FOLD_BLOCK = "block";
     var FOLD_QUOTED = "quoted";
-    function foldFlowLines(text, indent2, mode = "flow", { indentAtStart, lineWidth = 80, minContentWidth = 20, onFold, onOverflow } = {}) {
+    function foldFlowLines(text, indent3, mode = "flow", { indentAtStart, lineWidth = 80, minContentWidth = 20, onFold, onOverflow } = {}) {
       if (!lineWidth || lineWidth < 0)
         return text;
       if (lineWidth < minContentWidth)
         minContentWidth = 0;
-      const endStep = Math.max(1 + minContentWidth, 1 + lineWidth - indent2.length);
+      const endStep = Math.max(1 + minContentWidth, 1 + lineWidth - indent3.length);
       if (text.length <= endStep)
         return text;
       const folds = [];
       const escapedFolds = {};
-      let end = lineWidth - indent2.length;
+      let end = lineWidth - indent3.length;
       if (typeof indentAtStart === "number") {
         if (indentAtStart > lineWidth - Math.max(2, minContentWidth))
           folds.push(0);
@@ -1028,7 +1028,7 @@ var require_foldFlowLines = __commonJS({
       let escStart = -1;
       let escEnd = -1;
       if (mode === FOLD_BLOCK) {
-        i = consumeMoreIndentedLines(text, i, indent2.length);
+        i = consumeMoreIndentedLines(text, i, indent3.length);
         if (i !== -1)
           end = i + endStep;
       }
@@ -1052,8 +1052,8 @@ var require_foldFlowLines = __commonJS({
         }
         if (ch === "\n") {
           if (mode === FOLD_BLOCK)
-            i = consumeMoreIndentedLines(text, i, indent2.length);
-          end = i + indent2.length + endStep;
+            i = consumeMoreIndentedLines(text, i, indent3.length);
+          end = i + indent3.length + endStep;
           split = void 0;
         } else {
           if (ch === " " && prev && prev !== " " && prev !== "\n" && prev !== "	") {
@@ -1098,22 +1098,22 @@ var require_foldFlowLines = __commonJS({
         const end2 = folds[i2 + 1] || text.length;
         if (fold === 0)
           res = `
-${indent2}${text.slice(0, end2)}`;
+${indent3}${text.slice(0, end2)}`;
         else {
           if (mode === FOLD_QUOTED && escapedFolds[fold])
             res += `${text[fold]}\\`;
           res += `
-${indent2}${text.slice(fold + 1, end2)}`;
+${indent3}${text.slice(fold + 1, end2)}`;
         }
       }
       return res;
     }
-    function consumeMoreIndentedLines(text, i, indent2) {
+    function consumeMoreIndentedLines(text, i, indent3) {
       let end = i;
       let start = i + 1;
       let ch = text[start];
       while (ch === " " || ch === "	") {
-        if (i < start + indent2) {
+        if (i < start + indent3) {
           ch = text[++i];
         } else {
           do {
@@ -1169,7 +1169,7 @@ var require_stringifyString = __commonJS({
         return json;
       const { implicitKey } = ctx;
       const minMultiLineLength = ctx.options.doubleQuotedMinMultiLineLength;
-      const indent2 = ctx.indent || (containsDocumentMarker(value) ? "  " : "");
+      const indent3 = ctx.indent || (containsDocumentMarker(value) ? "  " : "");
       let str = "";
       let start = 0;
       for (let i = 0, ch = json[i]; ch; ch = json[++i]) {
@@ -1229,7 +1229,7 @@ var require_stringifyString = __commonJS({
                   str += "\n";
                   i += 2;
                 }
-                str += indent2;
+                str += indent3;
                 if (json[i + 2] === " ")
                   str += "\\";
                 i += 1;
@@ -1241,15 +1241,15 @@ var require_stringifyString = __commonJS({
           }
       }
       str = start ? str + json.slice(start) : json;
-      return implicitKey ? str : foldFlowLines.foldFlowLines(str, indent2, foldFlowLines.FOLD_QUOTED, getFoldOptions(ctx, false));
+      return implicitKey ? str : foldFlowLines.foldFlowLines(str, indent3, foldFlowLines.FOLD_QUOTED, getFoldOptions(ctx, false));
     }
     function singleQuotedString(value, ctx) {
       if (ctx.options.singleQuote === false || ctx.implicitKey && value.includes("\n") || /[ \t]\n|\n[ \t]/.test(value))
         return doubleQuotedString(value, ctx);
-      const indent2 = ctx.indent || (containsDocumentMarker(value) ? "  " : "");
+      const indent3 = ctx.indent || (containsDocumentMarker(value) ? "  " : "");
       const res = "'" + value.replace(/'/g, "''").replace(/\n+/g, `$&
-${indent2}`) + "'";
-      return ctx.implicitKey ? res : foldFlowLines.foldFlowLines(res, indent2, foldFlowLines.FOLD_FLOW, getFoldOptions(ctx, false));
+${indent3}`) + "'";
+      return ctx.implicitKey ? res : foldFlowLines.foldFlowLines(res, indent3, foldFlowLines.FOLD_FLOW, getFoldOptions(ctx, false));
     }
     function quotedString(value, ctx) {
       const { singleQuote } = ctx.options;
@@ -1279,8 +1279,8 @@ ${indent2}`) + "'";
       if (!blockQuote || /\n[\t ]+$/.test(value)) {
         return quotedString(value, ctx);
       }
-      const indent2 = ctx.indent || (ctx.forceBlockIndent || containsDocumentMarker(value) ? "  " : "");
-      const literal = blockQuote === "literal" ? true : blockQuote === "folded" || type === Scalar.Scalar.BLOCK_FOLDED ? false : type === Scalar.Scalar.BLOCK_LITERAL ? true : !lineLengthOverLimit(value, lineWidth, indent2.length);
+      const indent3 = ctx.indent || (ctx.forceBlockIndent || containsDocumentMarker(value) ? "  " : "");
+      const literal = blockQuote === "literal" ? true : blockQuote === "folded" || type === Scalar.Scalar.BLOCK_FOLDED ? false : type === Scalar.Scalar.BLOCK_LITERAL ? true : !lineLengthOverLimit(value, lineWidth, indent3.length);
       if (!value)
         return literal ? "|\n" : ">\n";
       let chomp;
@@ -1305,7 +1305,7 @@ ${indent2}`) + "'";
         value = value.slice(0, -end.length);
         if (end[end.length - 1] === "\n")
           end = end.slice(0, -1);
-        end = end.replace(blockEndNewlines, `$&${indent2}`);
+        end = end.replace(blockEndNewlines, `$&${indent3}`);
       }
       let startWithSpace = false;
       let startEnd;
@@ -1322,9 +1322,9 @@ ${indent2}`) + "'";
       let start = value.substring(0, startNlPos < startEnd ? startNlPos + 1 : startEnd);
       if (start) {
         value = value.substring(start.length);
-        start = start.replace(/\n+/g, `$&${indent2}`);
+        start = start.replace(/\n+/g, `$&${indent3}`);
       }
-      const indentSize = indent2 ? "2" : "1";
+      const indentSize = indent3 ? "2" : "1";
       let header = (startWithSpace ? indentSize : "") + chomp;
       if (comment) {
         header += " " + commentString(comment.replace(/ ?[\r\n]+/g, " "));
@@ -1332,7 +1332,7 @@ ${indent2}`) + "'";
           onComment();
       }
       if (!literal) {
-        const foldedValue = value.replace(/\n+/g, "\n$&").replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g, "$1$2").replace(/\n+/g, `$&${indent2}`);
+        const foldedValue = value.replace(/\n+/g, "\n$&").replace(/(?:^|\n)([\t ].*)(?:([\n\t ]*)\n(?![\n\t ]))?/g, "$1$2").replace(/\n+/g, `$&${indent3}`);
         let literalFallback = false;
         const foldOptions = getFoldOptions(ctx, true);
         if (blockQuote !== "folded" && type !== Scalar.Scalar.BLOCK_FOLDED) {
@@ -1340,18 +1340,18 @@ ${indent2}`) + "'";
             literalFallback = true;
           };
         }
-        const body = foldFlowLines.foldFlowLines(`${start}${foldedValue}${end}`, indent2, foldFlowLines.FOLD_BLOCK, foldOptions);
+        const body = foldFlowLines.foldFlowLines(`${start}${foldedValue}${end}`, indent3, foldFlowLines.FOLD_BLOCK, foldOptions);
         if (!literalFallback)
           return `>${header}
-${indent2}${body}`;
+${indent3}${body}`;
       }
-      value = value.replace(/\n+/g, `$&${indent2}`);
+      value = value.replace(/\n+/g, `$&${indent3}`);
       return `|${header}
-${indent2}${start}${value}${end}`;
+${indent3}${start}${value}${end}`;
     }
     function plainString(item, ctx, onComment, onChompKeep) {
       const { type, value } = item;
-      const { actualString, implicitKey, indent: indent2, indentStep, inFlow } = ctx;
+      const { actualString, implicitKey, indent: indent3, indentStep, inFlow } = ctx;
       if (implicitKey && value.includes("\n") || inFlow && /[[\]{},]/.test(value)) {
         return quotedString(value, ctx);
       }
@@ -1362,22 +1362,22 @@ ${indent2}${start}${value}${end}`;
         return blockString(item, ctx, onComment, onChompKeep);
       }
       if (containsDocumentMarker(value)) {
-        if (indent2 === "") {
+        if (indent3 === "") {
           ctx.forceBlockIndent = true;
           return blockString(item, ctx, onComment, onChompKeep);
-        } else if (implicitKey && indent2 === indentStep) {
+        } else if (implicitKey && indent3 === indentStep) {
           return quotedString(value, ctx);
         }
       }
       const str = value.replace(/\n+/g, `$&
-${indent2}`);
+${indent3}`);
       if (actualString) {
         const test = (tag) => tag.default && tag.tag !== "tag:yaml.org,2002:str" && tag.test?.test(str);
         const { compat, tags } = ctx.doc.schema;
         if (tags.some(test) || compat?.some(test))
           return quotedString(value, ctx);
       }
-      return implicitKey ? str : foldFlowLines.foldFlowLines(str, indent2, foldFlowLines.FOLD_FLOW, getFoldOptions(ctx, false));
+      return implicitKey ? str : foldFlowLines.foldFlowLines(str, indent3, foldFlowLines.FOLD_FLOW, getFoldOptions(ctx, false));
     }
     function stringifyString(item, ctx, onComment, onChompKeep) {
       const { implicitKey, inFlow } = ctx;
@@ -1549,7 +1549,7 @@ var require_stringifyPair = __commonJS({
     var stringify2 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyPair({ key: key2, value }, ctx, onComment, onChompKeep) {
-      const { allNullValues, doc, indent: indent2, indentStep, options: { commentString, indentSeq, simpleKeys } } = ctx;
+      const { allNullValues, doc, indent: indent3, indentStep, options: { commentString, indentSeq, simpleKeys } } = ctx;
       let keyComment = identity.isNode(key2) && key2.comment || null;
       if (simpleKeys) {
         if (keyComment) {
@@ -1564,7 +1564,7 @@ var require_stringifyPair = __commonJS({
       ctx = Object.assign({}, ctx, {
         allNullValues: false,
         implicitKey: !explicitKey && (simpleKeys || !allNullValues),
-        indent: indent2 + indentStep
+        indent: indent3 + indentStep
       });
       let keyCommentDone = false;
       let chompKeep = false;
@@ -1594,7 +1594,7 @@ var require_stringifyPair = __commonJS({
         if (keyComment)
           str += stringifyComment.lineComment(str, ctx.indent, commentString(keyComment));
         str = `? ${str}
-${indent2}:`;
+${indent3}:`;
       } else {
         str = `${str}:`;
         if (keyComment)
@@ -1872,7 +1872,7 @@ var require_stringifyCollection = __commonJS({
       return stringify3(collection, ctx, options);
     }
     function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
-      const { indent: indent2, options: { commentString } } = ctx;
+      const { indent: indent3, options: { commentString } } = ctx;
       const itemCtx = Object.assign({}, ctx, { indent: itemIndent, type: null });
       let chompKeep = false;
       const lines = [];
@@ -1909,11 +1909,11 @@ var require_stringifyCollection = __commonJS({
         for (let i = 1; i < lines.length; ++i) {
           const line3 = lines[i];
           str += line3 ? `
-${indent2}${line3}` : "\n";
+${indent3}${line3}` : "\n";
         }
       }
       if (comment) {
-        str += "\n" + stringifyComment.indentComment(commentString(comment), indent2);
+        str += "\n" + stringifyComment.indentComment(commentString(comment), indent3);
         if (onComment)
           onComment();
       } else if (chompKeep && onChompKeep)
@@ -1921,7 +1921,7 @@ ${indent2}${line3}` : "\n";
       return str;
     }
     function stringifyFlowCollection({ items }, ctx, { flowChars, itemIndent }) {
-      const { indent: indent2, indentStep, flowCollectionPadding: fcPadding, options: { commentString } } = ctx;
+      const { indent: indent3, indentStep, flowCollectionPadding: fcPadding, options: { commentString } } = ctx;
       itemIndent += indentStep;
       const itemCtx = Object.assign({}, ctx, {
         indent: itemIndent,
@@ -1990,19 +1990,19 @@ ${indent2}${line3}` : "\n";
           let str = start;
           for (const line3 of lines)
             str += line3 ? `
-${indentStep}${indent2}${line3}` : "\n";
+${indentStep}${indent3}${line3}` : "\n";
           return `${str}
-${indent2}${end}`;
+${indent3}${end}`;
         } else {
           return `${start}${fcPadding}${lines.join(" ")}${fcPadding}${end}`;
         }
       }
     }
-    function addCommentBefore({ indent: indent2, options: { commentString } }, lines, comment, chompKeep) {
+    function addCommentBefore({ indent: indent3, options: { commentString } }, lines, comment, chompKeep) {
       if (comment && chompKeep)
         comment = comment.replace(/^\n+/, "");
       if (comment) {
-        const ic = stringifyComment.indentComment(commentString(comment), indent2);
+        const ic = stringifyComment.indentComment(commentString(comment), indent3);
         lines.push(ic.trimStart());
       }
     }
@@ -3952,10 +3952,10 @@ var require_util_flow_indent_check = __commonJS({
   "node_modules/yaml/dist/compose/util-flow-indent-check.js"(exports) {
     "use strict";
     var utilContainsNewline = require_util_contains_newline();
-    function flowIndentCheck(indent2, fc, onError) {
+    function flowIndentCheck(indent3, fc, onError) {
       if (fc?.type === "flow-collection") {
         const end = fc.end[0];
-        if (end.indent === indent2 && (end.source === "]" || end.source === "}") && utilContainsNewline.containsNewline(fc)) {
+        if (end.indent === indent3 && (end.source === "]" || end.source === "}") && utilContainsNewline.containsNewline(fc)) {
           const msg = "Flow end indicator should be more indented than parent";
           onError(end, "BAD_INDENT", msg, true);
         }
@@ -4473,17 +4473,17 @@ var require_resolve_block_scalar = __commonJS({
       let offset = scalar2.offset + header.length;
       let contentStart = 0;
       for (let i = 0; i < chompStart; ++i) {
-        const [indent2, content] = lines[i];
+        const [indent3, content] = lines[i];
         if (content === "" || content === "\r") {
-          if (header.indent === 0 && indent2.length > trimIndent)
-            trimIndent = indent2.length;
+          if (header.indent === 0 && indent3.length > trimIndent)
+            trimIndent = indent3.length;
         } else {
-          if (indent2.length < trimIndent) {
+          if (indent3.length < trimIndent) {
             const message = "Block scalars with more-indented leading empty lines must use an explicit indentation indicator";
-            onError(offset + indent2.length, "MISSING_CHAR", message);
+            onError(offset + indent3.length, "MISSING_CHAR", message);
           }
           if (header.indent === 0)
-            trimIndent = indent2.length;
+            trimIndent = indent3.length;
           contentStart = i;
           if (trimIndent === 0 && !ctx.atRoot) {
             const message = "Block scalar values in collections must be indented";
@@ -4491,7 +4491,7 @@ var require_resolve_block_scalar = __commonJS({
           }
           break;
         }
-        offset += indent2.length + content.length + 1;
+        offset += indent3.length + content.length + 1;
       }
       for (let i = lines.length - 1; i >= chompStart; --i) {
         if (lines[i][0].length > trimIndent)
@@ -4503,26 +4503,26 @@ var require_resolve_block_scalar = __commonJS({
       for (let i = 0; i < contentStart; ++i)
         value += lines[i][0].slice(trimIndent) + "\n";
       for (let i = contentStart; i < chompStart; ++i) {
-        let [indent2, content] = lines[i];
-        offset += indent2.length + content.length + 1;
+        let [indent3, content] = lines[i];
+        offset += indent3.length + content.length + 1;
         const crlf = content[content.length - 1] === "\r";
         if (crlf)
           content = content.slice(0, -1);
-        if (content && indent2.length < trimIndent) {
+        if (content && indent3.length < trimIndent) {
           const src = header.indent ? "explicit indentation indicator" : "first line";
           const message = `Block scalar lines must not be less indented than their ${src}`;
           onError(offset - content.length - (crlf ? 2 : 1), "BAD_INDENT", message);
-          indent2 = "";
+          indent3 = "";
         }
         if (type === Scalar.Scalar.BLOCK_LITERAL) {
-          value += sep + indent2.slice(trimIndent) + content;
+          value += sep + indent3.slice(trimIndent) + content;
           sep = "\n";
-        } else if (indent2.length > trimIndent || content[0] === "	") {
+        } else if (indent3.length > trimIndent || content[0] === "	") {
           if (sep === " ")
             sep = "\n";
           else if (!prevMoreIndented && sep === "\n")
             sep = "\n\n";
-          value += sep + indent2.slice(trimIndent) + content;
+          value += sep + indent3.slice(trimIndent) + content;
           sep = "\n";
           prevMoreIndented = true;
         } else if (content === "") {
@@ -4558,7 +4558,7 @@ var require_resolve_block_scalar = __commonJS({
       }
       const { source } = props[0];
       const mode = source[0];
-      let indent2 = 0;
+      let indent3 = 0;
       let chomp = "";
       let error = -1;
       for (let i = 1; i < source.length; ++i) {
@@ -4567,8 +4567,8 @@ var require_resolve_block_scalar = __commonJS({
           chomp = ch;
         else {
           const n = Number(ch);
-          if (!indent2 && n)
-            indent2 = n;
+          if (!indent3 && n)
+            indent3 = n;
           else if (error === -1)
             error = offset + i;
         }
@@ -4609,7 +4609,7 @@ var require_resolve_block_scalar = __commonJS({
           }
         }
       }
-      return { mode, indent: indent2, chomp, comment, length };
+      return { mode, indent: indent3, chomp, comment, length };
     }
     function splitLines(source) {
       const split = source.split(/\n( *)/);
@@ -5343,15 +5343,15 @@ var require_cst_scalar = __commonJS({
       return null;
     }
     function createScalarToken(value, context) {
-      const { implicitKey = false, indent: indent2, inFlow = false, offset = -1, type = "PLAIN" } = context;
+      const { implicitKey = false, indent: indent3, inFlow = false, offset = -1, type = "PLAIN" } = context;
       const source = stringifyString.stringifyString({ type, value }, {
         implicitKey,
-        indent: indent2 > 0 ? " ".repeat(indent2) : "",
+        indent: indent3 > 0 ? " ".repeat(indent3) : "",
         inFlow,
         options: { blockQuote: true, lineWidth: -1 }
       });
       const end = context.end ?? [
-        { type: "newline", offset: -1, indent: indent2, source: "\n" }
+        { type: "newline", offset: -1, indent: indent3, source: "\n" }
       ];
       switch (source[0]) {
         case "|":
@@ -5360,25 +5360,25 @@ var require_cst_scalar = __commonJS({
           const head = source.substring(0, he);
           const body = source.substring(he + 1) + "\n";
           const props = [
-            { type: "block-scalar-header", offset, indent: indent2, source: head }
+            { type: "block-scalar-header", offset, indent: indent3, source: head }
           ];
           if (!addEndtoBlockProps(props, end))
-            props.push({ type: "newline", offset: -1, indent: indent2, source: "\n" });
-          return { type: "block-scalar", offset, indent: indent2, props, source: body };
+            props.push({ type: "newline", offset: -1, indent: indent3, source: "\n" });
+          return { type: "block-scalar", offset, indent: indent3, props, source: body };
         }
         case '"':
-          return { type: "double-quoted-scalar", offset, indent: indent2, source, end };
+          return { type: "double-quoted-scalar", offset, indent: indent3, source, end };
         case "'":
-          return { type: "single-quoted-scalar", offset, indent: indent2, source, end };
+          return { type: "single-quoted-scalar", offset, indent: indent3, source, end };
         default:
-          return { type: "scalar", offset, indent: indent2, source, end };
+          return { type: "scalar", offset, indent: indent3, source, end };
       }
     }
     function setScalarValue(token, value, context = {}) {
       let { afterKey = false, implicitKey = false, inFlow = false, type } = context;
-      let indent2 = "indent" in token ? token.indent : null;
-      if (afterKey && typeof indent2 === "number")
-        indent2 += 2;
+      let indent3 = "indent" in token ? token.indent : null;
+      if (afterKey && typeof indent3 === "number")
+        indent3 += 2;
       if (!type)
         switch (token.type) {
           case "single-quoted-scalar":
@@ -5398,8 +5398,8 @@ var require_cst_scalar = __commonJS({
             type = "PLAIN";
         }
       const source = stringifyString.stringifyString({ type, value }, {
-        implicitKey: implicitKey || indent2 === null,
-        indent: indent2 !== null && indent2 > 0 ? " ".repeat(indent2) : "",
+        implicitKey: implicitKey || indent3 === null,
+        indent: indent3 !== null && indent3 > 0 ? " ".repeat(indent3) : "",
         inFlow,
         options: { blockQuote: true, lineWidth: -1 }
       });
@@ -5430,16 +5430,16 @@ var require_cst_scalar = __commonJS({
         token.source = body;
       } else {
         const { offset } = token;
-        const indent2 = "indent" in token ? token.indent : -1;
+        const indent3 = "indent" in token ? token.indent : -1;
         const props = [
-          { type: "block-scalar-header", offset, indent: indent2, source: head }
+          { type: "block-scalar-header", offset, indent: indent3, source: head }
         ];
         if (!addEndtoBlockProps(props, "end" in token ? token.end : void 0))
-          props.push({ type: "newline", offset: -1, indent: indent2, source: "\n" });
+          props.push({ type: "newline", offset: -1, indent: indent3, source: "\n" });
         for (const key2 of Object.keys(token))
           if (key2 !== "type" && key2 !== "offset")
             delete token[key2];
-        Object.assign(token, { type: "block-scalar", indent: indent2, props, source: body });
+        Object.assign(token, { type: "block-scalar", indent: indent3, props, source: body });
       }
     }
     function addEndtoBlockProps(props, end) {
@@ -5484,12 +5484,12 @@ var require_cst_scalar = __commonJS({
           break;
         }
         default: {
-          const indent2 = "indent" in token ? token.indent : -1;
+          const indent3 = "indent" in token ? token.indent : -1;
           const end = "end" in token && Array.isArray(token.end) ? token.end.filter((st) => st.type === "space" || st.type === "comment" || st.type === "newline") : [];
           for (const key2 of Object.keys(token))
             if (key2 !== "type" && key2 !== "offset")
               delete token[key2];
-          Object.assign(token, { type, indent: indent2, source, end });
+          Object.assign(token, { type, indent: indent3, source, end });
         }
       }
     }
@@ -5795,15 +5795,15 @@ var require_lexer = __commonJS({
       continueScalar(offset) {
         let ch = this.buffer[offset];
         if (this.indentNext > 0) {
-          let indent2 = 0;
+          let indent3 = 0;
           while (ch === " ")
-            ch = this.buffer[++indent2 + offset];
+            ch = this.buffer[++indent3 + offset];
           if (ch === "\r") {
-            const next = this.buffer[indent2 + offset + 1];
+            const next = this.buffer[indent3 + offset + 1];
             if (next === "\n" || !next && !this.atEnd)
-              return offset + indent2 + 1;
+              return offset + indent3 + 1;
           }
-          return ch === "\n" || indent2 >= this.indentNext || !ch && !this.atEnd ? offset + indent2 : -1;
+          return ch === "\n" || indent3 >= this.indentNext || !ch && !this.atEnd ? offset + indent3 : -1;
         }
         if (ch === "-" || ch === ".") {
           const dt = this.buffer.substr(offset, 3);
@@ -5972,12 +5972,12 @@ var require_lexer = __commonJS({
       }
       *parseFlowCollection() {
         let nl, sp;
-        let indent2 = -1;
+        let indent3 = -1;
         do {
           nl = yield* this.pushNewline();
           if (nl > 0) {
             sp = yield* this.pushSpaces(false);
-            this.indentValue = indent2 = sp;
+            this.indentValue = indent3 = sp;
           } else {
             sp = 0;
           }
@@ -5986,8 +5986,8 @@ var require_lexer = __commonJS({
         const line3 = this.getLine();
         if (line3 === null)
           return this.setNext("flow");
-        if (indent2 !== -1 && indent2 < this.indentNext && line3[0] !== "#" || indent2 === 0 && (line3.startsWith("---") || line3.startsWith("...")) && isEmpty(line3[3])) {
-          const atFlowEndMarker = indent2 === this.indentNext - 1 && this.flowLevel === 1 && (line3[0] === "]" || line3[0] === "}");
+        if (indent3 !== -1 && indent3 < this.indentNext && line3[0] !== "#" || indent3 === 0 && (line3.startsWith("---") || line3.startsWith("...")) && isEmpty(line3[3])) {
+          const atFlowEndMarker = indent3 === this.indentNext - 1 && this.flowLevel === 1 && (line3[0] === "]" || line3[0] === "}");
           if (!atFlowEndMarker) {
             this.flowLevel = 0;
             yield cst.FLOW_END;
@@ -6095,16 +6095,16 @@ var require_lexer = __commonJS({
       }
       *parseBlockScalar() {
         let nl = this.pos - 1;
-        let indent2 = 0;
+        let indent3 = 0;
         let ch;
         loop: for (let i2 = this.pos; ch = this.buffer[i2]; ++i2) {
           switch (ch) {
             case " ":
-              indent2 += 1;
+              indent3 += 1;
               break;
             case "\n":
               nl = i2;
-              indent2 = 0;
+              indent3 = 0;
               break;
             case "\r": {
               const next = this.buffer[i2 + 1];
@@ -6120,9 +6120,9 @@ var require_lexer = __commonJS({
         }
         if (!ch && !this.atEnd)
           return this.setNext("block-scalar");
-        if (indent2 >= this.indentNext) {
+        if (indent3 >= this.indentNext) {
           if (this.blockScalarIndent === -1)
-            this.indentNext = indent2;
+            this.indentNext = indent3;
           else {
             this.indentNext = this.blockScalarIndent + (this.indentNext === 0 ? 1 : this.indentNext);
           }
@@ -6155,7 +6155,7 @@ var require_lexer = __commonJS({
             const lastChar = i2;
             while (ch2 === " ")
               ch2 = this.buffer[--i2];
-            if (ch2 === "\n" && i2 >= this.pos && i2 + 1 + indent2 > lastChar)
+            if (ch2 === "\n" && i2 >= this.pos && i2 + 1 + indent3 > lastChar)
               nl = i2;
             else
               break;
@@ -7171,10 +7171,10 @@ var require_parser = __commonJS({
         }
         return null;
       }
-      atIndentedComment(start, indent2) {
+      atIndentedComment(start, indent3) {
         if (this.type !== "comment")
           return false;
-        if (this.indent <= indent2)
+        if (this.indent <= indent3)
           return false;
         return start.every((st) => st.type === "newline" || st.type === "space");
       }
@@ -7296,8 +7296,8 @@ var require_public_api = __commonJS({
       if (typeof options === "string")
         options = options.length;
       if (typeof options === "number") {
-        const indent2 = Math.round(options);
-        options = indent2 < 1 ? void 0 : indent2 > 8 ? { indent: 8 } : { indent: indent2 };
+        const indent3 = Math.round(options);
+        options = indent3 < 1 ? void 0 : indent3 > 8 ? { indent: 8 } : { indent: indent3 };
       }
       if (value === void 0) {
         const { keepUndefined } = options ?? replacer ?? {};
@@ -11410,9 +11410,9 @@ async function runChange(text, ctx) {
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const parent = findRun(ctx.paths, request.side.parent);
-  if (!parent) return { exit: 2, text: `\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id` };
-  if (!isContractRun(parent)) return { exit: 2, text: `\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code` };
-  if (parent.items !== null) return { exit: 2, text: `\u2716 side.parent: ${parent.id} was a sweep \u2192 run the sweep again (unchanged items are reused for free)` };
+  if (!parent) return { exit: 2, text: stopText([`\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id`], "change") };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code`], "change") };
+  if (parent.items !== null) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} was a sweep \u2192 run the sweep again (unchanged items are reused for free)`], "change") };
   const categories = parent.ask.categories;
   const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
   const identity = providerIdentity(ctx.env);
@@ -13017,8 +13017,8 @@ function runRequestMode(text, ctx) {
   return { exit: 0, text: respondText(side, wiseRecorded(null), next, ["free"]) };
 }
 function runView(arg, level, ctx, content, summary = false) {
-  const probe = (content ?? arg).trim();
-  if (REQUEST_MODE.test(probe) || probe.startsWith("{")) return runRequestMode(content ?? arg, ctx);
+  const probe2 = (content ?? arg).trim();
+  if (REQUEST_MODE.test(probe2) || probe2.startsWith("{")) return runRequestMode(content ?? arg, ctx);
   const at = RUN_ID.test(arg) ? void 0 : toPlace(arg, ctx.paths.root);
   if (at && "stop" in at) return { exit: 2, text: at.stop };
   const limit = level * 10;
@@ -13029,7 +13029,7 @@ function runView(arg, level, ctx, content, summary = false) {
 var PATTERNS2 = [
   {
     rule: "A file this size gets read past the point that actually matters \u2014 name the range that does, instead of sending the whole file.",
-    why: "Big files get cut \u2014 name the range",
+    why: "Big whole files refused \u2014 name the range",
     verb: "view",
     in: ["class", "authoring"],
     catchable: true,
@@ -13062,6 +13062,33 @@ var PATTERNS2 = [
     catchable: false,
     bad: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does the caller of {function} sanitize its input first?\n",
     good: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} sanitize its input before use?\n"
+  },
+  {
+    rule: "`view` checks reuse for one subject against the code in `where:` \u2014 with none named, it has nothing to check.",
+    why: "View needs where: to check for reuse",
+    verb: "view",
+    in: ["view"],
+    catchable: true,
+    bad: "side:\n  goal: This handler is safe to merge\n  ask:\n    injection:\n      pass: no\n      1: Does the handler sanitize the amount field before use?\n",
+    good: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does the handler sanitize the amount field before use?\n"
+  },
+  {
+    rule: "`over:` builds a sweep across many items \u2014 `view` checks one subject and rejects `over:` outright.",
+    why: "Over: is for sweeps; view checks one thing",
+    verb: "view",
+    in: ["view"],
+    catchable: true,
+    bad: "side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  over:\n    file: src/pay/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\n",
+    good: "side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does the handler put request text straight into a query?\n"
+  },
+  {
+    rule: "`loop` sweeps ideas you write yourself, not files on disk \u2014 a code-glob layer belongs to `scan`, not `loop`.",
+    why: "Loop sweeps written ideas, not file globs",
+    verb: "loop",
+    in: ["loop"],
+    catchable: true,
+    bad: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    file: src/checkout/*.ts\n  ask:\n    file:\n      done:\n        pass: yes\n        1: Does {file} own one clear responsibility?\n",
+    good: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part: [gateway, payments, ledger]\n  ask:\n    part:\n      done:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n"
   }
 ];
 var indent = (text, pad) => text.trimEnd().split("\n").map((l) => `${pad}${l}`);
@@ -13110,20 +13137,107 @@ var RULES = [
 function ruleLines(tag) {
   return RULES.filter((r) => r.in.includes(tag)).map((r) => `- ${r.text}.`);
 }
+var PROBE_RULES = [
+  {
+    text: "One narrow judgment per question \u2014 break a complex or ill-defined question into separate questions that each evaluate one property.",
+    cite: "concepts/how-to-build-with-system-one.md"
+  },
+  {
+    text: "The question carries its full meaning on its own \u2014 a question's number is a label for the response only; the model never sees it.",
+    cite: "concepts/how-to-build-with-system-one.md"
+  },
+  {
+    text: "It's answerable from the code in where: \u2014 name the file in backticks when there's more than one, and send only the context the question needs.",
+    cite: "concepts/how-to-build-with-system-one.md"
+  },
+  {
+    text: 'Yes/no questions keep one polarity per category \u2014 phrase so "yes" is the affirmative you mean, not an inverted "is free of\u2026".',
+    cite: "primitives/noul.md"
+  },
+  {
+    text: "Scale levels describe concrete situations, not relative points \u2014 every level is judged on its own; the model sees neither its number nor its neighbours.",
+    cite: "primitives/score.md"
+  },
+  {
+    text: 'Choice options include a "none fits" outcome for when nothing else matches.',
+    cite: "primitives/choice.md"
+  },
+  {
+    text: 'Phrase the goal as the safe state ("X rejects Y"), not the vulnerability ("X runs input as code") \u2014 a goal is asked as a yes/no, so the same affirmative-alignment rule applies to it.',
+    cite: "primitives/noul.md"
+  },
+  {
+    text: 'Add the visible-scope probe as a recommended extra question: "Can this be answered from the code shown?"',
+    cite: "concepts/how-to-build-with-system-one.md"
+  }
+];
 
 // src/help/agent.ts
 var isVerb = (s) => VERBS.includes(s);
 function overview() {
-  return ["verbs: " + VERBS.join(", "), "rules:", ...ruleLines("card"), "\u2192 sidewise agent <verb> for its own rules and good/bad pairs"].join("\n");
+  return ["verbs: " + VERBS.join(", "), "rules:", ...ruleLines("card"), "run: sidewise agent <verb>", "run: sidewise agent probe"].join("\n");
 }
 function verbCard(verb) {
   return [`verb: ${verb}`, "rules:", ...ruleLines(verb), ...terseLines(verb)].join("\n");
 }
+function probeCard() {
+  return ["target: probe", "rules:", ...PROBE_RULES.map((r) => `- ${r.text}`)].join("\n");
+}
+function outcomeCard() {
+  return [
+    "target: outcome",
+    "rules:",
+    "- syntax: sidewise outcome <SW-####> held|overruled|failed --by <actor>",
+    "- no --note flag: keep a reason in your own notes, not here",
+    "- an actor can't mark its own asked run held: use a different --by, or record overruled or failed",
+    "- same outcome, same actor, twice: exit 0, no-op",
+    "patterns:",
+    "- why: can't self-certify a run as held",
+    "  bad:",
+    "    sidewise outcome SW-0002 held --by claude",
+    "  good:",
+    "    sidewise outcome SW-0002 overruled --by claude"
+  ].join("\n");
+}
+function budgetCard() {
+  return [
+    "target: budget",
+    "rules:",
+    "- three subcommands: show (default), reset, set",
+    "- set needs --usd, --runs, or both",
+    "- reset zeroes spend and run count, keeps the caps",
+    "- over either cap: exit 3, before spending anything",
+    "patterns:",
+    "- why: set with no flags changes nothing",
+    "  bad:",
+    "    sidewise budget set",
+    "  good:",
+    "    sidewise budget set --usd 5 --runs 500"
+  ].join("\n");
+}
+function reportCard() {
+  return [
+    "target: report",
+    "rules:",
+    "- free: never calls a provider, never writes to the ledger",
+    "- views: hits (default), patterns, history \u2014 nothing else",
+    "patterns:",
+    "- why: no view beyond hits, patterns or history exists",
+    "  bad:",
+    "    sidewise report level2",
+    "  good:",
+    "    sidewise report patterns"
+  ].join("\n");
+}
+var AGENT_TOPICS = { probe: probeCard, outcome: outcomeCard, budget: budgetCard, report: reportCard };
+var agentExtras = () => Object.keys(AGENT_TOPICS);
+var AGENT_EXTRAS = Object.keys(AGENT_TOPICS);
 function runAgent(target) {
   if (target === void 0 || target === "") return { exit: 0, text: overview() };
   if (hasControlChars(target)) return { exit: 2, text: "\u2716 agent: the target has control characters \u2192 use a verb name" };
-  if (!isVerb(target)) return { exit: 2, text: `\u2716 agent: "${clip(target, 40)}" is not a verb \u2192 one of ${VERBS.join(", ")}` };
-  return { exit: 0, text: verbCard(target) };
+  if (isVerb(target)) return { exit: 0, text: verbCard(target) };
+  if (Object.hasOwn(AGENT_TOPICS, target)) return { exit: 0, text: AGENT_TOPICS[target]() };
+  return { exit: 2, text: `\u2716 agent: "${clip(target, 40)}" is not a verb \u2192 one of ${VERBS.join(", ")}, or ${agentExtras().map((t) => `"${t}"`).join(", ")}` };
 }
 
 // src/help/card.ts
@@ -13160,6 +13274,46 @@ function card() {
 }
 
 // src/help/report.ts
+var REPORT_PAIRS = [
+  {
+    rule: "there is no view beyond hits, patterns and history \u2014 nothing else to ask it for.",
+    bad: ["sidewise report level2", '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns or history'],
+    good: ["sidewise report patterns"]
+  }
+];
+var OUTCOME_PAIRS = [
+  {
+    rule: "an agent can't certify its own run as correct \u2014 `held` needs a second party.",
+    bad: [
+      "sidewise outcome SW-0002 held --by claude   # claude is the actor that asked SW-0002",
+      `\u2192 \u2716 outcome: claude asked SW-0002, so it can't mark it held \u2192 another agent or the owner records "held"`
+    ],
+    good: ["sidewise outcome SW-0002 overruled --by claude   # or: held --by a different actor"]
+  },
+  {
+    rule: "`outcome` takes no reason field.",
+    bad: [
+      'sidewise outcome SW-0002 overruled --by claude --note "wrong file blamed"',
+      "\u2192 \u2716 args: unknown flag --note \u2192 sidewise outcome <SW-####> held|overruled|failed --by <actor>"
+    ],
+    good: ["sidewise outcome SW-0002 overruled --by claude   # keep the reason in your own notes"]
+  }
+];
+var BUDGET_PAIRS = [
+  {
+    rule: "`set` with no flags changes nothing and has nothing to report.",
+    bad: ["sidewise budget set", "\u2192 \u2716 budget: set needs --usd or --runs \u2192 e.g. sidewise budget set --usd 5 --runs 500"],
+    good: ["sidewise budget set --usd 5 --runs 500"]
+  }
+];
+var indent2 = (lines, pad) => lines.map((l) => `${pad}${l}`);
+function proseCliPairs(pairs) {
+  return [
+    "",
+    "## Good / bad",
+    ...pairs.flatMap((p, i) => [...i ? [""] : [], `- ${p.rule}`, "  bad:", ...indent2(p.bad, "    "), "  good:", ...indent2(p.good, "    ")])
+  ];
+}
 function reportHelp() {
   return [
     "## report",
@@ -13177,12 +13331,46 @@ function reportHelp() {
     "- `hits`: the newest run's own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.",
     "- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.",
     "- `history`: a merged, newest-first feed of `change` results (fixed/regressed) and recorded outcomes.",
-    "- every view caps its rows and says plainly how many more exist, rather than dropping them silently."
+    "- every view caps its rows and says plainly how many more exist, rather than dropping them silently.",
+    ...proseCliPairs(REPORT_PAIRS)
+  ].join("\n");
+}
+function outcomeHelp() {
+  return [
+    "## outcome",
+    "Records what happened to a run after the fact, so weak spots roll up later in `sidewise report history`: `held` (it was right), `overruled` (it was wrong) or `failed` (it was useless). Not a side:-YAML verb: it never calls a provider, only appends one line to the ledger.",
+    "",
+    "Example:",
+    "sidewise outcome SW-0002 overruled --by claude",
+    "sidewise outcome SW-0002 held --by the-owner       # a different actor than the one who asked it",
+    "",
+    "Sharp rules:",
+    "- exact form: sidewise outcome <SW-####> held|overruled|failed --by <actor> \u2014 no other flags (there is no `--note`; keep a reason in your own notes, not here).",
+    "- the agent that asked a run can't mark it `held` itself \u2014 `overruled` and `failed` have no such restriction.",
+    '- recording the exact same outcome, by the exact same actor, again is a no-op (exit 0, "already recorded by <actor>"), not a second entry.',
+    ...proseCliPairs(OUTCOME_PAIRS)
+  ].join("\n");
+}
+function budgetHelp() {
+  return [
+    "## budget",
+    "Shows or changes the project's spend cap. Not a side:-YAML verb: it never calls a provider. `show` (the default) prints the current spend and run count; `reset` zeroes both but keeps the caps; `set` changes either or both caps without touching the spend already counted.",
+    "",
+    "Example:",
+    "sidewise budget                          # same as: sidewise budget show",
+    "sidewise budget set --usd 5 --runs 500   # the defaults",
+    "",
+    "Sharp rules:",
+    "- three subcommands only: `show` (default), `reset`, `set`.",
+    "- `set` needs at least one of `--usd`/`--runs` \u2014 giving neither is a stop.",
+    "- by convention only the project owner runs `reset` \u2014 nothing in the code stops any agent from running it.",
+    "- any verb call that would go over either cap stops at exit 3 before it spends anything.",
+    ...proseCliPairs(BUDGET_PAIRS)
   ].join("\n");
 }
 
 // src/help/topics.ts
-var TOPICS = ["authoring", "verdict", "wise", "reuse"];
+var TOPICS = ["authoring", "verdict", "wise", "reuse", "probe"];
 function authoring() {
   return [
     "## authoring",
@@ -13248,7 +13436,21 @@ function reuse() {
     "  category's `pass:` or `need:` re-grades the same free answer instead of re-asking the question."
   ].join("\n");
 }
-var BUILDERS = { authoring, verdict, wise, reuse };
+function probe() {
+  return [
+    "## probe",
+    "A valid probe: the shape of a well-formed question, best practice for a higher-quality answer \u2014 guidance,",
+    "not new validator enforcement. Each rule below is TypeSafe's own published guidance, paraphrased, with its",
+    "source page cited.",
+    "",
+    ...PROBE_RULES.map((r) => `- ${r.text} (TypeSafe: ${r.cite})`),
+    "",
+    'Round 3 smoke testing found this directly: a goal phrased as the vulnerability ("runs request input as code")',
+    "read pass/fail backwards, and its probability stayed at p 0.98 before AND after the fix that removed the",
+    "vulnerability \u2014 the wording, not the classifier, was wrong. That's rule 7 above."
+  ].join("\n");
+}
+var BUILDERS = { authoring, verdict, wise, reuse, probe };
 function topicHelp(topic) {
   return BUILDERS[topic]();
 }
@@ -13338,6 +13540,8 @@ function verbHelp(verb) {
 
 // src/help/index.ts
 var HELP_TOPICS = TOPICS;
+var EXTRAS = { report: reportHelp, outcome: outcomeHelp, budget: budgetHelp };
+var HELP_EXTRAS = Object.keys(EXTRAS);
 var isVerb2 = (s) => VERBS.includes(s);
 var isTopic = (s) => TOPICS.includes(s);
 function runHelp(target) {
@@ -13345,10 +13549,10 @@ function runHelp(target) {
   if (hasControlChars(target)) return { exit: 2, text: "\u2716 help: the target has control characters \u2192 use a verb or a topic name" };
   if (isVerb2(target)) return { exit: 0, text: verbHelp(target) };
   if (isTopic(target)) return { exit: 0, text: topicHelp(target) };
-  if (target === "report") return { exit: 0, text: reportHelp() };
+  if (Object.hasOwn(EXTRAS, target)) return { exit: 0, text: EXTRAS[target]() };
   return {
     exit: 2,
-    text: `\u2716 help: "${clip(target, 40)}" is not a verb or topic \u2192 one of ${VERBS.join(", ")}, or a topic: ${TOPICS.join(", ")}, or "report"`
+    text: `\u2716 help: "${clip(target, 40)}" is not a verb or topic \u2192 one of ${VERBS.join(", ")}, or a topic: ${TOPICS.join(", ")}, or ${HELP_EXTRAS.map((t) => `"${t}"`).join(", ")}`
   };
 }
 
@@ -13367,8 +13571,8 @@ var LINES3 = {
   drill: "sidewise drill <request-file | -> [--dry-run]",
   loop: "sidewise loop <request-file | -> [--dry-run]",
   template: "sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  \xB7  or: --from <request.yaml> [--where <path>]... [--goal <text>]",
-  help: `sidewise help [${VERBS.join("|")}|${HELP_TOPICS.join("|")}|report]`,
-  agent: `sidewise agent [${VERBS.join("|")}]`,
+  help: `sidewise help [${VERBS.join("|")}|${HELP_TOPICS.join("|")}|${HELP_EXTRAS.join("|")}]`,
+  agent: `sidewise agent [${VERBS.join("|")}|${AGENT_EXTRAS.join("|")}]`,
   report: "sidewise report [hits|patterns|history]",
   outcome: "sidewise outcome <SW-####> held|overruled|failed --by <actor>",
   budget: "sidewise budget [show | reset | set --usd <n> --runs <n>]",
