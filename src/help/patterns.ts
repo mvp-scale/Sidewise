@@ -31,7 +31,7 @@ export interface Pattern {
 export const PATTERNS: readonly Pattern[] = [
   {
     rule: 'A file this size gets read past the point that actually matters — name the range that does, instead of sending the whole file.',
-    why: 'Big files get cut — name the range',
+    why: 'Big whole files refused — name the range',
     verb: 'view',
     in: ['class', 'authoring'],
     catchable: true,
