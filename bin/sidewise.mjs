@@ -114,17 +114,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key2, node, visitor, path19) {
-      const ctrl = callVisitor(key2, node, visitor, path19);
+    function visit_(key2, node, visitor, path20) {
+      const ctrl = callVisitor(key2, node, visitor, path20);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key2, path19, ctrl);
-        return visit_(key2, ctrl, visitor, path19);
+        replaceNode(key2, path20, ctrl);
+        return visit_(key2, ctrl, visitor, path20);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path19 = Object.freeze(path19.concat(node));
+          path20 = Object.freeze(path20.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path19);
+            const ci = visit_(i, node.items[i], visitor, path20);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -135,13 +135,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path19 = Object.freeze(path19.concat(node));
-          const ck = visit_("key", node.key, visitor, path19);
+          path20 = Object.freeze(path20.concat(node));
+          const ck = visit_("key", node.key, visitor, path20);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path19);
+          const cv = visit_("value", node.value, visitor, path20);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -162,17 +162,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key2, node, visitor, path19) {
-      const ctrl = await callVisitor(key2, node, visitor, path19);
+    async function visitAsync_(key2, node, visitor, path20) {
+      const ctrl = await callVisitor(key2, node, visitor, path20);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key2, path19, ctrl);
-        return visitAsync_(key2, ctrl, visitor, path19);
+        replaceNode(key2, path20, ctrl);
+        return visitAsync_(key2, ctrl, visitor, path20);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path19 = Object.freeze(path19.concat(node));
+          path20 = Object.freeze(path20.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path19);
+            const ci = await visitAsync_(i, node.items[i], visitor, path20);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -183,13 +183,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path19 = Object.freeze(path19.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path19);
+          path20 = Object.freeze(path20.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path20);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path19);
+          const cv = await visitAsync_("value", node.value, visitor, path20);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -216,23 +216,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key2, node, visitor, path19) {
+    function callVisitor(key2, node, visitor, path20) {
       if (typeof visitor === "function")
-        return visitor(key2, node, path19);
+        return visitor(key2, node, path20);
       if (identity.isMap(node))
-        return visitor.Map?.(key2, node, path19);
+        return visitor.Map?.(key2, node, path20);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key2, node, path19);
+        return visitor.Seq?.(key2, node, path20);
       if (identity.isPair(node))
-        return visitor.Pair?.(key2, node, path19);
+        return visitor.Pair?.(key2, node, path20);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key2, node, path19);
+        return visitor.Scalar?.(key2, node, path20);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key2, node, path19);
+        return visitor.Alias?.(key2, node, path20);
       return void 0;
     }
-    function replaceNode(key2, path19, node) {
-      const parent = path19[path19.length - 1];
+    function replaceNode(key2, path20, node) {
+      const parent = path20[path20.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key2] = node;
       } else if (identity.isPair(parent)) {
@@ -844,10 +844,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path19, value) {
+    function collectionFromPath(schema, path20, value) {
       let v = value;
-      for (let i = path19.length - 1; i >= 0; --i) {
-        const k = path19[i];
+      for (let i = path20.length - 1; i >= 0; --i) {
+        const k = path20[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -866,7 +866,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path19) => path19 == null || typeof path19 === "object" && !!path19[Symbol.iterator]().next().done;
+    var isEmptyPath = (path20) => path20 == null || typeof path20 === "object" && !!path20[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -896,11 +896,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path19, value) {
-        if (isEmptyPath(path19))
+      addIn(path20, value) {
+        if (isEmptyPath(path20))
           this.add(value);
         else {
-          const [key2, ...rest] = path19;
+          const [key2, ...rest] = path20;
           const node = this.get(key2, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -914,8 +914,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path19) {
-        const [key2, ...rest] = path19;
+      deleteIn(path20) {
+        const [key2, ...rest] = path20;
         if (rest.length === 0)
           return this.delete(key2);
         const node = this.get(key2, true);
@@ -929,8 +929,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path19, keepScalar) {
-        const [key2, ...rest] = path19;
+      getIn(path20, keepScalar) {
+        const [key2, ...rest] = path20;
         const node = this.get(key2, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -948,8 +948,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path19) {
-        const [key2, ...rest] = path19;
+      hasIn(path20) {
+        const [key2, ...rest] = path20;
         if (rest.length === 0)
           return this.has(key2);
         const node = this.get(key2, true);
@@ -959,8 +959,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path19, value) {
-        const [key2, ...rest] = path19;
+      setIn(path20, value) {
+        const [key2, ...rest] = path20;
         if (rest.length === 0) {
           this.set(key2, value);
         } else {
@@ -3475,9 +3475,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path19, value) {
+      addIn(path20, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path19, value);
+          this.contents.addIn(path20, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -3552,14 +3552,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path19) {
-        if (Collection.isEmptyPath(path19)) {
+      deleteIn(path20) {
+        if (Collection.isEmptyPath(path20)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path19) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path20) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -3574,10 +3574,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path19, keepScalar) {
-        if (Collection.isEmptyPath(path19))
+      getIn(path20, keepScalar) {
+        if (Collection.isEmptyPath(path20))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path19, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path20, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -3588,10 +3588,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path19) {
-        if (Collection.isEmptyPath(path19))
+      hasIn(path20) {
+        if (Collection.isEmptyPath(path20))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path19) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path20) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -3608,13 +3608,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path19, value) {
-        if (Collection.isEmptyPath(path19)) {
+      setIn(path20, value) {
+        if (Collection.isEmptyPath(path20)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path19), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path20), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path19, value);
+          this.contents.setIn(path20, value);
         }
       }
       /**
@@ -5575,9 +5575,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path19) => {
+    visit.itemAtPath = (cst, path20) => {
       let item = cst;
-      for (const [field, index] of path19) {
+      for (const [field, index] of path20) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -5586,23 +5586,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path19) => {
-      const parent = visit.itemAtPath(cst, path19.slice(0, -1));
-      const field = path19[path19.length - 1][0];
+    visit.parentCollection = (cst, path20) => {
+      const parent = visit.itemAtPath(cst, path20.slice(0, -1));
+      const field = path20[path20.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path19, item, visitor) {
-      let ctrl = visitor(item, path19);
+    function _visit(path20, item, visitor) {
+      let ctrl = visitor(item, path20);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path19.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path20.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -5613,10 +5613,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path19);
+            ctrl = ctrl(item, path20);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path19) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path20) : ctrl;
     }
     exports.visit = visit;
   }
@@ -7371,7 +7371,7 @@ var require_dist = __commonJS({
 var import_yaml3 = __toESM(require_dist(), 1);
 import { readFileSync as readFileSync14, statSync as statSync8 } from "node:fs";
 import os3 from "node:os";
-import path18 from "node:path";
+import path19 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -7802,8 +7802,8 @@ function createFakeAdapter() {
 // src/classifier/typesafe/config.ts
 var JevConfigError = class extends Error {
   /** 1 (default): a provider problem (no key) — bucketed with other provider errors. 2: a config value the
-   *  caller must fix before anything runs (a bad SIDEWISE_BASE_URL) — the owner ruling for P3 treats this like
-   *  a usage mistake, not a runtime provider failure. */
+   *  caller must fix before anything runs (a bad SIDEWISE_BASE_URL) — a usage mistake, not a runtime provider
+   *  failure. */
   exit;
   constructor(message, exit = 1) {
     super(message);
@@ -10560,11 +10560,17 @@ function itemsState(items, notes) {
 // src/evidence/git.ts
 import { spawnSync } from "node:child_process";
 import { readFileSync as readFileSync11, realpathSync as realpathSync4, statSync as statSync7 } from "node:fs";
-import path13 from "node:path";
+import path14 from "node:path";
 
 // src/evidence/code.ts
 import { readFileSync as readFileSync10, realpathSync as realpathSync3, statSync as statSync6 } from "node:fs";
+import path13 from "node:path";
+
+// src/evidence/paths.ts
 import path12 from "node:path";
+var isOutside = (rel) => rel.startsWith("..") || path12.isAbsolute(rel);
+
+// src/evidence/code.ts
 var EVIDENCE_LIMITS = { perFileChars: 2e4, totalChars: 6e4 };
 var LINES = /^(\d+)(?:-(\d+))?$/;
 var TAIL = /:(\d+(?:-\d+)?)$/u;
@@ -10579,7 +10585,6 @@ function splitWhere(entry) {
   const m2 = TAIL.exec(entry);
   return m2 ? { path: entry.slice(0, m2.index), lines: m2[1] } : { path: entry };
 }
-var isOutside = (rel) => rel.startsWith("..") || path12.isAbsolute(rel);
 function readCodeEvidence(root, where) {
   const errors = [];
   const notes = [];
@@ -10587,8 +10592,8 @@ function readCodeEvidence(root, where) {
   let total = 0;
   for (const entry of where) {
     const { path: rawPath, lines } = splitWhere(entry);
-    const full = path12.resolve(root, rawPath);
-    const rel = path12.relative(root, full);
+    const full = path13.resolve(root, rawPath);
+    const rel = path13.relative(root, full);
     const outside = `\u2716 side.where: "${rawPath}" is outside the project \u2192 use a path inside the project`;
     if (isOutside(rel)) {
       errors.push(outside);
@@ -10601,7 +10606,7 @@ function readCodeEvidence(root, where) {
     }
     let text;
     try {
-      if (isOutside(path12.relative(realpathSync3(root), realpathSync3(full)))) {
+      if (isOutside(path13.relative(realpathSync3(root), realpathSync3(full)))) {
         errors.push(outside);
         continue;
       }
@@ -10614,7 +10619,7 @@ function readCodeEvidence(root, where) {
       errors.push(`\u2716 side.where: cannot read "${rawPath}" \u2192 check the path`);
       continue;
     }
-    const shown2 = `${rel.split(path12.sep).join("/")}${lines ? `:${lines}` : ""}`;
+    const shown2 = `${rel.split(path13.sep).join("/")}${lines ? `:${lines}` : ""}`;
     let body = redact(range ? text.split("\n").slice(range.start - 1, range.end).join("\n") : text);
     if (body.length > EVIDENCE_LIMITS.perFileChars) {
       body = body.slice(0, EVIDENCE_LIMITS.perFileChars);
@@ -10644,7 +10649,6 @@ function gitRootOf(dir, spawn) {
   const out = typeof result.stdout === "string" ? result.stdout.trim() : "";
   return result.status === 0 && out ? out : void 0;
 }
-var isOutside2 = (rel) => rel.startsWith("..") || path13.isAbsolute(rel);
 function keep(shown2, text, total, notes) {
   let body = redact(text);
   if (body.length > EVIDENCE_LIMITS.perFileChars) {
@@ -10673,18 +10677,18 @@ function readGitEvidence(root, ref, field, paths, deps) {
   let total = 0;
   let read2 = false;
   for (const rawPath of paths) {
-    const full = path13.resolve(root, rawPath);
-    const rel = path13.relative(root, full);
+    const full = path14.resolve(root, rawPath);
+    const rel = path14.relative(root, full);
     const outside = `\u2716 side.compare.${field}: "${rawPath}" is outside the project \u2192 use a path inside the project`;
-    if (isOutside2(rel)) {
+    if (isOutside(rel)) {
       errors.push(outside);
       continue;
     }
-    const shown2 = rel.split(path13.sep).join("/");
+    const shown2 = rel.split(path14.sep).join("/");
     if (ref === "worktree") {
       let text;
       try {
-        if (isOutside2(path13.relative(realpathSync4(root), realpathSync4(full)))) {
+        if (isOutside(path14.relative(realpathSync4(root), realpathSync4(full)))) {
           errors.push(outside);
           continue;
         }
@@ -10705,8 +10709,8 @@ function readGitEvidence(root, ref, field, paths, deps) {
       }
       continue;
     }
-    const gitRoot = gitRootOf(path13.dirname(full), spawn) ?? root;
-    const gitRel = path13.relative(gitRoot, full).split(path13.sep).join("/");
+    const gitRoot = gitRootOf(path14.dirname(full), spawn) ?? root;
+    const gitRel = path14.relative(gitRoot, full).split(path14.sep).join("/");
     const result = spawn("git", ["show", `${ref}:${gitRel}`], { cwd: gitRoot, encoding: "utf8" });
     const stderr = typeof result.stderr === "string" ? result.stderr : "";
     if (result.status !== 0 || FATAL.test(stderr)) {
@@ -10837,6 +10841,19 @@ function oneLine(e) {
   return text.length > 200 ? `${text.slice(0, 199)}\u2026` : text;
 }
 var actorOf = (ctx) => ctx.env.SIDEWISE_ACTOR?.trim() || "agent";
+function splitReuse(keyed, reused, answers, reusedFrom) {
+  const toAsk = [];
+  for (const [q, k] of keyed) {
+    const hit = reused.get(k);
+    if (hit) {
+      answers[q.id] = hit.answer;
+      reusedFrom[q.id] = hit.id;
+    } else {
+      toAsk.push([q, k]);
+    }
+  }
+  return toAsk;
+}
 function notCounted(e) {
   if (e instanceof BudgetError) return fail(3, `${e.message} ${NOT_COUNTED}`);
   if (isStoreFailure(e)) return fail(1, `${e.message} ${NOT_COUNTED}`);
@@ -11037,22 +11054,22 @@ function never(field, verb) {
   return `\u2716 side.${field}: ${verb} doesn't take it \u2192 remove it`;
 }
 var cross = (text) => ({ cls: "cross", text });
-function findBlanks(v, path19, out) {
+function findBlanks(v, path20, out) {
   const label = (p) => {
     const q = /^side\.ask\..*\.(\d+)$/u.exec(p);
     return q ? `question ${q[1]}` : p;
   };
   if (typeof v === "string") {
-    if (v.includes("____")) out.push(cross(`\u2716 ${label(path19)}: still a ____ blank \u2192 fill it in`));
+    if (v.includes("____")) out.push(cross(`\u2716 ${label(path20)}: still a ____ blank \u2192 fill it in`));
     return;
   }
   if (Array.isArray(v)) {
-    v.forEach((x, i) => findBlanks(x, `${path19}[${i}]`, out));
+    v.forEach((x, i) => findBlanks(x, `${path20}[${i}]`, out));
     return;
   }
   if (isObj2(v)) {
     for (const [k, x] of Object.entries(v)) {
-      const p = path19 ? `${path19}.${k}` : k;
+      const p = path20 ? `${path20}.${k}` : k;
       if (k.includes("____")) out.push(cross(`\u2716 ${label(p)}: still a ____ blank \u2192 fill it in`));
       else findBlanks(x, p, out);
     }
@@ -11223,6 +11240,32 @@ function loadRequest(text, verb) {
 var REHEARSAL_ADAPTERS = ["fake", "chaos"];
 var isRehearsal = (adapter) => REHEARSAL_ADAPTERS.includes(adapter);
 
+// src/lens/consensus.ts
+var THRESHOLDS = { concernAt: 0.5, weakBelow: 0.35, strongAt: 0.8 };
+var majority = (flags) => flags.filter(Boolean).length * 2 >= flags.length;
+function computeConsensus(slots) {
+  if (!slots.length) throw new RangeError("consensus needs at least one slot");
+  const concern = slots.map((s) => s.reverse ? 1 - s.p : s.p);
+  const flags = concern.map((c) => c >= THRESHOLDS.concernAt);
+  const frac = flags.filter(Boolean).length / slots.length;
+  const agreement = Math.max(frac, 1 - frac);
+  const decisiveness = concern.reduce((sum, c) => sum + Math.abs(2 * c - 1), 0) / slots.length;
+  const forward = flags.filter((_, i) => !slots[i].reverse);
+  const reverse = flags.filter((_, i) => slots[i].reverse);
+  const reverseConsistent = !forward.length || !reverse.length || majority(forward) === majority(reverse);
+  const consensus = decisiveness < THRESHOLDS.weakBelow ? "WEAK" : agreement >= THRESHOLDS.strongAt && reverseConsistent ? "STRONG" : "SPLIT";
+  return {
+    consensus,
+    verdict: frac >= 0.5 ? "concern" : "clear",
+    agreement,
+    decisiveness,
+    concernSlots: slots.filter((_, i) => flags[i]).map((s) => s.pos),
+    clearSlots: slots.filter((_, i) => !flags[i]).map((s) => s.pos),
+    reversed: slots.filter((s) => s.reverse).map((s) => s.pos),
+    reverseConsistent
+  };
+}
+
 // src/verbs/respond.ts
 function shownValue(s) {
   return typeof s === "number" ? s : m(["top", s.top], ["p", s.p]);
@@ -11241,6 +11284,12 @@ function subjectSide(id, gate, subject, extra) {
 }
 function reusedIds(reusedFrom) {
   return [...new Set(Object.values(reusedFrom))].sort();
+}
+function consensusAndEscalate(categories, answers, depth, notes) {
+  const slots = categories.filter((c) => c.questions[0]?.kind === "yesno").flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === "yes", p: answers[String(q.n)].p })));
+  const consensus = computeConsensus(slots).consensus;
+  const escalate = consensus !== "STRONG" || depth === "thorough" || notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
+  return { consensus, escalate };
 }
 function wiseRecorded(wise2, extra) {
   const fields = [...wise2?.why ? ["why"] : [], ...wise2?.area ? ["area"] : [], ...extra ?? []];
@@ -11304,16 +11353,7 @@ function sweepEntry(g) {
 
 // src/verbs/change.ts
 function planCall(keyed, reused, state, answers, reusedFrom) {
-  const toAsk = [];
-  for (const [q, k] of keyed) {
-    const hit = reused.get(k);
-    if (hit) {
-      answers[q.id] = hit.answer;
-      reusedFrom[q.id] = hit.id;
-    } else {
-      toAsk.push(q);
-    }
-  }
+  const toAsk = splitReuse(keyed, reused, answers, reusedFrom).map(([q]) => q);
   return toAsk.length ? { state, questions: toAsk } : null;
 }
 async function runChange(text, ctx) {
@@ -11494,32 +11534,6 @@ function staleNotes(paths, where, toAsk) {
   );
 }
 
-// src/lens/consensus.ts
-var THRESHOLDS = { concernAt: 0.5, weakBelow: 0.35, strongAt: 0.8 };
-var majority = (flags) => flags.filter(Boolean).length * 2 >= flags.length;
-function computeConsensus(slots) {
-  if (!slots.length) throw new RangeError("consensus needs at least one slot");
-  const concern = slots.map((s) => s.reverse ? 1 - s.p : s.p);
-  const flags = concern.map((c) => c >= THRESHOLDS.concernAt);
-  const frac = flags.filter(Boolean).length / slots.length;
-  const agreement = Math.max(frac, 1 - frac);
-  const decisiveness = concern.reduce((sum, c) => sum + Math.abs(2 * c - 1), 0) / slots.length;
-  const forward = flags.filter((_, i) => !slots[i].reverse);
-  const reverse = flags.filter((_, i) => slots[i].reverse);
-  const reverseConsistent = !forward.length || !reverse.length || majority(forward) === majority(reverse);
-  const consensus = decisiveness < THRESHOLDS.weakBelow ? "WEAK" : agreement >= THRESHOLDS.strongAt && reverseConsistent ? "STRONG" : "SPLIT";
-  return {
-    consensus,
-    verdict: frac >= 0.5 ? "concern" : "clear",
-    agreement,
-    decisiveness,
-    concernSlots: slots.filter((_, i) => flags[i]).map((s) => s.pos),
-    clearSlots: slots.filter((_, i) => !flags[i]).map((s) => s.pos),
-    reversed: slots.filter((s) => s.reverse).map((s) => s.pos),
-    reverseConsistent
-  };
-}
-
 // src/verbs/class.ts
 var CAP_NOTE = "would be blocked: the budget cap is already reached";
 async function runClass(text, ctx) {
@@ -11536,16 +11550,7 @@ async function runClass(text, ctx) {
   const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
   const answers = {};
   const reusedFrom = {};
-  const toAsk = [];
-  for (const [q, k] of keyed) {
-    const hit = reused.get(k);
-    if (hit) {
-      answers[q.id] = hit.answer;
-      reusedFrom[q.id] = hit.id;
-    } else {
-      toAsk.push([q, k]);
-    }
-  }
+  const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
   if (ctx.dryRun) {
     let capNote = [];
     if (toAsk.length > 0) {
@@ -11577,10 +11582,8 @@ async function runClass(text, ctx) {
   }
   const keys = {};
   for (const [q, k] of keyed) keys[q.id] = k;
-  const slots = request.side.categories.filter((c) => c.questions[0]?.kind === "yesno").flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === "yes", p: answers[String(q.n)].p })));
-  const consensus = computeConsensus(slots).consensus;
+  const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
   const subject = gradeSubject(request.side.categories, answers);
-  const escalate = consensus !== "STRONG" || request.side.depth === "thorough" || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
   const reusedRunIds = reusedIds(reusedFrom);
   const response = (id, budget) => respondText(
     subjectSide(id, subject.gate, subject, [
@@ -11634,11 +11637,11 @@ async function runClass(text, ctx) {
 
 // src/evidence/units.ts
 import { readFileSync as readFileSync12, realpathSync as realpathSync5 } from "node:fs";
-import path15 from "node:path";
+import path16 from "node:path";
 
 // src/evidence/glob.ts
 import { readdirSync } from "node:fs";
-import path14 from "node:path";
+import path15 from "node:path";
 var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", ".sidewise", "dist"]);
 var MAX_FILES = 500;
 var escape = (s) => s.replace(/[.+^$()|[\]\\]/gu, "\\$&");
@@ -11674,14 +11677,14 @@ function staticPrefix(pattern) {
 }
 function expandGlob(root, pattern) {
   const clean2 = pattern.replace(/^\.\//u, "");
-  if (path14.isAbsolute(clean2) || clean2.split("/").includes("..")) return { files: [], truncated: false };
+  if (path15.isAbsolute(clean2) || clean2.split("/").includes("..")) return { files: [], truncated: false };
   const re = globToRegExp(clean2);
   const files = [];
   let truncated = false;
-  const rootResolved = path14.resolve(root);
+  const rootResolved = path15.resolve(root);
   const walk2 = (rel) => {
-    const dir = path14.resolve(root, rel);
-    if (dir !== rootResolved && !dir.startsWith(rootResolved + path14.sep)) return;
+    const dir = path15.resolve(root, rel);
+    if (dir !== rootResolved && !dir.startsWith(rootResolved + path15.sep)) return;
     let entries;
     try {
       entries = readdirSync(dir, { withFileTypes: true });
@@ -11994,7 +11997,6 @@ function splitCalls(fnSrc) {
 }
 
 // src/evidence/units.ts
-var isOutside3 = (rel) => rel.startsWith("..") || path15.isAbsolute(rel);
 var LINES2 = /^(\d+)-(\d+)$/;
 function lineRange2(lines) {
   const m2 = LINES2.exec(lines);
@@ -12008,10 +12010,10 @@ function readFiles(root, spec, notes) {
   if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
   const out = [];
   for (const rel of files) {
-    const full = path15.join(root, rel);
+    const full = path16.join(root, rel);
     let text;
     try {
-      if (isOutside3(path15.relative(realpathSync5(root), realpathSync5(full)))) throw new Error("outside");
+      if (isOutside(path16.relative(realpathSync5(root), realpathSync5(full)))) throw new Error("outside");
       text = readFileSync12(full, "utf8");
     } catch {
       notes.push(`${rel}: could not read, skipped`);
@@ -12047,13 +12049,13 @@ function createCodeResolver(root, notes) {
   };
 }
 function readUnit(root, unit) {
-  const full = path15.resolve(root, unit.path);
-  const rel = path15.relative(root, full);
+  const full = path16.resolve(root, unit.path);
+  const rel = path16.relative(root, full);
   const outside = { ok: false, error: `"${unit.path}" is outside the project` };
-  if (isOutside3(rel)) return outside;
+  if (isOutside(rel)) return outside;
   let text;
   try {
-    if (isOutside3(path15.relative(realpathSync5(root), realpathSync5(full)))) return outside;
+    if (isOutside(path16.relative(realpathSync5(root), realpathSync5(full)))) return outside;
     text = readFileSync12(full, "utf8");
   } catch {
     return { ok: false, error: `cannot read "${unit.path}"` };
@@ -12200,6 +12202,21 @@ function recordSweep(ctx, calls, costUsd, run) {
   if (!rec.ok) return rec.result;
   return { exit: 0, text: rec.value.run.response, run: rec.value.run };
 }
+function itemRecords(items, grades) {
+  const out = {};
+  for (const it of items) {
+    const g = grades.get(it.id);
+    out[it.id] = {
+      layer: it.layer,
+      fill: it.fill,
+      ...it.unit ? { unit: it.unit } : {},
+      status: g.status,
+      gate: g.gate,
+      categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate]))
+    };
+  }
+  return out;
+}
 
 // src/verbs/drill.ts
 var REDRILL_NEXT = "fix it, then run this drill again (unchanged items are reused, so it is nearly free)";
@@ -12214,16 +12231,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, changeParent) {
   const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
   const answers = {};
   const reusedFrom = {};
-  const toAsk = [];
-  for (const [q, k] of keyed) {
-    const hit = reused.get(k);
-    if (hit) {
-      answers[q.id] = hit.answer;
-      reusedFrom[q.id] = hit.id;
-    } else {
-      toAsk.push([q, k]);
-    }
-  }
+  const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
   if (ctx.dryRun) {
     return { exit: 0, text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }) };
   }
@@ -12246,10 +12254,8 @@ async function runOneSubjectProof(ctx, loaded, request, where, changeParent) {
   }
   const keys = {};
   for (const [q, k] of keyed) keys[q.id] = k;
-  const slots = request.side.categories.filter((c) => c.questions[0]?.kind === "yesno").flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === "yes", p: answers[String(q.n)].p })));
-  const consensus = computeConsensus(slots).consensus;
+  const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
   const subject = gradeSubject(request.side.categories, answers);
-  const escalate = consensus !== "STRONG" || request.side.depth === "thorough" || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
   const oneSubjectNext = (gate, id) => gate === "pass" ? "act on it" : `fix it, then sidewise change --parent ${changeParent(id)} --compare <before>..<after>`;
   const reusedRunIds = reusedIds(reusedFrom);
   const response = (id, budget) => respondText(
@@ -12364,18 +12370,7 @@ async function runDrill(text, ctx) {
     const failing = m(...worst.map((g) => sweepEntry(g)));
     const passing = graded.filter((g) => g.ownGate === "pass").length;
     const calls = plan.planned.filter((p) => p.call !== null).length;
-    const items = {};
-    for (const it of plan.items) {
-      const g = grades.get(it.id);
-      items[it.id] = {
-        layer: it.layer,
-        fill: it.fill,
-        ...it.unit ? { unit: it.unit } : {},
-        status: statusOf(it.id),
-        gate: g.gate,
-        categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate]))
-      };
-    }
+    const items = itemRecords(plan.items, grades);
     const response = (id, budget) => respondText(
       m(["id", id], ["gate", gate], ["goal", m(["gate", goalGrade], ["p", goalAnswer.p])], ["failing", failing], ["passing", passing]),
       wiseRecorded(request.wise),
@@ -12454,18 +12449,7 @@ async function runLoop(text, ctx) {
   const graded = [...grades.values()].filter((g) => g.status === "asked" || g.status === "reused");
   const worst = worstFirst(graded);
   const calls = plan.planned.filter((p) => p.call).length;
-  const items = {};
-  for (const it of plan.items) {
-    const g = grades.get(it.id);
-    items[it.id] = {
-      layer: it.layer,
-      fill: it.fill,
-      ...it.unit ? { unit: it.unit } : {},
-      status: g.status,
-      gate: g.gate,
-      categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate]))
-    };
-  }
+  const items = itemRecords(plan.items, grades);
   const response = (id, budget) => respondText(
     m(["id", id], ["gate", gate], ["goal", m(["gate", goal], ["p", goalAnswer?.p ?? 0])], ["failing", failing], ["passing", passing]),
     wiseRecorded(request.wise),
@@ -12661,18 +12645,7 @@ async function runScan(text, ctx) {
   const reused = graded.filter((g) => g.status === "reused").length;
   const scanned = m(...plan.layers.map((l) => [l, plan.items.filter((i) => i.layer === l).length]));
   const calls = plan.planned.filter((p) => p.call !== null).length;
-  const items = {};
-  for (const it of plan.items) {
-    const g = grades.get(it.id);
-    items[it.id] = {
-      layer: it.layer,
-      fill: it.fill,
-      ...it.unit ? { unit: it.unit } : {},
-      status: statusOf(it.id),
-      gate: g.gate,
-      categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate]))
-    };
-  }
+  const items = itemRecords(plan.items, grades);
   const response = (id, budget) => respondText(
     m(
       ["id", id],
@@ -12728,9 +12701,9 @@ async function runScan(text, ctx) {
 // src/verbs/template.ts
 var import_yaml2 = __toESM(require_dist(), 1);
 import { readFileSync as readFileSync13 } from "node:fs";
-import path16 from "node:path";
+import path17 from "node:path";
 import { fileURLToPath } from "node:url";
-var DEFAULT_PACKAGE_DIR = path16.join(path16.dirname(fileURLToPath(import.meta.url)), "..", "..");
+var DEFAULT_PACKAGE_DIR = path17.join(path17.dirname(fileURLToPath(import.meta.url)), "..", "..");
 function drillSampleFile(parent, paths) {
   const run = paths && findRun(paths, parent);
   if (run && isContractRun(run) && run.items === null) return "drill-subject.yaml";
@@ -12767,7 +12740,7 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
       return { exit: 2, text: "\u2716 template: --where/--goal don't apply with --parent \u2192 they overlay a checklist read from --from <request.yaml> instead" };
     }
     const file = drillSampleFile(flags.parent, paths);
-    const raw = readFileSync13(path16.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
+    const raw = readFileSync13(path17.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
     const doc = (0, import_yaml2.parseDocument)(raw);
     doc.setIn(["side", "parent"], flags.parent);
     doc.setIn(["side", "from"], flags.from);
@@ -12777,11 +12750,11 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
   if (flags.where !== void 0 || flags.goal !== void 0) {
     return { exit: 2, text: `\u2716 template: --where/--goal need --from \u2192 sidewise template ${target} --from <request.yaml>` };
   }
-  return { exit: 0, text: readFileSync13(path16.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
+  return { exit: 0, text: readFileSync13(path17.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
 }
 
 // src/verbs/view.ts
-import path17 from "node:path";
+import path18 from "node:path";
 var REQUEST_MODE = /^side\s*:/mu;
 function runLine(r, outcome) {
   const rehearsal = isRehearsal(r.adapter) ? " \xB7 rehearsal" : "";
@@ -12800,10 +12773,10 @@ function whereMatches(r, place) {
 }
 function toPlace(target, root) {
   if (hasControlChars(target)) return { stop: "\u2716 view: the target has control characters \u2192 use a folder, a tag, or SW-####" };
-  if (!path17.isAbsolute(target) && !target.split(/[\\/]/).includes("..")) return { place: target.replace(/^\.\//, "").replace(/\/+$/, "") || "." };
-  const rel = path17.relative(root, path17.resolve(root, target));
-  if (rel.startsWith("..") || path17.isAbsolute(rel)) return { stop: `\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or SW-####` };
-  return { place: rel.split(path17.sep).join("/") || "." };
+  if (!path18.isAbsolute(target) && !target.split(/[\\/]/).includes("..")) return { place: target.replace(/^\.\//, "").replace(/\/+$/, "") || "." };
+  const rel = path18.relative(root, path18.resolve(root, target));
+  if (rel.startsWith("..") || path18.isAbsolute(rel)) return { stop: `\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or SW-####` };
+  return { place: rel.split(path18.sep).join("/") || "." };
 }
 function renderPlace(place, hits, outcomeOf, limit) {
   if (!hits.length) return { exit: 0, text: `sidewise view ${clip(place, 60)} \xB7 no runs yet \u2192 "sidewise class <request>" starts one` };
@@ -13024,7 +12997,7 @@ function ruleLines(tag) {
 function card() {
   return [
     "Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict \u2014 evidence,",
-    "never a command. Think of it as a citable second opinion (SW-0017), not a linter.",
+    "never a command. Think of it as a citable second opinion, not a linter.",
     "",
     "## Invoke it",
     'In Claude Code: call the `sidewise` MCP tool directly \u2014 same args as the CLI (e.g. args: ["class", "-"]),',
@@ -13253,7 +13226,7 @@ function resolveMcpActor(cwd, spawn = spawnSync2) {
 }
 
 // src/cli.ts
-var PACKAGE_DIR = path18.join(path18.dirname(fileURLToPath2(import.meta.url)), "..");
+var PACKAGE_DIR = path19.join(path19.dirname(fileURLToPath2(import.meta.url)), "..");
 var LINES3 = {
   view: "sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]",
   class: "sidewise class <request-file | -> [--dry-run]",
@@ -13345,7 +13318,7 @@ async function runSweptVerb(command, rest, paths, ctx) {
   if ("stop" in read2) return finish(2, read2.stop);
   let provider;
   try {
-    provider = selectProvider(ctx.env, { chaosState: path18.join(paths.dir, "chaos.json") });
+    provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json") });
   } catch (e) {
     return finish(providerExit(e), e.message);
   }
@@ -13553,7 +13526,7 @@ async function dispatch(argv, ctx) {
       }
       let provider;
       try {
-        provider = selectProvider(ctx.env, { chaosState: path18.join(paths.dir, "chaos.json") });
+        provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json") });
       } catch (e) {
         return finish(providerExit(e), e.message);
       }
