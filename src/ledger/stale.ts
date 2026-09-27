@@ -24,8 +24,11 @@ function sameQuestion(older: Question, asking: AskedQuestion): boolean {
   return true;
 }
 
-/** One note per older run holding a now-stale answer (never one per question — that would clutter the response
- *  for one code change touching several questions at once), capped at `MAX_STALE_NOTES`. */
+/** One note per distinct ORIGIN holding a now-stale answer — never one per ledger record and never one per
+ *  question. Several runs that all reused the same answer (a fully-reused copy reuses every question from one
+ *  origin) share that origin, so they'd otherwise produce identical notes and burn the whole
+ *  `MAX_STALE_NOTES` budget on duplicates instead of distinct information. `reusedFrom[qid] ?? rec.id` is the
+ *  origin: the run a reuse copy actually got its answer from, or the record itself when it wasn't a reuse. */
 export function staleNotes(paths: SidewisePaths, where: readonly string[], toAsk: readonly (readonly [AskedQuestion, string])[]): string[] {
   if (!toAsk.length || !where.length) return [];
   const places = [...new Set(where.map(stripLines))];
@@ -35,6 +38,7 @@ export function staleNotes(paths: SidewisePaths, where: readonly string[], toAsk
       const offsets = new Set<number>();
       for (const place of places) for (const c of handle.placeCandidates(place)) offsets.add(c.offset);
       const notes: string[] = [];
+      const seenOrigins = new Set<string>();
       for (const offset of offsets) {
         if (notes.length >= MAX_STALE_NOTES) break;
         const rec = readRecordAt(paths.log, offset);
@@ -45,6 +49,9 @@ export function staleNotes(paths: SidewisePaths, where: readonly string[], toAsk
           if (!match) continue;
           const oldKey = rec.keys[String(match.n)];
           if (oldKey === undefined || oldKey === key) continue; // no prior answer, or the evidence hasn't changed
+          const origin = rec.reusedFrom[String(match.n)] ?? rec.id;
+          if (seenOrigins.has(origin)) break; // this origin's staleness was already reported
+          seenOrigins.add(origin);
           const ans = rec.answers[String(match.n)];
           const p = ans && ans.kind === 'yesno' ? ` (p ${ans.p.toFixed(2)})` : '';
           notes.push(`stale: ${rec.id} answered "${clip(q.text, 50)}" on older code${p}`);
