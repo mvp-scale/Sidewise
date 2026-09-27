@@ -19,9 +19,9 @@
  *     bypassing the CLI. `__testOnly.forceFallback`/`forceSqliteMissing` force this path on purpose, on any
  *     Node, to prove the two engines agree (ledger-index.test.ts) — never set outside a test.
  * A project with no ledger yet (log.jsonl missing or empty) never touches disk here at all — no .sidewise/, no
- * index.db — for either engine: dry runs, `view`, and any command before the first write must create nothing
- * (design binding #7). Once a real write happens, log.jsonl exists first (appendLine's own mkdir), so the next
- * index build has something to persist against.
+ * index.db — for either engine: dry runs, `view`, and any command before the first write must create nothing.
+ * Once a real write happens, log.jsonl exists first (appendLine's own mkdir), so the next index build has
+ * something to persist against.
  *
  * Schema (slim — no full JSON copy; bodies are read back from the ledger by offset, `readRecordAt`):
  *   meta(key,value): schema_version, upto (bytes indexed), line_count, fp_start + fingerprint (sha256 of the
@@ -1105,8 +1105,8 @@ function ensureFreshDb(paths: SidewisePaths, Db: DatabaseSyncCtor, opts: { force
 /**
  * Opens (self-healing) the index, calls `fn` with an IndexHandle, closes it, and returns fn's result. A project
  * with no ledger yet (log.jsonl missing or empty) never touches disk: `fn` sees a handle over an empty in-memory
- * index (design binding #7 — dry runs, view, and any command before the first write create nothing). Otherwise
- * tries node:sqlite first; if it can't be imported or a SQLite/open call in this whole attempt throws (open,
+ * index — dry runs, view, and any command before the first write create nothing. Otherwise tries node:sqlite
+ * first; if it can't be imported or a SQLite/open call in this whole attempt throws (open,
  * self-heal, catch-up/rebuild, or a query inside `fn`), falls back to a full linear scan, in memory, never
  * persisted — the next WRITE path (an actual append) is what rebuilds the on-disk index, not this read. A
  * genuine LedgerError (corrupt ledger CONTENT, discovered while scanning) is never swallowed into that fallback

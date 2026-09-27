@@ -42,7 +42,7 @@ const heading = (view: ReportView, n: number, noun: string): string => `sidewise
 /** A one-subject run's category answer is stale when the code at its own `where` has changed since: re-derive
  *  the current evidence key for one of that category's questions (the same way class.ts computed it originally)
  *  and compare to the run's own stored key. A sweep item's evidence isn't reconstructed here (its own text
- *  isn't just "the file" — evidence/units.ts builds it) — out of scope this round, always reported as fresh. */
+ *  isn't just "the file" — evidence/units.ts builds it), so it's always reported as fresh. */
 function isStale(root: string, rec: ContractRun, categoryName: string): boolean {
   const cat = rec.ask.categories.find((c) => c.name === categoryName);
   if (!cat || !cat.questions.length) return false;

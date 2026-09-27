@@ -1,6 +1,6 @@
 /**
- * Answer reuse (BRIEF §5 "Exact reuse"): the same question on the same evidence, answered before by the same
- * provider and model, comes back from the ledger with no call. Keys are answerKey hashes (contract/translate.ts).
+ * Answer reuse: the same question on the same evidence, answered before by the same provider and model, comes
+ * back from the ledger with no call. Keys are answerKey hashes (contract/translate.ts).
  * A run whose latest outcome is overruled or failed is never reused, nor is an answer that came from one.
  *
  * Reads the id index (ledger/index.ts — SQLite, self-healing, or its in-memory linear fallback) instead of a
@@ -92,7 +92,7 @@ function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: str
  *  `out` is built INSIDE the withIndex callback (never captured from outside it): withIndex retries `fn` from
  *  scratch against the in-memory fallback if the SQL attempt throws partway through, so a partially-filled `out`
  *  from that aborted attempt must never survive into the retry — building it fresh per `fn` invocation is what
- *  guarantees that. Wrapped in onStore (fix, found post-#5a): once a verb resolves reuse BEFORE preflight, this
+ *  guarantees that. Wrapped in onStore: once a verb resolves reuse BEFORE preflight, this
  *  is the first read to touch `.sidewise/` at all on some paths — a structurally broken log.jsonl (e.g. a
  *  directory where the file should be) must come back as preflight's own clean StoreError, never a raw errno
  *  escaping unwrapped just because this call now sometimes runs first. */

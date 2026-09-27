@@ -3,8 +3,8 @@
  * this says so instead. `class.ts` already knows, per question about to be asked fresh, the key its CURRENT
  * evidence hashes to (`toAsk`) — no new file read needed here. This just asks the ledger: did an older run at
  * an overlapping place answer the exact same question text under a DIFFERENT key? If so, the evidence changed
- * since. Scoped to one-subject (class) runs only this round — a sweep's item-shaped evidence isn't
- * reconstructed here; that's future work, not a gap in this feature's own correctness.
+ * since. Scoped to one-subject (class) runs only — a sweep's item-shaped evidence isn't reconstructed here;
+ * that's future work, not a gap in this feature's own correctness.
  */
 import type { AskedQuestion } from '../contract/translate.ts';
 import type { Question } from '../contract/types.ts';
