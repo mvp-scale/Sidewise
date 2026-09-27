@@ -137,6 +137,7 @@ With no `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` in the environment, this runs
 sidewise template class > review.yaml
 sidewise class review.yaml
 sidewise view src
+sidewise report
 sidewise outcome SW-0001 held --by you
 sidewise budget
 ```
@@ -146,6 +147,9 @@ set (never its value), and whether a project and its ledger are found — free, 
 `SIDEWISE_BASE_URL=<url>` to point at a proxy or a self-hosted mirror instead of TypeSafe's own endpoint
 (`https` required, except `http` for `localhost`/`127.0.0.1`/`[::1]`). A 429 or 529 from TypeSafe is retried
 automatically, up to twice more; a 401 or 422 never retries.
+
+`sidewise report [hits|patterns|history]` reads back what the ledger already knows — free, read-only, no
+options beyond the view name; it's a read tool, not a seventh verb.
 
 For the full six verbs, grading rules and stop/exit codes, run `sidewise help` (or `sidewise help <verb>`/`sidewise help <topic>`), or see [skills/sidewise/SKILL.md](skills/sidewise/SKILL.md) for the short version.
 

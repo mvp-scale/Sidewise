@@ -58,4 +58,5 @@ export { runChange } from './verbs/change.ts';
 export { runScan } from './verbs/scan.ts';
 export { runDrill } from './verbs/drill.ts';
 export { runLoop } from './verbs/loop.ts';
+export { runReport, type ReportContext } from './verbs/report.ts';
 export { runTemplate, type TemplateFlags, TEMPLATE_VERBS } from './verbs/template.ts';

@@ -17,7 +17,7 @@ afterEach(() => {
 const ENGINES = [false, true];
 
 describe('runReport', () => {
-  it('defaults to hits, and rejects an unknown view', () => {
+  it('[C-162] [C-167] defaults to hits, and rejects an unknown view', () => {
     const { paths } = tempProject({});
     const r = runReport(undefined, { paths });
     expect(r.exit).toBe(0);
@@ -32,7 +32,7 @@ describe('runReport', () => {
     expect(runReport('hits', { paths }).text).toBe('sidewise report hits · no runs yet → "sidewise class <request>" starts one');
   });
 
-  it('hits: the newest run per place, worst gate first, on both engines', () => {
+  it('[C-163] hits: the newest run per place, worst gate first, on both engines', () => {
     const { root, paths } = tempProject({ 'src/user.ts': 'original code' });
     appendContractRun(paths, sampleContractRun({ where: ['src/user.ts'], categories: { guards: 'pass' } }), Date.now(), 'b'); // SW-0001: pass
     appendContractRun(paths, sampleContractRun({ where: ['src/other.ts'], categories: { injection: 'fail' } }), Date.now(), 'b'); // SW-0002: fail
@@ -49,7 +49,7 @@ describe('runReport', () => {
     void root;
   });
 
-  it('hits: flags a one-subject answer as stale once the code at its place has changed', () => {
+  it('[C-163] hits: flags a one-subject answer as stale once the code at its place has changed', () => {
     const { root, paths } = tempProject({ 'src/user.ts': 'original code' });
     const run = sampleContractRun({
       where: ['src/user.ts'],
@@ -65,7 +65,7 @@ describe('runReport', () => {
     }
   });
 
-  it('patterns: no runs yet says so plainly, else groups by question set with pass/fail/places/outcomes', () => {
+  it('[C-164] patterns: no runs yet says so plainly, else groups by question set with pass/fail/places/outcomes', () => {
     const { paths } = tempProject({});
     expect(runReport('patterns', { paths }).text).toBe('sidewise report patterns · no runs yet → "sidewise class <request>" starts one');
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), Date.now(), 'b'); // SW-0001
@@ -80,7 +80,7 @@ describe('runReport', () => {
     }
   });
 
-  it('history: no events yet says so plainly, else merges change results and outcomes newest first', () => {
+  it('[C-165] history: no events yet says so plainly, else merges change results and outcomes newest first', () => {
     const { paths } = tempProject({});
     expect(runReport('history', { paths }).text).toBe('sidewise report history · nothing yet → run "change" or "outcome" to start one');
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { guards: 'fail' } }), Date.now(), 'b'); // SW-0001
@@ -100,12 +100,32 @@ describe('runReport', () => {
     }
   });
 
-  it('works on the linear-fallback engine too (no on-disk index — the Node < 22.13 test-hook path)', () => {
+  it('[C-162] works on the linear-fallback engine too (no on-disk index — the Node < 22.13 test-hook path)', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({}), Date.now(), 'b');
     __testOnly.forceFallback = true;
     const r = runReport('hits', { paths });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('sidewise report hits · 1 row');
+  });
+
+  it('[C-166] every view caps its rows and says how many more exist, rather than dropping them silently', () => {
+    const { paths } = tempProject({});
+    for (let i = 0; i < 31; i++) {
+      appendContractRun(
+        paths,
+        sampleContractRun({
+          where: [`src/f${i}.ts`],
+          ask: { categories: [{ name: `cat${i}`, pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: `question ${i}?` }] }], layers: [] },
+          categories: { [`cat${i}`]: 'pass' },
+        }),
+        Date.now(),
+        'b',
+      );
+    }
+    const r = runReport('patterns', { paths });
+    expect(r.text).toContain('sidewise report patterns · 31 patterns');
+    expect(r.text).toContain('… 1 more not shown');
+    expect(r.text.split('\n')).toHaveLength(32); // heading + 30 rows + the "more" trailer
   });
 });

@@ -56,7 +56,7 @@ describe('class', () => {
     expect(r2.text).toContain('reused: [SW-0001]'); // [C-130] fix #6: which run's answers this one reused
   });
 
-  it('a re-ask on the same place after the code changed says which older run answered it before', async () => {
+  it('[C-160] a re-ask on the same place after the code changed says which older run answered it before', async () => {
     const { root, paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
     await runClass(CLASS_YAML, { paths, provider, env }); // SW-0001, on the original code

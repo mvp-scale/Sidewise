@@ -8322,6 +8322,21 @@ function sweepPlaces(rec) {
   for (const layer of rec.ask.layers) for (const cat of layer.categories) for (const tag of cat.tags) add("tag", tag);
   return out;
 }
+function categoryShape(c) {
+  return {
+    name: c.name,
+    pass: c.pass,
+    need: c.need,
+    questions: [...c.questions].sort((a, b) => a.n - b.n).map((q) => ({ kind: q.kind, text: q.text, ...q.kind === "scale" ? { levels: q.levels } : {}, ...q.kind === "choice" ? { options: q.options } : {} }))
+  };
+}
+function patternFingerprint(rec) {
+  if (!isContractRun(rec)) return null;
+  const { categories, layers } = rec.ask;
+  if (!categories.length && !layers.length) return null;
+  const shape = categories.length ? [...categories].sort((a, b) => a.name.localeCompare(b.name)).map(categoryShape) : [...layers].map((l) => ({ name: l.name, categories: [...l.categories].sort((a, b) => a.name.localeCompare(b.name)).map(categoryShape) }));
+  return sha256hex(JSON.stringify(shape)).slice(0, 16);
+}
 var CHUNK_BYTES = 1 << 20;
 function parseLedgerLine(raw, lineNo, shown2) {
   let value;
@@ -8427,13 +8442,14 @@ function readRecordAt(logPath, offset) {
   }
 }
 function emptyMemoryState() {
-  return { runOffset: /* @__PURE__ */ new Map(), blocked: /* @__PURE__ */ new Set(), reuseKey: /* @__PURE__ */ new Map(), candidatesByWho: /* @__PURE__ */ new Map(), places: [], childrenByParent: /* @__PURE__ */ new Map(), outcomes: /* @__PURE__ */ new Map(), runCount: 0, upto: 0, lineCount: 0 };
+  return { runOffset: /* @__PURE__ */ new Map(), blocked: /* @__PURE__ */ new Set(), reuseKey: /* @__PURE__ */ new Map(), candidatesByWho: /* @__PURE__ */ new Map(), places: [], childrenByParent: /* @__PURE__ */ new Map(), outcomes: /* @__PURE__ */ new Map(), allRuns: [], runCount: 0, upto: 0, lineCount: 0 };
 }
 function memorySink(state) {
   return {
     run(rec, offset) {
       state.runCount += 1;
       state.runOffset.set(rec.id, offset);
+      state.allRuns.push({ id: rec.id, offset, verb: rec.verb, gate: isContractRun(rec) ? rec.gate : null, pattern: patternFingerprint(rec) });
       const parent = rec.parent ?? null;
       if (parent) {
         if (!state.childrenByParent.has(parent)) state.childrenByParent.set(parent, []);
@@ -8491,7 +8507,53 @@ function handleFromMemory(state) {
       return out;
     },
     everHeld: (adapter, model, key2) => state.reuseKey.get(whoKey({ adapter, model }))?.has(key2) ?? false,
-    latestOutcomeOf: (id) => state.outcomes.get(id)
+    latestOutcomeOf: (id) => state.outcomes.get(id),
+    distinctPlaces: () => {
+      const seen = /* @__PURE__ */ new Set();
+      const out = [];
+      for (const p of state.places) {
+        const k = `${p.kind}\0${p.val}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push({ kind: p.kind, val: p.val });
+      }
+      return out;
+    },
+    patternCounts: () => {
+      const patternOfRun = /* @__PURE__ */ new Map();
+      const byPattern = /* @__PURE__ */ new Map();
+      for (const r of state.allRuns) {
+        if (!r.pattern) continue;
+        patternOfRun.set(r.id, r.pattern);
+        const cur = byPattern.get(r.pattern) ?? { runs: 0, pass: 0, fail: 0, unsure: 0 };
+        cur.runs += 1;
+        if (r.gate === "pass") cur.pass += 1;
+        else if (r.gate === "fail") cur.fail += 1;
+        else if (r.gate === "unsure") cur.unsure += 1;
+        byPattern.set(r.pattern, cur);
+      }
+      const placesByPattern = /* @__PURE__ */ new Map();
+      for (const p of state.places) {
+        const pat = patternOfRun.get(p.runId);
+        if (!pat) continue;
+        if (!placesByPattern.has(pat)) placesByPattern.set(pat, /* @__PURE__ */ new Set());
+        placesByPattern.get(pat).add(`${p.kind}\0${p.val}`);
+      }
+      const outcomesByPattern = /* @__PURE__ */ new Map();
+      for (const [runId, rec] of state.outcomes) {
+        const pat = patternOfRun.get(runId);
+        if (!pat) continue;
+        const cur = outcomesByPattern.get(pat) ?? { held: 0, overruled: 0, failed: 0 };
+        cur[rec.outcome] += 1;
+        outcomesByPattern.set(pat, cur);
+      }
+      return [...byPattern.entries()].map(([pattern, c]) => {
+        const oc = outcomesByPattern.get(pattern) ?? { held: 0, overruled: 0, failed: 0 };
+        return { pattern, ...c, places: placesByPattern.get(pattern)?.size ?? 0, outcomes: { ...oc, open: c.runs - oc.held - oc.overruled - oc.failed } };
+      }).sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
+    },
+    recentChanges: (limit) => state.allRuns.filter((r) => r.verb === "change").slice(-limit).reverse().map((r) => ({ id: r.id, offset: r.offset })),
+    recentOutcomes: (limit) => [...state.outcomes.entries()].slice(-limit).reverse().map(([runId, r]) => ({ runId, outcome: r.outcome, ts: r.ts, by: r.by }))
   };
 }
 var memoryCache;
@@ -8516,7 +8578,7 @@ function buildMemoryHandle(paths) {
   memoryCache = { logPath: paths.log, size, mtimeMs, state };
   return handleFromMemory(state);
 }
-var SCHEMA_VERSION = 3;
+var SCHEMA_VERSION = 4;
 var SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE runs (
@@ -8529,10 +8591,13 @@ CREATE TABLE runs (
   gate TEXT,
   blocked INTEGER NOT NULL DEFAULT 0,
   wise TEXT,
-  parent TEXT
+  parent TEXT,
+  pattern TEXT
 );
 CREATE INDEX idx_runs_adapter_model ON runs(adapter, model, blocked);
 CREATE INDEX idx_runs_parent ON runs(parent);
+CREATE INDEX idx_runs_verb ON runs(verb);
+CREATE INDEX idx_runs_pattern ON runs(pattern);
 CREATE TABLE answer_keys (
   adapter TEXT NOT NULL,
   model TEXT NOT NULL,
@@ -8602,7 +8667,7 @@ function setMeta(db, key2, value) {
 }
 function prepStatements(db) {
   return {
-    insertRun: db.prepare("INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise, parent) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)"),
+    insertRun: db.prepare("INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise, parent, pattern) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)"),
     insertKey: db.prepare("INSERT OR REPLACE INTO answer_keys (adapter, model, key, run_id, qid) VALUES (?, ?, ?, ?, ?)"),
     insertOutcome: db.prepare("INSERT OR REPLACE INTO outcomes (run_id, outcome, uid, ts, by) VALUES (?, ?, ?, ?, ?)"),
     insertPlace: db.prepare("INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)"),
@@ -8619,7 +8684,7 @@ function sqlSink(stmts) {
   return {
     run(rec, offset) {
       const gate = "gate" in rec ? rec.gate ?? null : null;
-      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null);
+      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null, patternFingerprint(rec));
       if (isContractRun(rec)) {
         for (const [qid, key2] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key2, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run("where", stripLines(w), rec.id);
@@ -8672,6 +8737,18 @@ function handleFromSql(db) {
   const stEverHeld = db.prepare("SELECT 1 FROM answer_keys WHERE adapter = ? AND model = ? AND key = ?");
   const stLatestOutcome = db.prepare("SELECT outcome, uid, ts, by FROM outcomes WHERE run_id = ?");
   const stChildren = db.prepare("SELECT id, offset FROM runs WHERE parent = ? ORDER BY offset ASC");
+  const stDistinctPlaces = db.prepare("SELECT DISTINCT kind, val FROM places");
+  const stPatternBase = db.prepare(
+    `SELECT pattern, COUNT(*) AS runs, SUM(CASE WHEN gate = 'pass' THEN 1 ELSE 0 END) AS pass, SUM(CASE WHEN gate = 'fail' THEN 1 ELSE 0 END) AS fail, SUM(CASE WHEN gate = 'unsure' THEN 1 ELSE 0 END) AS unsure FROM runs WHERE pattern IS NOT NULL GROUP BY pattern`
+  );
+  const stPatternPlaces = db.prepare(
+    `SELECT r.pattern AS pattern, COUNT(DISTINCT p.kind || ':' || p.val) AS places FROM runs r JOIN places p ON p.run_id = r.id WHERE r.pattern IS NOT NULL GROUP BY r.pattern`
+  );
+  const stPatternOutcomes = db.prepare(
+    `SELECT r.pattern AS pattern, o.outcome AS outcome, COUNT(*) AS n FROM runs r JOIN outcomes o ON o.run_id = r.id WHERE r.pattern IS NOT NULL GROUP BY r.pattern, o.outcome`
+  );
+  const stRecentChanges = db.prepare("SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?");
+  const stRecentOutcomes = db.prepare("SELECT run_id AS runId, outcome, ts, by FROM outcomes ORDER BY rowid DESC LIMIT ?");
   return {
     findOffset: (id) => {
       const row = stFindOffset.get(id);
@@ -8711,7 +8788,35 @@ function handleFromSql(db) {
     latestOutcomeOf: (id) => {
       const row = stLatestOutcome.get(id);
       return row ? { outcome: row.outcome, uid: String(row.uid), ts: String(row.ts), by: String(row.by) } : void 0;
-    }
+    },
+    distinctPlaces: () => stDistinctPlaces.all().map((r) => ({ kind: r.kind, val: String(r.val) })),
+    patternCounts: () => {
+      const placesByPattern = new Map(stPatternPlaces.all().map((r) => [String(r.pattern), Number(r.places)]));
+      const outcomesByPattern = /* @__PURE__ */ new Map();
+      for (const r of stPatternOutcomes.all()) {
+        const pattern = String(r.pattern);
+        const cur = outcomesByPattern.get(pattern) ?? { held: 0, overruled: 0, failed: 0 };
+        const outcome = r.outcome;
+        cur[outcome] += Number(r.n);
+        outcomesByPattern.set(pattern, cur);
+      }
+      return stPatternBase.all().map((b) => {
+        const pattern = String(b.pattern);
+        const runs = Number(b.runs);
+        const oc = outcomesByPattern.get(pattern) ?? { held: 0, overruled: 0, failed: 0 };
+        return {
+          pattern,
+          runs,
+          pass: Number(b.pass),
+          fail: Number(b.fail),
+          unsure: Number(b.unsure),
+          places: placesByPattern.get(pattern) ?? 0,
+          outcomes: { ...oc, open: runs - oc.held - oc.overruled - oc.failed }
+        };
+      }).sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
+    },
+    recentChanges: (limit) => stRecentChanges.all("change", limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
+    recentOutcomes: (limit) => stRecentOutcomes.all(limit).map((r) => ({ runId: String(r.runId), outcome: r.outcome, ts: String(r.ts), by: String(r.by) }))
   };
 }
 function withLockIfNeeded(lockPath, fn) {
@@ -11350,6 +11455,45 @@ async function runChange(text, ctx) {
   return { exit: 0, text: rec.value.run.response, run: rec.value.run };
 }
 
+// src/ledger/stale.ts
+var MAX_STALE_NOTES = 3;
+function sameQuestion(older, asking) {
+  if (older.kind !== asking.kind || older.text !== asking.text) return false;
+  if (older.kind === "scale") return JSON.stringify(older.levels) === JSON.stringify(asking.levels);
+  if (older.kind === "choice") return JSON.stringify(older.options) === JSON.stringify(asking.options);
+  return true;
+}
+function staleNotes(paths, where, toAsk) {
+  if (!toAsk.length || !where.length) return [];
+  const places = [...new Set(where.map(stripLines))];
+  return withIndex(
+    paths,
+    (handle) => {
+      const offsets = /* @__PURE__ */ new Set();
+      for (const place of places) for (const c of handle.placeCandidates(place)) offsets.add(c.offset);
+      const notes = [];
+      for (const offset of offsets) {
+        if (notes.length >= MAX_STALE_NOTES) break;
+        const rec = readRecordAt(paths.log, offset);
+        if (!rec || !isContractRun(rec) || rec.items !== null) continue;
+        const olderQuestions = rec.ask.categories.flatMap((c) => c.questions);
+        for (const [q, key2] of toAsk) {
+          const match = olderQuestions.find((rq) => sameQuestion(rq, q));
+          if (!match) continue;
+          const oldKey = rec.keys[String(match.n)];
+          if (oldKey === void 0 || oldKey === key2) continue;
+          const ans = rec.answers[String(match.n)];
+          const p = ans && ans.kind === "yesno" ? ` (p ${ans.p.toFixed(2)})` : "";
+          notes.push(`stale: ${rec.id} answered "${clip(q.text, 50)}" on older code${p}`);
+          break;
+        }
+      }
+      return notes;
+    },
+    { readOnly: true }
+  );
+}
+
 // src/lens/consensus.ts
 var THRESHOLDS = { concernAt: 0.5, weakBelow: 0.35, strongAt: 0.8 };
 var majority = (flags) => flags.filter(Boolean).length * 2 >= flags.length;
@@ -11415,6 +11559,7 @@ async function runClass(text, ctx) {
   }
   const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
   if (!pre.ok) return pre.result;
+  const stale = staleNotes(ctx.paths, request.side.where, toAsk);
   let costUsd;
   let costEstimated = false;
   let calls;
@@ -11446,7 +11591,7 @@ async function runClass(text, ctx) {
     wiseRecorded(request.wise),
     outcomeNext(id, subject.gate, subject.categories, request.side.categories, "act on it"),
     commonNotes(
-      [...loaded.notes, ...evidence.evidence.notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      [...loaded.notes, ...evidence.evidence.notes, ...stale, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       budget,
       ctx.provider.adapter
     )
@@ -12365,6 +12510,121 @@ async function runLoop(text, ctx) {
   return recordSweep(ctx, calls, costUsd, run);
 }
 
+// src/verbs/report.ts
+var VIEWS = ["hits", "patterns", "history"];
+var isView = (s) => VIEWS.includes(s);
+var ROW_LIMIT = 30;
+function withCap(lines, total) {
+  const shown2 = lines.slice(0, ROW_LIMIT);
+  return total > shown2.length ? [...shown2, `\u2026 ${total - shown2.length} more not shown`] : [...shown2];
+}
+var heading = (view, n, noun) => `sidewise report ${view} \xB7 ${n} ${noun}${n === 1 ? "" : "s"}`;
+function isStale2(root, rec, categoryName) {
+  const cat = rec.ask.categories.find((c) => c.name === categoryName);
+  if (!cat || !cat.questions.length) return false;
+  const [q] = subjectQuestions([cat]);
+  const evidence = readCodeEvidence(root, rec.where);
+  if (!evidence.ok) return true;
+  const key2 = answerKey(subjectEvidence(evidence.evidence.files), q);
+  return rec.keys[q.id] !== key2;
+}
+var GATE_RANK = { fail: 0, unsure: 1, pass: 2 };
+function reportHits(paths) {
+  const rows = withIndex(
+    paths,
+    (handle) => {
+      const out = [];
+      const places = handle.distinctPlaces().filter((p) => p.kind === "where");
+      for (const { val: place } of places) {
+        const newest = handle.placeCandidates(place).at(-1);
+        if (!newest) continue;
+        const rec = readRecordAt(paths.log, newest.offset);
+        if (!rec || !isContractRun(rec)) continue;
+        if (rec.items === null) {
+          for (const [category, gate] of Object.entries(rec.categories)) {
+            out.push({ place, category, gate, runId: rec.id, goal: rec.goal, stale: isStale2(paths.root, rec, category) });
+          }
+        } else {
+          for (const item of Object.values(rec.items)) {
+            if (item.unit?.path !== place) continue;
+            for (const [category, gate] of Object.entries(item.categories)) out.push({ place, category, gate, runId: rec.id, goal: rec.goal, stale: false });
+          }
+        }
+      }
+      return out;
+    },
+    { readOnly: true }
+  );
+  if (!rows.length) return { exit: 0, text: 'sidewise report hits \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
+  rows.sort((a, b) => GATE_RANK[a.gate] - GATE_RANK[b.gate] || a.place.localeCompare(b.place) || a.category.localeCompare(b.category));
+  const lines = rows.map((r) => `${clip(r.place, 50)} \xB7 ${r.category} ${r.gate} \xB7 ${r.runId} "${clip(r.goal, 40)}"${r.stale ? " \xB7 stale" : ""}`);
+  return { exit: 0, text: [heading("hits", rows.length, "row"), ...withCap(lines, rows.length)].join("\n") };
+}
+function reportPatterns(paths) {
+  const rows = withIndex(paths, (h) => h.patternCounts(), { readOnly: true });
+  if (!rows.length) return { exit: 0, text: 'sidewise report patterns \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
+  const lines = rows.map(
+    (r) => `${r.pattern} \xB7 runs ${r.runs} \xB7 places ${r.places} \xB7 pass ${r.pass} fail ${r.fail} unsure ${r.unsure} \xB7 held ${r.outcomes.held} overruled ${r.outcomes.overruled} failed ${r.outcomes.failed} open ${r.outcomes.open}`
+  );
+  return { exit: 0, text: [heading("patterns", rows.length, "pattern"), ...withCap(lines, rows.length)].join("\n") };
+}
+function placesOf(rec) {
+  if (!rec) return "(unknown place)";
+  if (isRun(rec)) return rec.where.map((w) => w.path).join(", ") || "(no place)";
+  if (!isContractRun(rec)) return "(unknown place)";
+  const ws = rec.where.map(stripLines);
+  if (ws.length) return ws.join(", ");
+  const sweep = sweepPlaces(rec).filter((p) => p.kind === "where").map((p) => p.val);
+  return sweep.length ? sweep.join(", ") : "(no place)";
+}
+function changeStatus(rec, parent) {
+  if (!parent) return void 0;
+  let fixed = false;
+  let regressed = false;
+  for (const [name, after] of Object.entries(rec.categories)) {
+    const before = parent.categories[name];
+    if (before === void 0) continue;
+    if (before !== "pass" && after === "pass") fixed = true;
+    if (before === "pass" && after !== "pass") regressed = true;
+  }
+  return regressed ? "regressed" : fixed ? "fixed" : void 0;
+}
+function reportHistory(paths) {
+  const rows = withIndex(
+    paths,
+    (handle) => {
+      const out = [];
+      for (const { offset } of handle.recentChanges(ROW_LIMIT)) {
+        const rec = readRecordAt(paths.log, offset);
+        if (!rec || !isContractRun(rec)) continue;
+        const parentOffset = rec.parent ? handle.findOffset(rec.parent) : void 0;
+        const parent = parentOffset === void 0 ? void 0 : readRecordAt(paths.log, parentOffset);
+        const status = changeStatus(rec, parent && isContractRun(parent) ? parent : void 0);
+        if (!status) continue;
+        out.push({ ts: rec.ts, text: `${placesOf(rec)} \xB7 ${rec.id} change \xB7 ${status}` });
+      }
+      for (const o of handle.recentOutcomes(ROW_LIMIT)) {
+        const runOffset = handle.findOffset(o.runId);
+        const rec = runOffset === void 0 ? void 0 : readRecordAt(paths.log, runOffset);
+        out.push({ ts: o.ts, text: `${placesOf(rec)} \xB7 ${o.runId} \xB7 ${o.outcome} by ${o.by}` });
+      }
+      return out;
+    },
+    { readOnly: true }
+  );
+  if (!rows.length) return { exit: 0, text: 'sidewise report history \xB7 nothing yet \u2192 run "change" or "outcome" to start one' };
+  rows.sort((a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0);
+  return { exit: 0, text: [heading("history", rows.length, "event"), ...withCap(rows.map((r) => r.text), rows.length)].join("\n") };
+}
+function runReport(view, ctx) {
+  const target = view?.trim() || "hits";
+  if (hasControlChars(target)) return { exit: 2, text: "\u2716 report: the view name has control characters \u2192 use hits, patterns or history" };
+  if (!isView(target)) return { exit: 2, text: `\u2716 report: "${clip(target, 40)}" is not a view \u2192 use hits, patterns or history` };
+  if (target === "hits") return reportHits(ctx.paths);
+  if (target === "patterns") return reportPatterns(ctx.paths);
+  return reportHistory(ctx.paths);
+}
+
 // src/verbs/scan.ts
 var ENTRYPOINT_GLOBS = ["server.js", "app.js", "index.js", "main.js", "config/**", ".env*"];
 function unlookedEntrypoints(root, items) {
@@ -12561,7 +12821,7 @@ function renderPlace(place, hits, outcomeOf, limit) {
     text: [head, ...shown2.map((r) => runLine(r, outcomeOf(r.id) ?? "open")), ...older ? [`\u2026 ${older} older \u2192 raise the level to see more`] : []].join("\n")
   };
 }
-var GATE_RANK = { fail: 0, unsure: 1, pass: 2 };
+var GATE_RANK2 = { fail: 0, unsure: 1, pass: 2 };
 function renderSummary(scope, hits) {
   const latest = /* @__PURE__ */ new Map();
   for (const r of hits) {
@@ -12570,7 +12830,7 @@ function renderSummary(scope, hits) {
     for (const p of sweepPlaces(r)) if (p.kind === "where") latest.set(p.val, r);
   }
   if (!latest.size) return { exit: 0, text: `sidewise view ${clip(scope, 60)} --summary \xB7 no runs yet \u2192 "sidewise class <request>" starts one` };
-  const rows = [...latest.entries()].sort(([pa, ra], [pb, rb]) => GATE_RANK[ra.gate] - GATE_RANK[rb.gate] || pa.localeCompare(pb));
+  const rows = [...latest.entries()].sort(([pa, ra], [pb, rb]) => GATE_RANK2[ra.gate] - GATE_RANK2[rb.gate] || pa.localeCompare(pb));
   return {
     exit: 0,
     text: [
@@ -12787,7 +13047,31 @@ function card() {
     "reads `\u2716 field: problem \u2192 fix` \u2014 the error text names exactly what to change.",
     "",
     "Go deeper: `sidewise help <verb>` (view, class, change, scan, drill, loop) or `sidewise help <topic>`",
-    "(authoring, verdict, wise, reuse). `sidewise template <verb>` prints a commented, filled-in sample."
+    "(authoring, verdict, wise, reuse). `sidewise template <verb>` prints a commented, filled-in sample.",
+    "`sidewise report [hits|patterns|history]` reads back what the ledger has learned across every place, free \u2014",
+    "not a seventh verb, just a read tool (`sidewise help report`)."
+  ].join("\n");
+}
+
+// src/help/report.ts
+function reportHelp() {
+  return [
+    "## report",
+    "Side x Know, but read-only across everything the ledger holds, not one place: what's known, what recurs, what changed.",
+    "When: briefing a teammate or picking up a codebase cold, instead of hand-assembling several `view` calls.",
+    "",
+    "Example:",
+    "sidewise report            # same as: sidewise report hits",
+    "sidewise report patterns",
+    "sidewise report history",
+    "",
+    "Sharp rules:",
+    "- free: never calls a provider, never writes to the ledger, and works even with no on-disk index.",
+    "- no options beyond the view name \u2014 hits (default), patterns or history; anything else is a stop.",
+    "- `hits`: the newest run's own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.",
+    "- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.",
+    "- `history`: a merged, newest-first feed of `change` results (fixed/regressed) and recorded outcomes.",
+    "- every view caps its rows and says plainly how many more exist, rather than dropping them silently."
   ].join("\n");
 }
 
@@ -12953,9 +13237,10 @@ function runHelp(target) {
   if (hasControlChars(target)) return { exit: 2, text: "\u2716 help: the target has control characters \u2192 use a verb or a topic name" };
   if (isVerb(target)) return { exit: 0, text: verbHelp(target) };
   if (isTopic(target)) return { exit: 0, text: topicHelp(target) };
+  if (target === "report") return { exit: 0, text: reportHelp() };
   return {
     exit: 2,
-    text: `\u2716 help: "${clip(target, 40)}" is not a verb or topic \u2192 one of ${VERBS.join(", ")}, or a topic: ${TOPICS.join(", ")}`
+    text: `\u2716 help: "${clip(target, 40)}" is not a verb or topic \u2192 one of ${VERBS.join(", ")}, or a topic: ${TOPICS.join(", ")}, or "report"`
   };
 }
 
@@ -12977,7 +13262,8 @@ var LINES3 = {
   drill: "sidewise drill <request-file | -> [--dry-run]",
   loop: "sidewise loop <request-file | -> [--dry-run]",
   template: "sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  \xB7  or: --from <request.yaml> [--where <path>]... [--goal <text>]",
-  help: `sidewise help [${VERBS.join("|")}|${HELP_TOPICS.join("|")}]`,
+  help: `sidewise help [${VERBS.join("|")}|${HELP_TOPICS.join("|")}|report]`,
+  report: "sidewise report [hits|patterns|history]",
   outcome: "sidewise outcome <SW-####> held|overruled|failed --by <actor>",
   budget: "sidewise budget [show | reset | set --usd <n> --runs <n>]",
   doctor: "sidewise doctor",
@@ -13073,7 +13359,7 @@ async function dispatch(argv, ctx) {
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith("-") && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, help, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, help, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
   if (command !== "doctor" && command !== "mcp") {
     const nodeStop = nodeVersionStop(ctx.nodeVersion);
@@ -13224,6 +13510,12 @@ async function dispatch(argv, ctx) {
         }
       }
       const r = runView(arg, Number(values.level), { paths, env: ctx.env }, content, values.summary);
+      return finish(r.exit, r.text);
+    }
+    case "report": {
+      const { positionals } = args("report", { args: rest, allowPositionals: true, options: {} });
+      positionalCount("report", positionals, 0, 1);
+      const r = runReport(positionals[0], { paths });
       return finish(r.exit, r.text);
     }
     case "class":

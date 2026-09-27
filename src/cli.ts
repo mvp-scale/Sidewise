@@ -37,6 +37,7 @@ import { runClass } from './verbs/class.ts';
 import { runDoctor } from './verbs/doctor.ts';
 import { runDrill } from './verbs/drill.ts';
 import { runLoop } from './verbs/loop.ts';
+import { runReport } from './verbs/report.ts';
 import { runScan } from './verbs/scan.ts';
 import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
@@ -67,7 +68,8 @@ const LINES = {
   loop: 'sidewise loop <request-file | -> [--dry-run]',
   template:
     'sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  ·  or: --from <request.yaml> [--where <path>]... [--goal <text>]',
-  help: `sidewise help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}]`,
+  help: `sidewise help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}|report]`,
+  report: 'sidewise report [hits|patterns|history]',
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
   doctor: 'sidewise doctor',
@@ -213,7 +215,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, help, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, help, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
 
   // Node ≥ 22.13 is a hard requirement (owner ruling): everything but `doctor` (which still runs and reports
@@ -406,6 +408,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         }
       }
       const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env }, content, values.summary);
+      return finish(r.exit, r.text);
+    }
+    case 'report': {
+      const { positionals } = args('report', { args: rest, allowPositionals: true, options: {} });
+      positionalCount('report', positionals, 0, 1);
+      const r = runReport(positionals[0], { paths });
       return finish(r.exit, r.text);
     }
     case 'class':

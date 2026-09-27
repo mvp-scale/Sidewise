@@ -329,6 +329,10 @@ a candidate pattern for this place. [C-059]
 When any question's answer was reused (whole or in part) from an earlier run, the response names which one:
 `reused: [SW-####, ...]`, sorted and deduplicated, right after `escalate:`. The field is left out entirely
 when nothing was reused. [C-130]
+When a question is asked fresh (not reused) but an earlier run already answered the exact same question text
+at an overlapping place on code that's since changed, the response's `notes:` says so — `stale: SW-#### answered
+"<question, clipped>" on older code (p <its P(yes)>)` — up to 3 such notes, one per older run. This is scoped to
+`class` only for now. [C-160]
 
 ---
 
@@ -596,6 +600,31 @@ A fully-reused loop is never blocked by an already-reached budget cap (see the d
 
 ---
 
+## report
+
+`sidewise report [hits|patterns|history]` is the one way knowledge leaves the ledger besides a run's own
+response: free, read-only, never calls a provider, never writes to the ledger, and takes no options beyond the
+view name (default `hits`). It is not a seventh verb — it sits outside the Know/Judge/Prove grid, reading
+across every place at once rather than proving one thing. It works unchanged with no on-disk index present
+(the same linear-fallback engine `view` already falls back to). [C-162]
+`sidewise report hits` (or no argument) shows the newest run's own gate per place x category, worst gate first
+(`fail`, then `unsure`, then `pass`), each row naming the run it came from. A one-subject run's row is marked
+`stale` once the code at that place has changed since — re-derived live, on the bounded set of rows actually
+shown, from the run's own recorded evidence key, never a full-ledger scan. A sweep item's row is never marked
+stale (its evidence isn't reconstructed here). [C-163]
+`sidewise report patterns` groups every run by its own question-set fingerprint (its categories' or layers'
+names, `pass`/`need` and question text — never the evidence), showing how often each set has run, its
+pass/fail/unsure split, how many distinct places it's touched, and its outcomes so far. [C-164]
+`sidewise report history` merges, newest first: every `change` run's own result against its parent, named
+`fixed` or `regressed` (the same priority `change`'s own gate uses — any regression wins over any fix; a
+change that moved nothing gets no row), with every recorded outcome. Neither is a new ledger write — both are
+derived, read-side, from records the commands already wrote. [C-165]
+Every view caps its rows and says plainly how many more exist (`… N more not shown`) rather than dropping them
+silently, matching `view`'s own fix #14 idiom — `report` takes no option to raise it. [C-166]
+An unrecognized view name is a clean stop naming the three real ones. [C-167]
+
+---
+
 ## help and template
 
 `sidewise help` (free, no project needed) prints a one-screen contract card: the six verbs, the rules that
@@ -623,6 +652,9 @@ a drill item or category: its `ask:`/`over:` (the frozen question set) is printe
 validated — template only prints, like every other path. [C-111]
 `--where`/`--goal` are refused unless paired with `--from`, and refused together with `--parent` (they overlay
 a checklist read from a file, not a drill item/category lookup). [C-112]
+`sidewise help report` is its own recognized target, not one of the six verbs (`report` is outside the 2x3
+Know/Judge/Prove grid) and not a cross-cutting topic: purpose, an example and its own sharp rules, the same
+shape as `help <verb>`. [C-161]
 
 ---
 

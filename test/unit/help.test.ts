@@ -68,7 +68,7 @@ describe('runHelp', () => {
     for (const topic of TOPICS) expect(r.text).toContain(topic);
   });
 
-  it('help report: not a seventh verb, but its own recognized target', () => {
+  it('[C-161] help report: not a seventh verb, but its own recognized target', () => {
     const r = runHelp('report');
     expect(r.exit).toBe(0);
     expect(r.text).toContain('## report');
