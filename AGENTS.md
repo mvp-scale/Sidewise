@@ -54,7 +54,7 @@
 | Branch | Holds | Publishes |
 |---|---|---|
 | `nightly` | day-to-day development; feature branches merge here through a PR | npm `nightly` (`x.y.z-nightly.YYYYMMDD.g<sha>`), on a schedule, only when `nightly` changed in the last 24 h and CI passes |
-| `main` | releases only; updated by merging `nightly` once the release gate passes | npm `latest` plus a GitHub Release, when tag `vX.Y.Z` (matching `package.json`) is pushed on `main` |
+| `main` | releases only; updated by merging `nightly` once the release gate passes | npm `latest` plus a GitHub Release, only by hand: run the publish workflow on tag `vX.Y.Z` (matching `package.json`) on `main`. Not automated until nightly has been tested in the wild |
 
 Publishing runs only when the repo variable `SIDEWISE_PUBLISH` is `true`, and only through npm trusted publishing (OIDC). There is no npm token in the repo.
 
