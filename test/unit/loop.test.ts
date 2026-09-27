@@ -1,9 +1,13 @@
 // loop: the contract's own example end to end, tree order for failing: and passing:.
 import { describe, expect, it } from 'vitest';
+import { setBudget } from '../../src/budget/budget.ts';
 import { runLoop } from '../../src/verbs/loop.ts';
 import { isContractRun, readLedger } from '../../src/ledger/log.ts';
 import { tempProject } from '../helpers/project.ts';
-import { stubProvider } from '../helpers/stub-provider.ts';
+import { stubProvider, type Stub } from '../helpers/stub-provider.ts';
+
+/** Wraps a stub so its answer reports an estimated cost, without changing stub-provider.ts (shared by other crews). */
+const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }) });
 
 const LOOP =
   'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout, saved cards]\n      - name: payments\n        story: [refunds, retries, partial capture]\n      - ledger\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n        2: Can {part} be deployed without the others?\n    story:\n      done:\n        pass: yes\n        3: Is "{story}" testable against {part} as written?\n      risk:\n        pass: no\n        4: Does "{story}" need data {part} doesn\'t own?\nwise:\n  why: validate\n  area: api\n';
@@ -86,6 +90,24 @@ describe('loop', () => {
     const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes, adapter: 'fake' }), env: {} });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
+  });
+
+  // Fix #5/#6 follow-through: same pattern as class.ts/scan.ts.
+  it('a fully-reused loop is never blocked by an already-reached cap [C-151]', async () => {
+    const { paths } = tempProject({});
+    const yes = () => 0.9;
+    await runLoop(LOOP, { paths, provider: stubProvider({ yes }), env: {} }); // SW-0001, 2 runs' worth of calls in one run
+    setBudget(paths, { capRuns: 1 }); // already used up
+    const r = await runLoop(LOOP, { paths, provider: stubProvider(), env: {} }); // fully reused: no call needed
+    expect(r.exit).toBe(0);
+  });
+
+  it('notes when the cost was estimated from tokens (fix #4), same as class.ts', async () => {
+    const { paths } = tempProject({});
+    const provider = withEstimatedCost(stubProvider({ yes: () => 0.9 }));
+    const r = await runLoop(LOOP, { paths, provider, env: {} });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
   it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {

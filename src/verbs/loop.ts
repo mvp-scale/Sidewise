@@ -11,8 +11,8 @@ import type { Category } from '../contract/types.ts';
 import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
-import { commonNotes, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
-import { planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResult> {
@@ -26,12 +26,13 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
 
   if (ctx.dryRun) return sweepDryRun(plan, identity);
 
-  const pre = preflight(ctx);
+  // Fix #5a: a fully-reused loop (every layer's call: null) must never be blocked by an already-reached cap.
+  const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
 
   const ran = await runSweep(ctx, 'loop', plan);
   if (!ran.ok) return ran.result;
-  const { answers, costUsd, statusOf } = ran.value;
+  const { answers, costUsd, costEstimated, statusOf } = ran.value;
 
   const categoriesOf = (layer: string): readonly Category[] => request.side.layers.find((l) => l.name === layer)!.categories;
   const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
@@ -70,7 +71,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
       wiseRecorded(request.wise),
       sweepNext(id, gate, worst, graded, 'act on it'),
       commonNotes(
-        [...loaded.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])],
+        [...loaded.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
         ctx.provider.adapter,
       ),
