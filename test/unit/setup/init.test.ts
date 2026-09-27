@@ -290,3 +290,31 @@ describe('runInit: the key step', () => {
     expect(r.text).toContain('✖ key: the pasted value contains a single quote');
   });
 });
+
+describe('runInit: the final "next:" line [C-176]', () => {
+  it('a clean run (no ✖ anywhere) points at "sidewise agent" as the first thing to run', async () => {
+    const { ctx } = baseCtx();
+    mkdirSync(path.join(ctx.cwd, '.git'));
+    const { runner } = scriptedRunner({
+      'npm config': () => ({ status: 0, stdout: '/usr/local\n', stderr: '' }),
+      npm: () => ({ status: 0, stdout: '', stderr: '' }),
+    });
+    ctx.runner = runner;
+    const r = await runInit({ mode: 'local', key: 'no', claude: false, yes: true }, ctx);
+    expect(r.text).not.toContain('✖');
+    expect(r.text).toContain('next: run "sidewise agent"');
+    expect(r.text).not.toContain('not usable yet');
+  });
+
+  it('a partial run (a step logged ✖) never claims it\'s usable — it names the fix instead', async () => {
+    const { ctx, home } = baseCtx();
+    if (process.getuid && process.getuid() === 0) return; // root ignores the chmod; skip under root
+    const prefix = unwritablePrefix(home);
+    const { runner } = scriptedRunner({ 'npm config': () => ({ status: 0, stdout: `${prefix}\n`, stderr: '' }) });
+    ctx.runner = runner;
+    const r = await runInit({ mode: 'global', key: 'no', claude: false, yes: true }, ctx);
+    expect(r.text).toContain('✖ cli:'); // the partial condition this test is actually exercising
+    expect(r.text).toContain('next: not usable yet — fix the ✖ line(s) above, then re-run "sidewise init"');
+    expect(r.text).not.toContain('ask Claude to use Sidewise');
+  });
+});

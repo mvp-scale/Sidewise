@@ -220,6 +220,11 @@ export async function runInit(flags: InitFlags, ctx: InitCtx): Promise<VerbResul
     platform: ctx.platform,
   });
 
-  const next = 'next: ask Claude to use Sidewise, or run "sidewise template class" to start by hand';
+  // A step above may have logged a ✖ problem line (cli/key/plugin all can). PARTIAL: never claim it's usable —
+  // point at the fix instead of inviting the first real request. [C-176]
+  const partial = lines.some((l) => l.startsWith(GLYPH.problem));
+  const next = partial
+    ? 'next: not usable yet — fix the ✖ line(s) above, then re-run "sidewise init"'
+    : 'next: run "sidewise agent" for the rules and good/bad patterns before your first request, or "sidewise template class" to start by hand';
   return { exit: 0, text: `${lines.join('\n')}\n\n${doctorOut.text}\n${next}\n` };
 }
