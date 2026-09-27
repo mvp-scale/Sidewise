@@ -1,4 +1,6 @@
 // sidewise template <verb>: a copy-editable request, never a response; each one validates on its own.
+import { writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readRequestText } from '../../src/contract/read.ts';
 import { VERBS } from '../../src/contract/types.ts';
@@ -25,8 +27,8 @@ describe('runTemplate', () => {
     expect(runTemplate('nope')).toEqual({ exit: 2, text: '✖ template: "nope" is not a verb → one of view, class, change, scan, drill, loop' });
   });
 
-  it('--parent/--from only apply to drill', () => {
-    expect(runTemplate('class', { parent: 'SW-0001' })).toEqual({ exit: 2, text: '✖ template: --parent/--from only apply to drill → sidewise template class' });
+  it('--parent only applies to drill', () => {
+    expect(runTemplate('class', { parent: 'SW-0001' })).toEqual({ exit: 2, text: '✖ template: --parent only applies to drill → sidewise template class' });
   });
 
   it('drill needs both flags together, or neither', () => {
@@ -90,6 +92,65 @@ describe('runTemplate', () => {
       const r = runTemplate('drill', { parent: 'SW-9999', from: 'access' }, paths);
       expect(r.exit).toBe(0);
       expect(r.text).toContain('over:');
+    });
+  });
+
+  // fix #16: --from alone (no --parent) names a request FILE, not an item/category — a frozen checklist
+  // reused on a new subject without sed.
+  describe('--from a request file (fix #16)', () => {
+    const write = (root: string, text: string): string => {
+      const file = path.join(root, 'saved.yaml');
+      writeFileSync(file, text);
+      return file;
+    };
+    const frozen = 'side:\n  goal: old goal\n  depth: quick\n  where: [src/old.ts]\n  ask:\n    injection:\n      pass: no\n' +
+      Array.from({ length: 10 }, (_, i) => `      ${i + 1}: is question ${i + 1} true?\n`).join('') +
+      'wise:\n  why: validate\n  area: data\n';
+
+    it('[C-111] prints the file back unchanged with no overrides', () => {
+      const { root } = tempProject({});
+      const file = write(root, frozen);
+      const r = runTemplate('class', { from: file });
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('goal: old goal');
+      expect(r.text).toContain('where:');
+      expect(r.text).toContain('injection:');
+    });
+
+    it('[C-112] --where/--goal overlay the frozen ask: onto a new subject', () => {
+      const { root } = tempProject({});
+      const file = write(root, frozen);
+      const r = runTemplate('class', { from: file, goal: 'new goal', where: ['src/new.ts'] });
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('goal: new goal');
+      expect(r.text).toContain('src/new.ts');
+      expect(r.text).not.toContain('old.ts');
+      const parsed = readRequestText(r.text);
+      const v = parsed.ok && validateRequest(parsed.value, 'class');
+      expect(v && v.ok).toBe(true);
+    });
+
+    it('a missing file: a clean stop', () => {
+      const r = runTemplate('class', { from: '/no/such/file.yaml' });
+      expect(r.exit).toBe(2);
+      expect(r.text).toContain('not found');
+    });
+
+    it('a file with no side: block: a clean stop', () => {
+      const { root } = tempProject({});
+      const file = write(root, 'wise:\n  why: validate\n');
+      const r = runTemplate('class', { from: file });
+      expect(r).toEqual({ exit: 2, text: `✖ template: --from "${file}" has no side: block → point at a Sidewise request file` });
+    });
+
+    it('--where/--goal without --from: a clean stop', () => {
+      expect(runTemplate('class', { goal: 'x' }).exit).toBe(2);
+      expect(runTemplate('class', { where: ['a'] }).exit).toBe(2);
+    });
+
+    it('--where/--goal with --parent: a clean stop (they overlay --from, not a drill item lookup)', () => {
+      const r = runTemplate('drill', { parent: 'SW-0001', from: 'access', goal: 'x' });
+      expect(r.exit).toBe(2);
     });
   });
 });
