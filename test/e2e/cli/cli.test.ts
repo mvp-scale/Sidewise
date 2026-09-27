@@ -138,12 +138,12 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(sidewise(root, ['judge'])).toMatchObject({
       status: 2,
       stdout: '',
-      stderr: '✖ args: "judge" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)\n',
+      stderr: '✖ args: "judge" is not a command → use view, class, change, scan, drill, loop, template, help, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)\n',
     });
     expect(sidewise(root, ['view'])).toMatchObject({
       status: 2,
       stdout: '',
-      stderr: '✖ args: missing arguments → sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3]\n',
+      stderr: '✖ args: missing arguments → sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]\n',
     });
     expect(sidewise(root, ['class'])).toMatchObject({
       status: 2,

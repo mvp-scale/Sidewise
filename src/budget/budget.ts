@@ -62,6 +62,19 @@ function write(paths: SidewisePaths, state: BudgetState): void {
   });
 }
 
+/** A read-only peek at the current budget, for a dry run: never creates the file, never writes, never throws
+ *  (design binding "dry runs and free reads write nothing" — loadBudget below creates the file with defaults
+ *  on first use, which a dry run must never trigger). Missing or corrupt reads as `undefined` rather than
+ *  created or reported — a dry run only wants to warn when it can positively tell the cap is already reached;
+ *  a real run still gets loadBudget's own proper creation/corruption handling. */
+export function peekBudget(paths: SidewisePaths): BudgetState | undefined {
+  try {
+    return read(paths);
+  } catch {
+    return undefined;
+  }
+}
+
 export function loadBudget(paths: SidewisePaths, now: number = Date.now()): { state: BudgetState; created: boolean } {
   const existing = read(paths);
   if (existing) return { state: existing, created: false };

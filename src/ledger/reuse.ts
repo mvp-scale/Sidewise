@@ -46,6 +46,7 @@
 import type { Answer } from '../contract/types.ts';
 import { readRecordAt, withIndex, type IndexHandle } from './index.ts';
 import { isContractRun, type ContractRun } from './log.ts';
+import { onStore } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
 
 export interface Who {
@@ -91,42 +92,47 @@ function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: str
  *  `out` is built INSIDE the withIndex callback (never captured from outside it): withIndex retries `fn` from
  *  scratch against the in-memory fallback if the SQL attempt throws partway through, so a partially-filled `out`
  *  from that aborted attempt must never survive into the retry — building it fresh per `fn` invocation is what
- *  guarantees that. */
+ *  guarantees that. Wrapped in onStore (fix, found post-#5a): once a verb resolves reuse BEFORE preflight, this
+ *  is the first read to touch `.sidewise/` at all on some paths — a structurally broken log.jsonl (e.g. a
+ *  directory where the file should be) must come back as preflight's own clean StoreError, never a raw errno
+ *  escaping unwrapped just because this call now sometimes runs first. */
 export function lookupAnswers(paths: SidewisePaths, who: Who, keys: readonly string[], opts: { readOnly?: boolean } = {}): Map<string, Reusable> {
   const want = new Set(keys);
   if (!want.size) return new Map();
-  return withIndex(
-    paths,
-    (handle) => {
-      const out = new Map<string, Reusable>();
-      const remaining = new Set<string>();
-      for (const key of want) {
-        const hit = fastReuse(paths, handle, who, key);
-        if (hit) {
-          out.set(key, hit);
-          continue;
+  return onStore(paths.log, 'read', () =>
+    withIndex(
+      paths,
+      (handle) => {
+        const out = new Map<string, Reusable>();
+        const remaining = new Set<string>();
+        for (const key of want) {
+          const hit = fastReuse(paths, handle, who, key);
+          if (hit) {
+            out.set(key, hit);
+            continue;
+          }
+          if (handle.everHeld(who.adapter, who.model, key)) remaining.add(key); // else: nobody ever held it — a walk could never find it either
         }
-        if (handle.everHeld(who.adapter, who.model, key)) remaining.add(key); // else: nobody ever held it — a walk could never find it either
-      }
-      if (remaining.size) {
-        for (const { offset } of handle.candidates(who.adapter, who.model)) {
-          if (!remaining.size) break;
-          const run = readCandidate(paths, offset, who);
-          if (!run) continue;
-          for (const [qid, key] of Object.entries(run.keys)) {
-            if (!remaining.has(key)) continue;
-            const answer = run.answers[qid];
-            const origin = run.reusedFrom[qid] ?? run.id;
-            if (answer && !handle.isBlocked(origin)) {
-              out.set(key, { id: origin, answer });
-              remaining.delete(key);
+        if (remaining.size) {
+          for (const { offset } of handle.candidates(who.adapter, who.model)) {
+            if (!remaining.size) break;
+            const run = readCandidate(paths, offset, who);
+            if (!run) continue;
+            for (const [qid, key] of Object.entries(run.keys)) {
+              if (!remaining.has(key)) continue;
+              const answer = run.answers[qid];
+              const origin = run.reusedFrom[qid] ?? run.id;
+              if (answer && !handle.isBlocked(origin)) {
+                out.set(key, { id: origin, answer });
+                remaining.delete(key);
+              }
             }
           }
         }
-      }
-      return out;
-    },
-    { readOnly: opts.readOnly ?? false },
+        return out;
+      },
+      { readOnly: opts.readOnly ?? false },
+    ),
   );
 }
 
@@ -136,27 +142,31 @@ export function lookupAnswers(paths: SidewisePaths, who: Who, keys: readonly str
  * caller (view's request mode) is a free, read-only verb — it must never persist a catch-up/rebuild.
  * If ANY requested key was never held by any run at all (everHeld false), no single run could possibly hold
  * every one of them — that's provable without a walk, the same reuse-MISS shortcut lookupAnswers uses.
+ * Wrapped in onStore for the same reason as lookupAnswers above: a structurally broken log.jsonl must surface
+ * as the usual clean StoreError, never a raw errno.
  */
 export function exactReuse(paths: SidewisePaths, who: Who, keys: readonly string[]): string | undefined {
   if (!keys.length) return undefined;
-  return withIndex(
-    paths,
-    (handle) => {
-      if (keys.some((k) => !handle.everHeld(who.adapter, who.model, k))) return undefined;
-      for (const { offset } of handle.candidates(who.adapter, who.model)) {
-        const run = readCandidate(paths, offset, who);
-        if (!run) continue;
-        const qidOf = new Map(Object.entries(run.keys).map(([qid, key]) => [key, qid]));
-        const holds = keys.every((k) => {
-          const qid = qidOf.get(k);
-          if (qid === undefined) return false;
-          const origin = run.reusedFrom[qid] ?? run.id;
-          return !handle.isBlocked(origin);
-        });
-        if (holds) return run.id;
-      }
-      return undefined;
-    },
-    { readOnly: true },
+  return onStore(paths.log, 'read', () =>
+    withIndex(
+      paths,
+      (handle) => {
+        if (keys.some((k) => !handle.everHeld(who.adapter, who.model, k))) return undefined;
+        for (const { offset } of handle.candidates(who.adapter, who.model)) {
+          const run = readCandidate(paths, offset, who);
+          if (!run) continue;
+          const qidOf = new Map(Object.entries(run.keys).map(([qid, key]) => [key, qid]));
+          const holds = keys.every((k) => {
+            const qid = qidOf.get(k);
+            if (qid === undefined) return false;
+            const origin = run.reusedFrom[qid] ?? run.id;
+            return !handle.isBlocked(origin);
+          });
+          if (holds) return run.id;
+        }
+        return undefined;
+      },
+      { readOnly: true },
+    ),
   );
 }

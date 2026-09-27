@@ -90,9 +90,10 @@ describe('class: bad request input', () => {
     const r = unchanged(root, ['class', noisy]);
     expect(r.status).toBe(2);
     const lines = r.stderr.trimEnd().split('\n');
-    expect(lines).toHaveLength(6);
-    expect(lines.every((l) => /^✖ .+ → .+$/.test(l))).toBe(true);
+    expect(lines).toHaveLength(7);
+    expect(lines.slice(0, 6).every((l) => /^✖ .+ → .+$/.test(l))).toBe(true);
     expect(lines[5]).toMatch(/^✖ request: \d+ more problems → fix the ones above, then run again$/);
+    expect(lines[6]).toBe('→ see: sidewise help class');
   });
 });
 
@@ -109,7 +110,7 @@ describe('flags', () => {
   });
 
   it('an unknown flag, a flag before the command, and extra arguments: one "✖ args:" line with that command\'s usage', () => {
-    const view = 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3]';
+    const view = 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]';
     const cls = 'sidewise class <request-file | -> [--dry-run]';
     expect(expectCleanStop(unchanged(root, ['view', 'src', '--lvl', '2']), 2)).toBe(`✖ args: unknown flag --lvl → ${view}`);
     expect(expectCleanStop(unchanged(root, ['--level', '2', 'view', 'src']), 2)).toBe(`✖ args: "--level" comes before the command → ${view}`);

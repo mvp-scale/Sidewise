@@ -8,7 +8,7 @@
  *   dry run can predict how much of it would be reused.
  */
 import { providerIdentity } from '../classifier/select.ts';
-import { checkBudget, loadBudget } from '../budget/budget.ts';
+import { checkBudget, peekBudget } from '../budget/budget.ts';
 import type { Value } from '../contract/emit.ts';
 import { gradeSubject } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
@@ -62,11 +62,11 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     // itself be blocked by an already-reached cap — never a hard stop, just a heads-up.
     let capNote: string[] = [];
     if (toAsk.length > 0) {
-      try {
-        if (!checkBudget(loadBudget(ctx.paths).state).ok) capNote = [CAP_NOTE];
-      } catch {
-        // a corrupt/unwritable budget file is the real run's problem to report properly; a dry run stays silent.
-      }
+      // peekBudget, not loadBudget: a dry run must never be the thing that creates .sidewise/budget.json with
+      // defaults. No file yet, or a corrupt one, just means "can't positively say the cap is reached" — the
+      // real run still gets loadBudget's own proper creation/corruption handling.
+      const state = peekBudget(ctx.paths);
+      if (state && !checkBudget(state).ok) capNote = [CAP_NOTE];
     }
     return {
       exit: 0,
