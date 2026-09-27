@@ -53,6 +53,27 @@ const whoKey = (who: { adapter: string; model: string }): string => `${who.adapt
  *  string is. */
 export const stripLines = (entry: string): string => entry.replace(/:(\d+(?:-\d+)?)$/u, '');
 
+/** Fix #2: a sweep run's own `where` is always `[]` (scan.ts/loop.ts/drill.ts) — its real code locations live in
+ *  `items[id].unit.path`, and its category names for `view <tag>` live in `ask.layers[].categories[].tags`. Both
+ *  sinks call this so they can never disagree about what a sweep run's places are. Deduped: a sweep can visit the
+ *  same file (or tag) many times over. Shared with view.ts's whereMatches/tagsMatch, which re-verify every
+ *  candidate this produces against the real record (never trusted blindly, same discipline as every other index
+ *  candidate here). */
+export function sweepPlaces(rec: ContractRun): { kind: 'where' | 'tag'; val: string }[] {
+  if (!rec.items) return [];
+  const out: { kind: 'where' | 'tag'; val: string }[] = [];
+  const seen = new Set<string>();
+  const add = (kind: 'where' | 'tag', val: string): void => {
+    const k = `${kind}\u0000${val}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ kind, val });
+  };
+  for (const item of Object.values(rec.items)) if (item.unit) add('where', item.unit.path);
+  for (const layer of rec.ask.layers) for (const cat of layer.categories) for (const tag of cat.tags) add('tag', tag);
+  return out;
+}
+
 interface ReuseHit {
   runId: string;
   qid: string;
@@ -288,6 +309,7 @@ function memorySink(state: MemoryState): Sink {
         const table = state.reuseKey.get(wk)!;
         for (const [qid, key] of Object.entries(rec.keys)) table.set(key, { runId: rec.reusedFrom[qid] ?? rec.id, qid });
         for (const w of rec.where) state.places.push({ kind: 'where', val: stripLines(w), runId: rec.id });
+        for (const p of sweepPlaces(rec)) state.places.push({ ...p, runId: rec.id });
       } else {
         for (const w of rec.where) state.places.push({ kind: 'where', val: w.path, runId: rec.id });
         for (const t of rec.tags) state.places.push({ kind: 'tag', val: t, runId: rec.id });
@@ -569,6 +591,7 @@ function sqlSink(stmts: SqlStatements): Sink {
       if (isContractRun(rec)) {
         for (const [qid, key] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run('where', stripLines(w), rec.id);
+        for (const p of sweepPlaces(rec)) stmts.insertPlace.run(p.kind, p.val, rec.id);
       } else {
         for (const w of rec.where) stmts.insertPlace.run('where', w.path, rec.id);
         for (const t of rec.tags) stmts.insertPlace.run('tag', t, rec.id);

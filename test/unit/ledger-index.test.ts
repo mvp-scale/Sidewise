@@ -8,10 +8,11 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, 
 import { afterEach, describe, expect, it } from 'vitest';
 import { generateLedgerRecords, toJsonl, writeSyntheticLedger } from '../gen/synthetic-ledger.ts';
 import { formatRunId } from '../../src/ledger/ids.ts';
-import { findRun, isContractRun, isRun, nextRunNumber, readLedger } from '../../src/ledger/log.ts';
-import { __testOnly, isSqliteExperimentalWarning, readRecordAt, withIndex } from '../../src/ledger/index.ts';
+import { appendContractRun, findRun, isContractRun, isRun, nextRunNumber, readLedger } from '../../src/ledger/log.ts';
+import { __testOnly, isSqliteExperimentalWarning, readRecordAt, sweepPlaces, withIndex } from '../../src/ledger/index.ts';
 import { exactReuse, lookupAnswers } from '../../src/ledger/reuse.ts';
 import { tempProject } from '../helpers/project.ts';
+import { sampleContractRun } from '../helpers/runs.ts';
 
 afterEach(() => {
   __testOnly.forceFallback = false;
@@ -110,6 +111,35 @@ describe('the index matches a linear scan', () => {
     nextRunNumber(paths);
     writeSyntheticLedger(paths, { seed: 'idx-6b', runs: 10 }); // a much shorter, different ledger at the same path
     expect(nextRunNumber(paths)).toBe(readLedger(paths).filter((r) => r.kind === 'run').length + 1);
+  });
+
+  it('[C-120] fix #2: placeCandidates finds a sweep run by its own item unit paths and category tags, on both engines', () => {
+    const { paths } = tempProject({});
+    const run = sampleContractRun({
+      where: [],
+      ask: {
+        categories: [],
+        layers: [{ name: 'file', categories: [{ name: 'injection', pass: 'no', need: 'all', tags: ['sql-risk'], questions: [{ n: 1, kind: 'yesno', text: 'q?' }] }] }],
+      },
+      items: {
+        'src/a.ts': { layer: 'file', fill: {}, unit: { path: 'src/a.ts', kind: 'file', name: 'src/a.ts', lines: '1-2' }, status: 'asked', gate: 'fail', categories: { injection: 'fail' } },
+      },
+      categories: {},
+    });
+    appendContractRun(paths, run, Date.now(), 'b'); // SW-0001
+    // sweepPlaces itself, off the now-appended (fully-shaped) record: exactly one deduped 'where' and one 'tag'.
+    const saved = readLedger(paths).find(isContractRun)!;
+    expect(sweepPlaces(saved)).toEqual([
+      { kind: 'where', val: 'src/a.ts' },
+      { kind: 'tag', val: 'sql-risk' },
+    ]);
+    for (const forceFallback of [false, true]) {
+      __testOnly.forceFallback = forceFallback;
+      const byPath = withIndex(paths, (h) => h.placeCandidates('src/a.ts'));
+      const byTag = withIndex(paths, (h) => h.placeCandidates('sql-risk'));
+      expect(byPath.map((c) => c.id)).toEqual(['SW-0001']);
+      expect(byTag.map((c) => c.id)).toEqual(['SW-0001']);
+    }
   });
 });
 
