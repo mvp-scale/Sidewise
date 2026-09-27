@@ -114,17 +114,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key2, node, visitor, path18) {
-      const ctrl = callVisitor(key2, node, visitor, path18);
+    function visit_(key2, node, visitor, path19) {
+      const ctrl = callVisitor(key2, node, visitor, path19);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key2, path18, ctrl);
-        return visit_(key2, ctrl, visitor, path18);
+        replaceNode(key2, path19, ctrl);
+        return visit_(key2, ctrl, visitor, path19);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path18 = Object.freeze(path18.concat(node));
+          path19 = Object.freeze(path19.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path18);
+            const ci = visit_(i, node.items[i], visitor, path19);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -135,13 +135,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path18 = Object.freeze(path18.concat(node));
-          const ck = visit_("key", node.key, visitor, path18);
+          path19 = Object.freeze(path19.concat(node));
+          const ck = visit_("key", node.key, visitor, path19);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path18);
+          const cv = visit_("value", node.value, visitor, path19);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -162,17 +162,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key2, node, visitor, path18) {
-      const ctrl = await callVisitor(key2, node, visitor, path18);
+    async function visitAsync_(key2, node, visitor, path19) {
+      const ctrl = await callVisitor(key2, node, visitor, path19);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key2, path18, ctrl);
-        return visitAsync_(key2, ctrl, visitor, path18);
+        replaceNode(key2, path19, ctrl);
+        return visitAsync_(key2, ctrl, visitor, path19);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path18 = Object.freeze(path18.concat(node));
+          path19 = Object.freeze(path19.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path18);
+            const ci = await visitAsync_(i, node.items[i], visitor, path19);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -183,13 +183,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path18 = Object.freeze(path18.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path18);
+          path19 = Object.freeze(path19.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path19);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path18);
+          const cv = await visitAsync_("value", node.value, visitor, path19);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -216,23 +216,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key2, node, visitor, path18) {
+    function callVisitor(key2, node, visitor, path19) {
       if (typeof visitor === "function")
-        return visitor(key2, node, path18);
+        return visitor(key2, node, path19);
       if (identity.isMap(node))
-        return visitor.Map?.(key2, node, path18);
+        return visitor.Map?.(key2, node, path19);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key2, node, path18);
+        return visitor.Seq?.(key2, node, path19);
       if (identity.isPair(node))
-        return visitor.Pair?.(key2, node, path18);
+        return visitor.Pair?.(key2, node, path19);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key2, node, path18);
+        return visitor.Scalar?.(key2, node, path19);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key2, node, path18);
+        return visitor.Alias?.(key2, node, path19);
       return void 0;
     }
-    function replaceNode(key2, path18, node) {
-      const parent = path18[path18.length - 1];
+    function replaceNode(key2, path19, node) {
+      const parent = path19[path19.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key2] = node;
       } else if (identity.isPair(parent)) {
@@ -844,10 +844,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path18, value) {
+    function collectionFromPath(schema, path19, value) {
       let v = value;
-      for (let i = path18.length - 1; i >= 0; --i) {
-        const k = path18[i];
+      for (let i = path19.length - 1; i >= 0; --i) {
+        const k = path19[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -866,7 +866,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path18) => path18 == null || typeof path18 === "object" && !!path18[Symbol.iterator]().next().done;
+    var isEmptyPath = (path19) => path19 == null || typeof path19 === "object" && !!path19[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -896,11 +896,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path18, value) {
-        if (isEmptyPath(path18))
+      addIn(path19, value) {
+        if (isEmptyPath(path19))
           this.add(value);
         else {
-          const [key2, ...rest] = path18;
+          const [key2, ...rest] = path19;
           const node = this.get(key2, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -914,8 +914,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path18) {
-        const [key2, ...rest] = path18;
+      deleteIn(path19) {
+        const [key2, ...rest] = path19;
         if (rest.length === 0)
           return this.delete(key2);
         const node = this.get(key2, true);
@@ -929,8 +929,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path18, keepScalar) {
-        const [key2, ...rest] = path18;
+      getIn(path19, keepScalar) {
+        const [key2, ...rest] = path19;
         const node = this.get(key2, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -948,8 +948,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path18) {
-        const [key2, ...rest] = path18;
+      hasIn(path19) {
+        const [key2, ...rest] = path19;
         if (rest.length === 0)
           return this.has(key2);
         const node = this.get(key2, true);
@@ -959,8 +959,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path18, value) {
-        const [key2, ...rest] = path18;
+      setIn(path19, value) {
+        const [key2, ...rest] = path19;
         if (rest.length === 0) {
           this.set(key2, value);
         } else {
@@ -3475,9 +3475,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path18, value) {
+      addIn(path19, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path18, value);
+          this.contents.addIn(path19, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -3552,14 +3552,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path18) {
-        if (Collection.isEmptyPath(path18)) {
+      deleteIn(path19) {
+        if (Collection.isEmptyPath(path19)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path18) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path19) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -3574,10 +3574,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path18, keepScalar) {
-        if (Collection.isEmptyPath(path18))
+      getIn(path19, keepScalar) {
+        if (Collection.isEmptyPath(path19))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path18, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path19, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -3588,10 +3588,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path18) {
-        if (Collection.isEmptyPath(path18))
+      hasIn(path19) {
+        if (Collection.isEmptyPath(path19))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path18) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path19) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -3608,13 +3608,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path18, value) {
-        if (Collection.isEmptyPath(path18)) {
+      setIn(path19, value) {
+        if (Collection.isEmptyPath(path19)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path18), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path19), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path18, value);
+          this.contents.setIn(path19, value);
         }
       }
       /**
@@ -4832,8 +4832,8 @@ var require_resolve_flow_scalar = __commonJS({
     };
     function parseCharCode(source, offset, length, onError) {
       const cc = source.substr(offset, length);
-      const ok = cc.length === length && /^[0-9a-fA-F]+$/.test(cc);
-      const code = ok ? parseInt(cc, 16) : NaN;
+      const ok2 = cc.length === length && /^[0-9a-fA-F]+$/.test(cc);
+      const code = ok2 ? parseInt(cc, 16) : NaN;
       try {
         return String.fromCodePoint(code);
       } catch {
@@ -5575,9 +5575,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path18) => {
+    visit.itemAtPath = (cst, path19) => {
       let item = cst;
-      for (const [field, index] of path18) {
+      for (const [field, index] of path19) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -5586,23 +5586,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path18) => {
-      const parent = visit.itemAtPath(cst, path18.slice(0, -1));
-      const field = path18[path18.length - 1][0];
+    visit.parentCollection = (cst, path19) => {
+      const parent = visit.itemAtPath(cst, path19.slice(0, -1));
+      const field = path19[path19.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path18, item, visitor) {
-      let ctrl = visitor(item, path18);
+    function _visit(path19, item, visitor) {
+      let ctrl = visitor(item, path19);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path18.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path19.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -5613,10 +5613,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path18);
+            ctrl = ctrl(item, path19);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path18) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path19) : ctrl;
     }
     exports.visit = visit;
   }
@@ -7371,7 +7371,7 @@ var require_dist = __commonJS({
 var import_yaml3 = __toESM(require_dist(), 1);
 import { readFileSync as readFileSync14, statSync as statSync8 } from "node:fs";
 import os3 from "node:os";
-import path17 from "node:path";
+import path18 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -8051,10 +8051,10 @@ async function fetchWithTimeout(config, doFetch, url, key2, payload, opts) {
 }
 function detailOf(body) {
   if (!isRecord(body)) return String(body).slice(0, 200);
-  const err = body.error;
-  if (isRecord(err) && typeof err.message === "string") return err.message;
+  const err2 = body.error;
+  if (isRecord(err2) && typeof err2.message === "string") return err2.message;
   if (typeof body.message === "string") return body.message;
-  if (typeof err === "string") return err;
+  if (typeof err2 === "string") return err2;
   return JSON.stringify(body);
 }
 async function postSystemOne(config, doFetch, key2, payload, opts) {
@@ -9016,6 +9016,88 @@ function latestOutcome(records, id) {
   return found;
 }
 
+// src/mcp/stdio.ts
+import readline from "node:readline";
+
+// src/mcp/protocol.ts
+var SUPPORTED_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
+var DEFAULT_VERSION = "2025-06-18";
+var TOOL_NAME = "sidewise";
+function toolDefinition() {
+  return {
+    name: TOOL_NAME,
+    description: 'Run a sidewise CLI command in this project \u2014 the same arguments and stdin the sidewise CLI takes (e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). Returns the same text output sidewise would print, and marks the result an error when the exit code is not 0.',
+    inputSchema: {
+      type: "object",
+      properties: {
+        args: { type: "array", items: { type: "string" }, description: 'sidewise CLI arguments, e.g. ["doctor"] or ["class","-"]' },
+        stdin: { type: "string", description: 'Text to feed as stdin, for a "-" argument (e.g. the request YAML).' }
+      },
+      required: ["args"]
+    }
+  };
+}
+var err = (id, code, message) => ({ jsonrpc: "2.0", id, error: { code, message } });
+var ok = (id, result) => ({ jsonrpc: "2.0", id, result });
+async function handleMessage(msg, deps) {
+  const hasId = Object.hasOwn(msg, "id") && msg.id !== void 0;
+  if (!hasId) return void 0;
+  const id = msg.id;
+  const method = typeof msg.method === "string" ? msg.method : void 0;
+  if (!method || msg.jsonrpc !== "2.0") return err(id, -32600, "Invalid Request");
+  if (method === "initialize") {
+    const params = msg.params ?? {};
+    const requested = typeof params.protocolVersion === "string" ? params.protocolVersion : void 0;
+    const protocolVersion = requested && SUPPORTED_VERSIONS.includes(requested) ? requested : DEFAULT_VERSION;
+    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "sidewise", version: deps.serverVersion } });
+  }
+  if (method === "ping") return ok(id, {});
+  if (method === "tools/list") return ok(id, { tools: [toolDefinition()] });
+  if (method === "tools/call") {
+    const params = msg.params ?? {};
+    if (params.name !== TOOL_NAME) return err(id, -32602, `Unknown tool: ${String(params.name)}`);
+    const rawArgs = params.arguments?.args;
+    const args2 = Array.isArray(rawArgs) ? rawArgs.map(String) : [];
+    const stdin = typeof params.arguments?.stdin === "string" ? params.arguments.stdin : void 0;
+    try {
+      const { exit, text } = await deps.runOne(args2, stdin);
+      return ok(id, { content: [{ type: "text", text }], isError: exit !== 0 });
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      return ok(id, { content: [{ type: "text", text: `\u2716 sidewise: ${message}` }], isError: true });
+    }
+  }
+  return err(id, -32601, `Method not found: ${method}`);
+}
+
+// src/mcp/stdio.ts
+function runMcpServer(io, runOne, serverVersion) {
+  return new Promise((resolve) => {
+    const rl = readline.createInterface({ input: io.input, terminal: false });
+    rl.on("line", (line3) => {
+      const trimmed = line3.trim();
+      if (!trimmed) return;
+      let msg;
+      try {
+        msg = JSON.parse(trimmed);
+      } catch {
+        io.output.write(`${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } })}
+`);
+        return;
+      }
+      handleMessage(msg, { runOne, serverVersion }).then((response) => {
+        if (response) io.output.write(`${JSON.stringify(response)}
+`);
+      }).catch(() => {
+        const id = msg.id ?? null;
+        io.output.write(`${JSON.stringify({ jsonrpc: "2.0", id, error: { code: -32603, message: "Internal error" } })}
+`);
+      });
+    });
+    rl.on("close", () => resolve());
+  });
+}
+
 // src/setup/env-file.ts
 import { chmodSync, existsSync as existsSync5, mkdirSync as mkdirSync4, readFileSync as readFileSync6, rmSync as rmSync3, statSync as statSync4, writeFileSync as writeFileSync4 } from "node:fs";
 import os from "node:os";
@@ -9364,7 +9446,6 @@ function identityFor(env, config) {
     ...config.route === "gateway" ? { wireModel: config.wireModel } : {}
   };
 }
-var yesNo = (v) => v?.trim() ? "yes" : "no";
 var octal4 = (mode) => mode.toString(8).padStart(4, "0");
 function keyLine(env, config, deps) {
   if (!config.apiKey) return { value: 'no  \u2192 run "sidewise init" to add one' };
@@ -9399,7 +9480,9 @@ function pluginLine(deps) {
 }
 function projectLine(root, deps) {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
-  return `${root} \xB7 plugin enabled here: ${status.scopes.includes("project") ? "yes" : "no"}`;
+  const scopes = status.scopes;
+  const enabled = scopes.includes("project") || scopes.includes("user") || scopes.includes("local");
+  return `${root} \xB7 plugin enabled here: ${enabled ? "yes" : "no"}`;
 }
 function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
   let config;
@@ -9427,7 +9510,6 @@ function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
         ...who.baseURL ? [["baseURL", who.baseURL]] : [],
         ["model", who.model],
         ...who.wireModel ? [["wireModel", who.wireModel]] : [],
-        ["keys", m(["TYPESAFE_API_KEY", yesNo(env.TYPESAFE_API_KEY)], ["AI_GATEWAY_API_KEY", yesNo(env.AI_GATEWAY_API_KEY)])],
         ["key", key2],
         ["project", project],
         ["node", nodeVersion],
@@ -9442,10 +9524,10 @@ function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
 }
 
 // src/setup/prompt.ts
-import readline from "node:readline";
+import readline2 from "node:readline";
 function readHidden(promptText, io) {
   return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: io.input, output: io.output, terminal: io.output.isTTY === true });
+    const rl = readline2.createInterface({ input: io.input, output: io.output, terminal: io.output.isTTY === true });
     rl._writeToOutput = (s) => {
       if (s === promptText) io.output.write(s);
     };
@@ -9458,7 +9540,7 @@ function readHidden(promptText, io) {
 }
 function readLine(promptText, io) {
   return new Promise((resolve) => {
-    const rl = readline.createInterface({ input: io.input, output: io.output, terminal: io.output.isTTY === true });
+    const rl = readline2.createInterface({ input: io.input, output: io.output, terminal: io.output.isTTY === true });
     rl.question(promptText, (answer) => {
       rl.close();
       resolve(answer);
@@ -9467,7 +9549,7 @@ function readLine(promptText, io) {
 }
 function readOneLine(input) {
   return new Promise((resolve, reject) => {
-    const rl = readline.createInterface({ input, terminal: false });
+    const rl = readline2.createInterface({ input, terminal: false });
     let resolved = false;
     rl.once("line", (line3) => {
       resolved = true;
@@ -9515,9 +9597,12 @@ function defaultMode(cwd, prefixWritable) {
   if (existsSync8(path10.join(cwd, "package.json"))) return "local";
   return prefixWritable ? "global" : "user";
 }
+function isNpxCache(binPath) {
+  return binPath.split(path10.sep).includes("_npx");
+}
 async function stepCli(flags, ctx) {
   const onPath = findOnPath("sidewise", ctx.env, ctx.platform);
-  if (onPath && isPackageBin(onPath, ctx.pkg.name) && !flags.mode) {
+  if (onPath && !isNpxCache(onPath) && isPackageBin(onPath, ctx.pkg.name) && !flags.mode) {
     return [line("already", "cli", `already reachable as ${onPath}`)];
   }
   const prefix = npmGlobalPrefix(ctx.runner);
@@ -9643,84 +9728,161 @@ var realRunner = (cmd, args2, opts = {}) => {
     });
     return { status: 0, stdout, stderr: "" };
   } catch (e) {
-    const err = e;
-    return { status: typeof err.status === "number" ? err.status : 1, stdout: err.stdout ?? "", stderr: err.stderr ?? err.message ?? "" };
+    const err2 = e;
+    return { status: typeof err2.status === "number" ? err2.status : 1, stdout: err2.stdout ?? "", stderr: err2.stderr ?? err2.message ?? "" };
   }
 };
 
 // src/setup/uninstall.ts
-import { existsSync as existsSync9, rmSync as rmSync6 } from "node:fs";
+import { existsSync as existsSync9, realpathSync as realpathSync2, rmSync as rmSync6 } from "node:fs";
+import path11 from "node:path";
 var GLYPH2 = { done: "\u2714", already: "\xB7", skipped: "\u2013", problem: "\u2716" };
 var line2 = (status, label, text) => `${GLYPH2[status]} ${label}: ${text}`;
 async function ask(promptText, defaultAnswer, flags, io) {
   return flags.yes ? defaultAnswer : confirm(promptText, defaultAnswer, io);
 }
-async function stepPlugin2(flags, ctx) {
+function detectInstallMode(ctx) {
+  const onPath = findOnPath("sidewise", ctx.env, ctx.platform);
+  if (!onPath) return void 0;
+  let real;
+  try {
+    real = realpathSync2(onPath);
+  } catch {
+    real = onPath;
+  }
+  const under = (dir) => real === dir || real.startsWith(dir.endsWith(path11.sep) ? dir : `${dir}${path11.sep}`);
+  if (under(path11.join(ctx.cwd, "node_modules"))) return { mode: "local", projectDir: ctx.cwd };
+  const globalPrefix = npmGlobalPrefix(ctx.runner);
+  if (globalPrefix && under(globalPrefix)) return { mode: "global", npmPrefix: globalPrefix };
+  const userPrefix = path11.join(ctx.homeDir, ".local");
+  if (under(userPrefix)) return { mode: "user", npmPrefix: userPrefix };
+  return void 0;
+}
+async function stepPlugin2(flags, ctx, manual) {
   const status = pluginStatus(ctx.runner);
   const scopesToRemove = flags.all ? status.scopes : status.scopes.filter((s) => s === "project");
   const marketplace = flags.all && marketplaceExists(ctx.runner);
   const cacheDirExists = flags.all && existsSync9(pluginCacheDir(ctx.homeDir));
   if (!scopesToRemove.length && !marketplace && !cacheDirExists) return [line2("already", "plugin", "nothing to remove here")];
-  const remove = await ask(flags.all ? "Remove the Claude Code plugin (all scopes) and the mvp-scale marketplace?" : "Remove the Claude Code plugin from this project?", true, flags, ctx.io);
-  if (!remove) return [line2("skipped", "plugin", "skipped (kept)")];
+  const manualCmds = [
+    ...scopesToRemove.map((s) => `claude plugin uninstall sidewise@mvp-scale --scope ${s}`),
+    ...marketplace ? ["claude plugin marketplace remove mvp-scale"] : [],
+    ...cacheDirExists ? [`rm -rf ${pluginCacheDir(ctx.homeDir)}`] : []
+  ];
+  const found = [
+    scopesToRemove.length ? `sidewise@mvp-scale at ${scopesToRemove.join(", ")} scope` : "",
+    marketplace ? "the mvp-scale marketplace" : "",
+    cacheDirExists ? "a leftover plugin cache dir" : ""
+  ].filter(Boolean).join(", ");
+  const remove = await ask(`Found ${found}. Remove ${flags.all ? "all of it" : "it"}?`, true, flags, ctx.io);
+  if (!remove) {
+    manual.push(`plugin: ${manualCmds.join(" \xB7 ")}`);
+    return [line2("skipped", "plugin", "skipped (kept)")];
+  }
   const lines = [];
   for (const scope of scopesToRemove) {
     const r = uninstallPlugin(ctx.runner, scope);
-    lines.push(r.status === 0 ? line2("done", "plugin", `uninstalled sidewise@mvp-scale (${scope} scope)`) : line2("problem", "plugin", `could not uninstall (${scope} scope)`));
+    if (r.status === 0) {
+      lines.push(line2("done", "plugin", `uninstalled sidewise@mvp-scale (${scope} scope)`));
+    } else {
+      lines.push(line2("problem", "plugin", `could not uninstall (${scope} scope)`));
+      manual.push(`plugin (${scope} scope): claude plugin uninstall sidewise@mvp-scale --scope ${scope}`);
+    }
   }
   if (marketplace) {
     const r = removeMarketplace(ctx.runner);
-    lines.push(r.status === 0 ? line2("done", "plugin", "removed the mvp-scale marketplace") : line2("problem", "plugin", "could not remove the mvp-scale marketplace"));
+    if (r.status === 0) {
+      lines.push(line2("done", "plugin", "removed the mvp-scale marketplace"));
+    } else {
+      lines.push(line2("problem", "plugin", "could not remove the mvp-scale marketplace"));
+      manual.push("marketplace: claude plugin marketplace remove mvp-scale");
+    }
   }
   if (flags.all) {
-    lines.push(removePluginCacheDir(ctx.homeDir) ? line2("done", "plugin", "removed the plugin cache dir") : line2("already", "plugin", "no plugin cache dir left behind"));
+    if (removePluginCacheDir(ctx.homeDir)) lines.push(line2("done", "plugin", "removed the plugin cache dir"));
+    else lines.push(line2("already", "plugin", "no plugin cache dir left behind"));
   }
   return lines;
 }
-async function stepKey2(flags, ctx) {
+async function stepKey2(flags, ctx, manual) {
   if (!flags.all) return [line2("skipped", "key", "skipped (per-user; use --all to remove it)")];
   if (flags.keepKey) return [line2("skipped", "key", "skipped (--keep-key)")];
-  const remove = await ask("Remove the stored TypeSafe/gateway key (keychain and/or the env file)?", true, flags, ctx.io);
-  if (!remove) return [line2("skipped", "key", "skipped (kept)")];
+  const found = resolveStoredKey(ctx.runner, ctx.platform, ctx.env);
+  if (!found) return [line2("already", "key", "nothing stored")];
+  const remove = await ask(`Found a stored key (${found.source === "keychain" ? "OS keychain" : "the env file"}). Remove it?`, true, flags, ctx.io);
+  if (!remove) {
+    manual.push("key: remove it by hand \u2014 the OS keychain entry, and/or TYPESAFE_API_KEY/AI_GATEWAY_API_KEY in the env file sidewise init wrote");
+    return [line2("skipped", "key", "skipped (kept)")];
+  }
   const { removed } = removeStoredKey(ctx.runner, ctx.platform, ctx.env);
-  if (!removed.length) return [line2("already", "key", "nothing stored")];
-  return [line2("done", "key", `removed from ${removed.join(" and ")}`)];
+  const lines = [line2("done", "key", `removed from ${removed.length ? removed.join(" and ") : "nowhere (already gone)"}`)];
+  const stillThere = resolveStoredKey(ctx.runner, ctx.platform, ctx.env);
+  if (stillThere) {
+    lines.push(line2("problem", "key", `still resolves from ${stillThere.source} \u2192 could not remove it automatically`));
+    manual.push(`key: still in the ${stillThere.source === "keychain" ? "OS keychain" : "env file"} \u2014 remove it by hand`);
+  }
+  return lines;
 }
-async function stepData(flags, ctx) {
+async function stepData(flags, ctx, manual) {
   if (flags.keepData) return [line2("skipped", "project", "skipped (--keep-data)")];
   const dir = `${ctx.cwd}/.sidewise`;
   if (!existsSync9(dir)) return [line2("already", "project", "no .sidewise/ here")];
   const remove = flags.yes ? false : await confirm("Remove this project's .sidewise/ (your run history)? This cannot be undone.", false, ctx.io);
-  if (!remove) return [line2("skipped", "project", "kept .sidewise/ (default: no)")];
-  rmSync6(dir, { recursive: true, force: true });
+  if (!remove) {
+    manual.push(`project data: rm -rf ${dir}`);
+    return [line2("skipped", "project", "kept .sidewise/ (default: no)")];
+  }
+  try {
+    rmSync6(dir, { recursive: true, force: true });
+  } catch {
+  }
+  if (existsSync9(dir)) {
+    manual.push(`project data: rm -rf ${dir}`);
+    return [line2("problem", "project", `could not remove ${dir} \u2192 remove it by hand: rm -rf ${dir}`)];
+  }
   return [line2("done", "project", "removed .sidewise/")];
 }
-async function stepCli2(flags, ctx) {
+async function stepCli2(flags, ctx, manual) {
   if (!flags.all) return [line2("skipped", "cli", "skipped (per-user; use --all to remove it)")];
   const record2 = readInstallRecord(ctx.env);
-  if (!record2) {
-    return [
-      line2(
-        "problem",
-        "cli",
-        `don't know how this was installed \u2192 run one of: npm uninstall -g ${ctx.pkgName} \xB7 npm uninstall -g --prefix ~/.local ${ctx.pkgName} \xB7 npm uninstall -D ${ctx.pkgName} (in your project)`
-      )
-    ];
+  const detected = record2 ? void 0 : detectInstallMode(ctx);
+  const loc = record2 ?? detected;
+  if (!loc) {
+    const cmds = `npm uninstall -g ${ctx.pkgName} \xB7 npm uninstall -g --prefix ~/.local ${ctx.pkgName} \xB7 npm uninstall -D ${ctx.pkgName} (in your project)`;
+    manual.push(`cli: don't know how this was installed \u2014 try: ${cmds}`);
+    return [line2("problem", "cli", `don't know how this was installed \u2192 run one of: ${cmds}`)];
   }
-  const remove = await ask(`Remove the CLI itself (installed --${record2.mode})?`, true, flags, ctx.io);
-  if (!remove) return [line2("skipped", "cli", "skipped (kept)")];
-  const args2 = record2.mode === "global" ? ["uninstall", "-g", ctx.pkgName] : record2.mode === "user" ? ["uninstall", "-g", "--prefix", record2.npmPrefix ?? "", ctx.pkgName] : ["uninstall", ctx.pkgName];
+  const guessedNote = record2 ? "" : " (guessed from its own path on PATH \u2014 no install record found)";
+  const remove = await ask(`Found the CLI installed --${loc.mode}${guessedNote}. Remove it?`, true, flags, ctx.io);
+  if (!remove) {
+    manual.push(`cli: was installed --${loc.mode} \u2014 remove it yourself when ready`);
+    return [line2("skipped", "cli", "skipped (kept)")];
+  }
+  const args2 = loc.mode === "global" ? ["uninstall", "-g", ctx.pkgName] : loc.mode === "user" ? ["uninstall", "-g", "--prefix", loc.npmPrefix ?? "", ctx.pkgName] : ["uninstall", ctx.pkgName];
   const r = ctx.runner("npm", args2);
-  if (r.status !== 0) return [line2("problem", "cli", `npm ${args2.join(" ")} failed \u2192 ${r.stderr.trim().split("\n")[0] ?? "see npm's own output"}`)];
+  if (r.status !== 0) {
+    manual.push(`cli: npm ${args2.join(" ")}`);
+    return [line2("problem", "cli", `npm ${args2.join(" ")} failed \u2192 ${r.stderr.trim().split("\n")[0] ?? "see npm's own output"}`)];
+  }
   clearInstallRecord(ctx.env);
-  return [line2("done", "cli", `uninstalled (was --${record2.mode})`)];
+  const lines = [line2("done", "cli", `uninstalled (was --${loc.mode}${guessedNote})`)];
+  const stillOnPath = findOnPath("sidewise", ctx.env, ctx.platform);
+  if (stillOnPath) {
+    lines.push(line2("problem", "cli", `still resolves on PATH at ${stillOnPath} \u2192 a stale PATH entry or a second copy elsewhere; remove it by hand if a shell still finds it`));
+    manual.push(`cli: still on PATH at ${stillOnPath} \u2014 check for a second install or a stale shell hash`);
+  }
+  return lines;
 }
 async function runUninstall(flags, ctx) {
+  const manual = [];
   const lines = [];
-  lines.push(...await stepPlugin2(flags, ctx));
-  lines.push(...await stepData(flags, ctx));
-  lines.push(...await stepKey2(flags, ctx));
-  lines.push(...await stepCli2(flags, ctx));
+  lines.push(...await stepPlugin2(flags, ctx, manual));
+  lines.push(...await stepData(flags, ctx, manual));
+  lines.push(...await stepKey2(flags, ctx, manual));
+  lines.push(...await stepCli2(flags, ctx, manual));
+  if (manual.length) {
+    lines.push("", "manual backup \u2014 finish these by hand if you want to:", ...manual.map((m2) => `  - ${m2}`));
+  }
   return { exit: 0, text: `${lines.join("\n")}
 ` };
 }
@@ -9952,8 +10114,8 @@ function checkSide(side, out) {
   if ("from" in side && !(typeof side.from === "string" && len(side.from) >= 1 && len(side.from) <= 200)) out.add("side.from", show(side.from), "name an item id or a category of the parent run");
   if ("compare" in side) {
     const c = side.compare;
-    const ok = isObj2(c) && typeof c.before === "string" && typeof c.after === "string" && Object.keys(c).every((k) => k === "before" || k === "after");
-    if (!ok) out.add("side.compare", show(c), "write compare: {before: main, after: HEAD}");
+    const ok2 = isObj2(c) && typeof c.before === "string" && typeof c.after === "string" && Object.keys(c).every((k) => k === "before" || k === "after");
+    if (!ok2) out.add("side.compare", show(c), "write compare: {before: main, after: HEAD}");
   }
   if ("verb" in side && !VERBS.includes(side.verb)) out.add("side.verb", show(side.verb), `use ${list(VERBS)}, or leave it out`);
   if ("ask" in side) checkAsk(side.ask, out);
@@ -10203,12 +10365,12 @@ function itemsState(items, notes) {
 
 // src/evidence/git.ts
 import { spawnSync } from "node:child_process";
-import { readFileSync as readFileSync11, realpathSync as realpathSync3, statSync as statSync7 } from "node:fs";
-import path12 from "node:path";
+import { readFileSync as readFileSync11, realpathSync as realpathSync4, statSync as statSync7 } from "node:fs";
+import path13 from "node:path";
 
 // src/evidence/code.ts
-import { readFileSync as readFileSync10, realpathSync as realpathSync2, statSync as statSync6 } from "node:fs";
-import path11 from "node:path";
+import { readFileSync as readFileSync10, realpathSync as realpathSync3, statSync as statSync6 } from "node:fs";
+import path12 from "node:path";
 var EVIDENCE_LIMITS = { perFileChars: 2e4, totalChars: 6e4 };
 var LINES = /^(\d+)(?:-(\d+))?$/;
 var TAIL = /:(\d+(?:-\d+)?)$/u;
@@ -10223,7 +10385,7 @@ function splitWhere(entry) {
   const m2 = TAIL.exec(entry);
   return m2 ? { path: entry.slice(0, m2.index), lines: m2[1] } : { path: entry };
 }
-var isOutside = (rel) => rel.startsWith("..") || path11.isAbsolute(rel);
+var isOutside = (rel) => rel.startsWith("..") || path12.isAbsolute(rel);
 function readCodeEvidence(root, where) {
   const errors = [];
   const notes = [];
@@ -10231,8 +10393,8 @@ function readCodeEvidence(root, where) {
   let total = 0;
   for (const entry of where) {
     const { path: rawPath, lines } = splitWhere(entry);
-    const full = path11.resolve(root, rawPath);
-    const rel = path11.relative(root, full);
+    const full = path12.resolve(root, rawPath);
+    const rel = path12.relative(root, full);
     const outside = `\u2716 side.where: "${rawPath}" is outside the project \u2192 use a path inside the project`;
     if (isOutside(rel)) {
       errors.push(outside);
@@ -10245,7 +10407,7 @@ function readCodeEvidence(root, where) {
     }
     let text;
     try {
-      if (isOutside(path11.relative(realpathSync2(root), realpathSync2(full)))) {
+      if (isOutside(path12.relative(realpathSync3(root), realpathSync3(full)))) {
         errors.push(outside);
         continue;
       }
@@ -10258,7 +10420,7 @@ function readCodeEvidence(root, where) {
       errors.push(`\u2716 side.where: cannot read "${rawPath}" \u2192 check the path`);
       continue;
     }
-    const shown2 = `${rel.split(path11.sep).join("/")}${lines ? `:${lines}` : ""}`;
+    const shown2 = `${rel.split(path12.sep).join("/")}${lines ? `:${lines}` : ""}`;
     let body = redact(range ? text.split("\n").slice(range.start - 1, range.end).join("\n") : text);
     if (body.length > EVIDENCE_LIMITS.perFileChars) {
       body = body.slice(0, EVIDENCE_LIMITS.perFileChars);
@@ -10283,7 +10445,7 @@ function readCodeEvidence(root, where) {
 var FATAL = /fatal: (invalid object name|Path .* does not exist)/u;
 var WHOLE_FILE_NOTE = "reading whole files: line ranges may not match the parent run";
 var isGitOption = (ref) => ref.startsWith("-");
-var isOutside2 = (rel) => rel.startsWith("..") || path12.isAbsolute(rel);
+var isOutside2 = (rel) => rel.startsWith("..") || path13.isAbsolute(rel);
 function keep(shown2, text, total, notes) {
   let body = redact(text);
   if (body.length > EVIDENCE_LIMITS.perFileChars) {
@@ -10312,18 +10474,18 @@ function readGitEvidence(root, ref, field, paths, deps) {
   let total = 0;
   let read2 = false;
   for (const rawPath of paths) {
-    const full = path12.resolve(root, rawPath);
-    const rel = path12.relative(root, full);
+    const full = path13.resolve(root, rawPath);
+    const rel = path13.relative(root, full);
     const outside = `\u2716 side.compare.${field}: "${rawPath}" is outside the project \u2192 use a path inside the project`;
     if (isOutside2(rel)) {
       errors.push(outside);
       continue;
     }
-    const shown2 = rel.split(path12.sep).join("/");
+    const shown2 = rel.split(path13.sep).join("/");
     if (ref === "worktree") {
       let text;
       try {
-        if (isOutside2(path12.relative(realpathSync3(root), realpathSync3(full)))) {
+        if (isOutside2(path13.relative(realpathSync4(root), realpathSync4(full)))) {
           errors.push(outside);
           continue;
         }
@@ -10662,22 +10824,22 @@ function never(field, verb) {
   return `\u2716 side.${field}: ${verb} doesn't take it \u2192 remove it`;
 }
 var cross = (text) => ({ cls: "cross", text });
-function findBlanks(v, path18, out) {
+function findBlanks(v, path19, out) {
   const label = (p) => {
     const q = /^side\.ask\..*\.(\d+)$/u.exec(p);
     return q ? `question ${q[1]}` : p;
   };
   if (typeof v === "string") {
-    if (v.includes("____")) out.push(cross(`\u2716 ${label(path18)}: still a ____ blank \u2192 fill it in`));
+    if (v.includes("____")) out.push(cross(`\u2716 ${label(path19)}: still a ____ blank \u2192 fill it in`));
     return;
   }
   if (Array.isArray(v)) {
-    v.forEach((x, i) => findBlanks(x, `${path18}[${i}]`, out));
+    v.forEach((x, i) => findBlanks(x, `${path19}[${i}]`, out));
     return;
   }
   if (isObj2(v)) {
     for (const [k, x] of Object.entries(v)) {
-      const p = path18 ? `${path18}.${k}` : k;
+      const p = path19 ? `${path19}.${k}` : k;
       if (k.includes("____")) out.push(cross(`\u2716 ${label(p)}: still a ____ blank \u2192 fill it in`));
       else findBlanks(x, p, out);
     }
@@ -11182,12 +11344,12 @@ async function runClass(text, ctx) {
 }
 
 // src/evidence/units.ts
-import { readFileSync as readFileSync12, realpathSync as realpathSync4 } from "node:fs";
-import path14 from "node:path";
+import { readFileSync as readFileSync12, realpathSync as realpathSync5 } from "node:fs";
+import path15 from "node:path";
 
 // src/evidence/glob.ts
 import { readdirSync } from "node:fs";
-import path13 from "node:path";
+import path14 from "node:path";
 var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", ".sidewise", "dist"]);
 var MAX_FILES = 500;
 var escape = (s) => s.replace(/[.+^$()|[\]\\]/gu, "\\$&");
@@ -11223,14 +11385,14 @@ function staticPrefix(pattern) {
 }
 function expandGlob(root, pattern) {
   const clean2 = pattern.replace(/^\.\//u, "");
-  if (path13.isAbsolute(clean2) || clean2.split("/").includes("..")) return { files: [], truncated: false };
+  if (path14.isAbsolute(clean2) || clean2.split("/").includes("..")) return { files: [], truncated: false };
   const re = globToRegExp(clean2);
   const files = [];
   let truncated = false;
-  const rootResolved = path13.resolve(root);
+  const rootResolved = path14.resolve(root);
   const walk2 = (rel) => {
-    const dir = path13.resolve(root, rel);
-    if (dir !== rootResolved && !dir.startsWith(rootResolved + path13.sep)) return;
+    const dir = path14.resolve(root, rel);
+    if (dir !== rootResolved && !dir.startsWith(rootResolved + path14.sep)) return;
     let entries;
     try {
       entries = readdirSync(dir, { withFileTypes: true });
@@ -11544,7 +11706,7 @@ function splitCalls(fnSrc) {
 }
 
 // src/evidence/units.ts
-var isOutside3 = (rel) => rel.startsWith("..") || path14.isAbsolute(rel);
+var isOutside3 = (rel) => rel.startsWith("..") || path15.isAbsolute(rel);
 var LINES2 = /^(\d+)-(\d+)$/;
 function lineRange2(lines) {
   const m2 = LINES2.exec(lines);
@@ -11558,10 +11720,10 @@ function readFiles(root, spec, notes) {
   if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
   const out = [];
   for (const rel of files) {
-    const full = path14.join(root, rel);
+    const full = path15.join(root, rel);
     let text;
     try {
-      if (isOutside3(path14.relative(realpathSync4(root), realpathSync4(full)))) throw new Error("outside");
+      if (isOutside3(path15.relative(realpathSync5(root), realpathSync5(full)))) throw new Error("outside");
       text = readFileSync12(full, "utf8");
     } catch {
       notes.push(`${rel}: could not read, skipped`);
@@ -11597,13 +11759,13 @@ function createCodeResolver(root, notes) {
   };
 }
 function readUnit(root, unit) {
-  const full = path14.resolve(root, unit.path);
-  const rel = path14.relative(root, full);
+  const full = path15.resolve(root, unit.path);
+  const rel = path15.relative(root, full);
   const outside = { ok: false, error: `"${unit.path}" is outside the project` };
   if (isOutside3(rel)) return outside;
   let text;
   try {
-    if (isOutside3(path14.relative(realpathSync4(root), realpathSync4(full)))) return outside;
+    if (isOutside3(path15.relative(realpathSync5(root), realpathSync5(full)))) return outside;
     text = readFileSync12(full, "utf8");
   } catch {
     return { ok: false, error: `cannot read "${unit.path}"` };
@@ -12138,9 +12300,9 @@ async function runScan(text, ctx) {
 // src/verbs/template.ts
 var import_yaml2 = __toESM(require_dist(), 1);
 import { readFileSync as readFileSync13 } from "node:fs";
-import path15 from "node:path";
+import path16 from "node:path";
 import { fileURLToPath } from "node:url";
-var TEMPLATES_DIR = path15.join(path15.dirname(fileURLToPath(import.meta.url)), "..", "..", "skills", "sidewise", "templates");
+var TEMPLATES_DIR = path16.join(path16.dirname(fileURLToPath(import.meta.url)), "..", "..", "skills", "sidewise", "templates");
 function drillSampleFile(parent, paths) {
   const run = paths && findRun(paths, parent);
   if (run && isContractRun(run) && run.items === null) return "drill-subject.yaml";
@@ -12152,7 +12314,7 @@ function runTemplate(target, flags = {}, paths) {
   if (target === "drill" && !!flags.parent !== !!flags.from)
     return { exit: 2, text: "\u2716 template drill: needs both --parent and --from, or neither \u2192 sidewise template drill --parent SW-#### --from <item or category>" };
   const file = target === "drill" && flags.parent ? drillSampleFile(flags.parent, paths) : `${target}.yaml`;
-  const raw = readFileSync13(path15.join(TEMPLATES_DIR, file), "utf8");
+  const raw = readFileSync13(path16.join(TEMPLATES_DIR, file), "utf8");
   if (!flags.parent && !flags.from) return { exit: 0, text: raw };
   const doc = (0, import_yaml2.parseDocument)(raw);
   doc.setIn(["side", "parent"], flags.parent);
@@ -12161,7 +12323,7 @@ function runTemplate(target, flags = {}, paths) {
 }
 
 // src/verbs/view.ts
-import path16 from "node:path";
+import path17 from "node:path";
 var REQUEST_MODE = /^side\s*:/mu;
 function runLine(r, outcome) {
   const rehearsal = isRehearsal(r.adapter) ? " \xB7 rehearsal" : "";
@@ -12178,10 +12340,10 @@ function whereMatches(r, place) {
 }
 function toPlace(target, root) {
   if (hasControlChars(target)) return { stop: "\u2716 view: the target has control characters \u2192 use a folder, a tag, or SW-####" };
-  if (!path16.isAbsolute(target) && !target.split(/[\\/]/).includes("..")) return { place: target.replace(/^\.\//, "").replace(/\/+$/, "") || "." };
-  const rel = path16.relative(root, path16.resolve(root, target));
-  if (rel.startsWith("..") || path16.isAbsolute(rel)) return { stop: `\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or SW-####` };
-  return { place: rel.split(path16.sep).join("/") || "." };
+  if (!path17.isAbsolute(target) && !target.split(/[\\/]/).includes("..")) return { place: target.replace(/^\.\//, "").replace(/\/+$/, "") || "." };
+  const rel = path17.relative(root, path17.resolve(root, target));
+  if (rel.startsWith("..") || path17.isAbsolute(rel)) return { stop: `\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or SW-####` };
+  return { place: rel.split(path17.sep).join("/") || "." };
 }
 function renderPlace(place, hits, outcomeOf, limit) {
   if (!hits.length) return { exit: 0, text: `sidewise view ${clip(place, 60)} \xB7 no runs yet \u2192 "sidewise class <request>" starts one` };
@@ -12341,7 +12503,7 @@ function runView(input, level, ctx) {
 }
 
 // src/cli.ts
-var PACKAGE_DIR = path17.join(path17.dirname(fileURLToPath2(import.meta.url)), "..");
+var PACKAGE_DIR = path18.join(path18.dirname(fileURLToPath2(import.meta.url)), "..");
 var LINES3 = {
   view: "sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3]",
   class: "sidewise class <request-file | -> [--dry-run]",
@@ -12354,7 +12516,8 @@ var LINES3 = {
   budget: "sidewise budget [show | reset | set --usd <n> --runs <n>]",
   doctor: "sidewise doctor",
   init: "sidewise init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]",
-  uninstall: "sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]"
+  uninstall: "sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]",
+  mcp: "sidewise mcp"
 };
 var USAGE = `new here? \u2192 sidewise init
 usage:
@@ -12371,9 +12534,8 @@ var NO_PROJECT = '\u2716 project: no .sidewise or .git folder here or above \u21
 var MAX_REQUEST_BYTES = 1048576;
 var TOO_BIG = '\u2716 request: larger than 1 MB \u2192 a request is a short text file; point "where:" at the code instead';
 function finish(code, text) {
-  (code === 0 ? process.stdout : process.stderr).write(text.endsWith("\n") ? text : `${text}
-`);
-  process.exitCode = code;
+  return { exit: code, text: text.endsWith("\n") ? text : `${text}
+` };
 }
 function args(command, config) {
   try {
@@ -12395,7 +12557,7 @@ function givenTwice(argv, names) {
   const name = names.find((n) => argv.filter((a) => a === `--${n}` || a.startsWith(`--${n}=`)).length > 1);
   return name === void 0 ? void 0 : `\u2716 --${name}: given twice \u2192 give it once`;
 }
-function readRequest(file) {
+function readRequest(file, stdinSource) {
   if (hasControlChars(file)) return { stop: "\u2716 request: the file name has control characters \u2192 pass a plain path, or - to read stdin" };
   const shown2 = clip(file, 60);
   let bytes;
@@ -12405,7 +12567,7 @@ function readRequest(file) {
       if (st.isDirectory()) return { stop: `\u2716 request: ${shown2} is a folder \u2192 pass a request file, or - to read stdin` };
       if (st.size > MAX_REQUEST_BYTES) return { stop: TOO_BIG };
     }
-    bytes = readFileSync14(file === "-" ? 0 : file);
+    bytes = file === "-" ? stdinSource() : readFileSync14(file);
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT") return { stop: `\u2716 request: ${shown2} not found \u2192 check the path, or pass - to read stdin` };
@@ -12422,30 +12584,30 @@ function cap(flag, raw) {
 }
 var RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop };
 var providerExit = (e) => e instanceof JevConfigError ? e.exit : 1;
-async function runSweptVerb(command, rest, paths) {
+async function runSweptVerb(command, rest, paths, ctx) {
   const twice = givenTwice(rest, ["dry-run"]);
   if (twice) return finish(2, twice);
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { "dry-run": { type: "boolean", default: false } } });
   positionalCount(command, positionals, 1, 1);
-  const read2 = readRequest(positionals[0]);
+  const read2 = readRequest(positionals[0], ctx.stdin);
   if ("stop" in read2) return finish(2, read2.stop);
   let provider;
   try {
-    provider = selectProvider(process.env, { chaosState: path17.join(paths.dir, "chaos.json") });
+    provider = selectProvider(ctx.env, { chaosState: path18.join(paths.dir, "chaos.json") });
   } catch (e) {
     return finish(providerExit(e), e.message);
   }
-  const r = await RUNNERS[command](read2.text, { paths, provider, env: process.env, dryRun: values["dry-run"] });
+  const r = await RUNNERS[command](read2.text, { paths, provider, env: ctx.env, dryRun: values["dry-run"] });
   return finish(r.exit, r.text);
 }
-async function main(argv) {
+async function dispatch(argv, ctx) {
   const [command = "", ...rest] = argv;
   if (command === "") return finish(2, USAGE);
   if (command === "--help" || command === "-h") return finish(0, USAGE);
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith("-") && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init or uninstall (sidewise --help)`);
+    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
   if (command === "template") {
     const twice = givenTwice(rest, ["parent", "from"]);
@@ -12456,18 +12618,28 @@ async function main(argv) {
       options: { parent: { type: "string" }, from: { type: "string" } }
     });
     positionalCount("template", positionals, 1, 1);
-    const r = runTemplate(positionals[0], { parent: values.parent, from: values.from }, resolvePaths());
+    const r = runTemplate(positionals[0], { parent: values.parent, from: values.from }, resolvePaths(ctx.cwd, ctx.env));
     return finish(r.exit, r.text);
   }
   if (command === "doctor") {
     const { positionals } = args("doctor", { args: rest, allowPositionals: true, options: {} });
     positionalCount("doctor", positionals, 0, 0);
-    const r = runDoctor(process.env, resolvePaths(), process.version, {
-      resolveStored: () => resolveStoredKey(realRunner, process.platform, process.env),
-      runner: realRunner,
-      platform: process.platform
+    const r = runDoctor(ctx.env, resolvePaths(ctx.cwd, ctx.env), process.version, {
+      resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
+      runner: ctx.runner,
+      platform: ctx.platform
     });
     return finish(r.exit, r.text);
+  }
+  if (command === "mcp") {
+    const { positionals } = args("mcp", { args: rest, allowPositionals: true, options: {} });
+    positionalCount("mcp", positionals, 0, 0);
+    await runMcpServer(
+      ctx.io,
+      (a, stdinText) => dispatch(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? "", "utf8") }),
+      ctx.pkg.version
+    );
+    return { exit: 0, text: "" };
   }
   if (command === "init") {
     const twice = givenTwice(rest, ["scope"]);
@@ -12504,15 +12676,15 @@ async function main(argv) {
       yes: values.yes
     };
     const r = await runInit(flags, {
-      env: process.env,
-      cwd: process.cwd(),
-      platform: process.platform,
-      runner: realRunner,
-      io: { input: process.stdin, output: process.stdout },
-      keyStdin: flags.key === "stdin" ? process.stdin : void 0,
-      packageDir: PACKAGE_DIR,
-      pkg: { name: package_default.name, version: package_default.version },
-      homeDir: os3.homedir()
+      env: ctx.env,
+      cwd: ctx.cwd,
+      platform: ctx.platform,
+      runner: ctx.runner,
+      io: ctx.io,
+      keyStdin: flags.key === "stdin" ? ctx.io.input : void 0,
+      packageDir: ctx.packageDir,
+      pkg: ctx.pkg,
+      homeDir: ctx.homeDir
     });
     return finish(r.exit, r.text);
   }
@@ -12530,17 +12702,17 @@ async function main(argv) {
     positionalCount("uninstall", positionals, 0, 0);
     const flags = { all: values.all, keepKey: values["keep-key"], keepData: values["keep-data"], yes: values.yes };
     const r = await runUninstall(flags, {
-      env: process.env,
-      cwd: process.cwd(),
-      platform: process.platform,
-      runner: realRunner,
-      io: { input: process.stdin, output: process.stdout },
-      homeDir: os3.homedir(),
-      pkgName: package_default.name
+      env: ctx.env,
+      cwd: ctx.cwd,
+      platform: ctx.platform,
+      runner: ctx.runner,
+      io: ctx.io,
+      homeDir: ctx.homeDir,
+      pkgName: ctx.pkg.name
     });
     return finish(r.exit, r.text);
   }
-  const paths = resolvePaths();
+  const paths = resolvePaths(ctx.cwd, ctx.env);
   if (!paths) return finish(2, NO_PROJECT);
   switch (command) {
     case "view": {
@@ -12552,21 +12724,21 @@ async function main(argv) {
       const arg = positionals[0];
       let input = arg;
       if (arg === "-") {
-        input = readFileSync14(0, "utf8");
+        input = ctx.stdin().toString("utf8");
       } else {
         try {
           if (statSync8(arg).isFile()) input = readFileSync14(arg, "utf8");
         } catch {
         }
       }
-      const r = runView(input, Number(values.level), { paths, env: process.env });
+      const r = runView(input, Number(values.level), { paths, env: ctx.env });
       return finish(r.exit, r.text);
     }
     case "class":
     case "scan":
     case "drill":
     case "loop":
-      return runSweptVerb(command, rest, paths);
+      return runSweptVerb(command, rest, paths, ctx);
     case "change": {
       const twice = givenTwice(rest, ["dry-run", "parent", "compare"]);
       if (twice) return finish(2, twice);
@@ -12591,17 +12763,17 @@ async function main(argv) {
         text = (0, import_yaml3.stringify)({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) } } });
       } else {
         positionalCount("change", positionals, 1, 1);
-        const read2 = readRequest(positionals[0]);
+        const read2 = readRequest(positionals[0], ctx.stdin);
         if ("stop" in read2) return finish(2, read2.stop);
         text = read2.text;
       }
       let provider;
       try {
-        provider = selectProvider(process.env, { chaosState: path17.join(paths.dir, "chaos.json") });
+        provider = selectProvider(ctx.env, { chaosState: path18.join(paths.dir, "chaos.json") });
       } catch (e) {
         return finish(providerExit(e), e.message);
       }
-      const r = await runChange(text, { paths, provider, env: process.env, dryRun: values["dry-run"] });
+      const r = await runChange(text, { paths, provider, env: ctx.env, dryRun: values["dry-run"] });
       return finish(r.exit, r.text);
     }
     case "outcome": {
@@ -12640,13 +12812,46 @@ async function main(argv) {
       return finish(0, `set \xB7 ${budgetLine(setBudget(paths, caps))}`);
     }
   }
+  return finish(1, `\u2716 sidewise: internal: unhandled command "${command}"`);
 }
-main(process.argv.slice(2)).catch((e) => {
-  if (e instanceof UsageStop) return finish(2, e.message);
-  if (e instanceof BudgetError) return finish(3, e.message);
-  if (e instanceof LedgerError) return finish(e.exit, e.message);
-  if (e instanceof JevConfigError) return finish(e.exit, e.message);
-  if (e instanceof LockError || e instanceof StoreError) return finish(1, e.message);
-  const text = (e instanceof Error ? e.message : String(e)).split("\n")[0].slice(0, 200);
-  finish(1, `\u2716 sidewise: ${text} \u2192 retry; if it repeats, report it with the command you ran`);
-});
+async function runCli(argv, ctx) {
+  try {
+    return await dispatch(argv, ctx);
+  } catch (e) {
+    if (e instanceof UsageStop) return finish(2, e.message);
+    if (e instanceof BudgetError) return finish(3, e.message);
+    if (e instanceof LedgerError) return finish(e.exit, e.message);
+    if (e instanceof JevConfigError) return finish(e.exit, e.message);
+    if (e instanceof LockError || e instanceof StoreError) return finish(1, e.message);
+    const text = (e instanceof Error ? e.message : String(e)).split("\n")[0].slice(0, 200);
+    return finish(1, `\u2716 sidewise: ${text} \u2192 retry; if it repeats, report it with the command you ran`);
+  }
+}
+function realCtx() {
+  return {
+    env: process.env,
+    cwd: process.cwd(),
+    platform: process.platform,
+    runner: realRunner,
+    packageDir: PACKAGE_DIR,
+    pkg: { name: package_default.name, version: package_default.version },
+    homeDir: os3.homedir(),
+    stdin: () => readFileSync14(0),
+    get io() {
+      return { input: process.stdin, output: process.stdout };
+    }
+  };
+}
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runCli(process.argv.slice(2), realCtx()).then((r) => {
+    if (r.text) (r.exit === 0 ? process.stdout : process.stderr).write(r.text);
+    process.exitCode = r.exit;
+  }).catch((e) => {
+    process.stderr.write(`\u2716 sidewise: ${e instanceof Error ? e.message : String(e)} \u2192 retry; if it repeats, report it with the command you ran
+`);
+    process.exitCode = 1;
+  });
+}
+export {
+  runCli
+};
