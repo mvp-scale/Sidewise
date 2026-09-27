@@ -40,6 +40,9 @@ import { runLoop } from './verbs/loop.ts';
 import { runScan } from './verbs/scan.ts';
 import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
+import { HELP_TOPICS, runHelp } from './help/index.ts';
+import { VERBS } from './contract/types.ts';
+import { resolveMcpActor } from './mcp/actor.ts';
 import { nodeVersionStop } from './util/node-version.ts';
 import { clip, hasControlChars } from './util/text.ts';
 
@@ -56,13 +59,15 @@ const PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 // One usage line per command: a usage mistake prints the problem and just the line for that command.
 const LINES = {
-  view: 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3]',
+  view: 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]',
   class: 'sidewise class <request-file | -> [--dry-run]',
   change: 'sidewise change <request-file | -> [--dry-run]  ·  or: sidewise change --parent SW-#### --compare <before>..<after> [--dry-run]',
   scan: 'sidewise scan <request-file | -> [--dry-run]',
   drill: 'sidewise drill <request-file | -> [--dry-run]',
   loop: 'sidewise loop <request-file | -> [--dry-run]',
-  template: 'sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]',
+  template:
+    'sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  ·  or: --from <request.yaml> [--where <path>]... [--goal <text>]',
+  help: `sidewise help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}]`,
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
   doctor: 'sidewise doctor',
@@ -208,7 +213,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, help, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
 
   // Node ≥ 22.13 is a hard requirement (owner ruling): everything but `doctor` (which still runs and reports
@@ -223,15 +228,30 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   // a project (to shape the sample to that run) but never insists on one — no project, or the id not in its
   // ledger, just falls back to the sweep sample (runTemplate's own drillSampleFile).
   if (command === 'template') {
-    const twice = givenTwice(rest, ['parent', 'from']);
+    const twice = givenTwice(rest, ['parent', 'from', 'goal']);
     if (twice) return finish(2, twice);
     const { values, positionals } = args('template', {
       args: rest,
       allowPositionals: true,
-      options: { parent: { type: 'string' }, from: { type: 'string' } },
+      options: { parent: { type: 'string' }, from: { type: 'string' }, where: { type: 'string', multiple: true }, goal: { type: 'string' } },
     });
     positionalCount('template', positionals, 1, 1);
-    const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from }, resolvePaths(ctx.cwd, ctx.env), ctx.packageDir);
+    const r = runTemplate(
+      positionals[0]!,
+      { parent: values.parent, from: values.from, where: values.where, goal: values.goal },
+      resolvePaths(ctx.cwd, ctx.env),
+      ctx.packageDir,
+    );
+    return finish(r.exit, r.text);
+  }
+
+  // help (fix G/guidance): free, no project needed, never spends or writes — same free-standing shape as
+  // template/doctor above. `help` alone is the one-screen contract card; `help <verb>` or `help <topic>` goes
+  // deeper (src/help/*).
+  if (command === 'help') {
+    const { positionals } = args('help', { args: rest, allowPositionals: true, options: {} });
+    positionalCount('help', positionals, 0, 1);
+    const r = runHelp(positionals[0]);
     return finish(r.exit, r.text);
   }
 
@@ -260,14 +280,23 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     // degraded ledger.
     await runMcpServer(
       ctx.io as McpIo,
-      (a, stdinText) => {
+      (a, stdinText, project) => {
         const nodeStop = nodeVersionStop(ctx.nodeVersion);
         if (nodeStop) return Promise.resolve(finish(2, nodeStop));
         // runCli, not dispatch: dispatch can throw (LedgerError/BudgetError/UsageStop/...), and protocol.ts's
         // own tools/call catch would then re-wrap an already-formed "✖ field: ..." message as "✖ sidewise:
         // ...", doubling the glyph (fix #8). runCli's own catch normalizes every throw into one clean
         // {exit, text} first, exactly like the real CLI entrypoint at the bottom of this file. [C-140]
-        return runCli(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? '', 'utf8') });
+        //
+        // fix #9: `project` (from the tool call's own arguments) stands in for SIDEWISE_HOME for this one call —
+        // the plugin's own cwd is wherever Claude launched, not necessarily the project. fix #18: the plugin
+        // never sets SIDEWISE_ACTOR, so every run/outcome came through as `by: agent`; resolve a real one (git's
+        // own user.name in the project directory, else "claude") and inject it, but only when the caller hasn't
+        // already set one — an explicit value must still win.
+        const env = { ...ctx.env };
+        if (project) env.SIDEWISE_HOME = project;
+        if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor(project ?? ctx.cwd);
+        return runCli(a, { ...ctx, env, stdin: () => Buffer.from(stdinText ?? '', 'utf8') });
       },
       ctx.pkg.version,
     );
@@ -355,21 +384,28 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     case 'view': {
       const twice = givenTwice(rest, ['level']);
       if (twice) return finish(2, twice);
-      const { values, positionals } = args('view', { args: rest, allowPositionals: true, options: { level: { type: 'string', default: '1' } } });
+      const { values, positionals } = args('view', {
+        args: rest,
+        allowPositionals: true,
+        options: { level: { type: 'string', default: '1' }, summary: { type: 'boolean', default: false } },
+      });
       positionalCount('view', positionals, 1, 1);
       if (!['1', '2', '3'].includes(values.level)) return finish(2, `✖ --level: "${clip(values.level, 20)}" is not a level → use --level 1, 2 or 3`);
       const arg = positionals[0]!;
-      let input = arg;
+      // fix #1: `arg` is always the thing the caller actually named — never overwritten by a file's own bytes.
+      // `content` (whatever text was actually read for it, if any) is passed separately so runView can probe it
+      // for request mode without ever mistaking a real source file's own content for a garbled place/id.
+      let content: string | undefined;
       if (arg === '-') {
-        input = ctx.stdin().toString('utf8');
+        content = ctx.stdin().toString('utf8');
       } else {
         try {
-          if (statSync(arg).isFile()) input = readFileSync(arg, 'utf8');
+          if (statSync(arg).isFile()) content = readFileSync(arg, 'utf8');
         } catch {
           // not a file: arg itself is the place/id, as in Plan 1
         }
       }
-      const r = runView(input, Number(values.level) as Level, { paths, env: ctx.env });
+      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env }, content, values.summary);
       return finish(r.exit, r.text);
     }
     case 'class':
