@@ -84,9 +84,18 @@ function defaultMode(cwd: string, prefixWritable: boolean): InstallMode {
   return prefixWritable ? 'global' : 'user';
 }
 
+/** A path resolved inside npm's npx cache (`~/.npm/_npx/<hash>/...` on POSIX; the Windows npx cache also sits
+ *  under a `_npx` folder) is a throwaway copy npx fetched for one run, not a durable install — a hands-on pass
+ *  found that re-running `init` from such a copy reported "already reachable" and never actually installed
+ *  anything that survives past that one run. Checked as a plain path segment so it works whether or not the
+ *  cache entry itself has since been pruned. */
+function isNpxCache(binPath: string): boolean {
+  return binPath.split(path.sep).includes('_npx');
+}
+
 async function stepCli(flags: InitFlags, ctx: InitCtx): Promise<string[]> {
   const onPath = findOnPath('sidewise', ctx.env, ctx.platform);
-  if (onPath && isPackageBin(onPath, ctx.pkg.name) && !flags.mode) {
+  if (onPath && !isNpxCache(onPath) && isPackageBin(onPath, ctx.pkg.name) && !flags.mode) {
     return [line('already', 'cli', `already reachable as ${onPath}`)];
   }
   const prefix = npmGlobalPrefix(ctx.runner);

@@ -218,6 +218,38 @@ describe('runInit: idempotent re-run', () => {
   });
 });
 
+describe('runInit: a throwaway npx cache copy is never "already reachable"', () => {
+  it('sidewise resolved from inside npm\'s _npx cache still gets installed somewhere durable, not just reported as reachable', async () => {
+    const { ctx, home } = baseCtx();
+    mkdirSync(path.join(ctx.cwd, '.git'));
+    // Mimics npm's own npx cache layout closely enough for isPackageBin to recognize it as this package too —
+    // the ONLY thing that should stop "already reachable" here is the _npx path-segment check.
+    const pkgDir = path.join(home, '.npm', '_npx', 'abc123', 'node_modules', '@mvpscale', 'sidewise');
+    mkdirSync(path.join(pkgDir, 'dist'), { recursive: true });
+    writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify(PKG));
+    writeFileSync(path.join(pkgDir, 'dist', 'cli.js'), '#!/usr/bin/env node\n');
+    chmodSync(path.join(pkgDir, 'dist', 'cli.js'), 0o755);
+    const binDir = path.join(home, '.npm', '_npx', 'abc123', 'node_modules', '.bin');
+    mkdirSync(binDir, { recursive: true });
+    const bin = path.join(binDir, 'sidewise');
+    const { symlinkSync } = await import('node:fs');
+    symlinkSync(path.join(pkgDir, 'dist', 'cli.js'), bin);
+    ctx.env.PATH = binDir;
+
+    const { runner, calls } = scriptedRunner({
+      'npm config': () => ({ status: 0, stdout: '/usr/local\n', stderr: '' }),
+      npm: () => ({ status: 0, stdout: '', stderr: '' }),
+    });
+    ctx.runner = runner;
+    ctx.keyStdin = new PassThrough({ read() {} });
+
+    const r = await runInit({ key: 'no', claude: false, yes: true }, ctx);
+    expect(r.text).not.toContain('already reachable');
+    expect(r.text).toMatch(/✔ cli: installed --(local|user|global)/);
+    expect(calls.some((c) => c.cmd === 'npm' && c.args[0] === 'install')).toBe(true);
+  });
+});
+
 describe('runInit: the key step', () => {
   it('an interactive run with no existing key: the hidden prompt, stored to the keychain when the tool succeeds', async () => {
     const { ctx } = baseCtx();

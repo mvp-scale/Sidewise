@@ -51,7 +51,6 @@ function identityFor(env: Record<string, string | undefined>, config: JevConfig)
   };
 }
 
-const yesNo = (v: string | undefined): 'yes' | 'no' => (v?.trim() ? 'yes' : 'no');
 const octal4 = (mode: number): string => mode.toString(8).padStart(4, '0');
 
 // Each of these builds the VALUE half only — emit()'s m() already renders "key: <value>" from the map entry,
@@ -103,11 +102,17 @@ function pluginLine(deps: { runner?: Runner }): string {
 }
 
 /** Using is per project (an owner ruling): the `project:` value names the root, then whether the plugin is
- *  enabled for THIS project specifically — project scope, checked from wherever this process runs, which is
- *  how Claude Code's own project scope is itself resolved. */
+ *  enabled for THIS project specifically. `project` scope is already project-specific — checked from wherever
+ *  this process runs, which is how Claude Code's own project scope is itself resolved. `user` scope counts too:
+ *  a user-scope install applies to every project, this one included. `local` scope also ties to one project,
+ *  but `claude plugin list --json`'s real shape carries no per-entry project path this task could verify (see
+ *  setup/plugin.ts's own header comment on that) — rather than guess at an unconfirmed field, `local` is
+ *  treated the same permissive way as `project`: a documented best-effort, not a real path match. */
 function projectLine(root: string, deps: { runner?: Runner }): string {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
-  return `${root} · plugin enabled here: ${(status.scopes as string[]).includes('project') ? 'yes' : 'no'}`;
+  const scopes = status.scopes as string[];
+  const enabled = scopes.includes('project') || scopes.includes('user') || scopes.includes('local');
+  return `${root} · plugin enabled here: ${enabled ? 'yes' : 'no'}`;
 }
 
 export function runDoctor(
@@ -142,7 +147,6 @@ export function runDoctor(
         ...(who.baseURL ? [['baseURL', who.baseURL] as [string, Value]] : []),
         ['model', who.model],
         ...(who.wireModel ? [['wireModel', who.wireModel] as [string, Value]] : []),
-        ['keys', m(['TYPESAFE_API_KEY', yesNo(env.TYPESAFE_API_KEY)], ['AI_GATEWAY_API_KEY', yesNo(env.AI_GATEWAY_API_KEY)])],
         ['key', key],
         ['project', project],
         ['node', nodeVersion],

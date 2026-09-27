@@ -33,16 +33,16 @@ describe('sidewise doctor', () => {
     expect(r.status).toBe(0);
     expect(r.stdout).not.toContain(key);
     expect(r.stdout).toContain('provider: typesafe');
-    expect(r.stdout).toContain('TYPESAFE_API_KEY: "yes"');
+    expect(r.stdout).toContain('key: yes · from env TYPESAFE_API_KEY');
   });
 
-  it('no key: fake provider, both keys "no"', () => {
+  it('no key: fake provider, "key: no"', () => {
     const { root } = tempProject();
     const r = sidewise(root, ['doctor']);
     expect(r.status).toBe(0);
     expect(r.stdout).toContain('provider: fake');
-    expect(r.stdout).toContain('TYPESAFE_API_KEY: "no"');
-    expect(r.stdout).toContain('AI_GATEWAY_API_KEY: "no"');
+    expect(r.stdout).toContain('key: no');
+    expect(r.stdout).not.toContain('keys:');
   });
 
   it('a bad SIDEWISE_BASE_URL: exit 2, ✖ SIDEWISE_BASE_URL, nothing on stdout', () => {

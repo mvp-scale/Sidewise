@@ -16,14 +16,14 @@ function tmpXdg(): { XDG_CONFIG_HOME: string } {
 }
 
 describe('doctor (P5)', () => {
-  it('no key, no project: the fake provider, both keys "no", project "none"', () => {
+  it('no key, no project: the fake provider, "key: no", project "none"', () => {
     const r = runDoctor({}, undefined, 'v20.11.0');
     expect(r.exit).toBe(0);
     expect(r.text).toContain('doctor:');
     expect(r.text).toContain('provider: fake');
     expect(r.text).toContain('route: fake');
-    expect(r.text).toContain('TYPESAFE_API_KEY: "no"');
-    expect(r.text).toContain('AI_GATEWAY_API_KEY: "no"');
+    expect(r.text).toContain('key: no');
+    expect(r.text).not.toContain('keys:'); // the old TYPESAFE_API_KEY/AI_GATEWAY_API_KEY map is gone — key: covers it
     expect(r.text).toContain('project: none');
     expect(r.text).toContain('node: v20.11.0');
     expect(r.text).not.toContain('baseURL');
@@ -37,8 +37,7 @@ describe('doctor (P5)', () => {
     expect(r.text).toContain('provider: typesafe');
     expect(r.text).toContain('route: direct');
     expect(r.text).toContain('baseURL: https://api.typesafe.ai');
-    expect(r.text).toContain('TYPESAFE_API_KEY: "yes"');
-    expect(r.text).toContain('AI_GATEWAY_API_KEY: "no"');
+    expect(r.text).toContain('key: yes · from env TYPESAFE_API_KEY');
   });
 
   it('the gateway route also shows the wire model', () => {
@@ -65,11 +64,32 @@ describe('doctor (P5)', () => {
     expect(r.text).toContain(`project: "${path.relative(process.cwd(), paths.root)} · plugin enabled here: no"`);
   });
 
-  it('"plugin enabled here" is yes only when the plugin is installed at project scope [C-102]', () => {
+  it('"plugin enabled here" is yes when the plugin is installed at project scope [C-102]', () => {
     const { paths } = tempProject({});
     const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'project' }]), stderr: '' });
     const r = runDoctor({}, paths, undefined, { runner });
     expect(r.text).toContain('plugin enabled here: yes');
+  });
+
+  it('"plugin enabled here" is also yes for a user-scope install — it applies to every project [C-102]', () => {
+    const { paths } = tempProject({});
+    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'user' }]), stderr: '' });
+    const r = runDoctor({}, paths, undefined, { runner });
+    expect(r.text).toContain('plugin enabled here: yes');
+  });
+
+  it('"plugin enabled here" is also yes for a local-scope install (best-effort: no per-entry project path to match against) [C-102]', () => {
+    const { paths } = tempProject({});
+    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'local' }]), stderr: '' });
+    const r = runDoctor({}, paths, undefined, { runner });
+    expect(r.text).toContain('plugin enabled here: yes');
+  });
+
+  it('"plugin enabled here" is no when nothing is installed at any scope [C-102]', () => {
+    const { paths } = tempProject({});
+    const runner: Runner = (): RunResult => ({ status: 0, stdout: '[]', stderr: '' });
+    const r = runDoctor({}, paths, undefined, { runner });
+    expect(r.text).toContain('plugin enabled here: no');
   });
 
   it('reports whether node:sqlite (vs. the linear fallback) is available on this runtime', () => {
