@@ -3,9 +3,9 @@
  * `function: each`), and a function into its calls (drill's `call: each`). It is a lexer, not a parser:
  * strings, comments, template text and regex literals are blanked out first, so braces and keywords inside
  * them can't fool the brace matching. Found: function declarations, const/let/var arrow and function
- * expressions, class methods (Class.method) and export default functions — at ANY nesting depth (fix #7: a
- * named route handler registered from inside a setup function, or a helper closed over by an IIFE, is its
- * own unit next to its container, same as a class method always was). Known limits: an object type as a
+ * expressions, class methods (Class.method) and export default functions — at ANY nesting depth (a named
+ * route handler registered from inside a setup function, or a helper closed over by an IIFE, is its own unit
+ * next to its container, same as a class method always was). Known limits: an object type as a
  * return annotation (`(): { a: 1 } {`) is taken as the body; an anonymous function/arrow passed inline as a
  * call argument with no name of its own (`app.get('/x', (req, res) => {...})`) is never its own unit — only
  * a NAMED one (`app.get('/x', function handler(req, res) {...})`) is.
@@ -206,9 +206,9 @@ export function splitFunctions(src: string): Unit[] {
   const masked = maskCode(src);
   const depth = depths(masked);
   const found: Array<{ name: string; at: number; end: number }> = [];
-  // Fix #7: a nested declaration (a route handler defined inside a setup function, a helper closed over by
-  // another function, ...) is a real unit too, same as a class method already is (found.push below, which
-  // never went through this depth check at all) — only an exact re-match at the same start is a duplicate.
+  // A nested declaration (a route handler defined inside a setup function, a helper closed over by another
+  // function, ...) is a real unit too, same as a class method already is — only an exact re-match at the
+  // same start is a duplicate.
   const add = (name: string, at: number, end: number): void => {
     if (end > at && !found.some((f) => f.at === at)) found.push({ name, at, end });
   };

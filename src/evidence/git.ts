@@ -1,8 +1,8 @@
 /**
  * Git as classifier evidence for change: two states of the same files, read either from a ref (`git show`) or
- * from the working tree (Decision 2's literal "worktree"). Review Focus #3: a ref that looks like a git option
- * (starts with "-") must never reach git — checked before any spawnSync call, so it can't be re-split or
- * re-interpreted as an option. git is always spawned as an argv array, never through a shell.
+ * from the working tree (the literal ref "worktree"). A ref that looks like a git option (starts with "-")
+ * must never reach git — checked before any spawnSync call, so it can't be re-split or re-interpreted as an
+ * option. git is always spawned as an argv array, never through a shell.
  */
 import { spawnSync } from 'node:child_process';
 import { readFileSync, realpathSync, statSync } from 'node:fs';
@@ -16,22 +16,22 @@ type Spawn = typeof spawnSync;
 
 const FATAL = /fatal: (invalid object name|Path .* does not exist)/u;
 
-/** Decision 2: change reads whole files, never line ranges. Exported so change.ts can dedupe it across the two states. */
+/** change reads whole files, never line ranges. Exported so change.ts can dedupe it across the two states. */
 export const WHOLE_FILE_NOTE = 'reading whole files: line ranges may not match the parent run';
 
 /** A string git would read as an option, not a ref: it must never be handed to git. */
 export const isGitOption = (ref: string): boolean => ref.startsWith('-');
 
-/** Whether the container has a git binary at all (Global Constraint: git-backed tests skip when it's absent). */
+/** Whether the container has a git binary at all (git-backed tests skip when it's absent). */
 export function hasGit(deps?: { spawn?: Spawn }): boolean {
   const spawn = deps?.spawn ?? spawnSync;
   return spawn('git', ['--version'], {}).status === 0;
 }
 
-/** Fix #13: the nearest git repo actually containing `dir` (its own `git rev-parse --show-toplevel`), not
- *  necessarily the Sidewise project root — a monorepo package or a vendored project one level down is its
- *  own repo. `undefined` when `dir` isn't inside any repo at all (git itself is the source of truth here, not
- *  a `.git`-folder walk this module would have to duplicate and keep in sync with git's own rules). */
+/** The nearest git repo actually containing `dir` (its own `git rev-parse --show-toplevel`), not necessarily
+ *  the Sidewise project root — a monorepo package or a vendored project one level down is its own repo.
+ *  `undefined` when `dir` isn't inside any repo at all (git itself is the source of truth here, not a
+ *  `.git`-folder walk this module would have to duplicate and keep in sync with git's own rules). */
 function gitRootOf(dir: string, spawn: Spawn): string | undefined {
   const result = spawn('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8' });
   const out = typeof result.stdout === 'string' ? result.stdout.trim() : '';
@@ -111,8 +111,8 @@ export function readGitEvidence(root: string, ref: string, field: 'before' | 'af
       continue;
     }
 
-    // Fix #13: run git in the repo that actually contains this file (its own nearest toplevel), not always
-    // the Sidewise root — a nested repo is otherwise invisible ("fatal: not a git repository"). Falls back to
+    // Run git in the repo that actually contains this file (its own nearest toplevel), not always the
+    // Sidewise root — a nested repo is otherwise invisible ("fatal: not a git repository"). Falls back to
     // root when the file isn't inside any repo at all, same as always (an ordinary "ref not found" follows).
     const gitRoot = gitRootOf(path.dirname(full), spawn) ?? root;
     const gitRel = path.relative(gitRoot, full).split(path.sep).join('/');
