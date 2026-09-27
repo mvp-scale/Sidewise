@@ -1,9 +1,20 @@
 // [C-103] the `sidewise` MCP tool: name/input shape, runs exactly what `sidewise <args...>` would run in-process
 // against the same request YAML, and returns the same text output plus the exit code as `isError`.
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { runCli, type CliCtx } from '../../src/cli.ts';
 import { handleMessage, TOOL_NAME, toolDefinition, type JsonRpcRequest, type JsonRpcResponse, type RunOne } from '../../src/mcp/protocol.ts';
+import { gitInit, tempProject } from '../helpers/project.ts';
+
+const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
+
+/** The first (and, in these tests, only) run line in the project's ledger, parsed. */
+function firstRun(root: string): { actor: string } {
+  const line = readFileSync(path.join(root, '.sidewise', 'log.jsonl'), 'utf8').trim().split('\n')[0]!;
+  return JSON.parse(line) as { actor: string };
+}
 
 function fakeCtx(env: Record<string, string | undefined> = {}): CliCtx {
   return {
@@ -247,5 +258,55 @@ describe('fix #8: no doubled ✖ prefix on the real mcp stdio path', () => {
     expect(result.isError).toBe(true);
     expect(result.content[0]?.text).toBe('✖ outcome: SW-9999 is not in the ledger → check the id with "sidewise view SW-9999"\n');
     expect(result.content[0]?.text.match(/✖/g)).toHaveLength(1);
+  });
+});
+
+// An MCP-driven run used to record its actor from `git config user.name` in the project directory. When that
+// happened to be the owner's own name (the common case), the owner's own "sidewise outcome <id> held --by
+// <their name>" was refused by the self-held rule (ledger/log.ts's appendOutcome) — the owner couldn't mark the
+// agent's own run held. Fix: an MCP-driven run now records "claude" instead, unless SIDEWISE_ACTOR is already
+// set (which still wins, for either path). [C-143]
+describe('MCP-driven runs get a real actor, not "agent" [C-143]', () => {
+  it('no SIDEWISE_ACTOR set: an MCP-driven run records "claude"', async () => {
+    const { root } = tempProject();
+    const responses = await runMcpOverStdio(fakeCtx(), [
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
+    ]);
+    const result = responses[0]?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
+    expect(result.isError).toBe(false);
+    expect(firstRun(root).actor).toBe('claude');
+  });
+
+  it('an explicit SIDEWISE_ACTOR still wins over the "claude" default', async () => {
+    const { root } = tempProject();
+    const responses = await runMcpOverStdio(fakeCtx({ SIDEWISE_ACTOR: 'reviewer-2' }), [
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
+    ]);
+    const result = responses[0]?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
+    expect(result.isError).toBe(false);
+    expect(firstRun(root).actor).toBe('reviewer-2');
+  });
+
+  it('a plain (non-MCP) CLI run is unaffected: still defaults to "agent"', async () => {
+    const { root } = tempProject();
+    const ctx = fakeCtx();
+    const r = await runCli(['class', '-'], { ...ctx, env: { ...ctx.env, SIDEWISE_HOME: root }, stdin: () => Buffer.from(CLASS_YAML, 'utf8') });
+    expect(r.exit).toBe(0);
+    expect(firstRun(root).actor).toBe('agent');
+  });
+
+  it('end to end: the owner can mark an MCP-driven run held under their own (git) name', async () => {
+    const { root } = tempProject();
+    gitInit(root); // configures user.name "sidewise-test" — a stand-in for the owner's own git identity
+    const classResp = await runMcpOverStdio(fakeCtx(), [
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
+    ]);
+    expect((classResp[0]?.result as { isError: boolean }).isError).toBe(false);
+    expect(firstRun(root).actor).toBe('claude');
+    // Before the fix, the run above would have recorded actor "sidewise-test" (this same git identity), and
+    // this call would have been refused: the asker can't mark its own run held.
+    const outcome = await runCli(['outcome', 'SW-0001', 'held', '--by', 'sidewise-test'], { ...fakeCtx(), env: { ...fakeCtx().env, SIDEWISE_HOME: root } });
+    expect(outcome.exit).toBe(0);
+    expect(outcome.text).toContain('held · by sidewise-test');
   });
 });

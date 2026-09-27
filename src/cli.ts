@@ -292,12 +292,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         //
         // `project` (from the tool call's own arguments) stands in for SIDEWISE_HOME for this one call — the
         // plugin's own cwd is wherever Claude launched, not necessarily the project. The plugin never sets
-        // SIDEWISE_ACTOR, so without this every run/outcome would come through as `by: agent`; resolve a real
-        // one (git's own user.name in the project directory, else "claude") and inject it, but only when the
-        // caller hasn't already set one — an explicit value must still win.
+        // SIDEWISE_ACTOR, so without this every run/outcome would come through as `by: agent`; default an
+        // MCP-driven call to "claude" instead (never a git identity — see src/mcp/actor.ts for why), but only
+        // when the caller hasn't already set one — an explicit value must still win.
         const env = { ...ctx.env };
         if (project) env.SIDEWISE_HOME = project;
-        if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor(project ?? ctx.cwd);
+        if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor();
         return runCli(a, { ...ctx, env, stdin: () => Buffer.from(stdinText ?? '', 'utf8') });
       },
       ctx.pkg.version,

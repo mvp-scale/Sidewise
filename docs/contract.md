@@ -758,10 +758,11 @@ shape as `help <verb>`. [C-161]
 - The `project` argument, when given, runs that one call against `project` as `SIDEWISE_HOME` instead of the
   server's own working directory — for a nested project the plugin's own cwd doesn't reach. Omitted, behavior
   is unchanged. [C-142]
-- A run or outcome made through the plugin is recorded under a real actor, not the literal `agent`: when
-  `SIDEWISE_ACTOR` isn't already set, the MCP server resolves `git config user.name` in the project directory,
-  falling back to `claude` when there's no repo, no git binary, or no name configured. An explicit
-  `SIDEWISE_ACTOR` always wins, and `sidewise doctor` shows the actor that will actually be used. [C-143]
+- A run or outcome made through the plugin is recorded under `claude`, not the literal `agent`, when
+  `SIDEWISE_ACTOR` isn't already set: the MCP server never infers an identity from the project's git config —
+  doing so would attribute the call to whoever's git identity is configured there, typically the human owner,
+  not the agent making the call. An explicit `SIDEWISE_ACTOR` always wins over this default, and `sidewise
+  doctor` shows the actor that will actually be used. [C-143]
 - The plugin's own configuration (`userConfig`) offers two masked, optional fields — a TypeSafe API key and an
   AI Gateway key. Leaving both empty means the free fake provider, exactly as on the terminal path. [C-104]
 - An empty string substituted for either key (Claude Code's own behaviour for a blank optional value is

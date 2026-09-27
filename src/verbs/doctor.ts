@@ -60,8 +60,8 @@ const octal4 = (mode: number): string => mode.toString(8).padStart(4, '0');
 
 /** The `actor:` value — every run/outcome defaults to `by: agent` unless SIDEWISE_ACTOR is set (the
  *  same fallback pay.ts's actorOf uses; duplicated rather than imported, matching this module's own low-
- *  dependency style). On a real MCP call, cli.ts's mcp wiring sets this from git's user.name (or "claude")
- *  before dispatch ever reaches here — see src/mcp/actor.ts — so this line shows what will actually be used. */
+ *  dependency style). On a real MCP call, cli.ts's mcp wiring sets this to "claude" before dispatch ever
+ *  reaches here — see src/mcp/actor.ts — so this line shows what will actually be used. */
 function actorLine(env: Record<string, string | undefined>): string {
   const set = env.SIDEWISE_ACTOR?.trim();
   return set || 'agent (default) → set SIDEWISE_ACTOR to change';
