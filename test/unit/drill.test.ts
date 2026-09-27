@@ -136,6 +136,29 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     expect(r.text).toContain('adapter fake · not evidence');
   });
 
+  // Fix #5/#6 follow-through: same needsBudget/costEstimated pattern as class.ts/scan.ts (no reused: count
+  // added here — this shape, like loop's, has never documented one; see C-078's own worked example).
+  it('a fully-reused sweep drill is never blocked by an already-reached cap', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
+    await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+    await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.96 }), env }); // SW-0002
+    setBudget(paths, { capRuns: 2 }); // exactly used up
+    const r = await runDrill(drillReq, { paths, provider: stubProvider(), env }); // fully reused: no call needed
+    expect(r.exit).toBe(0);
+  });
+
+  it('notes when the cost was estimated from tokens (fix #4), same as class.ts', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
+    await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
+    const withEstimatedCost = (inner: ReturnType<typeof stubProvider>): typeof inner => ({
+      ...inner,
+      ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }),
+    });
+    const r = await runDrill(drillReq, { paths, provider: withEstimatedCost(stubProvider({ yes: () => 0.96 })), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
+  });
+
   it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
     // Seeded directly (not run for real), so budget.json doesn't exist yet — drill's own preflight is the first.

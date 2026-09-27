@@ -28,7 +28,7 @@ import { clip } from '../util/text.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
 import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, reusedIds, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
-import { planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
+import { planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 /** A sweep parent's fail/unsure next (Controller ruling): fix the worst item, then re-run this drill — cheap,
@@ -231,12 +231,13 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
 
     if (ctx.dryRun) return sweepDryRun(plan, identity);
 
-    const pre = preflight(ctx);
+    // Fix #5a: a fully-reused sweep drill must never be blocked by an already-reached cap.
+    const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
     if (!pre.ok) return pre.result;
 
     const swept = await runSweep(ctx, 'drill', plan);
     if (!swept.ok) return swept.result;
-    const { answers, costUsd, statusOf } = swept.value;
+    const { answers, costUsd, costEstimated, statusOf } = swept.value;
 
     const categoriesOf = (layer: string): readonly Category[] => request.side.layers.find((l) => l.name === layer)?.categories ?? [];
     const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
@@ -273,7 +274,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
         wiseRecorded(request.wise),
         worst.length ? REDRILL_NEXT : sweepNext(id, gate, worst, graded, 'act on it'),
         commonNotes(
-          [...loaded.notes, ...notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])],
+          [...loaded.notes, ...notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
           `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
           ctx.provider.adapter,
         ),
