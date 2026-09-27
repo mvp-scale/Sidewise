@@ -19,7 +19,7 @@ Sidewise gives coding agents a cheap, calibrated side-question. The agent writes
 
 ## What a run looks like
 
-Every request has a `side:` block (**solve it now**: one goal, then plumbing) and an optional `wise:` block (**get smarter**: why you're here, so the ledger learns). `class` — one call, one subject — is the simplest of the six verbs; see [skills/sidewise/SKILL.md](skills/sidewise/SKILL.md) for all six and how they fit together.
+Every request has a `side:` block (**solve it now**: one goal, then plumbing) and an optional `wise:` block (**get smarter**: why you're here, so the ledger learns). `class` — one call, one subject — is the simplest of the six verbs; run `sidewise help` for all six and how they fit together.
 
 Request:
 
@@ -147,7 +147,7 @@ set (never its value), and whether a project and its ledger are found — free, 
 (`https` required, except `http` for `localhost`/`127.0.0.1`/`[::1]`). A 429 or 529 from TypeSafe is retried
 automatically, up to twice more; a 401 or 422 never retries.
 
-For the full six verbs, grading rules and stop/exit codes, see [skills/sidewise/SKILL.md](skills/sidewise/SKILL.md).
+For the full six verbs, grading rules and stop/exit codes, run `sidewise help` (or `sidewise help <verb>`/`sidewise help <topic>`), or see [skills/sidewise/SKILL.md](skills/sidewise/SKILL.md) for the short version.
 
 ## Releases
 
