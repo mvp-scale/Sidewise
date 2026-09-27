@@ -125,7 +125,7 @@ function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number, sum
 }
 
 /**
- * place mode, index-backed (design binding: "place history via the index"): `placeCandidates` narrows to the
+ * place mode, index-backed (place history is served via the index): `placeCandidates` narrows to the
  * ids whose where/tag entries could match `place` (oldest first, by offset), each pread by offset instead of
  * streaming the whole log. Every candidate is still re-checked against the real record with the EXACT same
  * whereMatches/tagsMatch predicate byPlaceFullScan uses — the index is a candidate generator, never the final
@@ -134,7 +134,7 @@ function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number, sum
  * with one batched query over just the hit ids.
  */
 function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number, summary: boolean): VerbResult {
-  // readOnly: view is free and read-only (design binding "dry runs and free reads write nothing") — it must
+  // readOnly: view is free and read-only (dry runs and free reads write nothing) — it must
   // never be the thing that persists a catch-up or rebuild of index.db to disk.
   return withIndex(
     paths,
@@ -177,7 +177,7 @@ function childrenAt(paths: SidewisePaths, handle: IndexHandle, parentId: string)
 }
 
 /**
- * view <id>, index-backed (design binding: "lineage via the index"): "up" is an ordinary run-by-id walk (each
+ * view <id>, index-backed (lineage is served via the index): "up" is an ordinary run-by-id walk (each
  * ancestor's own `parent` field points at the next one, resolved through the SAME findOffset lookup findRun
  * uses elsewhere — no schema change needed for this direction); "down" is a level-order walk of the NEW `parent`
  * column (childrenAt), oldest child first per level — the same order the old full-ledger scan always produced,
@@ -188,7 +188,7 @@ function childrenAt(paths: SidewisePaths, handle: IndexHandle, parentId: string)
 /** `--level` on a run id controls answer DETAIL about the run itself, in addition to how many lineage
  *  rows are shown (level * 10, regardless of depth). Level 1: nothing
  *  extra (today's one-line summary). Level 2: the run's own category gates (a one-subject run), or an items
- *  summary (a sweep, whose `categories` is always {} — CONTRACT.md). Level 3: adds its notes and adapter/model.
+ *  summary (a sweep, whose `categories` is always {} — docs/contract.md). Level 3: adds its notes and adapter/model.
  *  A legacy (Plan 1) run has none of this stored, so every level above 1 is silently a no-op for it. */
 function detailLines(self: AnyRun, level: Level): string[] {
   if (level < 2 || !isContractRun(self)) return [];

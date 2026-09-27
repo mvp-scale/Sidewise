@@ -39,7 +39,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
-  // readOnly on a dry run (design binding "dry runs and free reads write nothing"): never persists a catch-up
+  // readOnly on a dry run (dry runs and free reads write nothing): never persists a catch-up
   // or rebuild of index.db just to predict what a real run would do.
   const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
 

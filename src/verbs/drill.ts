@@ -1,6 +1,6 @@
 /**
  * drill: "why did this one thing fail?" Goes down from one item, or one category, in a parent run's own
- * arrays — shaped like that parent (CONTRACT.md "drill"). Which shape branches on parent.items:
+ * arrays — shaped like that parent (docs/contract.md "drill"). Which shape branches on parent.items:
  *   a sweep parent (scan or loop, items !== null) → from: names one of its items; drill sweeps the next
  *     layer down from that one item (sweep.ts's shared engine), worst first, same as scan.
  *   a one-subject parent (class, change, or an earlier drill, items === null) → from: names one of its
@@ -34,7 +34,7 @@ import type { VerbContext, VerbResult } from './types.ts';
 const REDRILL_NEXT = 'fix it, then run this drill again (unchanged items are reused, so it is nearly free)';
 
 /**
- * The one-subject shape (CONTRACT.md "drill"): fresh, narrower ask: categories answered straight against
+ * The one-subject shape (docs/contract.md "drill"): fresh, narrower ask: categories answered straight against
  * `where` — class's own flow verbatim, just with drill's own record shape (parent/from set, next: never
  * points at drilling further). Shared by BOTH an existing one-subject-parent drill and a flat
  * proof of one coded sweep item with no over: — they differ only in where the evidence comes from and which
