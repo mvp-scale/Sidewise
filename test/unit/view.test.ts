@@ -2,13 +2,13 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it, afterEach } from 'vitest';
 import { createFakeAdapter } from '../../src/classifier/fake.ts';
 import { __testOnly } from '../../src/ledger/index.ts';
-import { appendOutcome, appendRun, readLedger } from '../../src/ledger/log.ts';
+import { appendContractRun, appendOutcome, appendRun, readLedger } from '../../src/ledger/log.ts';
 import { runChange } from '../../src/verbs/change.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runView } from '../../src/verbs/view.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
-import { tempProject } from '../helpers/project.ts';
-import { sampleRun } from '../helpers/runs.ts';
+import { tempProject, USER_TS } from '../helpers/project.ts';
+import { sampleContractRun, sampleRun } from '../helpers/runs.ts';
 import { writeSyntheticLedger } from '../gen/synthetic-ledger.ts';
 
 afterEach(() => {
@@ -59,7 +59,7 @@ describe('view', () => {
     expect(runView('docs', 1, { paths, env: {} })).toEqual({ exit: 0, text: 'sidewise view docs · no runs yet → "sidewise class <request>" starts one' });
   });
 
-  it('shows 10 runs at L1 and says how many are older', () => {
+  it('shows 10 runs at L1 and says how many are older [C-122]', () => {
     const { paths } = tempProject({});
     for (let i = 0; i < 12; i++) appendRun(paths, sampleRun({ focus: `run ${i}` }));
     const lines = runView('src', 1, { paths, env: {} }).text.split('\n');
@@ -86,6 +86,47 @@ describe('view', () => {
   it('an unknown id exits 2 with a fix', () => {
     const { paths } = tempProject({});
     expect(runView('SW-0099', 1, { paths, env: {} })).toEqual({ exit: 2, text: '✖ view: SW-0099 is not in the ledger → "sidewise view <folder>" lists recent runs' });
+  });
+
+  it('[C-121] fix #1: a real source file (not a request) is a place, even when cli.ts already read its bytes as `content`', () => {
+    const { paths } = tempProject({ 'src/user.ts': USER_TS });
+    appendRun(paths, sampleRun({ focus: 'earlier look', where: [{ path: 'src/user.ts' }] }));
+    // `content` is what cli.ts would have read from the file — real source code, not a `side:` request — and
+    // must never itself be probed for control characters or shown as the "place"; only `arg` (the path) is.
+    const r = runView('src/user.ts', 1, { paths, env: {} }, USER_TS);
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('sidewise view src/user.ts · 1 run');
+    expect(r.text).not.toContain('control characters');
+  });
+
+  it('[C-121] fix #1: a saved request FILE (content parses as side:) is still request mode via `content`', () => {
+    const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
+    const yaml = 'side:\n  goal: what do we know here\n  where: [src/user.ts:1-3]\n';
+    // arg is the file's path, not the yaml itself — only `content` (what cli.ts read from disk) looks like a request.
+    const r = runView('requests/x.yaml', 1, { paths, env: {} }, yaml);
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('view: src/user.ts:1-3');
+  });
+
+  it('[C-123] fix #3: --level on a run id adds category detail (L2) then notes/adapter (L3); L1 is unchanged', () => {
+    const { paths } = tempProject({});
+    appendContractRun(paths, sampleContractRun({ categories: { injection: 'fail' }, notes: ['a note'] }), Date.now(), 'b'); // SW-0001
+    const l1 = runView('SW-0001', 1, { paths, env: {} }).text;
+    expect(l1).not.toContain('categories:');
+    expect(l1).not.toContain('a note');
+    const l2 = runView('SW-0001', 2, { paths, env: {} }).text;
+    expect(l2).toContain('  categories: injection=fail');
+    expect(l2).not.toContain('a note');
+    const l3 = runView('SW-0001', 3, { paths, env: {} }).text;
+    expect(l3).toContain('  categories: injection=fail');
+    expect(l3).toContain('  notes: a note');
+    expect(l3).toContain('adapter: stub · model: stub-1');
+  });
+
+  it('[C-123] fix #3: --level on a legacy (Plan 1) run id is a documented no-op, never a crash', () => {
+    const { paths } = tempProject({});
+    appendRun(paths, sampleRun({ focus: 'legacy' }));
+    expect(runView('SW-0001', 3, { paths, env: {} }).text).toBe(runView('SW-0001', 1, { paths, env: {} }).text);
   });
 });
 
@@ -250,5 +291,65 @@ describe('view <id>: the lineage walk via the index matches the old full-ledger 
     for (const { id, expected } of cases) expect(runView(id, 1, { paths, env: {} })).toEqual(expected);
     __testOnly.forceFallback = true;
     for (const { id, expected } of cases) expect(runView(id, 1, { paths, env: {} })).toEqual(expected);
+  });
+});
+
+describe('view: fix #2, a sweep run is indexed by its own item places and category tags [C-120]', () => {
+  const sweepRun = () =>
+    sampleContractRun({
+      verb: 'scan',
+      where: [],
+      ask: {
+        categories: [],
+        layers: [{ name: 'file', categories: [{ name: 'injection', pass: 'no', need: 'all', tags: ['sql-risk'], questions: [{ n: 1, kind: 'yesno', text: 'q?' }] }] }],
+      },
+      items: {
+        'src/a.ts': { layer: 'file', fill: {}, unit: { path: 'src/a.ts', kind: 'file', name: 'src/a.ts', lines: '1-2' }, status: 'asked', gate: 'fail', categories: { injection: 'fail' } },
+      },
+      categories: {},
+    });
+
+  it('shows up under view <folder> and view <tag> — not just view . — on both engines', () => {
+    const { paths } = tempProject({});
+    appendContractRun(paths, sweepRun(), Date.now(), 'b'); // SW-0001
+    for (const forceFallback of [false, true]) {
+      __testOnly.forceFallback = forceFallback;
+      expect(runView('src', 1, { paths, env: {} }).text).toContain('sidewise view src · 1 run');
+      expect(runView('sql-risk', 1, { paths, env: {} }).text).toContain('sidewise view sql-risk · 1 run');
+      expect(runView('.', 1, { paths, env: {} }).text).toContain('sidewise view . · 1 run');
+    }
+  });
+
+  it('a one-subject run is unaffected: its own where/ask carry no items, no tags added', () => {
+    const { paths } = tempProject({});
+    appendContractRun(paths, sampleContractRun(), Date.now(), 'b'); // SW-0001, where: [src/api/user.ts]
+    expect(runView('sql-risk', 1, { paths, env: {} }).text).toBe('sidewise view sql-risk · no runs yet → "sidewise class <request>" starts one');
+  });
+});
+
+describe('view: fix #14, --summary [C-124]', () => {
+  it('one line per distinct place, from the latest run touching it, worst gate first', () => {
+    const { paths } = tempProject({});
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], gate: 'pass', goal: 'a is fine' }), Date.now(), 'b'); // SW-0001
+    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], gate: 'fail', goal: 'b has a bug' }), Date.now(), 'b'); // SW-0002
+    // A second, later run on src/a.ts flips it to fail — the summary must show the LATEST verdict, not the first.
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], gate: 'fail', goal: 'a regressed' }), Date.now(), 'b'); // SW-0003
+    const r = runView('.', 1, { paths, env: {} }, undefined, true);
+    expect(r.exit).toBe(0);
+    const lines = r.text.split('\n');
+    expect(lines[0]).toBe('sidewise view . --summary · 2 places');
+    expect(lines[1]).toBe('src/a.ts · class fail · SW-0003 "a regressed"');
+    expect(lines[2]).toBe('src/b.ts · class fail · SW-0002 "b has a bug"');
+  });
+
+  it('an empty scope says so', () => {
+    const { paths } = tempProject({});
+    expect(runView('src', 1, { paths, env: {} }, undefined, true).text).toBe('sidewise view src --summary · no runs yet → "sidewise class <request>" starts one');
+  });
+
+  it('is ignored for a run id (lineage mode has no "places" to summarize)', () => {
+    const { paths } = tempProject({});
+    appendRun(paths, sampleRun({ focus: 'x' }));
+    expect(runView('SW-0001', 1, { paths, env: {} }, undefined, true)).toEqual(runView('SW-0001', 1, { paths, env: {} }));
   });
 });

@@ -12,8 +12,9 @@ import { isRehearsal } from '../classifier/port.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
+import type { Gate } from '../contract/types.ts';
 import { RUN_ID } from '../ledger/ids.ts';
-import { readRecordAt, stripLines, withIndex, type IndexHandle } from '../ledger/index.ts';
+import { readRecordAt, stripLines, sweepPlaces, withIndex, type IndexHandle } from '../ledger/index.ts';
 import { isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { exactReuse } from '../ledger/reuse.ts';
@@ -41,14 +42,21 @@ function runLine(r: AnyRun, outcome: Outcome | 'open'): string {
   return `${clip(line, 120 - rehearsal.length)}${rehearsal}`;
 }
 
-const tagsMatch = (r: AnyRun, place: string): boolean => isRun(r) && r.tags.includes(place);
+/** Fix #2: a sweep's own category tags (ask.layers[].categories[].tags) count as tags too, alongside a Plan 1
+ *  run's own `tags` array — the two shapes' only source of a tag. */
+const tagsMatch = (r: AnyRun, place: string): boolean => {
+  if (isRun(r)) return r.tags.includes(place);
+  return isContractRun(r) && r.ask.layers.some((l) => l.categories.some((c) => c.tags.includes(place)));
+};
+
+/** A path or a path prefix ("place/…"). */
+const pathMatches = (p: string, place: string): boolean => p === place || p.startsWith(`${place}/`);
 
 function whereMatches(r: AnyRun, place: string): boolean {
-  if (isRun(r)) return r.where.some((w) => w.path === place || w.path.startsWith(`${place}/`));
-  return r.where.some((w) => {
-    const p = stripLines(w);
-    return p === place || p.startsWith(`${place}/`);
-  });
+  if (isRun(r)) return r.where.some((w) => pathMatches(w.path, place));
+  if (r.where.some((w) => pathMatches(stripLines(w), place))) return true;
+  // Fix #2: a sweep's own `where` is always [] — its real locations live in items[id].unit.path.
+  return isContractRun(r) && !!r.items && Object.values(r.items).some((it) => !!it.unit && pathMatches(it.unit.path, place));
 }
 
 /** A folder, a tag or a path as a project-relative place; an absolute path inside the project is fine. */
@@ -79,13 +87,40 @@ function renderPlace(place: string, hits: readonly AnyRun[], outcomeOf: (id: str
   };
 }
 
+const GATE_RANK: Record<Gate, number> = { fail: 0, unsure: 1, pass: 2 };
+
+/** Fix #14 `--summary`: one line per distinct place — a `where` path, or (a sweep's own `where` is always [])
+ *  an item's own code path — from the LATEST contract run that touched it (ledger append order, so a later
+ *  entry in `hits` simply overwrites an earlier one in the map), worst gate first. The free onboarding
+ *  briefing: read this before class, instead of hand-assembling it from several `view <folder>` calls. A
+ *  legacy (Plan 1) run has no gate/categories to summarize and is skipped, same as it always was invisible to
+ *  view's own per-category "categories:" breakdown in request mode. */
+function renderSummary(scope: string, hits: readonly AnyRun[]): VerbResult {
+  const latest = new Map<string, ContractRun>();
+  for (const r of hits) {
+    if (!isContractRun(r)) continue;
+    for (const w of r.where.map(stripLines)) latest.set(w, r);
+    for (const p of sweepPlaces(r)) if (p.kind === 'where') latest.set(p.val, r);
+  }
+  if (!latest.size) return { exit: 0, text: `sidewise view ${clip(scope, 60)} --summary · no runs yet → "sidewise class <request>" starts one` };
+  const rows = [...latest.entries()].sort(([pa, ra], [pb, rb]) => GATE_RANK[ra.gate] - GATE_RANK[rb.gate] || pa.localeCompare(pb));
+  return {
+    exit: 0,
+    text: [
+      `sidewise view ${clip(scope, 60)} --summary · ${rows.length} place${rows.length === 1 ? '' : 's'}`,
+      ...rows.map(([place, r]) => `${clip(place, 60)} · ${r.verb} ${r.gate} · ${r.id} "${clip(r.goal, 48)}"`),
+    ].join('\n'),
+  };
+}
+
 /** place mode, the full-scan way: every run in the ledger, filtered by whereMatches/tagsMatch. Used for '.'
  *  (every run — the index's place table has nothing narrower to offer there) and as byPlaceIndexed's own
  *  fallback if the index can't be used for some reason (paths.log missing is handled the same way either path). */
-function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number): VerbResult {
+function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number, summary: boolean): VerbResult {
   const records = readLedger(paths, { partialTail: true });
   const runs = records.filter((r): r is AnyRun => isRun(r) || isContractRun(r));
   const hits = runs.filter((r) => place === '.' || tagsMatch(r, place) || whereMatches(r, place));
+  if (summary) return renderSummary(place, hits);
   return renderPlace(place, hits, (id) => latestOutcome(records, id) ?? undefined, limit);
 }
 
@@ -98,7 +133,7 @@ function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number): Ve
  * wrong answer. `outcomesFor` replaces the old per-hit `latestOutcome(records, id)` rescan (O(hits × records))
  * with one batched query over just the hit ids.
  */
-function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number): VerbResult {
+function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number, summary: boolean): VerbResult {
   // readOnly: view is free and read-only (design binding "dry runs and free reads write nothing") — it must
   // never be the thing that persists a catch-up or rebuild of index.db to disk.
   return withIndex(
@@ -109,6 +144,7 @@ function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number): Ver
         const rec = readRecordAt(paths.log, offset);
         if (rec && (isRun(rec) || isContractRun(rec)) && (tagsMatch(rec, place) || whereMatches(rec, place))) hits.push(rec);
       }
+      if (summary) return renderSummary(place, hits);
       const outcomes = handle.outcomesFor(hits.map((r) => r.id));
       return renderPlace(place, hits, (id) => outcomes.get(id), limit);
     },
@@ -116,8 +152,8 @@ function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number): Ver
   );
 }
 
-function byPlace(place: string, paths: SidewisePaths, limit: number): VerbResult {
-  return place === '.' ? byPlaceFullScan(place, paths, limit) : byPlaceIndexed(place, paths, limit);
+function byPlace(place: string, paths: SidewisePaths, limit: number, summary: boolean): VerbResult {
+  return place === '.' ? byPlaceFullScan(place, paths, limit, summary) : byPlaceIndexed(place, paths, limit, summary);
 }
 
 /** The run at this id, from `handle`'s own offset — undefined for an id it doesn't have, or a stale offset whose
@@ -149,7 +185,29 @@ function childrenAt(paths: SidewisePaths, handle: IndexHandle, parentId: string)
  * rescan (O(lineage × ledger)) with one batched query over just the ids actually shown. readOnly: view is free
  * and read-only, and must never be the thing that persists a catch-up/rebuild of index.db to disk.
  */
-function byId(id: string, paths: SidewisePaths, limit: number): VerbResult {
+/** Fix #3: `--level` on a run id now controls answer DETAIL about the run itself, not just how many lineage
+ *  rows are shown (which stayed level*10 all along, invisible on a run with shallow lineage). Level 1: nothing
+ *  extra (today's one-line summary). Level 2: the run's own category gates (a one-subject run), or an items
+ *  summary (a sweep, whose `categories` is always {} — CONTRACT.md). Level 3: adds its notes and adapter/model.
+ *  A legacy (Plan 1) run has none of this stored, so every level above 1 is silently a no-op for it. */
+function detailLines(self: AnyRun, level: Level): string[] {
+  if (level < 2 || !isContractRun(self)) return [];
+  const lines: string[] = [];
+  const cats = Object.entries(self.categories);
+  if (cats.length) lines.push(`  categories: ${cats.map(([n, g]) => `${n}=${g}`).join(', ')}`);
+  else if (self.items) {
+    const items = Object.values(self.items);
+    const failing = items.filter((it) => it.gate !== 'pass').length;
+    lines.push(`  items: ${items.length} (${failing} failing)`);
+  }
+  if (level >= 3) {
+    if (self.notes.length) lines.push(`  notes: ${self.notes.join('; ')}`);
+    lines.push(`  adapter: ${self.adapter} · model: ${self.model}`);
+  }
+  return lines;
+}
+
+function byId(id: string, paths: SidewisePaths, level: Level, limit: number): VerbResult {
   return withIndex(
     paths,
     (handle) => {
@@ -179,6 +237,7 @@ function byId(id: string, paths: SidewisePaths, limit: number): VerbResult {
           `sidewise view ${id} · lineage ${up.length} up · ${down.length} down`,
           ...up.map((r) => `↑ ${runLine(r, outcomeOf(r))}`),
           `▶ ${runLine(self, outcomeOf(self))}`,
+          ...detailLines(self, level),
           ...down.map((r) => `↓ ${runLine(r, outcomeOf(r))}`),
         ].join('\n'),
       };
@@ -264,12 +323,21 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
   return { exit: 0, text: respondText(side, wiseRecorded(null), next, ['free']) };
 }
 
-export function runView(input: string, level: Level, ctx: ViewContext): VerbResult {
-  const trimmed = input.trim();
-  if (REQUEST_MODE.test(trimmed) || trimmed.startsWith('{')) return runRequestMode(input, ctx);
+/**
+ * `arg` is always the thing the caller actually named (a path, folder, tag or SW-####) — never overwritten by a
+ * file's own bytes. `content`, when given, is whatever text cli.ts already read for `arg` (a file's contents, or
+ * stdin for `-`): it's used ONLY to test for request mode (a `side:`/JSON draft). Fix #1: viewing a real source
+ * file that isn't a request (no `side:`) must show it as a PLACE (`arg` itself), never misread its code as a
+ * garbled request just because cli.ts happened to read the file's bytes first. Omitting `content` (every
+ * existing caller that already has the text in hand, e.g. a request string read from stdin) keeps checking
+ * `arg` itself for request mode, unchanged. `summary` (fix #14, `--summary`) only applies to place mode — a
+ * run id or a request draft ignores it, since "one line per place" makes no sense for either. */
+export function runView(arg: string, level: Level, ctx: ViewContext, content?: string, summary = false): VerbResult {
+  const probe = (content ?? arg).trim();
+  if (REQUEST_MODE.test(probe) || probe.startsWith('{')) return runRequestMode(content ?? arg, ctx);
 
-  const at = RUN_ID.test(input) ? undefined : toPlace(input, ctx.paths.root);
+  const at = RUN_ID.test(arg) ? undefined : toPlace(arg, ctx.paths.root);
   if (at && 'stop' in at) return { exit: 2, text: at.stop };
   const limit = level * 10;
-  return at ? byPlace(at.place, ctx.paths, limit) : byId(input, ctx.paths, limit);
+  return at ? byPlace(at.place, ctx.paths, limit, summary) : byId(arg, ctx.paths, level, limit);
 }
