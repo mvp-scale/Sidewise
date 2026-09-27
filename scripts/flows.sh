@@ -103,7 +103,7 @@ echo "flows.sh: project=$D  cli=$CLI"
 flow_start
 run doctor
 need_exit "01-doctor" "no key" 0
-need_has "01-doctor" "no key" 'keys: {TYPESAFE_API_KEY: "no", AI_GATEWAY_API_KEY: "no"}'
+need_has "01-doctor" "no key" 'key: no  → run "sidewise init" to add one'
 pass "01-doctor" "no key -> exit 0, no key reported"
 flow_done "01-doctor"
 
