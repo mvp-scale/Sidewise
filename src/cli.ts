@@ -78,8 +78,8 @@ const LINES = {
   mcp: 'sidewise mcp',
 } as const;
 type Command = keyof typeof LINES;
-// The play test found a bare usage list unhelpful to someone who has never run this before: one line points
-// them at init before the full list.
+// A bare usage list is unhelpful to someone who has never run this before: one line points them at init
+// before the full list.
 const USAGE = `new here? → sidewise init\nusage:\n${Object.values(LINES).map((l) => `  ${l}`).join('\n')}`;
 const isCommand = (c: string): c is Command => Object.hasOwn(LINES, c);
 
@@ -165,7 +165,7 @@ function cap(flag: string, raw: string): number | string {
 const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop } as const;
 
 /** Most provider-selection failures (no key) are bucketed as provider errors (exit 1); a JevConfigError can
- *  instead carry exit 2 (P3: a bad SIDEWISE_BASE_URL is a config mistake to fix, not a runtime provider failure). */
+ *  instead carry exit 2 — a bad SIDEWISE_BASE_URL is a config mistake to fix, not a runtime provider failure. */
 const providerExit = (e: unknown): 1 | 2 => (e instanceof JevConfigError ? e.exit : 1);
 
 /** Everything a dispatch needs instead of reaching for `process.*` directly, so the same dispatch runs for real
@@ -218,9 +218,9 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, help, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
 
-  // Node ≥ 22.13 is a hard requirement (owner ruling): everything but `doctor` (which still runs and reports
-  // the problem, see below) and `mcp` (which must still start the server and answer initialize/tools/list —
-  // its own tools/call wrapper below applies this same guard to every actual call) stops here.
+  // Node ≥ 22.13 is a hard requirement: everything but `doctor` (which still runs and reports the problem,
+  // see below) and `mcp` (which must still start the server and answer initialize/tools/list — its own
+  // tools/call wrapper below applies this same guard to every actual call) stops here.
   if (command !== 'doctor' && command !== 'mcp') {
     const nodeStop = nodeVersionStop(ctx.nodeVersion);
     if (nodeStop) return finish(2, nodeStop);
@@ -247,7 +247,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     return finish(r.exit, r.text);
   }
 
-  // help (fix G/guidance): free, no project needed, never spends or writes — same free-standing shape as
+  // help: free, no project needed, never spends or writes — same free-standing shape as
   // template/doctor above. `help` alone is the one-screen contract card; `help <verb>` or `help <topic>` goes
   // deeper (src/help/*).
   if (command === 'help') {
@@ -257,7 +257,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     return finish(r.exit, r.text);
   }
 
-  // doctor (P5) needs no project either: it reports whether one is found rather than insisting on one, and it
+  // doctor needs no project either: it reports whether one is found rather than insisting on one, and it
   // never spends or writes — free, so it never has to wait for preflight's own project/budget/ledger checks.
   if (command === 'doctor') {
     const { positionals } = args('doctor', { args: rest, allowPositionals: true, options: {} });
@@ -287,14 +287,14 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         if (nodeStop) return Promise.resolve(finish(2, nodeStop));
         // runCli, not dispatch: dispatch can throw (LedgerError/BudgetError/UsageStop/...), and protocol.ts's
         // own tools/call catch would then re-wrap an already-formed "✖ field: ..." message as "✖ sidewise:
-        // ...", doubling the glyph (fix #8). runCli's own catch normalizes every throw into one clean
-        // {exit, text} first, exactly like the real CLI entrypoint at the bottom of this file. [C-140]
+        // ...", doubling the glyph. runCli's own catch normalizes every throw into one clean {exit, text}
+        // first, exactly like the real CLI entrypoint at the bottom of this file. [C-140]
         //
-        // fix #9: `project` (from the tool call's own arguments) stands in for SIDEWISE_HOME for this one call —
-        // the plugin's own cwd is wherever Claude launched, not necessarily the project. fix #18: the plugin
-        // never sets SIDEWISE_ACTOR, so every run/outcome came through as `by: agent`; resolve a real one (git's
-        // own user.name in the project directory, else "claude") and inject it, but only when the caller hasn't
-        // already set one — an explicit value must still win.
+        // `project` (from the tool call's own arguments) stands in for SIDEWISE_HOME for this one call — the
+        // plugin's own cwd is wherever Claude launched, not necessarily the project. The plugin never sets
+        // SIDEWISE_ACTOR, so without this every run/outcome would come through as `by: agent`; resolve a real
+        // one (git's own user.name in the project directory, else "claude") and inject it, but only when the
+        // caller hasn't already set one — an explicit value must still win.
         const env = { ...ctx.env };
         if (project) env.SIDEWISE_HOME = project;
         if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor(project ?? ctx.cwd);
@@ -394,9 +394,9 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       positionalCount('view', positionals, 1, 1);
       if (!['1', '2', '3'].includes(values.level)) return finish(2, `✖ --level: "${clip(values.level, 20)}" is not a level → use --level 1, 2 or 3`);
       const arg = positionals[0]!;
-      // fix #1: `arg` is always the thing the caller actually named — never overwritten by a file's own bytes.
-      // `content` (whatever text was actually read for it, if any) is passed separately so runView can probe it
-      // for request mode without ever mistaking a real source file's own content for a garbled place/id.
+      // `arg` is always the thing the caller actually named — never overwritten by a file's own bytes. `content`
+      // (whatever text was actually read for it, if any) is passed separately so runView can probe it for
+      // request mode without ever mistaking a real source file's own content for a garbled place/id.
       let content: string | undefined;
       if (arg === '-') {
         content = ctx.stdin().toString('utf8');
@@ -404,7 +404,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         try {
           if (statSync(arg).isFile()) content = readFileSync(arg, 'utf8');
         } catch {
-          // not a file: arg itself is the place/id, as in Plan 1
+          // not a file: treat arg itself as the place/id
         }
       }
       const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env }, content, values.summary);
