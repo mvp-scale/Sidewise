@@ -221,6 +221,19 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
 
+  // "<command> --help"/"-h" is answered here, generically, for every command, before that command's own
+  // parseArgs ever sees it — otherwise a command with no --help option of its own (every one of them; none
+  // defines a -h shorthand) would reject it as an unknown flag (this is what "doctor --help" used to do).
+  // Only the six verbs have a deeper per-verb page (help <verb> / agent <verb> — see src/help/index.ts and
+  // src/help/agent.ts); every other command (help, agent, report, outcome, budget, doctor, init, uninstall,
+  // mcp, template) has no such page today, so it gets just its usage line, not a pointer to a page that
+  // doesn't exist. Runs ahead of the Node-version guard below: like the bare --help/-h above, this never
+  // spends or touches the ledger, so it's free even on too old a Node.
+  if (rest.includes('--help') || rest.includes('-h')) {
+    const seeMore = (VERBS as readonly string[]).includes(command) ? `\n→ see: sidewise help ${command} · sidewise agent ${command}` : '';
+    return finish(0, `${LINES[command]}${seeMore}`);
+  }
+
   // Node ≥ 22.13 is a hard requirement: everything but `doctor` (which still runs and reports the problem,
   // see below) and `mcp` (which must still start the server and answer initialize/tools/list — its own
   // tools/call wrapper below applies this same guard to every actual call) stops here.
