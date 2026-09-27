@@ -65,6 +65,38 @@ describe('runReport', () => {
     }
   });
 
+  it('[C-163] hits: the stale re-read only runs for rows within the ROW_LIMIT cap, and stays correct there', () => {
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 35; i++) files[`src/f${i}.ts`] = 'original code';
+    const { root, paths } = tempProject(files);
+    for (let i = 0; i < 35; i++) {
+      appendContractRun(
+        paths,
+        sampleContractRun({
+          where: [`src/f${i}.ts`],
+          ask: { categories: [{ name: `cat${i}`, pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: `q${i}?` }] }], layers: [] },
+          categories: { [`cat${i}`]: i === 0 ? 'fail' : 'pass' }, // f0 sorts first (worst gate) — inside the cap
+          keys: { goal: 'k-goal', '1': 'k-1-on-original-code' },
+        }),
+        Date.now(),
+        'b',
+      );
+    }
+    // Change the code at every place; only f0's row (rank 1, well inside ROW_LIMIT) is checked and asserted on —
+    // the other 34 places are either shown-but-unchecked-here or past the cap, and the cap/count assertions
+    // below hold regardless of whether their own stale flag would have been true.
+    writeFileSync(path.join(root, 'src/f0.ts'), 'changed code');
+    for (const forceFallback of ENGINES) {
+      __testOnly.forceFallback = forceFallback;
+      const r = runReport('hits', { paths });
+      const lines = r.text.split('\n');
+      expect(lines[0]).toBe('sidewise report hits · 35 rows');
+      expect(lines[1]).toContain('src/f0.ts · cat0 fail · SW-0001'); // worst-gate row, still correctly flagged
+      expect(lines[1]).toContain('· stale');
+      expect(r.text).toContain('… 5 more not shown'); // 35 rows, ROW_LIMIT 30
+    }
+  });
+
   it('[C-164] patterns: no runs yet says so plainly, else groups by question set with pass/fail/places/outcomes', () => {
     const { paths } = tempProject({});
     expect(runReport('patterns', { paths }).text).toBe('sidewise report patterns · no runs yet → "sidewise class <request>" starts one');

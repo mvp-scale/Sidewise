@@ -59,7 +59,10 @@ interface HitRow {
   gate: string;
   runId: string;
   goal: string;
-  stale: boolean;
+  /** Present only for a one-subject row — the record to re-check staleness against, deferred until we know
+   *  this row survives the ROW_LIMIT cap (C-163: never a full-ledger, or full-result, re-read). undefined for
+   *  a sweep item's row, which is never marked stale. */
+  rec?: ContractRun;
 }
 
 const GATE_RANK: Record<string, number> = { fail: 0, unsure: 1, pass: 2 };
@@ -77,12 +80,12 @@ function reportHits(paths: SidewisePaths): VerbResult {
         if (!rec || !isContractRun(rec)) continue;
         if (rec.items === null) {
           for (const [category, gate] of Object.entries(rec.categories)) {
-            out.push({ place, category, gate, runId: rec.id, goal: rec.goal, stale: isStale(paths.root, rec, category) });
+            out.push({ place, category, gate, runId: rec.id, goal: rec.goal, rec });
           }
         } else {
           for (const item of Object.values(rec.items)) {
             if (item.unit?.path !== place) continue;
-            for (const [category, gate] of Object.entries(item.categories)) out.push({ place, category, gate, runId: rec.id, goal: rec.goal, stale: false });
+            for (const [category, gate] of Object.entries(item.categories)) out.push({ place, category, gate, runId: rec.id, goal: rec.goal });
           }
         }
       }
@@ -92,7 +95,12 @@ function reportHits(paths: SidewisePaths): VerbResult {
   );
   if (!rows.length) return { exit: 0, text: 'sidewise report hits · no runs yet → "sidewise class <request>" starts one' };
   rows.sort((a, b) => GATE_RANK[a.gate]! - GATE_RANK[b.gate]! || a.place.localeCompare(b.place) || a.category.localeCompare(b.category));
-  const lines = rows.map((r) => `${clip(r.place, 50)} · ${r.category} ${r.gate} · ${r.runId} "${clip(r.goal, 40)}"${r.stale ? ' · stale' : ''}`);
+  // C-163: the stale re-read only ever runs for rows that actually make it into the capped output below.
+  const shown = rows.slice(0, ROW_LIMIT);
+  const lines = shown.map((r) => {
+    const stale = r.rec ? isStale(paths.root, r.rec, r.category) : false;
+    return `${clip(r.place, 50)} · ${r.category} ${r.gate} · ${r.runId} "${clip(r.goal, 40)}"${stale ? ' · stale' : ''}`;
+  });
   return { exit: 0, text: [heading('hits', rows.length, 'row'), ...withCap(lines, rows.length)].join('\n') };
 }
 
