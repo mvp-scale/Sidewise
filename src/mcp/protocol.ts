@@ -27,7 +27,7 @@ export interface JsonRpcResponse {
 }
 
 /** Runs one `sidewise <args...>` call in-process; `stdin` stands in for fd 0 (e.g. a `-` positional).
- *  `project` (fix #9) stands in for `SIDEWISE_HOME` for this one call — the plugin's own cwd is wherever
+ *  `project` stands in for `SIDEWISE_HOME` for this one call — the plugin's own cwd is wherever
  *  Claude launched, not necessarily the project, and there's no way to `cd` before an MCP tool call. */
 export type RunOne = (args: string[], stdin?: string, project?: string) => Promise<{ exit: number; text: string }>;
 
