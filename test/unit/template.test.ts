@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readRequestText } from '../../src/contract/read.ts';
-import { VERBS } from '../../src/contract/types.ts';
+import { VERBS, type Verb } from '../../src/contract/types.ts';
 import { validateRequest } from '../../src/contract/validate.ts';
 import { runTemplate } from '../../src/verbs/template.ts';
 import { runClass } from '../../src/verbs/class.ts';
@@ -151,6 +151,48 @@ describe('runTemplate', () => {
     it('--where/--goal with --parent: a clean stop (they overlay --from, not a drill item lookup)', () => {
       const r = runTemplate('drill', { parent: 'SW-0001', from: 'access', goal: 'x' });
       expect(r.exit).toBe(2);
+    });
+  });
+
+  // Templates push the envelope of WHAT a request can do: every field a verb's own schema allows it to carry
+  // must show up in that verb's template (a value, or — for a field that's merely legal, not needed here — a
+  // commented-out example), marked required/optional in a trailing comment. This table is src/contract/
+  // validate.ts's own NEEDS/NEVER (plus side.verb and wise:, which are legal on every verb) restated as data,
+  // so the test drives from the same rule the validator enforces instead of re-typing it six times. [C-174]
+  const ENVELOPE: Record<Verb, { required: readonly string[]; optional: readonly string[] }> = {
+    class: { required: ['goal', 'depth', 'where', 'ask'], optional: ['verb'] },
+    view: { required: ['goal', 'where'], optional: ['depth', 'ask', 'verb'] },
+    change: { required: ['goal', 'parent', 'compare'], optional: ['verb'] },
+    scan: { required: ['goal', 'depth', 'over', 'ask'], optional: ['verb'] },
+    loop: { required: ['goal', 'depth', 'over', 'ask'], optional: ['where', 'verb'] },
+    drill: { required: ['goal', 'parent', 'from', 'ask'], optional: ['depth', 'over', 'verb'] },
+  };
+  const WISE_KEYS = ['why', 'area', 'stage', 'change', 'risk', 'parent'];
+
+  describe('templates show the full field envelope [C-174]', () => {
+    it.each(VERBS)('%s: every side.* field it accepts appears in its template (live or commented)', (verb) => {
+      const raw = readFileSync(path.join('skills', 'sidewise', 'templates', `${verb}.yaml`), 'utf8');
+      const parsed = readRequestText(raw);
+      expect(parsed.ok).toBe(true);
+      const side = (parsed.ok ? parsed.value.side : {}) as Record<string, unknown>;
+      const { required, optional } = ENVELOPE[verb];
+      for (const field of required) expect(Object.hasOwn(side, field)).toBe(true);
+      for (const field of optional) expect(raw).toMatch(new RegExp(`\\b${field}:`));
+    });
+
+    it.each(VERBS)('%s: wise: mentions every catalog key, live or commented', (verb) => {
+      const raw = readFileSync(path.join('skills', 'sidewise', 'templates', `${verb}.yaml`), 'utf8');
+      for (const key of WISE_KEYS) expect(raw).toMatch(new RegExp(`\\b${key}:`));
+    });
+
+    it('class.yaml demonstrates the category-level fields (need:, tags:) once, for every verb to copy [C-175]', () => {
+      const raw = readFileSync(path.join('skills', 'sidewise', 'templates', 'class.yaml'), 'utf8');
+      const parsed = readRequestText(raw);
+      expect(parsed.ok).toBe(true);
+      const ask = (parsed.ok ? (parsed.value.side as Record<string, unknown>).ask : {}) as Record<string, Record<string, unknown>>;
+      const categories = Object.values(ask);
+      expect(categories.some((c) => 'need' in c)).toBe(true);
+      expect(categories.some((c) => 'tags' in c)).toBe(true);
     });
   });
 

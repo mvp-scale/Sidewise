@@ -1,16 +1,17 @@
 # loop: sweeps ideas the agent itself writes (a design, a plan) before any code exists. No file evidence.
 side:
-  goal: The checkout redesign is sound
-  depth: quick                      # at most 10 items asked per layer
-  where: [src/checkout/]            # optional context (folder that will hold this); loop reads no files
-  over:
+  goal: The checkout redesign is sound        # required
+  # verb: loop                                # optional — must match the command you run, or the request is sent back
+  depth: quick                                # required — at most 10 items asked per layer
+  where: [src/checkout/]                      # optional — context only (folder that will hold this); loop reads no files
+  over:                                       # required
     part:                           # part and story are SIBLINGS here, both under over: — not one nested in the other
       - name: gateway
         story: [guest checkout, saved cards]   # names/tags: one word or kebab-case, <= 20 chars, no "/"
       - name: payments
         story: [refunds, retries, partial capture]
       - ledger
-  ask:
+  ask:                                        # required
     part:
       boundaries:
         pass: yes
@@ -23,6 +24,11 @@ side:
       risk:
         pass: no
         4: Does "{story}" need data {part} doesn't own?
-wise:
-  why: validate
-  area: api
+                                               # loop never takes from:, compare: or parent: — it has no parent run to build on
+wise:                                         # optional block; every field inside it is optional too
+  why: validate                               # optional — validate | find | debug
+  area: api                                   # optional — data | api | ui | auth | hosting | build | tests
+  # stage: design                             # optional — design | build | review | pre-merge | post-fix | release
+  # change: feature                           # optional — feature | fix | refactor | dependency | config
+  # risk: medium                              # optional — low | medium | high
+  # parent: SW-0001                           # optional — a related run, for lineage

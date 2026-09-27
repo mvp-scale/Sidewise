@@ -1,18 +1,24 @@
 # scan: sweeps code Sidewise reads itself. over: builds layers (file -> function -> call); ask: keys by layer.
 side:
-  goal: Handlers don't trust request input
-  depth: quick                                # at most 10 items asked per layer (standard 20, thorough 30) — extra items are skipped, not failed
-  over:
+  goal: Handlers don't trust request input    # required
+  # verb: scan                                # optional — must match the command you run, or the request is sent back
+  depth: quick                                # required — at most 10 items asked per layer (standard 20, thorough 30) — extra items are skipped, not failed
+  over:                                       # required
     file: src/handlers/*.ts                   # a glob, scanned by file (add a severity scale below to rank findings)
     function: each                            # "each" splits the layer above into its next unit (function, then call)
-  ask:
-    function:                                 # one ask: block per layer named in over — {function} fills in per item
+  ask:                                        # required — one ask: block per layer named in over — {function} fills in per item
+    function:
       injection:
         pass: no                              # ask what {function} itself does, not what code outside it does
         1: Does {function} put request text straight into a query?
       access:
         pass: no
         2: Does {function} return a record without checking its owner?
-wise:
-  why: find
-  area: api
+                                               # scan never takes where: (over: is what it reads), from:, compare: or parent:
+wise:                                         # optional block; every field inside it is optional too
+  why: find                                   # optional — validate | find | debug
+  area: api                                   # optional — data | api | ui | auth | hosting | build | tests
+  # stage: build                              # optional — design | build | review | pre-merge | post-fix | release
+  # change: fix                               # optional — feature | fix | refactor | dependency | config
+  # risk: medium                              # optional — low | medium | high
+  # parent: SW-0001                           # optional — a related run, for lineage
