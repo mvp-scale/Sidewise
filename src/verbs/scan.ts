@@ -14,8 +14,8 @@ import { createCodeResolver } from '../evidence/units.ts';
 import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
-import { commonNotes, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
-import { planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 // Fix #17: a scan only ever looks at what over: names — nothing says so if that misses the file most likely
@@ -48,12 +48,13 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
   if (entrypointNote) notes.push(entrypointNote);
 
-  const pre = preflight(ctx);
+  // Fix #5a: a fully-reused scan (every layer's call: null) must never be blocked by an already-reached cap.
+  const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
 
   const swept = await runSweep(ctx, 'scan', plan);
   if (!swept.ok) return swept.result;
-  const { answers, costUsd, statusOf } = swept.value;
+  const { answers, costUsd, costEstimated, statusOf } = swept.value;
 
   // The `?? []`, not a bang-assertion: a layer nobody asked about (like the contract example's `file`) has no
   // entry in side.layers at all, and must still grade as 'none' rather than throw.
@@ -100,7 +101,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
       wiseRecorded(request.wise),
       sweepNext(id, gate, worst, graded, 'act on it'),
       commonNotes(
-        [...loaded.notes, ...notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])],
+        [...loaded.notes, ...notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
         ctx.provider.adapter,
       ),

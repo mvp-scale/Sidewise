@@ -2,11 +2,14 @@
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadBudget } from '../../src/budget/budget.ts';
+import { loadBudget, setBudget } from '../../src/budget/budget.ts';
 import { readLedger, isContractRun } from '../../src/ledger/log.ts';
 import { runScan } from '../../src/verbs/scan.ts';
 import { tempProject } from '../helpers/project.ts';
-import { stubProvider } from '../helpers/stub-provider.ts';
+import { stubProvider, type Stub } from '../helpers/stub-provider.ts';
+
+/** Wraps a stub so its answer reports an estimated cost, without changing stub-provider.ts (shared by other crews). */
+const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }) });
 
 const env = { SIDEWISE_ACTOR: 'r' };
 const REQUEST =
@@ -70,6 +73,25 @@ describe('scan', () => {
     // under items[id].categories (same shape loop.test.ts pins for C-083) — no folder/category query reads
     // this field for scan today.
     expect(runs[1]!.categories).toEqual({});
+  });
+
+  // Fix #5/#6 follow-through: same pattern as class.ts.
+  it('a fully-reused scan is never blocked by an already-reached cap [C-150]', async () => {
+    const { paths } = tempProject(FILES);
+    const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
+    await runScan(REQUEST, { paths, provider, env }); // SW-0001, 1 run
+    setBudget(paths, { capRuns: 1 }); // already used up by the run above
+    const r = await runScan(REQUEST, { paths, provider, env }); // fully reused: no call needed
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('reused: 2');
+  });
+
+  it('notes when the cost was estimated from tokens (fix #4), same as class.ts', async () => {
+    const { paths } = tempProject(FILES);
+    const provider = withEstimatedCost(stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) }));
+    const r = await runScan(REQUEST, { paths, provider, env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
   it('a changed function forces exactly one new call carrying only it; the unchanged one stays reused [C-036]', async () => {
