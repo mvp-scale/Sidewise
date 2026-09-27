@@ -79,9 +79,14 @@ export function usedFraction(s: BudgetState): number {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
 }
 
+/** fix #5c: when only the RUN cap tripped (the dollar cap has room left), raising it fits better than resetting
+ *  the spend already counted — "reset" stays the hint whenever the dollar cap is involved (alone, or with runs). */
 export function checkBudget(s: BudgetState): { ok: true } | { ok: false; message: string } {
-  if (s.runs >= s.capRuns || s.spentUsd >= s.capUsd) {
-    return { ok: false, message: `✖ budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs) → the owner runs "sidewise budget reset"` };
+  const runsCapped = s.runs >= s.capRuns;
+  const usdCapped = s.spentUsd >= s.capUsd;
+  if (runsCapped || usdCapped) {
+    const hint = runsCapped && !usdCapped ? 'the owner runs "sidewise budget set --runs <n>"' : 'the owner runs "sidewise budget reset"';
+    return { ok: false, message: `✖ budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs) → ${hint}` };
   }
   return { ok: true };
 }

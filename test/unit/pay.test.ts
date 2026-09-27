@@ -43,7 +43,23 @@ describe('preflight: stops before any call or spend', () => {
     setBudget(paths, { capRuns: 1 });
     recordCall1(paths);
     const r = preflight(ctxOf(paths, stubProvider()));
-    expect(!r.ok && r.result).toEqual({ exit: 3, text: '✖ budget: cap reached ($0.00 of $5.00 · 1 of 1 runs) → the owner runs "sidewise budget reset"' });
+    // fix #5c: the run cap alone tripped, so the hint is "set --runs", not "reset" (see budget.test.ts).
+    expect(!r.ok && r.result).toEqual({ exit: 3, text: '✖ budget: cap reached ($0.00 of $5.00 · 1 of 1 runs) → the owner runs "sidewise budget set --runs <n>"' });
+  });
+
+  it('needsBudget: false (fix #5a) skips the cap even when it is already reached — a fully-reused run is free', () => {
+    const { paths } = tempProject({});
+    setBudget(paths, { capRuns: 1 });
+    recordCall1(paths);
+    const r = preflight(ctxOf(paths, stubProvider()), { needsBudget: false });
+    expect(r.ok).toBe(true);
+  });
+
+  it('needsBudget: false still fails closed on a ledger that cannot be written', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.log, { recursive: true }); // a directory where the log file should be: unwritable
+    const r = preflight(ctxOf(paths, stubProvider()), { needsBudget: false });
+    expect(r).toMatchObject({ ok: false, result: { exit: 1 } });
   });
 
   it('a corrupt budget: exit 3; a corrupt ledger or an unwritable one: exit 1', () => {

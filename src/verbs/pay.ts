@@ -55,8 +55,12 @@ export function createdNote(state: BudgetState): string {
   return `budget file created with defaults ($${state.capUsd.toFixed(2)} · ${state.capRuns} runs)`;
 }
 
-/** Before any call: a budget with room, and a ledger that reads cleanly and can be written. */
-export function preflight(ctx: VerbContext): Step<{ state: BudgetState; created: boolean }> {
+/** Before any call: a budget with room, and a ledger that reads cleanly and can be written.
+ *  fix #5a: `needsBudget: false` (the caller already knows every answer will be reused, so this run will spend
+ *  nothing) skips only the cap check — a fully-reused run must never be blocked by a cap it will never touch.
+ *  The budget file is still loaded/created and the ledger still checked either way: a free run still writes a
+ *  line. Default true preserves every existing call site's behavior unchanged. */
+export function preflight(ctx: VerbContext, opts: { needsBudget?: boolean } = {}): Step<{ state: BudgetState; created: boolean }> {
   const now = ctx.now ?? Date.now;
   let budget: { state: BudgetState; created: boolean };
   try {
@@ -66,8 +70,10 @@ export function preflight(ctx: VerbContext): Step<{ state: BudgetState; created:
     if (isStoreFailure(e)) return fail(1, e.message);
     throw e;
   }
-  const gate = checkBudget(budget.state);
-  if (!gate.ok) return fail(3, gate.message);
+  if (opts.needsBudget ?? true) {
+    const gate = checkBudget(budget.state);
+    if (!gate.ok) return fail(3, gate.message);
+  }
   try {
     checkLedger(ctx.paths);
   } catch (e) {
