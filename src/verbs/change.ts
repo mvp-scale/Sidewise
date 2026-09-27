@@ -63,7 +63,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const after = readGitEvidence(ctx.paths.root, compare.after, 'after', paths);
   if (!before.ok || !after.ok) {
     const errors = [...(before.ok ? [] : before.errors), ...(after.ok ? [] : after.errors)];
-    return { exit: 2, text: stopText(errors) };
+    return { exit: 2, text: stopText(errors, 'change') };
   }
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };

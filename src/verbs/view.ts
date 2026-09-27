@@ -295,7 +295,7 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
   const { request } = loaded;
 
   const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
-  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, 'view') };
 
   const places = request.side.where.map(stripLines);
   const runsHere = runsForPlaces(ctx.paths, places);

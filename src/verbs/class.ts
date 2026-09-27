@@ -33,7 +33,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
 
   // Evidence is read before touching budget or ledger at all: a bad path is a request problem, not a paid one.
   const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
-  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, 'class') };
 
   const identity = providerIdentity(ctx.env);
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };

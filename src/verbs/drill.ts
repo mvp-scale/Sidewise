@@ -52,7 +52,7 @@ async function runOneSubjectProof(
   changeParent: (id: string) => string,
 ): Promise<VerbResult> {
   const evidence = readCodeEvidence(ctx.paths.root, where);
-  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, 'drill') };
 
   const identity = providerIdentity(ctx.env);
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };

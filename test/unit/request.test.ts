@@ -9,17 +9,22 @@ describe('loadRequest', () => {
     expect(r.ok && r.request.side.goal).toBe('This login handler is safe to merge');
   });
 
-  it('a parse stop or validation stops exit 2 [C-002]', () => {
-    expect(loadRequest('', 'class')).toEqual({ ok: false, result: { exit: 2, text: '✖ request: empty → start with "side:" (sidewise template class prints a skeleton)' } });
+  it('a parse stop or validation stops exit 2, and point at that verb\'s help [C-002] [C-153]', () => {
+    expect(loadRequest('', 'class')).toEqual({
+      ok: false,
+      result: { exit: 2, text: '✖ request: empty → start with "side:" (sidewise template class prints a skeleton)\n→ see: sidewise help class' },
+    });
     const r = loadRequest('side:\n  goal: The handler is safe\n', 'class');
     expect(!r.ok && r.result.exit).toBe(2);
-    expect(!r.ok && r.result.text.split('\n')).toHaveLength(3);
+    expect(!r.ok && r.result.text.split('\n')).toHaveLength(4);
+    expect(!r.ok && r.result.text.split('\n').at(-1)).toBe('→ see: sidewise help class');
   });
 
-  it('at most 5 stops, then one line saying how many more', () => {
+  it('at most 5 stops, then one line saying how many more, then the help pointer [C-153]', () => {
     const many = Array.from({ length: 12 }, (_, i) => `✖ q${i}: bad → fix`);
-    const lines = stopText(many).split('\n');
-    expect(lines).toHaveLength(6);
+    const lines = stopText(many, 'class').split('\n');
+    expect(lines).toHaveLength(7);
     expect(lines[5]).toBe('✖ request: 7 more problems → fix the ones above, then run again');
+    expect(lines[6]).toBe('→ see: sidewise help class');
   });
 });
