@@ -12,11 +12,17 @@ export type Topic = (typeof TOPICS)[number];
 function authoring(): string {
   return [
     '## authoring',
-    'How to write a request that survives its first try:',
+    'How to write a request that survives its first try. Under the hood a yes/no question asks the classifier\'s',
+    'Noul primitive, a `scale:` asks Score, and a `choice:` asks Choice — one narrow, coherent judgment per',
+    'question, so keep each one to a single thing.',
     ...ruleLines('authoring'),
     '- `where:` is ALL the code a run sees — nothing outside it exists, however obvious the wiring seems.',
     '- phrase the goal as the exact claim you need proven ("this handler is safe to merge", not "review this handler") — wording changes the verdict, on purpose.',
     '- a `{blank}` in a sweep question is filled in per item; it must name that layer or one above it.',
+    '- a question\'s number is a label for the response only — the model never sees it, so the question text itself has to carry its full meaning on its own.',
+    '- a `scale:` level should name a concrete situation that stands on its own ("crashes in production"), not a bare relative point ("high").',
+    '- give a `choice:` a genuine no-match option (e.g. `none`) whenever the code might fit none of the others.',
+    '- ask everything you need about this evidence in one request — a second call (`drill`) is for when you need to look at something new, not more angles on what you already sent.',
   ].join('\n');
 }
 
@@ -29,6 +35,9 @@ function verdict(): string {
     '- the gate passes only when the goal and every category pass; in a sweep, an item passes only when its own categories and every child does too.',
     '- `consensus` (STRONG · SPLIT · WEAK): whether the yes/no answers agree with each other — shown on `class`, and `drill` on a one-subject parent; a sweep or `change` response never computes it.',
     '- `escalate: true` on non-STRONG consensus, `depth: thorough`, or a goal that reads as irreversible (delete, deploy, drop, pay, migrate, secret, credential) — don\'t act on this alone.',
+    '- a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes — that\'s exactly why it lands in `unsure` rather than a weak pass.',
+    '- the answer\'s shape is guaranteed (a number in range, a level that\'s really one of yours) — whether it\'s the RIGHT number is what consensus, escalate and your own reading are for, not the schema.',
+    '- a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) — read which one you got before treating a stop as `unsure`.',
     '- a stop always reads `✖ field: problem → fix`; run `sidewise help <verb>` when one doesn\'t make sense.',
   ].join('\n');
 }
@@ -63,6 +72,8 @@ function reuse(): string {
     '  response counts how many were reused.',
     '- a fully-reused run should never be blocked by the spend cap, since it spends nothing — if you see that,',
     '  it\'s a bug, not a feature.',
+    '- reuse keys on the evidence and the question\'s own text, not on how the answer is graded: moving a',
+    '  category\'s `pass:` or `need:` re-grades the same free answer instead of re-asking the question.',
   ].join('\n');
 }
 
