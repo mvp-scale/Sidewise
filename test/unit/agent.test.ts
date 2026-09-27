@@ -29,7 +29,7 @@ describe('runAgent', () => {
     expect(runAgent('scan').text).toContain('patterns:');
   });
 
-  it('agent view and agent loop now carry their own good/bad patterns too', () => {
+  it('[C-183] agent view and agent loop now carry their own good/bad patterns too', () => {
     expect(runAgent('view').text).toContain('patterns:');
     expect(runAgent('loop').text).toContain('patterns:');
   });
@@ -49,11 +49,11 @@ describe('runAgent', () => {
     expect(runAgent('a\u0000b').exit).toBe(2);
   });
 
-  it('agent with no target points explicitly at "sidewise agent probe", not just a verb', () => {
+  it('[C-181] agent with no target points explicitly at "sidewise agent probe", not just a verb', () => {
     expect(runAgent().text).toContain('sidewise agent probe');
   });
 
-  it('agent probe: the 8 probe rules, bare — no citations, no headings', () => {
+  it('[C-181] agent probe: the 8 probe rules, bare — no citations, no headings', () => {
     const text = runAgent('probe').text;
     expect(text).toContain('target: probe');
     for (const r of PROBE_RULES) expect(text).toContain(r.text);
@@ -61,20 +61,12 @@ describe('runAgent', () => {
     expect(text).not.toMatch(/^##\s/mu);
   });
 
-  it.each(['outcome', 'budget', 'report'] as const)('agent %s: a recognized non-verb target, bare, with a good/bad pair', (target) => {
+  it.each(['outcome', 'budget', 'report'] as const)('[C-182] agent %s: a recognized non-verb target, bare, with a good/bad pair', (target) => {
     const r = runAgent(target);
     expect(r.exit).toBe(0);
     expect(r.text).toContain(`target: ${target}`);
     expect(r.text).toContain('patterns:');
     expect(r.text).not.toMatch(/^##\s/mu); // no help-style headings
-  });
-
-  it('agent probe: the 8 probe rules, bare — no citations, no headings', () => {
-    const text = runAgent('probe').text;
-    expect(text).toContain('target: probe');
-    for (const r of PROBE_RULES) expect(text).toContain(r.text);
-    expect(text).not.toContain('TypeSafe');
-    expect(text).not.toMatch(/^##\s/mu);
   });
 
   // Same shared rule list `help` uses (rules.ts) — never a second, divergent copy for the terse view.

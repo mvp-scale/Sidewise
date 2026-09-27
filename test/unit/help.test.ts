@@ -48,6 +48,11 @@ describe('runHelp', () => {
     expect(text.toLowerCase()).toContain('every item at that layer');
   });
 
+  it('[C-183] help view and help loop now carry their own good/bad pairs too', () => {
+    expect(runHelp('view').text).toContain('## Good / bad');
+    expect(runHelp('loop').text).toContain('## Good / bad');
+  });
+
   it.each(TOPICS)('[C-116] help %s: a real topic page', (topic) => {
     const r = runHelp(topic);
     expect(r.exit).toBe(0);
@@ -79,7 +84,7 @@ describe('runHelp', () => {
     expect(r.text.toLowerCase()).toContain('no options beyond the view name');
   });
 
-  it('help probe: the 8 rules, each with its TypeSafe citation', () => {
+  it('[C-180] help probe: the 8 rules, each with its TypeSafe citation', () => {
     const text = runHelp('probe').text;
     expect(text).toContain('## probe');
     for (const r of PROBE_RULES) {
@@ -88,7 +93,7 @@ describe('runHelp', () => {
     }
   });
 
-  it('help outcome: syntax, the self-held restriction, no --note, and a good/bad pair', () => {
+  it('[C-182] help outcome: syntax, the self-held restriction, no --note, and a good/bad pair', () => {
     const text = runHelp('outcome').text;
     expect(text).toContain('## outcome');
     expect(text).toContain('sidewise outcome <SW-####> held|overruled|failed --by <actor>');
@@ -98,7 +103,7 @@ describe('runHelp', () => {
     expect(text).toContain('sidewise outcome SW-0002 overruled --by claude');
   });
 
-  it('help budget: syntax, the bare "set" stop, and a good/bad pair', () => {
+  it('[C-182] help budget: syntax, the bare "set" stop, and a good/bad pair', () => {
     const text = runHelp('budget').text;
     expect(text).toContain('## budget');
     expect(text).toContain('sidewise budget set --usd 5 --runs 500');

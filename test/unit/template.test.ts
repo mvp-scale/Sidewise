@@ -23,6 +23,14 @@ describe('runTemplate', () => {
     expect(v && v.ok).toBe(true);
   });
 
+  it('[C-185] class and scan show the visible-scope probe as a commented-out, optional recommended question', () => {
+    for (const verb of ['class', 'scan'] as const) {
+      const text = runTemplate(verb).text;
+      expect(text).toContain('optional, recommended (TypeSafe best practice) — the visible-scope probe');
+      expect(text).toContain('Can this be answered from the code shown?');
+    }
+  });
+
   it('an unknown verb: a clean stop', () => {
     expect(runTemplate('nope')).toEqual({ exit: 2, text: '✖ template: "nope" is not a verb → one of view, class, change, scan, drill, loop' });
   });

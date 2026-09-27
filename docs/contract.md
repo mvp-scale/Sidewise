@@ -648,11 +648,31 @@ Per-verb sharp rules `help` carries: `drill` says to follow `next:` rather than 
 by severity, worst first, and to scan by file when the file is the unit that matters; `loop` says a sub-layer
 is a sibling key under `over:`, names are ≤ 20 characters with no `/`, and every question under a layer is
 asked of every item at that layer. [C-115]
-`sidewise help <topic>` covers `authoring`, `verdict`, `wise` and `reuse` — cross-cutting rules that don't
-belong to one verb. [C-116]
+`sidewise help <topic>` covers `authoring`, `verdict`, `wise`, `reuse` and `probe` — cross-cutting rules that
+don't belong to one verb. [C-116]
 `sidewise help wise` lists all five catalog fields (`why`, `area`, `stage`, `change`, `risk`) with their closed
 values and what each is for. [C-117]
 An unknown `help` target is a clean stop naming every real verb and topic. [C-118]
+`sidewise help probe` is its own recognized topic: a valid probe, the shape of a well-formed Sidewise question —
+one narrow judgment per question, self-contained wording (a question's number is a label for the response
+only), answerable from `where:` (naming the file in backticks when there's more than one), one polarity per
+category, concrete scale levels, a "none fits" choice option, the goal phrased as the safe state rather than
+the vulnerability, and the visible-scope probe ("Can this be answered from the code shown?") as a recommended
+extra question — each rule cited to its own TypeSafe documentation page. It's guidance labelled as best
+practice for a higher-quality answer, not new validator enforcement — nothing here is checked by the schema or
+cross-validator. [C-180]
+`sidewise agent probe` renders the same 8 rules bare, no citations, no prose, from the one shared list `help
+probe` renders with citations, so the two views can't drift apart; `sidewise agent` with no verb points
+explicitly at `sidewise agent probe`. [C-181]
+`sidewise help outcome` and `sidewise help budget` are recognized targets the same way `sidewise help report`
+already was — neither is a `side:`-YAML verb (neither takes `ask:`, neither calls the classifier) — each with
+its own purpose, example, sharp rules and a good/bad pair grounded in a real stop: `outcome`'s self-held
+restriction and its lack of a `--note` flag, `budget`'s bare `set` with no flags. `sidewise agent outcome`,
+`sidewise agent budget` and `sidewise agent report` are the same three targets' bare terse cards — no
+citations, no headings, hand-written rather than sharing a data structure with `help`'s prose (an agent card is
+why-only; there's no rule prose to reuse). Before this, `outcome` appeared in neither `help` nor `agent` at
+all. An unknown `help`/`agent` target now names all three extras (`report`, `outcome`, `budget`) alongside
+every verb and topic. [C-182]
 Every fact the validator enforces that `help` also states (depth counts, the `where` limit, the pass bar, and
 the `wise` catalog lists) is built from the same constants the schema check and validator use, and a test
 asserts each one appears verbatim in the `help` output it names — so the validator and `help` can't quietly
@@ -671,6 +691,13 @@ shape as `help <verb>`. [C-161]
 bad snippet, a good snippet, and one line of why, for the patterns that cause a first-try reject in practice
 (a whole file in `where:` instead of a range; a question about code that isn't in `where:`; several `where:`
 entries with no file named in the question; `scan` asking `{function}` about something outside it). [C-172]
+`sidewise help view`/`sidewise agent view` and `sidewise help loop`/`sidewise agent loop` each carry their own
+"Good / bad" section too (previously neither verb had one): `view` without `where:` (nothing to check reuse
+against) and `view` with `over:` present (it checks one subject, never a sweep) both reject outright at the
+schema/cross validator, as does `loop` with a code-glob `over.file` layer (loop sweeps written ideas, not
+files on disk — that's `scan`'s job). [C-183]
+The oversized-file good/bad pair's terse `why` (shown in `agent class`) reads "Big whole files refused —
+name the range", matching the real behavior since e6b7d78 (a stop, not a silent cut). [C-184]
 
 Each of the six verb templates (`skills/sidewise/templates/{view,class,change,scan,drill,loop}.yaml`) shows
 every `side.*` field that verb's own schema and cross-validator allow it to carry — required fields with a
@@ -680,14 +707,18 @@ live value, optional fields either live or as a commented-out example — each m
 so template and schema can't quietly drift apart. The category-level schema fields that don't vary by verb —
 `need:` and `tags:`, alongside `pass:` and the three question kinds (yes/no, `scale`, `choice`) — are
 demonstrated once, in `class.yaml`, rather than repeated in all six. [C-174] [C-175]
+`class.yaml` and `scan.yaml` show the visible-scope probe question ("Can this be answered from the code
+shown?") as a commented-out, optional recommended addition, matching the templates' existing
+optional-field comment style. [C-185]
 
 ## agent
 
 `sidewise agent [verb]` (free, no project needed, never spends or writes) is `help`'s terse, agent-facing twin:
 the enforced rules for that verb (the same list `help <verb>` states) and its "Good / bad" pairs, why-only, in
-at most 8 words — no prose, no headings beyond a bare label. `sidewise agent` alone gives the verb list and the
-universal rules. It is not a seventh verb, the same way `report` isn't: free, read-only, no options beyond the
-verb name. Every request-validation stop's pointer (`→ see: sidewise agent <verb>`, C-153) names this, not
+at most 8 words — no prose, no headings beyond a bare label. `sidewise agent` alone gives the verb list, the
+universal rules, and a pointer to `sidewise agent probe`. Beyond the six verbs, `agent` also recognizes the
+same non-verb targets `help` does — `probe`, `outcome`, `budget`, `report` — each its own bare card, free,
+read-only. Every request-validation stop's pointer (`→ see: sidewise agent <verb>`, C-153) names this, not
 `help` — a stop is read by the agent that sent the request. [C-173]
 
 ---

@@ -24,6 +24,12 @@ function parse(text: string, verb: Verb): Validated {
 }
 
 describe('help/patterns.ts: good/bad pairs shared by help and agent', () => {
+  it('[C-184] the oversized-file why no longer claims files get cut (a whole file is refused, not truncated)', () => {
+    const p = PATTERNS.find((x) => x.rule.startsWith('A file this size'))!;
+    expect(p.why).toBe('Big whole files refused — name the range');
+    expect(p.why.toLowerCase()).not.toContain('get cut');
+  });
+
   for (const p of PATTERNS) {
     describe(p.rule, () => {
       it('the why is terse: at most 8 words', () => {
