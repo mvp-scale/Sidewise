@@ -4,7 +4,7 @@ import type { Request, Verb } from '../contract/types.ts';
 import { validateRequest } from '../contract/validate.ts';
 import type { VerbResult } from './types.ts';
 
-export const MAX_STOPS = 5;
+const MAX_STOPS = 5;
 
 /** At most 5 stops, then one line saying how many more: pasted junk must not flood an agent's context. */
 export function stopText(stops: readonly string[]): string {

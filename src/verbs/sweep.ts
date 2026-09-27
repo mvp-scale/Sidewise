@@ -25,7 +25,7 @@ import { askAll, record, recordFree, type PlannedCall, type Step } from './pay.t
 import { dryRunText } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
-export interface PlannedLayer {
+interface PlannedLayer {
   layer: string;
   call: PlannedCall | null;
   /** Items this layer's call asks about (pushed into state.items), in item order. */
@@ -34,7 +34,7 @@ export interface PlannedLayer {
   skipped: string[];
 }
 
-export interface SweepPlan {
+interface SweepPlan {
   /** Every layer expand() found (including layers with no ask: entry). */
   layers: string[];
   /** Every item, parents before children. */

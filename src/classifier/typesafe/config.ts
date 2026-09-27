@@ -33,7 +33,7 @@ export class JevApiError extends Error {
   }
 }
 
-export type JevRoute = 'direct' | 'gateway';
+type JevRoute = 'direct' | 'gateway';
 
 export interface JevConfig {
   route: JevRoute;
@@ -47,11 +47,11 @@ export interface JevConfig {
   timeoutMs: number;
 }
 
-export const DIRECT_BASE_URL = 'https://api.typesafe.ai';
-export const GATEWAY_BASE_URL = 'https://ai-gateway.vercel.sh/typesafe';
-export const DEFAULT_PINNED_MODEL = 'jev-1.13.0';
-export const DEFAULT_GATEWAY_MODEL = 'typesafe-ai/jev';
-export const DEFAULT_TIMEOUT_MS = 20_000;
+const DIRECT_BASE_URL = 'https://api.typesafe.ai';
+const GATEWAY_BASE_URL = 'https://ai-gateway.vercel.sh/typesafe';
+const DEFAULT_PINNED_MODEL = 'jev-1.13.0';
+const DEFAULT_GATEWAY_MODEL = 'typesafe-ai/jev';
+const DEFAULT_TIMEOUT_MS = 20_000;
 
 type Env = Record<string, string | undefined>;
 
@@ -61,7 +61,7 @@ const clean = (v: string | undefined): string | undefined => {
 };
 
 /** Aliases that float: refused, because scores must be reproducible (`.env.example`). */
-export function isFloatingModel(model: string): boolean {
+function isFloatingModel(model: string): boolean {
   return /(^|[-/])(latest|preview)$/i.test(model.trim());
 }
 

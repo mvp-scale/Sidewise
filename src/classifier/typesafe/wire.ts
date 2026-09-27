@@ -37,7 +37,7 @@ export function readUsageAndCost(raw: Record<string, unknown>): { usage: { input
 }
 
 /** Retry-After (seconds or HTTP date) or retry-after-ms → ms, else undefined. */
-export function parseRetryAfterMs(headers: Headers, now = Date.now()): number | undefined {
+function parseRetryAfterMs(headers: Headers, now = Date.now()): number | undefined {
   const ms = headers.get('retry-after-ms');
   if (ms !== null && Number.isFinite(Number(ms)) && Number(ms) >= 0) return Number(ms);
   const raw = headers.get('retry-after');
@@ -48,7 +48,7 @@ export function parseRetryAfterMs(headers: Headers, now = Date.now()): number | 
 }
 
 /** 408, 429, 5xx (incl. 529 "overloaded") are transient; everything else is our request's fault. */
-export function isRetryableStatus(status: number): boolean {
+function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || (status >= 500 && status <= 599);
 }
 

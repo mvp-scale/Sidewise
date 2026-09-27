@@ -30,7 +30,7 @@ export function scoreQuestion(instructions: JsonValue, levels: readonly string[]
   return { type: 'score', instructions, criteria: [...levels] };
 }
 
-export type JevAnswer =
+type JevAnswer =
   | { type: 'noul'; probability: number; confidence: number }
   | { type: 'choice'; choice: string; probabilities: Record<string, number>; confidence: number }
   | { type: 'score'; score: number; distribution: number[]; confidence: number };

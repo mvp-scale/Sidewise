@@ -29,7 +29,7 @@ const isStoreFailure = (e: unknown): e is Error => e instanceof LedgerError || e
 const isProbability = (p: unknown): p is number => typeof p === 'number' && p >= 0 && p <= 1; // NaN fails both
 
 /** A reported cost we can add up: finite and not negative. Anything else counts as not reported. */
-export const usableCost = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined);
+const usableCost = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined);
 
 /** One short line from whatever a provider threw (an Error, a string, a many-line HTML body). Redacted before
  *  truncation (P6): a provider error can echo back request headers or config, so this is the one place every

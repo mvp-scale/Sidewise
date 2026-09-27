@@ -57,6 +57,7 @@
     "check:clean": "sh scripts/check-clean.sh",
     "check:trace": "tsx scripts/trace.ts",
     "check:pack": "tsx scripts/check-pack.ts",
+    "check:hygiene": "tsx scripts/check-hygiene.ts",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
   "devDependencies": {

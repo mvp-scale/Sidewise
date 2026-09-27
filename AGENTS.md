@@ -16,6 +16,7 @@
 | Requirement -> test trace (fails on an untraced contract claim) | `npm run check:trace` |
 | Clean install + README quickstart, built first (`npm run build`) | `npm run test:install` |
 | Tarball content check (files allow-list, required entry points) | `npm run check:pack` |
+| Header-comment / unused-export check | `npm run check:hygiene` |
 | Validate the Claude Code plugin and marketplace | `claude plugin validate .` |
 
 ## Rules

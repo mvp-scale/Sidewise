@@ -39,21 +39,21 @@ import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type 
 import { withLock } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
 
-export const whoKey = (who: { adapter: string; model: string }): string => `${who.adapter}|${who.model}`;
+const whoKey = (who: { adapter: string; model: string }): string => `${who.adapter}|${who.model}`;
 
 /** Strips a trailing ":start" or ":start-end" from a v2 `where` entry — the same shape evidence/code.ts and
  *  view.ts parse. Shared here (rather than duplicated in view.ts) so the index and view agree on what a place
  *  string is. */
 export const stripLines = (entry: string): string => entry.replace(/:(\d+(?:-\d+)?)$/u, '');
 
-export interface ReuseHit {
+interface ReuseHit {
   runId: string;
   qid: string;
   offset: number;
   blocked: boolean;
 }
 
-export type Candidate = { id: string; offset: number };
+type Candidate = { id: string; offset: number };
 
 /** What log.ts/reuse.ts/view.ts can ask the index, regardless of which engine answered it. Every method is a
  *  point read or a small bounded query — never a full-ledger scan on the SQLite path. */

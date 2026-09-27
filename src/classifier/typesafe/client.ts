@@ -28,7 +28,7 @@ export * from './answers.ts';
 export * from './config.ts';
 export * from './wire.ts';
 
-export interface JevClient {
+interface JevClient {
   readonly config: JevConfig;
   /** Every question in one HTTP round trip (noul, choice and score may be mixed), retried per the module
    *  doc's rule; throws JevApiError once retries (if any) are exhausted. */
