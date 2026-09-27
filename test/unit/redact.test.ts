@@ -1,7 +1,7 @@
 // Redaction must stay linear on hostile input: an agent can paste anything into a request, and code evidence
 // can be a minified bundle. A cubic regex here once took minutes on 24 KB ('token_' repeated).
-import { describe, expect, it } from 'vitest';
-import { redact, redactSecrets } from '../../src/ledger/redact.ts';
+import { afterEach, describe, expect, it } from 'vitest';
+import { clearRegisteredSecrets, redact, redactSecrets, registerSecret } from '../../src/ledger/redact.ts';
 
 const timed = (text: string): { ms: number; out: string } => {
   const start = performance.now();
@@ -56,5 +56,25 @@ describe('redact still catches what it did', () => {
     expect(redactSecrets(`before\n${key}`)).toBe('before\n[redacted]');
     const whole = `${key}\n-----END RSA ${'PRIVATE KEY'}-----\nafter`;
     expect(redactSecrets(whole)).toBe('[redacted]\nafter');
+  });
+});
+
+describe('registerSecret: a resolved key gets scrubbed even with no secret-shaped pattern [C-097]', () => {
+  afterEach(() => clearRegisteredSecrets());
+
+  it('a registered value disappears from any text it appears in', () => {
+    registerSecret('a-plain-looking-resolved-key-value');
+    expect(redactSecrets('goal: uses a-plain-looking-resolved-key-value here')).toBe('goal: uses [redacted] here');
+  });
+
+  it('never registers a short value: a one-letter test double can\'t nuke unrelated text', () => {
+    registerSecret('k');
+    expect(redactSecrets('breakfast')).toBe('breakfast'); // contains "k"; must survive untouched
+  });
+
+  it('clearRegisteredSecrets resets the registry between tests', () => {
+    registerSecret('another-long-resolved-key-value');
+    clearRegisteredSecrets();
+    expect(redactSecrets('another-long-resolved-key-value')).toBe('another-long-resolved-key-value');
   });
 });

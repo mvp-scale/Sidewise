@@ -5,7 +5,7 @@
  * Two run shapes: contract runs (`v: 2`, written by every verb) and Plan 1's text-format runs (no `v`, read only).
  * Both count toward SW ids.
  */
-import { accessSync, appendFileSync, closeSync, constants, existsSync, mkdirSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import { accessSync, appendFileSync, closeSync, constants, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { ItemStatus } from '../contract/grade.ts';
 import type { UnitRef } from '../contract/layers.ts';
@@ -18,7 +18,7 @@ import { formatRunId, ulid } from './ids.ts';
 // ESM as long as neither side touches the other's exports before both modules finish loading, which holds here.
 import { readRecordAt, withIndex } from './index.ts';
 import { onStore, withLock } from './lock.ts';
-import type { SidewisePaths } from './paths.ts';
+import { ensureDir, type SidewisePaths } from './paths.ts';
 import { redact, redactDeep, redactSecrets } from './redact.ts';
 
 export type Outcome = 'held' | 'overruled' | 'failed';
@@ -327,7 +327,7 @@ function logEndsCleanly(logPath: string): boolean {
 
 function appendLine(paths: SidewisePaths, record: LedgerRecord): void {
   onStore(paths.log, 'write', () => {
-    mkdirSync(paths.dir, { recursive: true });
+    ensureDir(paths);
     const needsBreak = !logEndsCleanly(paths.log);
     appendFileSync(paths.log, `${needsBreak ? '\n' : ''}${JSON.stringify(record)}\n`);
   });

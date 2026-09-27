@@ -4,15 +4,20 @@
  * {option: option}), all in one questions map. A question about a sweep item sends structured instructions
  * {item, question}, so the classifier knows which entry of state.items it is about.
  */
+import { registerSecret } from '../../ledger/redact.ts';
 import type { ClassifierAnswer, ClassifierPort } from '../port.ts';
-import { choiceQuestion, createJevClient, hasKey, JevConfigError, noulQuestion, resolveJevConfig, scoreQuestion, type JevQuestion, type JsonValue } from './client.ts';
+import { choiceQuestion, createJevClient, hasKey, JevConfigError, noulQuestion, resolveJevConfig, scoreQuestion, type JevQuestion, type JsonValue, type ResolveStored } from './client.ts';
 
 export const NO_TYPESAFE_KEY_MESSAGE =
   '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY or AI_GATEWAY_API_KEY, or SIDEWISE_PROVIDER=fake to try requests';
 
-export function createTypesafeAdapter(env: Record<string, string | undefined> = process.env, deps: { fetch?: typeof fetch } = {}): ClassifierPort {
-  const config = resolveJevConfig(env);
+export function createTypesafeAdapter(
+  env: Record<string, string | undefined> = process.env,
+  deps: { fetch?: typeof fetch; resolveStored?: ResolveStored } = {},
+): ClassifierPort {
+  const config = resolveJevConfig(env, { resolveStored: deps.resolveStored });
   if (!hasKey(config)) throw new JevConfigError(NO_TYPESAFE_KEY_MESSAGE);
+  registerSecret(config.apiKey); // defense in depth: a key from the keychain/user file never has env's own shape to pattern-match
   const client = createJevClient(config, deps);
 
   return {

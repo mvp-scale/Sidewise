@@ -192,6 +192,29 @@ describe('resolveJevConfig', () => {
   it('refuses a floating model alias', () => {
     expect(() => resolveJevConfig({ JEV_MODEL: 'jev-latest' })).toThrow(JevConfigError);
   });
+
+  it('with no deps.resolveStored at all, stays exactly as pure as before: no key, no keySource', () => {
+    const cfg = resolveJevConfig({});
+    expect(cfg.apiKey).toBeUndefined();
+    expect(cfg.keySource).toBeUndefined();
+  });
+
+  it('an env key wins over a stored one, and keySource says "env" [C-097]', () => {
+    const cfg = resolveJevConfig({ TYPESAFE_API_KEY: 'k' }, { resolveStored: () => ({ apiKey: 'stored-k', source: 'keychain', provider: 'typesafe' }) });
+    expect(cfg).toMatchObject({ route: 'direct', apiKey: 'k', keySource: 'env' });
+  });
+
+  it('with no env key, deps.resolveStored supplies the key and its source [C-097]', () => {
+    const fromKeychain = resolveJevConfig({}, { resolveStored: () => ({ apiKey: 'kc-key', source: 'keychain', provider: 'typesafe' }) });
+    expect(fromKeychain).toMatchObject({ route: 'direct', apiKey: 'kc-key', keySource: 'keychain' });
+
+    const fromFile = resolveJevConfig({}, { resolveStored: () => ({ apiKey: 'file-key', source: 'file', provider: 'gateway' }) });
+    expect(fromFile).toMatchObject({ route: 'gateway', apiKey: 'file-key', keySource: 'file', wireModel: 'typesafe-ai/jev' });
+  });
+
+  it('deps.resolveStored returning undefined behaves exactly like no deps at all', () => {
+    expect(resolveJevConfig({}, { resolveStored: () => undefined })).toMatchObject({ route: 'direct', apiKey: undefined });
+  });
 });
 
 describe('SIDEWISE_BASE_URL (P3)', () => {

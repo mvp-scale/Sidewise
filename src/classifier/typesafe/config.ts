@@ -35,10 +35,25 @@ export class JevApiError extends Error {
 
 type JevRoute = 'direct' | 'gateway';
 
+/** Where init (setup/keystore.ts) found a key outside env: the OS keychain, or the user credentials file.
+ *  `provider` says which route it's for, same as the credentials file's own "typesafe"/"gateway" key. */
+export interface StoredKey {
+  apiKey: string;
+  source: 'keychain' | 'file';
+  provider: 'typesafe' | 'gateway';
+}
+/** Looks up a stored key once; undefined when none is configured, a tool is missing, or a keychain is locked
+ *  (setup/keystore.ts's resolveStoredKey skips to the next source silently on any of those — never here). */
+export type ResolveStored = () => StoredKey | undefined;
+
 export interface JevConfig {
   route: JevRoute;
   /** undefined = no key configured (fine for dry-run; `createJevClient` throws). */
   apiKey: string | undefined;
+  /** Where apiKey came from; undefined alongside an undefined apiKey. Never set from a bare `resolveJevConfig(env)`
+   *  call with no `deps.resolveStored` — only real call sites (the typesafe adapter, doctor) pass one, so no
+   *  existing caller starts doing keychain/file I/O just by upgrading. */
+  keySource?: 'env' | 'keychain' | 'file';
   baseURL: string;
   /** The pinned model label from JEV_MODEL (e.g. `jev-1.13.0`); recorded on every result. */
   model: string;
@@ -65,12 +80,17 @@ function isFloatingModel(model: string): boolean {
   return /(^|[-/])(latest|preview)$/i.test(model.trim());
 }
 
-/** TYPESAFE_API_KEY wins (direct); else AI_GATEWAY_API_KEY (gateway); with neither, direct is assumed. */
-function resolveRoute(env: Env): { route: JevRoute; apiKey: string | undefined } {
+/** TYPESAFE_API_KEY wins (direct); else AI_GATEWAY_API_KEY (gateway); else `deps.resolveStored` (the OS
+ *  keychain, then the user credentials file — that order is resolveStoredKey's own, not this function's); with
+ *  none of those, direct is assumed (matches today's "no key configured" default). */
+function resolveRoute(env: Env, deps: { resolveStored?: ResolveStored }): { route: JevRoute; apiKey: string | undefined; keySource?: 'env' | 'keychain' | 'file' } {
   const directKey = clean(env.TYPESAFE_API_KEY);
   const gatewayKey = clean(env.AI_GATEWAY_API_KEY);
-  const route: JevRoute = directKey || !gatewayKey ? 'direct' : 'gateway';
-  return { route, apiKey: route === 'gateway' ? gatewayKey : directKey };
+  if (directKey) return { route: 'direct', apiKey: directKey, keySource: 'env' };
+  if (gatewayKey) return { route: 'gateway', apiKey: gatewayKey, keySource: 'env' };
+  const stored = deps.resolveStored?.();
+  if (stored) return { route: stored.provider === 'gateway' ? 'gateway' : 'direct', apiKey: stored.apiKey, keySource: stored.source };
+  return { route: 'direct', apiKey: undefined };
 }
 
 function resolveTimeoutMs(env: Env): number {
@@ -111,19 +131,25 @@ function resolveBaseURL(env: Env, baseDefault: string): string {
  *   SIDEWISE_BASE_URL   override the base URL (proxies, self-hosting, tests) — https required except for
  *                       localhost/127.0.0.1/[::1] (see resolveBaseURL)
  *   JEV_TIMEOUT_MS      per-attempt timeout
+ *
+ * `deps.resolveStored` (default: none) is an injectable lookup for a key kept outside env — the OS keychain or
+ * init's user credentials file (setup/keystore.ts's resolveStoredKey, which real call sites pass explicitly).
+ * Omitting it keeps this call exactly as pure as before: no existing caller starts doing keychain/file I/O
+ * just by this feature landing.
  */
-export function resolveJevConfig(env: Env = process.env): JevConfig {
+export function resolveJevConfig(env: Env = process.env, deps: { resolveStored?: ResolveStored } = {}): JevConfig {
   const model = clean(env.JEV_MODEL) ?? DEFAULT_PINNED_MODEL;
   if (isFloatingModel(model)) {
     throw new JevConfigError(
       `JEV_MODEL="${model}" floats. Pin an exact version (e.g. ${DEFAULT_PINNED_MODEL}) so scores are reproducible.`,
     );
   }
-  const { route, apiKey } = resolveRoute(env);
+  const { route, apiKey, keySource } = resolveRoute(env, deps);
   const baseDefault = route === 'gateway' ? GATEWAY_BASE_URL : DIRECT_BASE_URL;
   return {
     route,
     apiKey,
+    ...(keySource ? { keySource } : {}),
     baseURL: resolveBaseURL(env, baseDefault),
     model,
     wireModel: route === 'gateway' ? (clean(env.JEV_GATEWAY_MODEL) ?? DEFAULT_GATEWAY_MODEL) : model,

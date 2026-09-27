@@ -1,4 +1,24 @@
 /** Redacts secret-shaped strings before anything reaches the classifier or the ledger (append-only: a leak can't be undone). */
+
+// A resolved TypeSafe/gateway key (init's keychain/user-file storage means it may never touch env, so the
+// pattern-based checks below can't know its shape). registerSecret adds its literal value here, so a key that
+// somehow ends up in a goal or evidence string (a user pastes it by mistake) still never reaches the ledger.
+// Anything shorter than MIN_SECRET_LEN is ignored: a short fake-provider test double ('k', 'g-test') would
+// otherwise nuke every occurrence of that substring in unrelated text. Module-level and process-lifetime only —
+// never written anywhere, never read back.
+const MIN_SECRET_LEN = 8;
+let registeredSecrets: readonly string[] = [];
+
+export function registerSecret(value: string | undefined): void {
+  const v = value?.trim();
+  if (v && v.length >= MIN_SECRET_LEN && !registeredSecrets.includes(v)) registeredSecrets = [...registeredSecrets, v];
+}
+
+/** Test-only: clears the registry so one test's dummy key can't leak into another's expectations. */
+export function clearRegisteredSecrets(): void {
+  registeredSecrets = [];
+}
+
 const PATTERNS: RegExp[] = [
   /gh[pousr]_[A-Za-z0-9]{20,}/g,
   /sk-[A-Za-z0-9_-]{20,}/g,
@@ -23,6 +43,7 @@ export function redactSecrets(text: string): string {
   let out = text.replace(KEY_VALUE, (_m, key: string, quote: string, sep: string) => `${key}${quote}${sep}[redacted]`);
   out = out.replace(BEARER, (_m, word: string) => `${word} [redacted]`);
   for (const p of PATTERNS) out = out.replace(p, '[redacted]');
+  for (const s of registeredSecrets) if (out.includes(s)) out = out.split(s).join('[redacted]');
   return out;
 }
 

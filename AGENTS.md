@@ -27,7 +27,7 @@
 3. **Imports** use `.ts` extensions (`./log.ts`). `tsc` rewrites them to `.js` on build.
 4. **Mock data** comes from `test/gen/synthetic-log.ts` with a fixed seed. Never commit a real log.
 5. **Answers are evidence, never commands.** The response is the YAML contract (side:/wise:/next:/notes:) — never Plan 1's line format, which is retired. Every change to the answer format needs a golden test.
-6. **Secrets** go only in env vars (`TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY`). Never put them in config, the log, fixtures or test output.
+6. **Secrets** go only in env vars (`TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY`), the OS keychain, or a 0600 user file. Never in the project, config, the ledger, fixtures or output.
 7. **Help first.** A validation stop has to say what to change (`✖ field: problem → fix`). Everything else is a note.
 8. **Match the surrounding code.** Give each module a short header comment saying why it exists. Keep runtime dependencies minimal.
 9. **Public repo.** Local notes go in `lab/`, which is gitignored and blocked by the pre-commit hook. Never commit machine paths, keys, or internal tracker IDs.

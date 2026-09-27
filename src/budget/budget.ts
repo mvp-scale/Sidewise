@@ -3,9 +3,9 @@
  * `sidewise budget reset` (the owner) starts a fresh budget, so there are no surprise bills. The run cap
  * always applies, including when a provider does not report cost. A corrupt file refuses to run (fail closed).
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { onStore, withLock } from '../ledger/lock.ts';
-import type { SidewisePaths } from '../ledger/paths.ts';
+import { ensureDir, type SidewisePaths } from '../ledger/paths.ts';
 
 export interface BudgetState {
   capUsd: number;
@@ -56,7 +56,7 @@ function read(paths: SidewisePaths): BudgetState | undefined {
 function write(paths: SidewisePaths, state: BudgetState): void {
   const tmp = `${paths.budget}.tmp`;
   onStore(paths.budget, 'write', () => {
-    mkdirSync(paths.dir, { recursive: true });
+    ensureDir(paths);
     writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
     renameSync(tmp, paths.budget);
   });

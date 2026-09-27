@@ -34,10 +34,10 @@
  *     values only (no prefix expansion at write time — `placeCandidates` below does a LIKE-prefix read instead).
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
 import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
 import { withLock } from './lock.ts';
-import type { SidewisePaths } from './paths.ts';
+import { ensureDir, type SidewisePaths } from './paths.ts';
 
 const whoKey = (who: { adapter: string; model: string }): string => `${who.adapter}|${who.model}`;
 
@@ -711,8 +711,7 @@ function rmSiblingWalShm(dbPath: string): void {
 /** Full rebuild: fresh tables, one transaction, streamed from byte 0. Written to a tmp file in the same dir,
  *  then renamed into place — a reader can never observe a half-built index.db. Must run under paths.lock. */
 function rebuildToDisk(paths: SidewisePaths, Db: DatabaseSyncCtor): SqliteDb {
-  const dir = paths.dir;
-  mkdirSync(dir, { recursive: true });
+  ensureDir(paths);
   const tmp = tmpDbPath(paths.index);
   rmDbFiles(tmp);
   const db = new Db(tmp);
