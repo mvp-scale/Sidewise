@@ -1,5 +1,5 @@
 /**
- * doctor: plumbing, not a verb (owner ruling, P5: the one exception to "no new tools"). Free — no classifier
+ * doctor: plumbing, not a verb — deliberately the one exception to "no new tools". Free — no classifier
  * call, no budget touched, no ledger write — so an agent can check what a real call WOULD do before spending
  * anything: which provider/route/base URL would answer, whether a key is set and where it came from (never its
  * value), the pinned model, whether a project/ledger is reachable from here, the Node/node:sqlite runtime, how
@@ -58,7 +58,7 @@ function identityFor(env: Record<string, string | undefined>, config: JevConfig)
 
 const octal4 = (mode: number): string => mode.toString(8).padStart(4, '0');
 
-/** Fix #18: the `actor:` value — every run/outcome defaults to `by: agent` unless SIDEWISE_ACTOR is set (the
+/** The `actor:` value — every run/outcome defaults to `by: agent` unless SIDEWISE_ACTOR is set (the
  *  same fallback pay.ts's actorOf uses; duplicated rather than imported, matching this module's own low-
  *  dependency style). On a real MCP call, cli.ts's mcp wiring sets this from git's user.name (or "claude")
  *  before dispatch ever reaches here — see src/mcp/actor.ts — so this line shows what will actually be used. */
@@ -115,7 +115,7 @@ function pluginLine(deps: { runner?: Runner }): string {
   return `sidewise@mvp-scale · ${status.scopes[0] ?? 'user'} scope`;
 }
 
-/** Using is per project (an owner ruling): the `project:` value names the root, then whether the plugin is
+/** Using is per project: the `project:` value names the root, then whether the plugin is
  *  enabled for THIS project specifically. `project` scope is already project-specific — checked from wherever
  *  this process runs, which is how Claude Code's own project scope is itself resolved. `user` scope counts too:
  *  a user-scope install applies to every project, this one included. `local` scope also ties to one project,
@@ -172,7 +172,7 @@ export function runDoctor(
     ],
     ['notes', notes],
   );
-  // Node < 22.13 (owner ruling): doctor still runs and reports it (the node:/index: fields above), but the
+  // Node < 22.13: doctor still runs and reports it (the node:/index: fields above), but the
   // process exits 2 just like every other command's version stop — never a silent 0.
   return { exit: nodeVersionOk(nodeVersion) ? 0 : 2, text: emit(doc) };
 }
