@@ -1,5 +1,5 @@
 /**
- * Node ≥ 22.13 is a hard requirement (owner ruling): earlier runtimes have no `node:sqlite`, so
+ * Node ≥ 22.13 is a hard requirement: earlier runtimes have no `node:sqlite`, so
  * `ledger/index.ts` used to fall back to its slower linear scan with nothing telling the caller — the owner
  * hit exactly this on a Node 20 host, where `.sidewise/index.db` was silently never built. `cli.ts`'s whole
  * dispatch checks this once, at the top, before any command but `doctor` (which still runs and reports the
@@ -30,7 +30,7 @@ export function nodeVersionOk(v: string): boolean {
 }
 
 /** The exact stop line printed (and returned as an MCP `tools/call` error) for every command but `doctor` on
- *  too old a Node — verbatim, per the owner ruling. `undefined` when `v` is fine, so a caller can write
+ *  too old a Node — verbatim. `undefined` when `v` is fine, so a caller can write
  *  `if (stop) ...` without calling `nodeVersionOk` a second time. */
 export function nodeVersionStop(v: string): string | undefined {
   if (nodeVersionOk(v)) return undefined;

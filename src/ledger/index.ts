@@ -12,7 +12,7 @@
  *     (skipped when this process already holds it — see withLockIfNeeded).
  *   - Linear fallback (in-memory only, never persisted): the always-correct oracle a real SQLite call still
  *     falls back to when it throws (a corrupt or mid-write index.db — self-heal's own safety net, unrelated to
- *     Node version). Node ≥ 22.13 is a hard requirement (owner ruling, [C-107]): node:sqlite genuinely missing
+ *     Node version). Node ≥ 22.13 is a hard requirement ([C-107]): node:sqlite genuinely missing
  *     is no longer a silent reason to use this path in production — `runSqlite` throws a LedgerError instead,
  *     since cli.ts's own version guard means every command but `doctor` already stops before reaching here at
  *     all; this throw is only the backstop for a caller (a library consumer) that reaches the ledger directly,
@@ -1136,7 +1136,7 @@ function runSqlite<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, opts: { f
   if (__testOnly.forceFallback) return fn(buildMemoryHandle(paths));
   try {
     const Db = getSqliteCtor();
-    // Production never silently degrades here anymore (owner ruling): node:sqlite missing for real is only
+    // Production never silently degrades here anymore: node:sqlite missing for real is only
     // possible on a real Node < 22.13 — cli.ts's version guard already stops every command but `doctor` before
     // reaching this far, so this throw is purely the backstop for a caller that reaches the ledger directly
     // (a library consumer, bypassing the CLI). A LedgerError propagates straight out (see the catch below),
