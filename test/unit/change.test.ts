@@ -9,6 +9,7 @@ import { appendContractRun, appendRun, isContractRun, readLedger } from '../../s
 import { setBudget } from '../../src/budget/budget.ts';
 import { runChange } from '../../src/verbs/change.ts';
 import { runClass } from '../../src/verbs/class.ts';
+import { runDrill } from '../../src/verbs/drill.ts';
 import { runScan } from '../../src/verbs/scan.ts';
 import { gitCommit, gitInit, tempProject } from '../helpers/project.ts';
 import { sampleContractRun, sampleRun } from '../helpers/runs.ts';
@@ -70,24 +71,32 @@ describe('change', () => {
     expect(r.text).toBe('✖ side.parent: SW-0001 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent change');
   });
 
-  // Round 3 smoke test root cause (STOPS.md #1, .sidewise/QUESTION-DETAIL.md #3): a drill/scan with
-  // `over: {file, function: each}` is sweep-shaped (parent.items !== null) even when the code style (a
-  // handler defined as `this.x = () => {}` inside a constructor) means the function layer only ever finds
-  // ONE item. change still refuses it — by design (C-063) — regardless of how many items the sweep found.
-  // This reproduces that exact shape end to end through a real scan, not a hand-built ledger record.
-  it('a real scan with exactly one item is still a sweep parent, and change still refuses it', async () => {
+  // Round 3 smoke test root cause (STOPS.md #1, .sidewise/QUESTION-DETAIL.md #3): the confirming run was
+  // `drill --parent SW-0001 --from contributions.js` with `over: {function: each}` — a single new layer
+  // added to an already-scoped file item, not scan's own chained file+function sweep (which would also carry
+  // a file-layer item alongside it). Because the handler was defined as `this.x = () => {}` inside a
+  // constructor, that layer found exactly ONE item — yet `parent.items !== null` still made it sweep-shaped,
+  // and change refuses it regardless of how many items the sweep actually found. Reproduced end to end here
+  // through a real scan (SW-0001, one file item) then a real drill (SW-0002, exactly one function item) —
+  // not a hand-built ledger record — with the item count asserted directly off the ledger, not inferred.
+  it('a drill sweep with exactly one item is still a sweep parent, and change still refuses it', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function onlyFn(req) { return db.query(`x ${req.id}`); }\n' });
-    const scanReq =
-      'side:\n  goal: check handlers\n  depth: quick\n  over:\n    file: src/a.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\n';
-    const scanResult = await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
-    expect(scanResult.text).toContain('scanned: {file: 1, function: 1}'); // exactly one item, same as NodeGoat's handlers
-    const r = await runChange('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', {
+    const scanReq = 'side:\n  goal: check handlers\n  depth: quick\n  over:\n    file: src/a.ts\n  ask:\n    file:\n      injection:\n        pass: no\n        1: is it unsafe?\n';
+    await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001: one file-layer item, no function layer yet
+    const drillReq =
+      'side:\n  goal: check each function\n  parent: SW-0001\n  from: src/a.ts\n  over:\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\n';
+    await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0002: sweep-shaped, exactly one function item
+
+    const sw2 = readLedger(paths).find((x) => x.id === 'SW-0002');
+    expect(sw2 && isContractRun(sw2) ? Object.keys(sw2.items ?? {}) : null).toEqual(['src/a.ts/onlyFn']); // items !== null, length 1
+
+    const r = await runChange('side:\n  goal: verify the fix\n  parent: SW-0002\n  compare: {before: worktree, after: worktree}\n', {
       paths,
       provider: stubProvider(),
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0001 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent change');
+    expect(r.text).toBe('✖ side.parent: SW-0002 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent change');
   });
 
   it('a legacy (Plan 1) parent stops', async () => {
