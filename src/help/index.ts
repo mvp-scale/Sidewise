@@ -8,6 +8,7 @@ import { VERBS, type Verb } from '../contract/types.ts';
 import type { VerbResult } from '../verbs/types.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { card } from './card.ts';
+import { reportHelp } from './report.ts';
 import { TOPICS, topicHelp, type Topic } from './topics.ts';
 import { verbHelp } from './verbs.ts';
 
@@ -22,8 +23,11 @@ export function runHelp(target?: string): VerbResult {
   if (hasControlChars(target)) return { exit: 2, text: '✖ help: the target has control characters → use a verb or a topic name' };
   if (isVerb(target)) return { exit: 0, text: verbHelp(target) };
   if (isTopic(target)) return { exit: 0, text: topicHelp(target) };
+  // report isn't a seventh verb (it's a free read tool outside the 2x3 grid) or a cross-cutting topic — its own
+  // recognized target, checked here rather than added to VERBS/help/verbs.ts's Record<Verb, ...> maps.
+  if (target === 'report') return { exit: 0, text: reportHelp() };
   return {
     exit: 2,
-    text: `✖ help: "${clip(target, 40)}" is not a verb or topic → one of ${VERBS.join(', ')}, or a topic: ${TOPICS.join(', ')}`,
+    text: `✖ help: "${clip(target, 40)}" is not a verb or topic → one of ${VERBS.join(', ')}, or a topic: ${TOPICS.join(', ')}, or "report"`,
   };
 }

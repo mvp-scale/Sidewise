@@ -32,5 +32,7 @@ export function card(): string {
     '',
     'Go deeper: `sidewise help <verb>` (view, class, change, scan, drill, loop) or `sidewise help <topic>`',
     '(authoring, verdict, wise, reuse). `sidewise template <verb>` prints a commented, filled-in sample.',
+    '`sidewise report [hits|patterns|history]` reads back what the ledger has learned across every place, free —',
+    'not a seventh verb, just a read tool (`sidewise help report`).',
   ].join('\n');
 }

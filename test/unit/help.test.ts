@@ -68,6 +68,17 @@ describe('runHelp', () => {
     for (const topic of TOPICS) expect(r.text).toContain(topic);
   });
 
+  it('help report: not a seventh verb, but its own recognized target', () => {
+    const r = runHelp('report');
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('## report');
+    expect(r.text).toContain('sidewise report');
+    expect(r.text).toContain('hits');
+    expect(r.text).toContain('patterns');
+    expect(r.text).toContain('history');
+    expect(r.text.toLowerCase()).toContain('no options beyond the view name');
+  });
+
   it('a target with control characters: a clean stop', () => {
     expect(runHelp('a\u0000b').exit).toBe(2);
   });

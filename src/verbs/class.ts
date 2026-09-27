@@ -18,6 +18,7 @@ import { readCodeEvidence } from '../evidence/code.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers } from '../ledger/reuse.ts';
+import { staleNotes } from '../ledger/stale.ts';
 import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
@@ -77,6 +78,10 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
   if (!pre.ok) return pre.result;
 
+  // lessons-2026-09-27.md §4.1: a question about to be asked fresh may have been answered before, at an
+  // overlapping place, on code that's since changed — say so, rather than re-asking blind with no comment.
+  const stale = staleNotes(ctx.paths, request.side.where, toAsk);
+
   let costUsd: number | undefined;
   let costEstimated = false;
   let calls: number;
@@ -118,7 +123,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
       wiseRecorded(request.wise),
       outcomeNext(id, subject.gate, subject.categories, request.side.categories, 'act on it'),
       commonNotes(
-        [...loaded.notes, ...evidence.evidence.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        [...loaded.notes, ...evidence.evidence.notes, ...stale, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         budget,
         ctx.provider.adapter,
       ),
