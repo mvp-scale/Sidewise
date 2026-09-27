@@ -1,5 +1,5 @@
 /**
- * doctor: plumbing, not a verb — deliberately the one exception to "no new tools". Free — no classifier
+ * doctor: plumbing, not a verb — outside the six verbs on purpose. Free — no classifier
  * call, no budget touched, no ledger write — so an agent can check what a real call WOULD do before spending
  * anything: which provider/route/base URL would answer, whether a key is set and where it came from (never its
  * value), the pinned model, whether a project/ledger is reachable from here, the Node/node:sqlite runtime, how
