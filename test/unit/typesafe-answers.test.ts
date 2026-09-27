@@ -64,7 +64,7 @@ describe('parseAnswers', () => {
   });
 });
 
-describe('cost estimate (fix #4): the direct route reports no cost, only usage', () => {
+describe('cost estimate (fix #4) [C-132]: the direct route reports no cost, only usage', () => {
   const body = (model: string, inputTokens: number) => ({ model, answers: { n: { noul: 0.5 } }, usage: { input_tokens: inputTokens, output_tokens: 3 } });
 
   it('jev-1.13.0 gets an estimate from its published rate ($42 per Btok), marked estimated', () => {

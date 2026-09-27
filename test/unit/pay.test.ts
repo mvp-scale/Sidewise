@@ -47,7 +47,7 @@ describe('preflight: stops before any call or spend', () => {
     expect(!r.ok && r.result).toEqual({ exit: 3, text: '✖ budget: cap reached ($0.00 of $5.00 · 1 of 1 runs) → the owner runs "sidewise budget set --runs <n>"' });
   });
 
-  it('needsBudget: false (fix #5a) skips the cap even when it is already reached — a fully-reused run is free', () => {
+  it('needsBudget: false (fix #5a) [C-136] skips the cap even when it is already reached — a fully-reused run is free', () => {
     const { paths } = tempProject({});
     setBudget(paths, { capRuns: 1 });
     recordCall1(paths);
