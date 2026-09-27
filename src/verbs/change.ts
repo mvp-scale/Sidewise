@@ -14,7 +14,7 @@ import { findRun, isContractRun, type NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type Reusable } from '../ledger/reuse.ts';
 import { m, type Value } from '../contract/emit.ts';
-import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
+import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
 import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, regressionNext, respondText, reusedIds, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
@@ -27,16 +27,7 @@ function planCall(
   answers: Record<string, Answer>,
   reusedFrom: Record<string, string>,
 ): PlannedCall | null {
-  const toAsk: AskedQuestion[] = [];
-  for (const [q, k] of keyed) {
-    const hit = reused.get(k);
-    if (hit) {
-      answers[q.id] = hit.answer;
-      reusedFrom[q.id] = hit.id;
-    } else {
-      toAsk.push(q);
-    }
-  }
+  const toAsk = splitReuse(keyed, reused, answers, reusedFrom).map(([q]) => q);
   return toAsk.length ? { state, questions: toAsk } : null;
 }
 
