@@ -49,6 +49,20 @@ describe('splitFunctions', () => {
     expect(splitFunctions('function a() {}\nfunction a() {}\n').map((u) => u.name)).toEqual(['a', 'a~2']);
   });
 
+  // R5: a named function expression on a const's own RHS was matched twice — once as the const, once again
+  // as its own "function name(" declaration — double-counting one function as two units (graded, and in
+  // scan, paid, twice).
+  it('a named function expression assigned to a const is one unit, not two', () => {
+    expect(splitFunctions('const cb = function inner(){}\n').map((u) => u.name)).toEqual(['cb']);
+  });
+
+  // R5: a const initialized by a call/member-expression chain (not a function/arrow itself) was mistaken for
+  // a function whenever that chain's arguments happened to contain an arrow (here, .map's callback) — the
+  // scan hunting for the arrow that would make it "a function" didn't stop at the nested call's own parens.
+  it('a const initialized by a call chain (not a function/arrow itself) is never its own function unit', () => {
+    expect(splitFunctions('const items = (x || []).map(fn => fn.id);\n').map((u) => u.name)).toEqual(['(module)']);
+  });
+
   it('only TS and JS files are split', () => {
     expect(['a.ts', 'a.tsx', 'a.js', 'a.mjs', 'a.cts', 'a.py', 'a.md'].map((f) => SPLITTABLE.test(f))).toEqual([true, true, true, true, true, false, false]);
   });

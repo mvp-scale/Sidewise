@@ -151,12 +151,20 @@ const lineAt = (src: string, index: number): number => {
   return line;
 };
 
-/** From a function's parameter list, the end of its body: a { } block, or an arrow's expression. */
+/** From a function's parameter list, the end of its body: a { } block, or an arrow's expression. Scans past a
+ *  return-type annotation looking for the first depth-0 `{`, `;` or `=>` — depth-0 so a nested call right
+ *  after the parameter list (`(x || []).map(fn => ...)`) never has ITS OWN `=>` mistaken for this one's: a
+ *  `(` or `[` bumps depth, its closer drops it, and only a depth-0 hit counts. */
 function bodyEnd(masked: string, paramsOpen: number): number {
   const paramsClose = matching(masked, paramsOpen);
   if (paramsClose < 0) return -1;
   let k = paramsClose + 1;
-  while (k < masked.length && masked[k] !== '{' && masked[k] !== ';' && !masked.startsWith('=>', k)) k += 1;
+  let depth = 0;
+  while (k < masked.length && !(depth === 0 && (masked[k] === '{' || masked[k] === ';' || masked.startsWith('=>', k)))) {
+    if (masked[k] === '(' || masked[k] === '[') depth += 1;
+    else if (masked[k] === ')' || masked[k] === ']') depth -= 1;
+    k += 1;
+  }
   if (masked.startsWith('=>', k)) {
     k += 2;
     while (k < masked.length && /\s/u.test(masked[k]!)) k += 1;
@@ -192,6 +200,21 @@ const DECLARATIONS: RegExp[] = [
 const METHOD = /^[ \t]*(?:(?:public|private|protected|static|async|readonly|override|get|set)\s+)*\*?([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\(/gmu;
 const NOT_METHODS = new Set(['if', 'for', 'while', 'switch', 'catch', 'function', 'return', 'with']);
 
+/** When a const/let/var's initializer is itself a named `function name(...)` expression, DECLARATIONS[0]
+ *  below finds that same "function name(" a second time as though it were its own top-level declaration — it's
+ *  the right-hand side of this assignment, not a second unit (`const cb = function inner(){}` was producing
+ *  two units, cb and inner, for one function, graded — and in scan, paid — twice). Anchored on `=\s*(?:async
+ *  \s+)?function\b` within each const/let/var match's own text, so a variable name that merely contains the
+ *  substring "function" (`myFunction`) can never be mistaken for this. */
+function namedFunctionExprStarts(masked: string): Set<number> {
+  const starts = new Set<number>();
+  for (const hit of masked.matchAll(DECLARATIONS[1]!)) {
+    const m = /=\s*(?:async\s+)?function\b/u.exec(hit[0]);
+    if (m) starts.add(hit.index + m.index + m[0].lastIndexOf('function'));
+  }
+  return starts;
+}
+
 function dedupe(units: Unit[]): Unit[] {
   const seen = new Map<string, number>();
   return units.map((u) => {
@@ -205,6 +228,7 @@ function dedupe(units: Unit[]): Unit[] {
 export function splitFunctions(src: string): Unit[] {
   const masked = maskCode(src);
   const depth = depths(masked);
+  const skipStarts = namedFunctionExprStarts(masked); // const/let/var's own named-function-expression RHS
   const found: Array<{ name: string; at: number; end: number }> = [];
   // A nested declaration (a route handler defined inside a setup function, a helper closed over by another
   // function, ...) is a real unit too, same as a class method already is — only an exact re-match at the
@@ -215,6 +239,7 @@ export function splitFunctions(src: string): Unit[] {
   for (const re of DECLARATIONS) {
     for (const hit of masked.matchAll(re)) {
       const at = hit.index;
+      if (re === DECLARATIONS[0] && skipStarts.has(at)) continue; // already covered by its const/let/var
       const params = hit[0].trimEnd().endsWith('(') ? at + hit[0].lastIndexOf('(') : at + hit[0].length;
       const end = hit[0].trimEnd().endsWith('=>') ? expressionOrBlock(masked, at + hit[0].length) : bodyEnd(masked, params);
       add(hit[1] || 'default', at, end);
