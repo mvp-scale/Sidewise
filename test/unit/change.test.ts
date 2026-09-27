@@ -6,11 +6,15 @@ import type { ClassifierAnswer, ClassifierPort, ClassifierState } from '../../sr
 import { EVIDENCE_LIMITS } from '../../src/evidence/code.ts';
 import { hasGit } from '../../src/evidence/git.ts';
 import { appendContractRun, appendRun, isContractRun, readLedger } from '../../src/ledger/log.ts';
+import { setBudget } from '../../src/budget/budget.ts';
 import { runChange } from '../../src/verbs/change.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { gitCommit, gitInit, tempProject } from '../helpers/project.ts';
 import { sampleContractRun, sampleRun } from '../helpers/runs.ts';
-import { stubProvider } from '../helpers/stub-provider.ts';
+import { stubProvider, type Stub } from '../helpers/stub-provider.ts';
+
+/** Wraps a stub so its answer reports an estimated cost, without changing stub-provider.ts (shared by other crews). */
+const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }) });
 
 const env = { SIDEWISE_ACTOR: 'r' };
 const T = Date.parse('2026-09-26T12:00:00Z');
@@ -266,7 +270,7 @@ describe('change', () => {
       dryRun: true,
     });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 2\n  questions: 3\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    expect(r.text).toBe('plan:\n  calls: 2\n  questions: 3\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'change')).toEqual([]);
   });
@@ -290,6 +294,30 @@ describe('change', () => {
     expect(r.exit).toBe(2);
     expect(r.text).toContain('not found by git');
     expect(provider.calls).toHaveLength(0);
+  });
+
+  // Fix #5/#6 follow-through: same pattern as class.ts/scan.ts.
+  const classReq =
+    'side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n' +
+    Array.from({ length: 10 }, (_, i) => `      ${i + 1}: is question ${i + 1} true?\n`).join('');
+  const changeReq = 'side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n';
+
+  it('a fully-reused change is never blocked by an already-reached cap, and names the runs it reused [C-152]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
+    await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001, 1 run
+    await runChange(changeReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0002, 1 run
+    setBudget(paths, { capRuns: 2 }); // exactly used up by the two runs above
+    const r = await runChange(changeReq, { paths, provider: stubProvider(), env }); // fully reused: no call needed
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('reused: [');
+  });
+
+  it('notes when the cost was estimated from tokens (fix #4), same as class.ts', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
+    await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
+    const r = await runChange(changeReq, { paths, provider: withEstimatedCost(stubProvider({ yes: () => 0.9 })), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
   it('on gate: pass (goal and every category clear, nothing regressed), next: records the outcome held on the parent [C-065]', async () => {

@@ -16,7 +16,7 @@ import { lookupAnswers, type Reusable } from '../ledger/reuse.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, dryRunText, outcomeNext, regressionNext, respondText, wiseRecorded } from './respond.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, regressionNext, respondText, reusedIds, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 /** Every unreused question goes in one call; the reused ones are answered (and credited) for free. null when nothing to ask. */
@@ -66,14 +66,6 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     return { exit: 2, text: stopText(errors) };
   }
 
-  if (ctx.dryRun) {
-    const n = categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 2, questions: n * 2 + 1, route: identity.route, baseURL: identity.baseURL }) };
-  }
-
-  const pre = preflight(ctx);
-  if (!pre.ok) return pre.result;
-
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const beforeEvidenceStr = subjectEvidence(before.files);
   const afterEvidenceStr = subjectEvidence(after.files);
@@ -81,8 +73,10 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, 'after:')];
   const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)] as const);
   const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)] as const);
-  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k));
-  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k));
+  // Fix #5a: reuse is resolved BEFORE preflight/dry-run (not after), same as class.ts — a fully-reused change's
+  // free run is never blocked by an already-reached budget cap, and a dry run can predict how much reuses.
+  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
+  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
@@ -90,12 +84,23 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const afterCall = planCall(afterKeyed, afterReused, { goal: redact(request.side.goal), code: after.files }, answers, reusedFrom);
   const calls: PlannedCall[] = [...(beforeCall ? [beforeCall] : []), ...(afterCall ? [afterCall] : [])];
 
+  if (ctx.dryRun) {
+    const total = beforeKeyed.length + afterKeyed.length;
+    const askedQuestions = calls.reduce((n, c) => n + c.questions.length, 0);
+    return { exit: 0, text: dryRunText({ calls: calls.length, questions: askedQuestions, reused: total - askedQuestions, route: identity.route, baseURL: identity.baseURL }) };
+  }
+
+  const pre = preflight(ctx, { needsBudget: calls.length > 0 });
+  if (!pre.ok) return pre.result;
+
   let costUsd: number | undefined = 0;
+  let costEstimated = false;
   if (calls.length > 0) {
     const asked = await askAll(ctx, 'change', calls);
     if (!asked.ok) return asked.result;
     Object.assign(answers, asked.value.answers);
     costUsd = asked.value.costUsd;
+    costEstimated = asked.value.costEstimated;
   }
 
   const keys: Record<string, string> = {};
@@ -144,9 +149,18 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     return true;
   });
 
+  // fix #6: which prior runs this run's answers came from, when any were reused.
+  const reusedRunIds = reusedIds(reusedFrom);
   const response = (id: string, budget: string): string =>
     respondText(
-      m(['id', id], ['gate', gate], ['goal', m(['gate', goal.gate], ['p', goal.p])], ...catEntries, ['regressed', regressed]),
+      m(
+        ['id', id],
+        ['gate', gate],
+        ['goal', m(['gate', goal.gate], ['p', goal.p])],
+        ...catEntries,
+        ['regressed', regressed],
+        ...(reusedRunIds.length ? [['reused', reusedRunIds] as [string, Value]] : []),
+      ),
       wiseRecorded(request.wise, ['parent']),
       // A regression alone can fail the gate even when every "after" category passes on its own (C-064) —
       // outcomeNext's gate-matching search would then find nothing and wrongly blame the goal (GOAL_ONLY_NEXT).
@@ -154,7 +168,11 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
       regressed.length
         ? regressionNext(id, regressed, categories)
         : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
-      commonNotes([...loaded.notes, ...evidenceNotes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])], `2 states · ${budget}`, ctx.provider.adapter),
+      commonNotes(
+        [...loaded.notes, ...evidenceNotes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        `2 states · ${budget}`,
+        ctx.provider.adapter,
+      ),
     );
 
   const run: NewContractRun = {
