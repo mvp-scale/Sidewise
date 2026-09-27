@@ -9,6 +9,7 @@ import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { redact } from '../ledger/redact.ts';
 import { EVIDENCE_LIMITS } from './code.ts';
+import { isOutside } from './paths.ts';
 
 export type GitResult = { ok: true; files: Record<string, string>; notes: string[] } | { ok: false; errors: string[] };
 
@@ -37,8 +38,6 @@ function gitRootOf(dir: string, spawn: Spawn): string | undefined {
   const out = typeof result.stdout === 'string' ? result.stdout.trim() : '';
   return result.status === 0 && out ? out : undefined;
 }
-
-const isOutside = (rel: string): boolean => rel.startsWith('..') || path.isAbsolute(rel);
 
 /** Redact, then cap per file and in total, exactly like evidence/code.ts's EVIDENCE_LIMITS. */
 function keep(shown: string, text: string, total: number, notes: string[]): { body: string; total: number } | undefined {

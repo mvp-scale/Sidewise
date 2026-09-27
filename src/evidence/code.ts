@@ -6,6 +6,7 @@
 import { readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { redact } from '../ledger/redact.ts';
+import { isOutside } from './paths.ts';
 
 export const EVIDENCE_LIMITS = { perFileChars: 20_000, totalChars: 60_000 } as const;
 
@@ -33,8 +34,6 @@ function splitWhere(entry: string): { path: string; lines?: string } {
   const m = TAIL.exec(entry);
   return m ? { path: entry.slice(0, m.index), lines: m[1]! } : { path: entry };
 }
-
-const isOutside = (rel: string): boolean => rel.startsWith('..') || path.isAbsolute(rel);
 
 export function readCodeEvidence(root: string, where: readonly string[]): EvidenceResult {
   const errors: string[] = [];

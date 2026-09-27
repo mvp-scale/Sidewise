@@ -11,11 +11,10 @@ import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import type { Item, Resolved, Resolver, UnitRef } from '../contract/layers.ts';
 import { expandGlob, MAX_FILES } from './glob.ts';
+import { isOutside } from './paths.ts';
 import { splitCalls, splitFunctions } from './split.ts';
 
 export type UnitReadResult = { ok: true; text: string } | { ok: false; error: string };
-
-const isOutside = (rel: string): boolean => rel.startsWith('..') || path.isAbsolute(rel);
 
 const LINES = /^(\d+)-(\d+)$/;
 
