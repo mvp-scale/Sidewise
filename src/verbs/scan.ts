@@ -2,7 +2,7 @@
  * scan: "where in this code should we look?" A sweep across code (file, then function, then call), graded the
  * same way loop grades ideas — but read from disk instead of written by the agent. createCodeResolver turns
  * over:'s file pattern into items; planSweep/runSweep do the reuse-aware work, so an unchanged function costs
- * nothing on a later scan. Unlike loop: failing: is worst first (Plan 2a decision 11), passing: and reused:
+ * nothing on a later scan. Unlike loop: failing: is worst first, passing: and reused:
  * are counts (not lists), and the response carries an extra scanned: {layer: count, ...} line.
  */
 import { providerIdentity } from '../classifier/select.ts';
@@ -18,7 +18,7 @@ import { commonNotes, COST_ESTIMATED_NOTE, respondText, sweepEntry, sweepNext, w
 import { planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
-// Fix #17: a scan only ever looks at what over: names — nothing says so if that misses the file most likely
+// A scan only ever looks at what over: names — nothing says so if that misses the file most likely
 // to matter. A short, fixed list (never grown per-project, never a stop): a real entrypoint or config file
 // outside every over: pattern is worth a note, not silence.
 const ENTRYPOINT_GLOBS = ['server.js', 'app.js', 'index.js', 'main.js', 'config/**', '.env*'];
@@ -48,7 +48,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
   if (entrypointNote) notes.push(entrypointNote);
 
-  // Fix #5a: a fully-reused scan (every layer's call: null) must never be blocked by an already-reached cap.
+  // A fully-reused scan (every layer's call: null) must never be blocked by an already-reached cap.
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
 

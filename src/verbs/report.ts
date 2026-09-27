@@ -1,5 +1,5 @@
 /**
- * `sidewise report [hits|patterns|history]` (lessons-2026-09-27.md §4.6): the one way knowledge leaves the
+ * `sidewise report [hits|patterns|history]`: the one way knowledge leaves the
  * ledger besides a run's own response — free, read-only, never calls a provider, no options beyond the view
  * name (`hits` default). Every read goes through `withIndex(..., {readOnly:true})`, exactly like `view.ts`, so
  * it works unchanged on the linear-fallback path too (no on-disk index, or Node < 22.13's own test hook).
@@ -29,7 +29,7 @@ const isView = (s: string): s is ReportView => (VIEWS as readonly string[]).incl
 
 const ROW_LIMIT = 30;
 
-/** Every view caps its rows the same way (fix #14's own idiom): show up to `ROW_LIMIT`, worst/newest first,
+/** Every view caps its rows the same way: show up to `ROW_LIMIT`, worst/newest first,
  *  and say plainly how many more exist rather than silently dropping them. */
 function withCap(lines: readonly string[], total: number): string[] {
   const shown = lines.slice(0, ROW_LIMIT);

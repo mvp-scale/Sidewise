@@ -42,7 +42,7 @@ function runLine(r: AnyRun, outcome: Outcome | 'open'): string {
   return `${clip(line, 120 - rehearsal.length)}${rehearsal}`;
 }
 
-/** Fix #2: a sweep's own category tags (ask.layers[].categories[].tags) count as tags too, alongside a Plan 1
+/** A sweep's own category tags (ask.layers[].categories[].tags) count as tags too, alongside a Plan 1
  *  run's own `tags` array — the two shapes' only source of a tag. */
 const tagsMatch = (r: AnyRun, place: string): boolean => {
   if (isRun(r)) return r.tags.includes(place);
@@ -55,7 +55,7 @@ const pathMatches = (p: string, place: string): boolean => p === place || p.star
 function whereMatches(r: AnyRun, place: string): boolean {
   if (isRun(r)) return r.where.some((w) => pathMatches(w.path, place));
   if (r.where.some((w) => pathMatches(stripLines(w), place))) return true;
-  // Fix #2: a sweep's own `where` is always [] — its real locations live in items[id].unit.path.
+  // A sweep's own `where` is always [] — its real locations live in items[id].unit.path.
   return isContractRun(r) && !!r.items && Object.values(r.items).some((it) => !!it.unit && pathMatches(it.unit.path, place));
 }
 
@@ -89,12 +89,12 @@ function renderPlace(place: string, hits: readonly AnyRun[], outcomeOf: (id: str
 
 const GATE_RANK: Record<Gate, number> = { fail: 0, unsure: 1, pass: 2 };
 
-/** Fix #14 `--summary`: one line per distinct place — a `where` path, or (a sweep's own `where` is always [])
+/** `--summary`: one line per distinct place — a `where` path, or (a sweep's own `where` is always [])
  *  an item's own code path — from the LATEST contract run that touched it (ledger append order, so a later
  *  entry in `hits` simply overwrites an earlier one in the map), worst gate first. The free onboarding
  *  briefing: read this before class, instead of hand-assembling it from several `view <folder>` calls. A
- *  legacy (Plan 1) run has no gate/categories to summarize and is skipped, same as it always was invisible to
- *  view's own per-category "categories:" breakdown in request mode. */
+ *  legacy (Plan 1) run has no gate/categories to summarize and is skipped, same as view's own per-category
+ *  "categories:" breakdown in request mode. */
 function renderSummary(scope: string, hits: readonly AnyRun[]): VerbResult {
   const latest = new Map<string, ContractRun>();
   for (const r of hits) {
@@ -185,8 +185,8 @@ function childrenAt(paths: SidewisePaths, handle: IndexHandle, parentId: string)
  * rescan (O(lineage × ledger)) with one batched query over just the ids actually shown. readOnly: view is free
  * and read-only, and must never be the thing that persists a catch-up/rebuild of index.db to disk.
  */
-/** Fix #3: `--level` on a run id now controls answer DETAIL about the run itself, not just how many lineage
- *  rows are shown (which stayed level*10 all along, invisible on a run with shallow lineage). Level 1: nothing
+/** `--level` on a run id controls answer DETAIL about the run itself, in addition to how many lineage
+ *  rows are shown (level * 10, regardless of depth). Level 1: nothing
  *  extra (today's one-line summary). Level 2: the run's own category gates (a one-subject run), or an items
  *  summary (a sweep, whose `categories` is always {} — CONTRACT.md). Level 3: adds its notes and adapter/model.
  *  A legacy (Plan 1) run has none of this stored, so every level above 1 is silently a no-op for it. */
@@ -326,11 +326,11 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
 /**
  * `arg` is always the thing the caller actually named (a path, folder, tag or SW-####) — never overwritten by a
  * file's own bytes. `content`, when given, is whatever text cli.ts already read for `arg` (a file's contents, or
- * stdin for `-`): it's used ONLY to test for request mode (a `side:`/JSON draft). Fix #1: viewing a real source
+ * stdin for `-`): it's used ONLY to test for request mode (a `side:`/JSON draft). Viewing a real source
  * file that isn't a request (no `side:`) must show it as a PLACE (`arg` itself), never misread its code as a
  * garbled request just because cli.ts happened to read the file's bytes first. Omitting `content` (every
  * existing caller that already has the text in hand, e.g. a request string read from stdin) keeps checking
- * `arg` itself for request mode, unchanged. `summary` (fix #14, `--summary`) only applies to place mode — a
+ * `arg` itself for request mode, unchanged. `summary` (`--summary`) only applies to place mode — a
  * run id or a request draft ignores it, since "one line per place" makes no sense for either. */
 export function runView(arg: string, level: Level, ctx: ViewContext, content?: string, summary = false): VerbResult {
   const probe = (content ?? arg).trim();

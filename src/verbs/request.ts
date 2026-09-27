@@ -8,7 +8,7 @@ const MAX_STOPS = 5;
 
 /** At most 5 stops, then one line saying how many more (pasted junk must not flood an agent's context), then a
  *  pointer at that verb's own help page — every stop is a knowledge gap `sidewise help <verb>` can close, not
- *  just the field it names (lessons-2026-09-27.md §3: "errors add one line"). Empty input (never a real call
+ *  just the field it names. Empty input (never a real call
  *  site today — every caller already guards on its own failure check) stays empty, no bare pointer line. */
 export function stopText(stops: readonly string[], verb: Verb): string {
   if (!stops.length) return '';

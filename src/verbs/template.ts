@@ -4,7 +4,7 @@
  * examples, shipped with the package so they're available from an installed install, not just the repo.
  * template still needs no project to run at all.
  *
- * `--from` means two different things, disambiguated by whether `--parent` is also given (fix #16):
+ * `--from` means two different things, disambiguated by whether `--parent` is also given:
  *   --parent + --from (drill only): --from names an item or category of that parent run — drill.ts's own two
  *     shapes decide which stored sample fits (a sweep parent keeps this file's `over:`; a one-subject parent
  *     has none, so drill-subject.yaml is printed instead; a missing project, an unknown id, or a legacy Plan 1
@@ -35,7 +35,7 @@ export const TEMPLATE_VERBS: readonly string[] = VERBS;
 
 // Two directories up from src/verbs/ (or dist/verbs/ once built) lands at the repo/package root, so this
 // resolves identically before and after tsc. It does NOT resolve correctly once bundled into one flat file
-// (bin/sidewise.mjs, P1's plugin packaging) — a bundle has no independent import.meta.url for this module
+// (bin/sidewise.mjs, the plugin's own packaging) — a bundle has no independent import.meta.url for this module
 // anymore, only the bundle's own, one level shallower — so it's only a fallback default here now; the real CLI
 // (cli.ts) always passes its own already-correct `packageDir` (PACKAGE_DIR, one hop up from cli.ts's own file,
 // which sits at the same depth under the package root in every shape: src/cli.ts, dist/cli.js, bin/sidewise.mjs)
@@ -51,7 +51,7 @@ function drillSampleFile(parent: string, paths: SidewisePaths | undefined): stri
   return 'drill.yaml';
 }
 
-/** fix #16: --from names a request file, not an item/category — read it, and overlay --where/--goal if given.
+/** --from names a request file, not an item/category — read it, and overlay --where/--goal if given.
  *  Never validated here (same discipline as every other template path: this only prints). */
 function fromFile(from: string, flags: TemplateFlags): VerbResult {
   let raw: string;

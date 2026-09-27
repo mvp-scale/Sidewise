@@ -28,8 +28,8 @@ export function subjectSide(id: string, gate: Gate, subject: SubjectGrade, extra
   );
 }
 
-/** Every distinct run id an answer was reused from, sorted. Empty when nothing was reused (fix #6: a one-subject
- *  verb's response says which prior runs its answers came from, not just that some were reused). */
+/** Every distinct run id an answer was reused from, sorted. Empty when nothing was reused — a one-subject
+ *  verb's response says which prior runs its answers came from, not just that some were reused. */
 export function reusedIds(reusedFrom: Record<string, string>): string[] {
   return [...new Set(Object.values(reusedFrom))].sort();
 }
@@ -46,8 +46,8 @@ export function respondText(side: Map<string, Value>, wise: Value, next: string,
 }
 
 /** Validation and evidence notes first; a rehearsal adapter (fake, chaos — port.ts's own REHEARSAL_ADAPTERS)
- * gets a "not evidence" label next (BRIEF §5: "the fake provider (labeled not evidence)"), so an agent can't
- * mistake a rehearsal answer for a real one just by skimming notes; the budget note is always last. */
+ * gets a "not evidence" label next, so an agent can't mistake a rehearsal answer for a real one just by
+ * skimming notes; the budget note is always last. */
 export function commonNotes(notes: readonly string[], budgetNote: string, adapter?: string): string[] {
   return [...notes, ...(adapter && isRehearsal(adapter) ? [`adapter ${adapter} · not evidence`] : []), budgetNote];
 }
@@ -104,8 +104,8 @@ export function sweepNext(id: string, gate: Gate, worst: readonly ItemGrade[], g
   return graded.length ? GOAL_ONLY_NEXT : ALL_SKIPPED_NEXT;
 }
 
-/** P2: `route` (direct/gateway/custom, or fake/chaos) names what would answer; `baseURL` is shown only when
- *  there is one (fake/chaos have none) — never the key. `extraNotes` (fix #5b): e.g. a budget cap already
+/** `route` (direct/gateway/custom, or fake/chaos) names what would answer; `baseURL` is shown only when
+ *  there is one (fake/chaos have none) — never the key. `extraNotes`: e.g. a budget cap already
  *  reached, so a dry run can say a real run would be blocked without itself failing. */
 export function dryRunText(
   plan: { calls: number; questions: number; items?: number; reused?: number; route: string; baseURL?: string | null },
@@ -129,7 +129,7 @@ export function dryRunText(
   );
 }
 
-/** Fix #4: on the direct route TypeSafe reports no cost at all; when the answering model has a published rate
+/** On the direct route TypeSafe reports no cost at all; when the answering model has a published rate
  *  (see typesafe/answers.ts), the cost is estimated from tokens instead of left at $0.00 — and this note says so. */
 export const COST_ESTIMATED_NOTE = 'cost estimated from tokens (no live pricing reported)';
 
