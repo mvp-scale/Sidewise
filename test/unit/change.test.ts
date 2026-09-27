@@ -1,5 +1,5 @@
 // change: replays a one-subject parent's questions on two states; fixed/still/regressed, a legacy or sweep parent stops.
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ClassifierAnswer, ClassifierPort, ClassifierState } from '../../src/classifier/port.ts';
@@ -9,6 +9,7 @@ import { appendContractRun, appendRun, isContractRun, readLedger } from '../../s
 import { setBudget } from '../../src/budget/budget.ts';
 import { runChange } from '../../src/verbs/change.ts';
 import { runClass } from '../../src/verbs/class.ts';
+import { runScan } from '../../src/verbs/scan.ts';
 import { gitCommit, gitInit, tempProject } from '../helpers/project.ts';
 import { sampleContractRun, sampleRun } from '../helpers/runs.ts';
 import { stubProvider, type Stub } from '../helpers/stub-provider.ts';
@@ -61,6 +62,26 @@ describe('change', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ items: {} }), T, 'b'); // SW-0001: items !== null, a sweep
     const r = await runChange('side:\n  goal: check the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', {
+      paths,
+      provider: stubProvider(),
+      env,
+    });
+    expect(r.exit).toBe(2);
+    expect(r.text).toBe('✖ side.parent: SW-0001 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent change');
+  });
+
+  // Round 3 smoke test root cause (STOPS.md #1, .sidewise/QUESTION-DETAIL.md #3): a drill/scan with
+  // `over: {file, function: each}` is sweep-shaped (parent.items !== null) even when the code style (a
+  // handler defined as `this.x = () => {}` inside a constructor) means the function layer only ever finds
+  // ONE item. change still refuses it — by design (C-063) — regardless of how many items the sweep found.
+  // This reproduces that exact shape end to end through a real scan, not a hand-built ledger record.
+  it('a real scan with exactly one item is still a sweep parent, and change still refuses it', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function onlyFn(req) { return db.query(`x ${req.id}`); }\n' });
+    const scanReq =
+      'side:\n  goal: check handlers\n  depth: quick\n  over:\n    file: src/a.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\n';
+    const scanResult = await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
+    expect(scanResult.text).toContain('scanned: {file: 1, function: 1}'); // exactly one item, same as NodeGoat's handlers
+    const r = await runChange('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', {
       paths,
       provider: stubProvider(),
       env,
@@ -225,6 +246,44 @@ describe('change', () => {
     expect(r.text).toContain('injection: {before: fail, after: fail, fixed: [1], still: [2]}');
     expect(r.text).toContain('regressed: [3]');
     expect(r.text).toContain('gate: fail');
+  });
+
+  // Round 2 smoke test root cause (archive/round-2/QUESTION-DETAIL.md #3, archive/round-2/REPORT.md friction
+  // 3): `✖ side.compare.before: "HEAD~1" not found by git` because the Sidewise project root wasn't the git
+  // repo that actually held the target file (a nested checkout one level down, e.g. stage/NodeGoat). C-147
+  // and git.ts's gitRootOf() claim this is fixed; git-evidence.test.ts proves it at the readGitEvidence level.
+  // This confirms it end to end through runChange itself, on a Sidewise root that is NOT a git repo at all —
+  // the exact round-2 layout, not just readGitEvidence in isolation.
+  it('proves a fix through a nested repo one level below a non-git Sidewise root (round 2 regression) [C-147]', async (ctx) => {
+    if (!hasGit()) return ctx.skip();
+    const { paths, root } = tempProject({}); // the Sidewise root itself is never a git repo here
+    const nested = path.join(root, 'stage', 'NodeGoat');
+    mkdirSync(path.join(nested, 'app'), { recursive: true });
+    writeFileSync(path.join(nested, 'app', 'a.ts'), 'export function f(x) { return db.query(`SELECT * FROM t WHERE id = ${x}`); }\n');
+    gitInit(nested);
+    const beforeRef = gitCommit(nested, 'vulnerable');
+
+    const classReqNested =
+      'side:\n  goal: check this code\n  depth: quick\n  where: [stage/NodeGoat/app/a.ts]\n  ask:\n    injection:\n      pass: no\n' +
+      Array.from({ length: 10 }, (_, i) => `      ${i + 1}: is question ${i + 1} true?\n`).join('');
+    await runClass(classReqNested, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+
+    writeFileSync(path.join(nested, 'app', 'a.ts'), 'export function f(x) { return db.query("SELECT * FROM t WHERE id = ?", [x]); }\n');
+    const afterRef = gitCommit(nested, 'fixed');
+
+    const r = await runChange(`side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: ${beforeRef}, after: ${afterRef}}\n`, {
+      paths,
+      provider: stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : 0.05) }),
+      env,
+    });
+    expect(r.exit).toBe(0);
+    // "before" is answered for free, reused from SW-0001's own class run against the identical vulnerable
+    // content at beforeRef (proof that the nested repo was actually read, not just "not found by git" again);
+    // "after" is a fresh, fresh-content call against the fixed commit.
+    expect(r.text).toContain('reused: [SW-0001]');
+    expect(r.text).toContain('injection: {before: fail, after: pass, fixed: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]}');
+    expect(r.text).toContain('gate: pass');
+    expect(r.text).not.toContain('not found by git');
   });
 
   it('the "reading whole files" note appears once, even though both states are read', async () => {
