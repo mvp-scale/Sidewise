@@ -2,7 +2,7 @@
 // current project (plugin at project scope, .sidewise/ with confirmation); the per-user parts (key, CLI) need
 // --all. Every external effect goes through a scripted fake Runner and a fake TTY pair; nothing here ever
 // spawns npm/claude for real or touches a real ~/.claude or ~/.config.
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PassThrough } from 'node:stream';
@@ -150,6 +150,57 @@ describe('runUninstall --all: also the per-user parts, and every plugin scope', 
     const r = await runUninstall({ ...DEFAULT_FLAGS, all: true }, ctx);
     expect(r.text).toMatch(/✖ cli: don't know how this was installed → run one of:/u);
     expect(r.text).toContain('npm uninstall -g @mvpscale/sidewise');
+    expect(r.text).toContain('manual backup — finish these by hand if you want to:');
+  });
+
+  it('no install.json, but the CLI resolves under the user prefix on PATH: detects --user from the path itself and removes it', async () => {
+    const { ctx, home } = baseCtx();
+    const userBin = path.join(home, '.local', 'bin');
+    mkdirSync(userBin, { recursive: true });
+    const bin = path.join(userBin, 'sidewise');
+    writeFileSync(bin, '#!/usr/bin/env node\n');
+    chmodSync(bin, 0o755);
+    ctx.env.PATH = userBin;
+
+    const { runner, calls } = scriptedRunner({
+      'claude plugin list': () => ({ status: 0, stdout: '[]', stderr: '' }),
+      npm: () => ({ status: 0, stdout: '', stderr: '' }),
+    });
+    ctx.runner = runner;
+
+    const r = await runUninstall({ ...DEFAULT_FLAGS, all: true }, ctx);
+    expect(r.text).toContain('✔ cli: uninstalled (was --user (guessed from its own path on PATH — no install record found))');
+    const npmCall = calls.find((c) => c.cmd === 'npm' && c.args[0] === 'uninstall');
+    expect(npmCall?.args).toEqual(['uninstall', '-g', '--prefix', path.join(home, '.local'), '@mvpscale/sidewise']);
+  });
+
+  it('a stored key that is declined interactively stays put and lands in the manual backup block, never the value', async () => {
+    const { ctx } = baseCtx();
+    setEnvFileValue(envFilePath(ctx.env), 'TYPESAFE_API_KEY', 'a-stored-key-value');
+    const { runner } = scriptedRunner({ 'claude plugin list': () => ({ status: 0, stdout: '[]', stderr: '' }) });
+    ctx.runner = runner;
+    const promise = runUninstall({ all: true, keepKey: false, keepData: true, yes: false }, ctx);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    (ctx.io.input as PassThrough).write('n\n'); // decline the key removal
+    const r = await promise;
+    expect(r.text).toContain('– key: skipped (kept)');
+    expect(r.text).toMatch(/manual backup[\s\S]*key:/u);
+    expect(r.text).not.toContain('a-stored-key-value');
+  });
+});
+
+describe('runUninstall: nothing stored means no question asked', () => {
+  it('--all with no key anywhere: "nothing stored", never a prompt, no manual-backup entry for it', async () => {
+    const { ctx } = baseCtx();
+    writeInstallRecord(ctx.env, { mode: 'global', npmPrefix: '/usr/local', installedAt: 'x' });
+    const { runner } = scriptedRunner({
+      'claude plugin list': () => ({ status: 0, stdout: '[]', stderr: '' }),
+      npm: () => ({ status: 0, stdout: '', stderr: '' }),
+    });
+    ctx.runner = runner;
+    const r = await runUninstall({ ...DEFAULT_FLAGS, all: true }, ctx);
+    expect(r.text).toContain('· key: nothing stored');
+    expect(r.text).not.toMatch(/manual backup[\s\S]*key:/u);
   });
 });
 
