@@ -263,7 +263,11 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       (a, stdinText) => {
         const nodeStop = nodeVersionStop(ctx.nodeVersion);
         if (nodeStop) return Promise.resolve(finish(2, nodeStop));
-        return dispatch(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? '', 'utf8') });
+        // runCli, not dispatch: dispatch can throw (LedgerError/BudgetError/UsageStop/...), and protocol.ts's
+        // own tools/call catch would then re-wrap an already-formed "✖ field: ..." message as "✖ sidewise:
+        // ...", doubling the glyph (fix #8). runCli's own catch normalizes every throw into one clean
+        // {exit, text} first, exactly like the real CLI entrypoint at the bottom of this file. [C-140]
+        return runCli(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? '', 'utf8') });
       },
       ctx.pkg.version,
     );
