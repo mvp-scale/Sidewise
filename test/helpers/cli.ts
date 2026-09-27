@@ -1,6 +1,7 @@
 /** Runs the built binary (dist/cli.js) the way an agent does: separate processes, fake provider, no key, no network. */
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { isSqliteExperimentalWarning } from '../../src/ledger/index.ts';
 
@@ -34,7 +35,9 @@ export interface CliResult {
 }
 
 export function cliEnv(root: string | undefined, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, SIDEWISE_PROVIDER: 'fake', SIDEWISE_ACTOR: 'e2e-agent', TYPESAFE_API_KEY: '', AI_GATEWAY_API_KEY: '', ...extra };
+  const env: NodeJS.ProcessEnv = { ...process.env, SIDEWISE_PROVIDER: 'fake', SIDEWISE_ACTOR: 'e2e-agent', TYPESAFE_API_KEY: '', AI_GATEWAY_API_KEY: '',
+    // Never the developer's own ~/.config/sidewise/env key file.
+    XDG_CONFIG_HOME: path.join(os.tmpdir(), 'sidewise-test-no-config'), ...extra };
   if (root === undefined) delete env.SIDEWISE_HOME;
   else env.SIDEWISE_HOME = root;
   return env;

@@ -95,6 +95,7 @@ git add -A && git commit -q -m "second: a reviewer comment"
 C2=$(git rev-parse HEAD)
 
 export SIDEWISE_HOME="$D"
+export XDG_CONFIG_HOME="$D/.config"   # never the developer's own key file
 export SIDEWISE_PROVIDER=fake
 
 echo "flows.sh: project=$D  cli=$CLI"
