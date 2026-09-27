@@ -58,6 +58,15 @@ function identityFor(env: Record<string, string | undefined>, config: JevConfig)
 
 const octal4 = (mode: number): string => mode.toString(8).padStart(4, '0');
 
+/** Fix #18: the `actor:` value — every run/outcome defaults to `by: agent` unless SIDEWISE_ACTOR is set (the
+ *  same fallback pay.ts's actorOf uses; duplicated rather than imported, matching this module's own low-
+ *  dependency style). On a real MCP call, cli.ts's mcp wiring sets this from git's user.name (or "claude")
+ *  before dispatch ever reaches here — see src/mcp/actor.ts — so this line shows what will actually be used. */
+function actorLine(env: Record<string, string | undefined>): string {
+  const set = env.SIDEWISE_ACTOR?.trim();
+  return set || 'agent (default) → set SIDEWISE_ACTOR to change';
+}
+
 // Each of these builds the VALUE half only — emit()'s m() already renders "key: <value>" from the map entry,
 // so a literal "key: " here would double up (caught by doctor.test.ts before this file ever shipped it).
 
@@ -154,6 +163,7 @@ export function runDoctor(
         ...(who.wireModel ? [['wireModel', who.wireModel] as [string, Value]] : []),
         ['key', key],
         ['project', project],
+        ['actor', actorLine(env)],
         ['node', doctorNodeValue(nodeVersion)],
         ['index', nodeVersionOk(nodeVersion) ? (sqliteAvailable() ? 'node:sqlite' : 'unavailable (unexpected on Node 22.13+)') : DOCTOR_INDEX_TOO_OLD],
         ['cli', cliLine(env, deps.platform ?? process.platform)],

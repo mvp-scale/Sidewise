@@ -27,6 +27,20 @@ describe('doctor (P5)', () => {
     expect(r.text).toContain('project: none');
     expect(r.text).toContain('node: v22.13.0');
     expect(r.text).not.toContain('baseURL');
+    expect(r.text).toContain('actor: agent (default) → set SIDEWISE_ACTOR to change');
+  });
+
+  // Fix #18: every run/outcome defaults to `by: agent`; doctor shows what will actually be used, so the
+  // resolved value (SIDEWISE_ACTOR, set for real MCP calls by cli.ts's mcp wiring — see src/mcp/actor.ts) is
+  // visible without a paid run. [C-143]
+  it('actor: shows a set SIDEWISE_ACTOR verbatim', () => {
+    const r = runDoctor({ SIDEWISE_ACTOR: 'corey' }, undefined, 'v22.13.0');
+    expect(r.text).toContain('actor: corey');
+  });
+
+  it('actor: blank/whitespace-only SIDEWISE_ACTOR reads as unset, same as pay.ts\'s own actorOf', () => {
+    const r = runDoctor({ SIDEWISE_ACTOR: '   ' }, undefined, 'v22.13.0');
+    expect(r.text).toContain('actor: agent (default) → set SIDEWISE_ACTOR to change');
   });
 
   it('a direct key: shows the route and base URL, never the key value', () => {
