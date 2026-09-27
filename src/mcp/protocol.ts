@@ -26,8 +26,10 @@ export interface JsonRpcResponse {
   error?: { code: number; message: string };
 }
 
-/** Runs one `sidewise <args...>` call in-process; `stdin` stands in for fd 0 (e.g. a `-` positional). */
-export type RunOne = (args: string[], stdin?: string) => Promise<{ exit: number; text: string }>;
+/** Runs one `sidewise <args...>` call in-process; `stdin` stands in for fd 0 (e.g. a `-` positional).
+ *  `project` (fix #9) stands in for `SIDEWISE_HOME` for this one call — the plugin's own cwd is wherever
+ *  Claude launched, not necessarily the project, and there's no way to `cd` before an MCP tool call. */
+export type RunOne = (args: string[], stdin?: string, project?: string) => Promise<{ exit: number; text: string }>;
 
 const SUPPORTED_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'] as const;
 const DEFAULT_VERSION = '2025-06-18';
@@ -47,6 +49,7 @@ export function toolDefinition(): { name: string; description: string; inputSche
       properties: {
         args: { type: 'array', items: { type: 'string' }, description: 'sidewise CLI arguments, e.g. ["doctor"] or ["class","-"]' },
         stdin: { type: 'string', description: 'Text to feed as stdin, for a "-" argument (e.g. the request YAML).' },
+        project: { type: 'string', description: 'The project directory to use (SIDEWISE_HOME), when it is not the current working directory.' },
       },
       required: ['args'],
     },
@@ -77,13 +80,14 @@ export async function handleMessage(msg: JsonRpcRequest, deps: { runOne: RunOne;
   if (method === 'tools/list') return ok(id, { tools: [toolDefinition()] });
 
   if (method === 'tools/call') {
-    const params = (msg.params ?? {}) as { name?: unknown; arguments?: { args?: unknown; stdin?: unknown } };
+    const params = (msg.params ?? {}) as { name?: unknown; arguments?: { args?: unknown; stdin?: unknown; project?: unknown } };
     if (params.name !== TOOL_NAME) return err(id, -32602, `Unknown tool: ${String(params.name)}`);
     const rawArgs = params.arguments?.args;
     const args = Array.isArray(rawArgs) ? rawArgs.map(String) : [];
     const stdin = typeof params.arguments?.stdin === 'string' ? params.arguments.stdin : undefined;
+    const project = typeof params.arguments?.project === 'string' ? params.arguments.project : undefined;
     try {
-      const { exit, text } = await deps.runOne(args, stdin);
+      const { exit, text } = await deps.runOne(args, stdin, project);
       return ok(id, { content: [{ type: 'text', text }], isError: exit !== 0 });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);

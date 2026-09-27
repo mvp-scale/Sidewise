@@ -141,6 +141,36 @@ describe('mcp protocol: tools/call [C-103]', () => {
     expect(resp?.error?.code).toBe(-32602);
   });
 
+  // Fix #9: the plugin's own cwd is wherever Claude launched, which may not be the project — an optional
+  // `project` argument (meaning SIDEWISE_HOME for that one call) lets a caller point at a nested project
+  // without relying on cwd. [C-142]
+  it('an optional project argument is advertised in the tool schema and passed through to runOne', async () => {
+    expect((toolDefinition().inputSchema as { properties: Record<string, unknown> }).properties.project).toBeDefined();
+    const calls: Array<[string[], string | undefined, string | undefined]> = [];
+    const spy: RunOne = async (args, stdin, project) => {
+      calls.push([args, stdin, project]);
+      return { exit: 0, text: '' };
+    };
+    await handleMessage(
+      { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['doctor'], project: '/some/nested/project' } } },
+      { runOne: spy, serverVersion: '0.0.0-test' },
+    );
+    expect(calls).toEqual([[['doctor'], undefined, '/some/nested/project']]);
+  });
+
+  it('project is undefined, not the empty string, when the caller omits it', async () => {
+    const calls: Array<string | undefined> = [];
+    const spy: RunOne = async (_args, _stdin, project) => {
+      calls.push(project);
+      return { exit: 0, text: '' };
+    };
+    await handleMessage(
+      { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['doctor'] } } },
+      { runOne: spy, serverVersion: '0.0.0-test' },
+    );
+    expect(calls).toEqual([undefined]);
+  });
+
   it('an unrecognized method with an id is "method not found"', async () => {
     const resp = await handleMessage({ jsonrpc: '2.0', id: 8, method: 'not/a/method' }, { runOne: runOneFor(fakeCtx()), serverVersion: '0.0.0-test' });
     expect(resp?.error?.code).toBe(-32601);
