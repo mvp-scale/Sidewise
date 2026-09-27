@@ -4,9 +4,12 @@
  * request or usage · 3 budget blocked. Answers go to stdout; stops and errors go to stderr.
  */
 import { readFileSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
 import { stringify } from 'yaml';
+import pkg from '../package.json' with { type: 'json' };
 import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './budget/budget.ts';
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
@@ -16,6 +19,10 @@ import { LockError, StoreError } from './ledger/lock.ts';
 import { appendOutcome, findRun, isContractRun, LedgerError, type Outcome } from './ledger/log.ts';
 import { resolvePaths, type SidewisePaths } from './ledger/paths.ts';
 import type { Level } from './lens/request.ts';
+import { resolveStoredKey } from './setup/keystore.ts';
+import { runInit, type InitFlags } from './setup/init.ts';
+import { realRunner } from './setup/runner.ts';
+import { runUninstall, type UninstallFlags } from './setup/uninstall.ts';
 import { runChange } from './verbs/change.ts';
 import { runClass } from './verbs/class.ts';
 import { runDoctor } from './verbs/doctor.ts';
@@ -25,6 +32,11 @@ import { runScan } from './verbs/scan.ts';
 import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
 import { clip, hasControlChars } from './util/text.ts';
+
+// This package's own root directory (one level above dist/cli.js, or src/cli.ts in dev): init passes it to
+// `claude plugin marketplace add`, and reads its own package-lock.json's neighbourhood to detect a local
+// tarball install (setup/npm-info.ts's detectSelfSpec).
+const PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // The warning filter for node:sqlite's one ExperimentalWarning (Node 22/24) is installed by ledger/index.ts
 // itself, at that module's own top level, before its lazy `import('node:sqlite')` — not here. ESM evaluates an
@@ -44,9 +56,13 @@ const LINES = {
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
   doctor: 'sidewise doctor',
+  init: 'sidewise init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]',
+  uninstall: 'sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]',
 } as const;
 type Command = keyof typeof LINES;
-const USAGE = `usage:\n${Object.values(LINES).map((l) => `  ${l}`).join('\n')}`;
+// The play test found a bare usage list unhelpful to someone who has never run this before: one line points
+// them at init before the full list.
+const USAGE = `new here? → sidewise init\nusage:\n${Object.values(LINES).map((l) => `  ${l}`).join('\n')}`;
 const isCommand = (c: string): c is Command => Object.hasOwn(LINES, c);
 
 /** A usage mistake: exit 2 with "✖ args: <problem> → <that command's usage line>". */
@@ -156,7 +172,7 @@ async function main(argv: string[]): Promise<void> {
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget or doctor (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init or uninstall (sidewise --help)`);
   }
 
   // template needs no project to run: it never spends and never writes. When --parent is given, it still tries
@@ -180,7 +196,86 @@ async function main(argv: string[]): Promise<void> {
   if (command === 'doctor') {
     const { positionals } = args('doctor', { args: rest, allowPositionals: true, options: {} });
     positionalCount('doctor', positionals, 0, 0);
-    const r = runDoctor(process.env, resolvePaths());
+    const r = runDoctor(process.env, resolvePaths(), process.version, {
+      resolveStored: () => resolveStoredKey(realRunner, process.platform, process.env),
+      runner: realRunner,
+      platform: process.platform,
+    });
+    return finish(r.exit, r.text);
+  }
+
+  // init/uninstall need no project up front either: they check process.cwd() for a git project themselves
+  // (init's per-project steps; uninstall's .sidewise/ step), rather than resolvePaths()'s upward walk.
+  if (command === 'init') {
+    const twice = givenTwice(rest, ['scope']);
+    if (twice) return finish(2, twice);
+    const { values, positionals } = args('init', {
+      args: rest,
+      allowPositionals: true,
+      options: {
+        global: { type: 'boolean', default: false },
+        user: { type: 'boolean', default: false },
+        local: { type: 'boolean', default: false },
+        claude: { type: 'boolean', default: false },
+        'no-claude': { type: 'boolean', default: false },
+        scope: { type: 'string' },
+        'key-stdin': { type: 'boolean', default: false },
+        'no-key': { type: 'boolean', default: false },
+        yes: { type: 'boolean', default: false },
+      },
+    });
+    positionalCount('init', positionals, 0, 0);
+    if ([values.global, values.user, values.local].filter(Boolean).length > 1) {
+      return finish(2, '✖ init: give at most one of --global, --user or --local');
+    }
+    if (values.claude && values['no-claude']) return finish(2, '✖ init: give at most one of --claude or --no-claude');
+    if (values['key-stdin'] && values['no-key']) return finish(2, '✖ init: give at most one of --key-stdin or --no-key');
+    if (values.scope !== undefined && values.scope !== 'user' && values.scope !== 'project') {
+      return finish(2, `✖ --scope: "${clip(values.scope, 20)}" is not user or project → use --scope user or --scope project`);
+    }
+    const flags: InitFlags = {
+      mode: values.global ? 'global' : values.user ? 'user' : values.local ? 'local' : undefined,
+      claude: values.claude ? true : values['no-claude'] ? false : undefined,
+      scope: values.scope as 'user' | 'project' | undefined,
+      key: values['key-stdin'] ? 'stdin' : values['no-key'] ? 'no' : 'ask',
+      yes: values.yes,
+    };
+    const r = await runInit(flags, {
+      env: process.env,
+      cwd: process.cwd(),
+      platform: process.platform,
+      runner: realRunner,
+      io: { input: process.stdin, output: process.stdout },
+      keyStdin: flags.key === 'stdin' ? process.stdin : undefined,
+      packageDir: PACKAGE_DIR,
+      pkg: { name: pkg.name, version: pkg.version },
+      homeDir: os.homedir(),
+    });
+    return finish(r.exit, r.text);
+  }
+
+  if (command === 'uninstall') {
+    const { values, positionals } = args('uninstall', {
+      args: rest,
+      allowPositionals: true,
+      options: {
+        all: { type: 'boolean', default: false },
+        'keep-key': { type: 'boolean', default: false },
+        'keep-data': { type: 'boolean', default: false },
+        yes: { type: 'boolean', default: false },
+      },
+    });
+    positionalCount('uninstall', positionals, 0, 0);
+    const flags: UninstallFlags = { all: values.all, keepKey: values['keep-key'], keepData: values['keep-data'], yes: values.yes };
+    const r = await runUninstall(flags, {
+      env: process.env,
+      cwd: process.cwd(),
+      platform: process.platform,
+      runner: realRunner,
+      io: { input: process.stdin, output: process.stdout },
+      homeDir: os.homedir(),
+      pkgName: pkg.name,
+    });
     return finish(r.exit, r.text);
   }
 
