@@ -1,7 +1,9 @@
+# drill --parent <one-subject-run> --from <category>: this parent asked about one subject, not a sweep, so
+# from: names one of its categories and ask: sends brand-new, narrower questions. No "over" here.
 side:
   goal: Find exactly where request text reaches the query
   parent: SW-0051
-  from: access                     # a category from the parent run, not an item
+  from: access                     # a category from the parent run, not an item — no "over" here
   ask:
     source:
       pass: no

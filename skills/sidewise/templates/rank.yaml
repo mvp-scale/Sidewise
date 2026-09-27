@@ -1,0 +1,20 @@
+# rank pattern (scan-shaped): add a scale question to a layer to rank findings by severity (level x
+# probability), worst first, instead of getting back an unordered map. No new verb or option; just run scan.
+side:
+  goal: Which of these handlers leaks the most on error
+  depth: quick
+  over:
+    file: src/handlers/*.ts         # scan by file when a whole file is the unit that matters, not a function inside it
+  ask:
+    file:
+      leaks:
+        pass: no
+        1: Does {file} return a raw error message to the caller?
+      severity:                     # the scale that does the ranking — add one to any layer you want ordered
+        pass: [none, low]
+        2:
+          scale: How severe would a leak here be?
+          levels: [none, low, medium, high, critical]
+wise:
+  why: find
+  area: api

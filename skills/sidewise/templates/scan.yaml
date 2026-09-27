@@ -1,11 +1,12 @@
+# scan: sweeps code Sidewise reads itself. over: builds layers (file -> function -> call); ask: keys by layer.
 side:
   goal: Handlers don't trust request input
-  depth: quick
+  depth: quick                                # at most 10 items asked per layer (standard 20, thorough 30) — extra items are skipped, not failed
   over:
-    file: src/handlers/*.ts
-    function: each
+    file: src/handlers/*.ts                   # a glob, scanned by file (add a severity scale below to rank findings)
+    function: each                            # "each" splits the layer above into its next unit (function, then call)
   ask:
-    function:
+    function:                                 # one ask: block per layer named in over — {function} fills in per item
       injection:
         pass: no
         1: Does {function} put request text straight into a query?

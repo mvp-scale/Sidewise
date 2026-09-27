@@ -1,5 +1,5 @@
 // sidewise template <verb>: a copy-editable request, never a response; each one validates on its own.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readRequestText } from '../../src/contract/read.ts';
@@ -151,6 +151,22 @@ describe('runTemplate', () => {
     it('--where/--goal with --parent: a clean stop (they overlay --from, not a drill item lookup)', () => {
       const r = runTemplate('drill', { parent: 'SW-0001', from: 'access', goal: 'x' });
       expect(r.exit).toBe(2);
+    });
+  });
+
+  // Pattern-shape samples (no new verb, no new option) — proof/rank/decide are files an agent copies directly,
+  // not verbs runTemplate dispatches on; this just proves each one is a well-formed, valid request.
+  describe.each([
+    ['proof.yaml', 'class'],
+    ['rank.yaml', 'scan'],
+    ['decide.yaml', 'class'],
+  ] as const)('pattern template %s', (file, verb) => {
+    it(`validates as ${verb}`, () => {
+      const raw = readFileSync(path.join('skills', 'sidewise', 'templates', file), 'utf8');
+      const parsed = readRequestText(raw);
+      expect(parsed.ok).toBe(true);
+      const v = parsed.ok && validateRequest(parsed.value, verb);
+      expect(v && v.ok).toBe(true);
     });
   });
 });

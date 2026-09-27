@@ -1,10 +1,12 @@
+# drill --parent <sweep-run> --from <item>: goes one layer down from one flagged item. No where: — it inherits
+# the parent's own code. New, narrower questions go under ask:; "plumbing is filled in, the questions are yours".
 side:
   goal: Find exactly where request text reaches the query
-  parent: SW-0060
-  from: src/handlers/user.ts/findUser
+  parent: SW-0060                             # the sweep run this drills into
+  from: src/handlers/user.ts/findUser         # an item id the parent flagged (names joined by /), not a category
   depth: quick
   over:
-    call: each
+    call: each                                # the NEXT layer down from the item named above
   ask:
     call:
       injection:

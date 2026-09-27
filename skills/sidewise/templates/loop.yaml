@@ -1,11 +1,12 @@
+# loop: sweeps ideas the agent itself writes (a design, a plan) before any code exists. No file evidence.
 side:
   goal: The checkout redesign is sound
-  depth: quick
-  where: [src/checkout/]
+  depth: quick                      # at most 10 items asked per layer
+  where: [src/checkout/]            # optional context (folder that will hold this); loop reads no files
   over:
-    part:
+    part:                           # part and story are SIBLINGS here, both under over: — not one nested in the other
       - name: gateway
-        story: [guest checkout, saved cards]
+        story: [guest checkout, saved cards]   # names/tags: one word or kebab-case, <= 20 chars, no "/"
       - name: payments
         story: [refunds, retries, partial capture]
       - ledger
@@ -15,7 +16,7 @@ side:
         pass: yes
         1: Does {part} own one clear responsibility?
         2: Can {part} be deployed without the others?
-    story:
+    story:                          # every story question is asked of EVERY story — phrase it so that holds
       done:
         pass: yes
         3: Is "{story}" testable against {part} as written?

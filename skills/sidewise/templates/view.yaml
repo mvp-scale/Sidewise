@@ -1,6 +1,7 @@
+# view <this file>: free — checks the ledger for a prior run of the exact same questions on this code, no call.
 side:
   goal: This login handler is safe to merge
-  depth: quick
+  depth: quick                                # must match the yes/no count below, or class will stop on it
   where: [src/user.ts:1-3]
   ask:
     injection:

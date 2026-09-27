@@ -1,15 +1,16 @@
+# class: one subject, one verdict. Edit goal, where and ask; wise is optional but cheap context.
 side:
-  goal: This login handler is safe to merge
-  depth: quick
-  where: [src/user.ts:1-3]
+  goal: This login handler is safe to merge   # phrase as the exact claim to prove — wording changes the verdict
+  depth: quick                                # quick=10, standard=20, thorough=30 yes/no questions (scale/choice don't count)
+  where: [src/user.ts:1-3]                    # up to 5 path[:start-end] entries — this is ALL the code it sees
   ask:
     injection:
-      pass: no
+      pass: no                                # every question in this category must answer "no" when things are fine
       1: Is request text placed directly into the SQL query?
       2: Could a caller change what the query does?
       10: Would a standard security scanner flag this code?
     guards:
-      pass: yes
+      pass: yes                               # here, "yes" is the fine answer — don't mix polarity within one category
       3: Is the id checked to be a number before use?
       6: Is the caller compared to the record owner?
       9: Does the query select only needed columns?
@@ -21,7 +22,7 @@ side:
       pass: no
       7: Does the error sent back reveal the query?
       8: Does the code log an email address?
-    severity:
+    severity:                                 # scale/choice questions don't count toward the depth total (at most 5 across the request)
       pass: [none, low]
       11:
         scale: How severe is the worst issue?
@@ -32,5 +33,6 @@ side:
         choice: Where should this go?
         options: [ship, fix, block]
 wise:
-  why: validate
-  area: data
+  why: validate                               # validate | find | debug
+  area: data                                  # data | api | ui | auth | hosting | build | tests
+  # optional: stage (design|build|review|pre-merge|post-fix|release), change (feature|fix|refactor|dependency|config), risk (low|medium|high)

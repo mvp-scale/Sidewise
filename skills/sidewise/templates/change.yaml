@@ -1,7 +1,8 @@
+# change: replays a parent run's own questions across two committed git refs — never new ask:.
 side:
   goal: The injection fix works
-  parent: SW-0042
-  compare: {before: main, after: HEAD}
+  parent: SW-0042                             # the run whose questions get replayed
+  compare: {before: main, after: HEAD}        # two refs, or "worktree" for the working tree; files must be committed
 wise:
   why: validate
   area: data
