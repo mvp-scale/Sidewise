@@ -55,6 +55,9 @@ Drill goes down from one item, named by `from:`, in a parent run's own arrays. [
 | side | `from`, `parent`, `compare` | drill and change only |
 | wise | `why` | `validate` · `find` · `debug` |
 | wise | `area` | `data` · `api` · `ui` · `auth` · `hosting` · `build` · `tests` |
+| wise | `stage` | `design` · `build` · `review` · `pre-merge` · `post-fix` · `release` |
+| wise | `change` | `feature` · `fix` · `refactor` · `dependency` · `config` |
+| wise | `risk` | `low` · `medium` · `high` |
 | wise | `parent` | the run this follows (lineage only) |
 
 `goal` is one line, at most 160 characters, and is the question asked of TypeSafe outright. [C-010]
@@ -67,6 +70,9 @@ questions in total (scale/choice don't count); a sweep asks at most that many it
 `wise.why` is one of `validate`, `find` or `debug`. [C-016]
 `wise.area` is one of `data`, `api`, `ui`, `auth`, `hosting`, `build` or `tests`. [C-017]
 `wise.parent` records the run this one follows, for lineage only. [C-018]
+`wise.stage` is one of `design`, `build`, `review`, `pre-merge`, `post-fix` or `release`. [C-108]
+`wise.change` is one of `feature`, `fix`, `refactor`, `dependency` or `config`. [C-109]
+`wise.risk` is one of `low`, `medium` or `high`. [C-110]
 
 A category is a lowercase name (one word or `kebab-case`, ≤ 20 chars), a `pass`, an optional `need`, optional
 `tags` (≤ 3), and numbered questions. [C-019]
@@ -140,6 +146,9 @@ stay text rather than becoming booleans) — sent back as `✖ question 4 is not
 text`, the same as an unquoted `true`/`false`/`on`/`off`. [C-041]
 `pass: no` / `pass: yes` written as `false` / `true` (an older parser's booleans) is accepted: false means
 no, true means yes. [C-042]
+Every stop a request can trigger — a parse error, a validation stop, or a bad `where`/git path — ends with
+`→ see: sidewise help <verb>`, naming the verb that was actually run, on top of whatever it already told you
+to fix. [C-153]
 
 ### Every response
 
@@ -168,6 +177,13 @@ A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, of
 A missing `.sidewise/budget.json` is created with the defaults ($5.00, 500 runs) the first time any of those
 verbs preflights a call; that same run's `notes:` says so (`budget file created with defaults ($5.00 · 500
 runs)`), once, since every later run finds the file already there. [C-093]
+On TypeSafe's direct route, which reports no cost of its own, a run whose answering model has a published
+rate (today, only `jev-1.13.0`, at $42 per billion input tokens; output tokens are free) is charged an
+estimate from its input tokens instead of showing $0.00, and `notes:` says `cost estimated from tokens (no
+live pricing reported)` so it's never mistaken for a figure TypeSafe itself reported. A model with no
+published rate keeps its cost unreported, never guessed at; a cost the gateway route did report always wins
+over the estimate. Every verb that calls the classifier (class, scan, drill, loop, change) does this the same
+way. [C-132]
 Question text is never repeated in a response; the agent has it by number. [C-048]
 A sweep response lists category gates per item and shows probabilities only for questions that didn't clear
 the bar; the full numbers are in the ledger. [C-049]
@@ -222,6 +238,24 @@ Given a folder, a tag, or a run id instead of a request body, view answers in pl
 1's own text history rather than the YAML `side:` shape above: for a place, a count line (held / overruled /
 failed / open, with rehearsal runs counted apart) followed by its newest runs, newest first; for a run id,
 that run's lineage up and down. [C-055]
+A scan/loop/drill sweep run's own `where` is always empty (its questions are asked per item, not per
+request); its real code locations and category tags are indexed from its items' own units and layers
+instead, so `view <folder>` and `view <tag>` find a sweep run the same way they already find a class/change/
+drill run — not only `view .`. [C-120]
+`view <path>` reads a named file's own bytes only to check whether it looks like a request (`side:` or JSON);
+a real source file that isn't one is always shown as a place, never misread as "control characters" just
+because its code is hard to parse as YAML. A saved request file is still read as a request, exactly as
+before. [C-121]
+The "… N older → raise the level to see more" line means what it says: no row is ever silently dropped
+without a count and a way to see it. [C-122]
+`view <SW-####> --level 2|3` adds answer detail about the run itself, on top of the lineage `--level` already
+controlled: level 2 shows its own category gates (or, for a sweep, how many of its items are failing); level
+3 adds its notes and adapter/model. Level 1 is unchanged. A legacy (Plan 1) run has none of this stored, so
+any level above 1 is a documented no-op for it, never a stop. [C-123]
+`view <folder|tag|.> --summary` prints one line per distinct place (a `where` path, or a sweep item's own code
+path), from the latest run that touched it, worst gate first — the free onboarding briefing, without
+hand-assembling it from several `view` calls. Ignored for a run id or a request draft, where "one line per
+place" doesn't apply. [C-124]
 
 ---
 
@@ -292,6 +326,9 @@ notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
 own gate is `fail`, in written order; on `unsure`, the first category whose own gate is `unsure`. [C-058]
 Wise learns the pass/fail record per category, per place and per area; these questions and categories become
 a candidate pattern for this place. [C-059]
+When any question's answer was reused (whole or in part) from an earlier run, the response names which one:
+`reused: [SW-####, ...]`, sorted and deduplicated, right after `escalate:`. The field is left out entirely
+when nothing was reused. [C-130]
 
 ---
 
@@ -361,6 +398,11 @@ and was later `fixed` and proven would count as a hit. **Not shipped yet**: ther
 in the ledger record (`ContractRun` carries no field for it), and recording a fix's outcome as `held`
 changes nothing about what `view` shows for that category afterward — the same gap as `view`'s own missing
 `best` field (above). [C-067]
+`change` reads git in the repo that actually contains each compared file — its own nearest `git rev-parse
+--show-toplevel`, not only the Sidewise project root — so a file whose own repo is nested one level down (a
+monorepo package, a vendored project) is no longer invisible to it. [C-147]
+Like `class`, `change` names which prior runs its answers came from (`reused: [ids]`) when anything was
+reused, and its `--dry-run` predicts that reuse the same way `class`'s does. [C-152]
 
 ---
 
@@ -417,6 +459,18 @@ Reused answers are stored per function, not per file or per run, so a later scan
 pays only for what actually changed; there is no separate folder- or category-level pattern query yet — a
 sweep run's own top-level `categories` stays empty, and only its per-item grading (read back by that item's
 own id) carries the record. [C-073]
+`function: each` (and, downstream, `call: each`) finds a named function or method at any nesting depth — a
+route handler registered from inside a setup function, or a helper closed over by an IIFE — not only
+top-level declarations; an anonymous function or arrow passed inline with no name of its own is still not its
+own unit. [C-141]
+`failing:` ranks by severity first when any failing item carries a `scale` question (its worst level × p),
+ahead of the existing fail/unsure category counts and written order — a "high" answer at high confidence no
+longer outranks a "critical" one just by category-fail count. Unchanged for a sweep with no scale question,
+and for `loop`. [C-145]
+A scan adds a note (never a stop) naming any common entrypoint or config file (`server.js`, `app.js`,
+`index.js`, `main.js`, `config/**`, `.env*`) that exists in the project but sits outside every `over:`
+pattern — a scan only ever reads what `over:` names. [C-146]
+A fully-reused scan is never blocked by an already-reached budget cap (see the dry-run/reuse rules above). [C-150]
 
 ---
 
@@ -471,6 +525,11 @@ for that category. [C-079]
 `sidewise template drill --parent <id> --from <x>` picks the sample matching that id's own shape when the
 ledger has it: a sweep parent's sample keeps `over:`, a one-subject parent's has no `over:` and `from:` names
 a category instead. No project, or an id the ledger doesn't have, prints the sweep sample, same as always. [C-090]
+`drill` on a sweep item that has code, given no `over:`, is a flat one-subject proof of just that one item:
+fresh `ask:` categories answered against the item's own lines, in the same shape as a one-subject parent's
+drill. An idea item (loop's own kind, with no code) still stops, naming the fix. Like `class`, it names which
+prior run its answers came from when anything was reused, its `--dry-run` predicts that reuse, and it's never
+blocked by an already-reached budget cap when fully reused. [C-144] [C-149]
 
 ---
 
@@ -533,6 +592,37 @@ An item fails if it or any of its children fails. [C-083]
 Like scan, a loop run's own top-level `categories` stays empty; the full per-item grading (which layer
 structures and questions turned up trouble) is kept in the ledger, on that run, but there is no dedicated
 query yet that mines it into a pattern across runs the way class's per-category history does. [C-084]
+A fully-reused loop is never blocked by an already-reached budget cap (see the dry-run/reuse rules above). [C-151]
+
+---
+
+## help and template
+
+`sidewise help` (free, no project needed) prints a one-screen contract card: the six verbs, the rules that
+cause most first-try rejects, and how to read a verdict. [C-113]
+`sidewise help <verb>` (view, class, change, scan, drill, loop) prints that verb's purpose, when to use it,
+one annotated example, and its own sharp rules. [C-114]
+Per-verb sharp rules `help` carries: `drill` says to follow `next:` rather than hand-authoring parent/from;
+`change` says the files must be committed at the ref it names; `scan` says a `scale` question ranks findings
+by severity, worst first, and to scan by file when the file is the unit that matters; `loop` says a sub-layer
+is a sibling key under `over:`, names are ≤ 20 characters with no `/`, and every question under a layer is
+asked of every item at that layer. [C-115]
+`sidewise help <topic>` covers `authoring`, `verdict`, `wise` and `reuse` — cross-cutting rules that don't
+belong to one verb. [C-116]
+`sidewise help wise` lists all five catalog fields (`why`, `area`, `stage`, `change`, `risk`) with their closed
+values and what each is for. [C-117]
+An unknown `help` target is a clean stop naming every real verb and topic. [C-118]
+Every fact the validator enforces that `help` also states (depth counts, the `where` limit, the pass bar, and
+the `wise` catalog lists) is built from the same constants the schema check and validator use, and a test
+asserts each one appears verbatim in the `help` output it names — so the validator and `help` can't quietly
+drift apart. [C-119]
+
+`sidewise template <verb> --from <request.yaml>` — with no `--parent` — names a request YAML file rather than
+a drill item or category: its `ask:`/`over:` (the frozen question set) is printed back unchanged, and
+`--where`/`--goal` overlay a new subject on top of it. Neither the file's shape nor its content is
+validated — template only prints, like every other path. [C-111]
+`--where`/`--goal` are refused unless paired with `--from`, and refused together with `--parent` (they overlay
+a checklist read from a file, not a drill item/category lookup). [C-112]
 
 ---
 
@@ -544,6 +634,22 @@ query yet that mines it into a pattern across runs the way class's per-category 
   Different items may have different child layers. [C-087]
 - `--dry-run` (class, change, scan, drill, loop) reports the calls and question count with no call and no
   spend, as `plan: {calls, questions, ...}` followed by `notes: ["dry run: no call, no spend"]`. [C-088]
+- `--dry-run` resolves reuse first and predicts it: `calls`/`questions` count only what would still need
+  asking, and `plan.reused` is how many of the request's questions (or, for a sweep, items) would come from
+  the ledger for free — the same prediction every verb's real run would make. `dryRunText`'s notes always
+  start with `"dry run: no call, no spend"`; a verb may append further notes after it (never before, never in
+  place of it) — e.g. a budget-cap warning when the request would still need to call the classifier and the
+  cap is already reached: `"would be blocked: the budget cap is already reached"`, without the dry run itself
+  failing or spending anything. [C-131] [C-134]
+- A run whose every answer is reused from prior runs is never blocked by an already-reached budget cap, on
+  any verb: the cap is checked only when the run would actually need to call the classifier — reuse only
+  skips the *spend* gate, never the *ledger* one (the ledger must still read cleanly and accept the new line
+  either way). [C-136] [C-149] [C-150] [C-151] [C-152]
+- `sidewise budget`'s cap-reached message points at the fix that actually applies: `sidewise budget set
+  --runs <n>` when only the run cap tripped (the dollar cap has room left), `sidewise budget reset` whenever
+  the dollar cap is involved, alone or together with the run cap. [C-133]
+- `change --dry-run` reads both git refs before answering: a nonexistent or mistyped `before`/`after` ref
+  stops `--dry-run` the same way it stops a real run, instead of only surfacing on the paid attempt. [C-148]
 - Node ≥ 22.13 is a hard requirement, not a soft preference: it's what the ledger's `node:sqlite`-backed lookup
   index runs on. The CLI's whole dispatch checks this once, up front (see C-106) — a project's own ledger
   itself (`.sidewise/log.jsonl`) stays the source of truth regardless: the index is a disposable, self-healing
@@ -607,10 +713,20 @@ query yet that mines it into a pattern across runs the way class's per-category 
   at further) — separately from the `plugin:` line's overall install state. Using Sidewise is always scoped to
   a project, so this is the answer that actually matters day to day. [C-102]
 - The Claude Code plugin bundles a stdio MCP server (`sidewise mcp`, hand-rolled, no SDK dependency) with one
-  tool, `sidewise`, taking `{ args: string[], stdin?: string }`. It runs exactly what `sidewise <args…>` would
-  run, in-process, treating `stdin` as what real stdin would have supplied, and returns the same text output
-  the CLI would print plus the exit code as `isError` (true when the exit code isn't 0) — there is no second
-  contract. [C-103]
+  tool, `sidewise`, taking `{ args: string[], stdin?: string, project?: string }`. It runs exactly what
+  `sidewise <args…>` would run, in-process, treating `stdin` as what real stdin would have supplied, and
+  returns the same text output the CLI would print plus the exit code as `isError` (true when the exit code
+  isn't 0) — there is no second contract. [C-103]
+- Every tool call runs through the same error normalization the real CLI entrypoint uses, so a thrown
+  provider, budget, ledger or usage error comes back as one clean `✖ field: problem → fix` line in the tool
+  result's `isError` text — never a doubled `✖ sidewise: ✖ field: ...` prefix. [C-140]
+- The `project` argument, when given, runs that one call against `project` as `SIDEWISE_HOME` instead of the
+  server's own working directory — for a nested project the plugin's own cwd doesn't reach. Omitted, behavior
+  is unchanged. [C-142]
+- A run or outcome made through the plugin is recorded under a real actor, not the literal `agent`: when
+  `SIDEWISE_ACTOR` isn't already set, the MCP server resolves `git config user.name` in the project directory,
+  falling back to `claude` when there's no repo, no git binary, or no name configured. An explicit
+  `SIDEWISE_ACTOR` always wins, and `sidewise doctor` shows the actor that will actually be used. [C-143]
 - The plugin's own configuration (`userConfig`) offers two masked, optional fields — a TypeSafe API key and an
   AI Gateway key. Leaving both empty means the free fake provider, exactly as on the terminal path. [C-104]
 - An empty string substituted for either key (Claude Code's own behaviour for a blank optional value is
