@@ -4,9 +4,13 @@ import { readFileSync } from 'node:fs';
 import { loadBudget } from '../../src/budget/budget.ts';
 import { EVIDENCE_LIMITS } from '../../src/evidence/code.ts';
 import { isContractRun, readLedger } from '../../src/ledger/log.ts';
+import type { Stub } from '../helpers/stub-provider.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { tempProject } from '../helpers/project.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
+
+/** Wraps a stub so its answer reports an estimated cost, without changing stub-provider.ts (shared by other crews). */
+const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }) });
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 const env = { SIDEWISE_ACTOR: 'reviewer-7' };
@@ -57,6 +61,13 @@ describe('class', () => {
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
+  });
+
+  it('a cost the provider only estimated (fix #4) is noted, not shown as if it were reported [C-132]', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
+    const provider = withEstimatedCost(stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } }));
+    const r = await runClass(CLASS_YAML, { paths, provider, env });
+    expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
   it('--dry-run: no provider call, no budget file, no ledger line [C-088]', async () => {

@@ -45,7 +45,27 @@ export interface JevResponse {
   answers: Record<string, JevAnswer>;
   usage: { inputTokens: number; outputTokens: number };
   costUsd?: number;
+  /** true when `costUsd` came from RATE_PER_INPUT_TOKEN below, not from the server's own reported cost. */
+  costEstimated?: boolean;
   requestId?: string;
+}
+
+/**
+ * Fix #4: published per-input-token rates (docs.typesafe.ai/models.md); output tokens are free there. TypeSafe's
+ * direct route never reports a cost at all (only provider_metadata.gateway.cost, on the gateway route, does —
+ * see wire.ts's readUsageAndCost), so without this a direct-route run always showed $0.00. Only a model TypeSafe
+ * has actually published a rate for appears here — an unlisted model's cost stays unreported, never guessed.
+ */
+const RATE_PER_INPUT_TOKEN: Record<string, number> = {
+  'jev-1.13.0': 42 / 1_000_000_000, // $42 per Btok = $0.042 per Mtok
+};
+
+/** The reported cost, or — when none was reported and the answering model has a published rate — an estimate
+ *  from its input tokens (output tokens are free), marked as such. Undefined when neither is available. */
+function costOf(model: string, usage: { inputTokens: number }, reported: number | undefined): { costUsd?: number; costEstimated?: boolean } {
+  if (reported !== undefined) return { costUsd: reported };
+  const rate = RATE_PER_INPUT_TOKEN[model];
+  return rate === undefined ? {} : { costUsd: usage.inputTokens * rate, costEstimated: true };
 }
 
 const malformed = (message: string, body: unknown): JevApiError => new JevApiError(`malformed response: ${message}`, { retryable: false, body });
@@ -107,5 +127,7 @@ export function parseAnswers(raw: unknown, questions: Record<string, JevQuestion
     if (a.type !== undefined && a.type !== q.type) throw malformed(`answer "${id}" has type "${String(a.type)}", expected "${q.type}"`, a);
     answers[id] = q.type === 'noul' ? readNoul(a, id) : q.type === 'choice' ? readChoice(a, id, Object.keys(q.criteria)) : readScore(a, id, q.criteria.length);
   }
-  return { model: typeof raw.model === 'string' ? raw.model : '', answers, ...readUsageAndCost(raw) };
+  const model = typeof raw.model === 'string' ? raw.model : '';
+  const { usage, costUsd } = readUsageAndCost(raw);
+  return { model, answers, usage, ...costOf(model, usage, costUsd) };
 }

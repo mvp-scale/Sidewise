@@ -38,7 +38,7 @@ export function createTypesafeAdapter(
         else if (a.type === 'score') answers[q.id] = { type: 'score', score: a.score, distribution: a.distribution, confidence: a.confidence };
         else answers[q.id] = { type: 'choice', choice: a.choice, probabilities: a.probabilities, confidence: a.confidence };
       }
-      return { answers, costUsd: res.costUsd };
+      return { answers, costUsd: res.costUsd, costEstimated: res.costEstimated };
     },
   };
 }

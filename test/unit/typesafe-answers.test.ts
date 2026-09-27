@@ -63,3 +63,26 @@ describe('parseAnswers', () => {
     expect(() => parseAnswers({ model: 'm' }, { n: qs.n! })).toThrow(/missing `answers`/);
   });
 });
+
+describe('cost estimate (fix #4): the direct route reports no cost, only usage', () => {
+  const body = (model: string, inputTokens: number) => ({ model, answers: { n: { noul: 0.5 } }, usage: { input_tokens: inputTokens, output_tokens: 3 } });
+
+  it('jev-1.13.0 gets an estimate from its published rate ($42 per Btok), marked estimated', () => {
+    const r = parseAnswers(body('jev-1.13.0', 120), { n: qs.n! });
+    expect(r.costUsd).toBeCloseTo(120 * (42 / 1_000_000_000), 12);
+    expect(r.costEstimated).toBe(true);
+  });
+
+  it('a model with no published rate stays unreported, never guessed', () => {
+    const r = parseAnswers(body('some-future-model', 120), { n: qs.n! });
+    expect(r.costUsd).toBeUndefined();
+    expect(r.costEstimated).toBeUndefined();
+  });
+
+  it('a reported gateway cost always wins over the estimate, and is never marked estimated', () => {
+    const raw = { ...body('jev-1.13.0', 120), provider_metadata: { gateway: { cost: '0.00042' } } };
+    const r = parseAnswers(raw, { n: qs.n! });
+    expect(r.costUsd).toBeCloseTo(0.00042, 10);
+    expect(r.costEstimated).toBeUndefined();
+  });
+});

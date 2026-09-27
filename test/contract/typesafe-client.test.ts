@@ -47,7 +47,9 @@ describe('TypeSafe client, recorded transactions', () => {
     expect(r.sent[0]).toMatchObject(c.expectRequest!);
     expect(res.answers.p1).toEqual({ type: 'noul', probability: 0.91, confidence: 0.82 });
     expect(res.usage).toEqual({ inputTokens: 120, outputTokens: 4 });
-    expect(res.costUsd).toBeUndefined();
+    // fix #4: the direct route reports no cost at all, so jev-1.13.0's published rate estimates one instead.
+    expect(res.costUsd).toBeCloseTo(120 * (42 / 1_000_000_000), 12);
+    expect(res.costEstimated).toBe(true);
   });
 
   it('noul without a confidence falls back to |2p - 1|', async () => {

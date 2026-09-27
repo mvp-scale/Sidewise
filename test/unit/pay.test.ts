@@ -132,6 +132,24 @@ describe('askAll: provider faults', () => {
     const unknown = await askAll(ctxOf(paths, stubProvider({ costUsd: undefined })), 'class', [call()]);
     expect(unknown.ok && unknown.value.costUsd).toBeUndefined();
     expect(ok.ok && ok.value.answers['2']).toEqual({ kind: 'scale', dist: { low: 0.9, high: 0.1 } });
+    expect(ok.ok && ok.value.costEstimated).toBe(false);
+  });
+
+  it('costEstimated (fix #4) is true when ANY summed call\'s cost was an estimate, not the provider\'s own figure', async () => {
+    const { paths } = tempProject({});
+    const answers: ClassifierResult['answers'] = {
+      goal: { type: 'noul', probability: 0.9 },
+      '1': { type: 'noul', probability: 0.9 },
+      '2': { type: 'score', score: 0, distribution: [0.9, 0.1], confidence: 0.9 },
+    };
+    const results: ClassifierResult[] = [
+      { answers, costUsd: 0.01, costEstimated: false },
+      { answers, costUsd: 0.02, costEstimated: true },
+    ];
+    const port: ClassifierPort = { adapter: 'stub', model: 'stub-1', ask: async () => results.shift()! };
+    const r = await askAll(ctxOf(paths, port), 'class', [call(), call()]);
+    expect(r.ok && r.value.costUsd).toBeCloseTo(0.03, 10);
+    expect(r.ok && r.value.costEstimated).toBe(true);
   });
 });
 

@@ -61,6 +61,8 @@ export interface ClassifierResult {
   readonly answers: Record<string, ClassifierAnswer>;
   /** Spend reported by the provider for this call in USD; undefined when the provider does not report it. */
   readonly costUsd: number | undefined;
+  /** Fix #4: true when `costUsd` was estimated from tokens (a published rate), not reported by the provider. */
+  readonly costEstimated?: boolean;
 }
 
 export interface ClassifierPort {

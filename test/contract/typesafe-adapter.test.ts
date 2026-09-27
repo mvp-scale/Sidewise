@@ -27,7 +27,9 @@ describe('TypeSafe adapter', () => {
     expect(s.type).toBe('score');
     if (s.type === 'score') expect(s.distribution.map((p) => Number(p.toFixed(2)))).toEqual([0.02, 0.05, 0.1, 0.81, 0.02]);
     expect(res.answers['12']).toMatchObject({ type: 'choice', choice: 'block' });
-    expect(res.costUsd).toBeUndefined();
+    // fix #4: the direct route reports no cost at all, so jev-1.13.0's published rate estimates one instead.
+    expect(res.costUsd).toBeCloseTo(420 * (42 / 1_000_000_000), 12);
+    expect(res.costEstimated).toBe(true);
   });
 
   it('no questions: no call', async () => {

@@ -18,7 +18,7 @@ import { lookupAnswers } from '../ledger/reuse.ts';
 import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, dryRunText, outcomeNext, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 export async function runClass(text: string, ctx: VerbContext): Promise<VerbResult> {
@@ -60,6 +60,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   }
 
   let costUsd: number | undefined;
+  let costEstimated = false;
   let calls: number;
   if (toAsk.length === 0) {
     costUsd = 0;
@@ -70,6 +71,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     if (!asked.ok) return asked.result;
     Object.assign(answers, asked.value.answers);
     costUsd = asked.value.costUsd;
+    costEstimated = asked.value.costEstimated;
     calls = 1;
   }
 
@@ -97,7 +99,11 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
       ]),
       wiseRecorded(request.wise),
       outcomeNext(id, subject.gate, subject.categories, request.side.categories, 'act on it'),
-      commonNotes([...loaded.notes, ...evidence.evidence.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])], budget, ctx.provider.adapter),
+      commonNotes(
+        [...loaded.notes, ...evidence.evidence.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        budget,
+        ctx.provider.adapter,
+      ),
     );
 
   const run: NewContractRun = {

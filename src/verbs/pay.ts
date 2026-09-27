@@ -114,10 +114,17 @@ function logFailed(ctx: VerbContext, verb: Verb, costUsd: number | undefined, re
   return fail(1, `✖ classifier: ${reason} → retry; the call was counted against the budget`);
 }
 
-/** The calls in order. Answers are merged by question id; the cost is their sum, or undefined if any call didn't report one. */
-export async function askAll(ctx: VerbContext, verb: Verb, calls: readonly PlannedCall[]): Promise<Step<{ answers: Record<string, Answer>; costUsd: number | undefined }>> {
+/** The calls in order. Answers are merged by question id; the cost is their sum, or undefined if any call didn't
+ *  report one. `costEstimated` (fix #4) is true when ANY summed call's cost came from a token-based estimate
+ *  (typesafe/answers.ts) rather than the provider's own reported figure, so the total can be marked as such. */
+export async function askAll(
+  ctx: VerbContext,
+  verb: Verb,
+  calls: readonly PlannedCall[],
+): Promise<Step<{ answers: Record<string, Answer>; costUsd: number | undefined; costEstimated: boolean }>> {
   const answers: Record<string, Answer> = {};
   let costUsd: number | undefined = 0;
+  let costEstimated = false;
   let paid = 0;
   for (const [i, call] of calls.entries()) {
     let result: ClassifierResult;
@@ -130,13 +137,14 @@ export async function askAll(ctx: VerbContext, verb: Verb, calls: readonly Plann
     paid += 1;
     const c = usableCost((result as Partial<ClassifierResult> | null | undefined)?.costUsd);
     costUsd = costUsd === undefined || c === undefined ? undefined : costUsd + c;
+    if (c !== undefined && (result as Partial<ClassifierResult> | null | undefined)?.costEstimated) costEstimated = true;
     try {
       Object.assign(answers, readAnswers(call.questions, result));
     } catch (e) {
       return logFailed(ctx, verb, costUsd, (e as Error).message);
     }
   }
-  return { ok: true, value: { answers, costUsd } };
+  return { ok: true, value: { answers, costUsd, costEstimated } };
 }
 
 /** A paid run: its spend and its ledger line in one lock section. */
