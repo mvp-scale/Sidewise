@@ -1,6 +1,6 @@
 // The shared sweep engine: depth-cap skipping, per-question reuse, one call per layer that needs one.
 import { describe, expect, it } from 'vitest';
-import { planSweep, runSweep } from '../../src/verbs/sweep.ts';
+import { planNeedsBudget, planSweep, runSweep } from '../../src/verbs/sweep.ts';
 import { runLoop } from '../../src/verbs/loop.ts';
 import { validateRequest } from '../../src/contract/validate.ts';
 import { readRequestText } from '../../src/contract/read.ts';
@@ -49,15 +49,23 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     expect(storyCall.call).toBeNull();
   });
 
-  it('runSweep with zero calls returns costUsd: 0', async () => {
+  it('runSweep with zero calls returns costUsd: 0, costEstimated: false, and planNeedsBudget: false', async () => {
     const { paths } = tempProject({});
     const provider = stubProvider({ yes: () => 0.9 });
     await runLoop(LOOP, { paths, provider, env: {} });
     const plan2 = planSweep(req(), WHO, paths, false);
     expect(plan2.planned.every((p) => p.call === null)).toBe(true);
+    expect(planNeedsBudget(plan2)).toBe(false); // fix #5a: nothing to ask, so a reached cap must never block this
     const r = await runSweep({ paths, provider, env: {} }, 'loop', plan2);
     expect(r.ok && r.value.costUsd).toBe(0);
+    expect(r.ok && r.value.costEstimated).toBe(false);
     expect(provider.calls.length).toBe(2); // only the seeding runLoop call above; runSweep made none
+  });
+
+  it('planNeedsBudget: true when any layer still has a call to make', () => {
+    const plan = planSweep(req(), WHO, tempProject({}).paths, false);
+    expect(plan.planned.some((p) => p.call !== null)).toBe(true);
+    expect(planNeedsBudget(plan)).toBe(true);
   });
 
   it('a second identical sweep reuses every item: no calls, everything free', async () => {

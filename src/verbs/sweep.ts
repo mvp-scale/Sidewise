@@ -175,12 +175,19 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
   return { layers, items, planned, keys, reusedFrom, answers, askedQuestions };
 }
 
+/** Fix #5a: whether a real run of this plan would make any call at all — the one thing preflight's own budget
+ *  cap check needs to know BEFORE it runs, so a fully-reused sweep (every layer's call: null) is never blocked
+ *  by an already-reached cap it will never touch. Pass as `preflight(ctx, { needsBudget: planNeedsBudget(plan) })`. */
+export function planNeedsBudget(plan: SweepPlan): boolean {
+  return plan.planned.some((p) => p.call !== null);
+}
+
 /** runSweep(ctx, verb, plan): pays for whatever planSweep queued, merged with the answers already free. */
 export async function runSweep(
   ctx: VerbContext,
   verb: Verb,
   plan: SweepPlan,
-): Promise<Step<{ answers: Record<string, Answer>; costUsd: number | undefined; statusOf: (id: string) => ItemStatus }>> {
+): Promise<Step<{ answers: Record<string, Answer>; costUsd: number | undefined; costEstimated: boolean; statusOf: (id: string) => ItemStatus }>> {
   const skippedIds = new Set(plan.planned.flatMap((p) => p.skipped));
   const askedIds = new Set(plan.planned.flatMap((p) => p.itemIds));
   const reusedItemIds = new Set<string>();
@@ -196,11 +203,11 @@ export async function runSweep(
   };
 
   const calls = plan.planned.map((p) => p.call).filter((c): c is PlannedCall => c !== null);
-  if (calls.length === 0) return { ok: true, value: { answers: plan.answers, costUsd: 0, statusOf } };
+  if (calls.length === 0) return { ok: true, value: { answers: plan.answers, costUsd: 0, costEstimated: false, statusOf } };
 
   const asked = await askAll(ctx, verb, calls);
   if (!asked.ok) return asked;
-  return { ok: true, value: { answers: { ...plan.answers, ...asked.value.answers }, costUsd: asked.value.costUsd, statusOf } };
+  return { ok: true, value: { answers: { ...plan.answers, ...asked.value.answers }, costUsd: asked.value.costUsd, costEstimated: asked.value.costEstimated, statusOf } };
 }
 
 /** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. `identity` is P2's route/base

@@ -1,5 +1,6 @@
 // drill: down from one item (sweep shape) or one category (class shape), depending on the parent's own shape.
 import { describe, expect, it } from 'vitest';
+import { setBudget } from '../../src/budget/budget.ts';
 import { appendContractRun, appendRun, isContractRun, readLedger } from '../../src/ledger/log.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runLoop } from '../../src/verbs/loop.ts';
@@ -227,9 +228,21 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     const provider = stubProvider();
     const r = await runDrill(drillReq, { paths, provider, env, dryRun: true });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 3\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 3\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths).filter(isContractRun)).toHaveLength(1); // just the class parent, SW-0001
+  });
+
+  // Fix #5/#6 follow-through: same pattern as class.ts — reuse is resolved before preflight, so a fully-reused
+  // drill is never blocked by an already-reached cap, and the response says which run its answers came from.
+  it('a fully-reused drill is never blocked by an already-reached cap, and names the run it reused [C-149]', async () => {
+    const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
+    await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001, 1 run
+    await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95 }), env }); // SW-0002, 1 run
+    setBudget(paths, { capRuns: 2 }); // exactly used up by the two runs above
+    const r = await runDrill(drillReq, { paths, provider: stubProvider(), env }); // fully reused: no call needed
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('reused: [SW-0002]');
   });
 
   it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {

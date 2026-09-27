@@ -12,7 +12,7 @@
  * (unchanged items are reused, so it is nearly free), since change refuses a sweep parent outright.
  */
 import { providerIdentity } from '../classifier/select.ts';
-import { m } from '../contract/emit.ts';
+import { m, type Value } from '../contract/emit.ts';
 import { goalGate, gradeItems, gradeSubject, sweepGate, worstFirst } from '../contract/grade.ts';
 import { firstStringLayer, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
@@ -27,7 +27,7 @@ import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
 import { clip } from '../util/text.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, dryRunText, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, reusedIds, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
 import { planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
@@ -55,20 +55,13 @@ async function runOneSubjectProof(
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
 
   const identity = providerIdentity(ctx.env);
-
-  if (ctx.dryRun) {
-    const questions = 1 + request.side.categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 1, questions, route: identity.route, baseURL: identity.baseURL }) };
-  }
-
-  const pre = preflight(ctx);
-  if (!pre.ok) return pre.result;
-
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k));
+  // fix #5a: reuse is resolved BEFORE preflight/dry-run (not after), same as class.ts — a fully-reused drill's
+  // free call is never blocked by an already-reached budget cap, and a dry run can predict how much reuses.
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
@@ -83,7 +76,15 @@ async function runOneSubjectProof(
     }
   }
 
+  if (ctx.dryRun) {
+    return { exit: 0, text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }) };
+  }
+
+  const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
+  if (!pre.ok) return pre.result;
+
   let costUsd: number | undefined;
+  let costEstimated = false;
   let calls: number;
   if (toAsk.length === 0) {
     costUsd = 0;
@@ -94,6 +95,7 @@ async function runOneSubjectProof(
     if (!asked.ok) return asked.result;
     Object.assign(answers, asked.value.answers);
     costUsd = asked.value.costUsd;
+    costEstimated = asked.value.costEstimated;
     calls = 1;
   }
 
@@ -111,15 +113,22 @@ async function runOneSubjectProof(
   const oneSubjectNext = (gate: 'pass' | 'fail' | 'unsure', id: string): string =>
     gate === 'pass' ? 'act on it' : `fix it, then sidewise change --parent ${changeParent(id)} --compare <before>..<after>`;
 
+  // fix #6: which prior runs this drill's answers came from, when any were reused.
+  const reusedRunIds = reusedIds(reusedFrom);
   const response = (id: string, budget: string): string =>
     respondText(
       subjectSide(id, subject.gate, subject, [
         ['consensus', consensus],
         ['escalate', escalate],
+        ...(reusedRunIds.length ? [['reused', reusedRunIds] as [string, Value]] : []),
       ]),
       wiseRecorded(request.wise),
       oneSubjectNext(subject.gate, id),
-      commonNotes([...loaded.notes, ...evidence.evidence.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])], budget, ctx.provider.adapter),
+      commonNotes(
+        [...loaded.notes, ...evidence.evidence.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        budget,
+        ctx.provider.adapter,
+      ),
     );
 
   const run: NewContractRun = {
