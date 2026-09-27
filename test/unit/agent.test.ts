@@ -44,6 +44,10 @@ describe('runAgent', () => {
     expect(runAgent('a\u0000b').exit).toBe(2);
   });
 
+  it('agent with no target points explicitly at "sidewise agent probe", not just a verb', () => {
+    expect(runAgent().text).toContain('sidewise agent probe');
+  });
+
   // Same shared rule list `help` uses (rules.ts) — never a second, divergent copy for the terse view.
   it('every validator rule tagged for a verb/card also appears verbatim in the matching agent output', () => {
     for (const rule of RULES) {
