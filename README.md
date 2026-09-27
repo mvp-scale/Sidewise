@@ -84,18 +84,38 @@ notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
 
 The numbers above are one run's illustration, not a guarantee — the real classifier's actual answer varies.
 
-## Install (coming)
+## Install
+
+Run this inside the project you want Sidewise in:
 
 ```bash
-npx @mvpscale/sidewise init            # detect your agents and set each one up
+npx @mvpscale/sidewise init
 ```
 
-Claude Code plugin:
+`init` does four things and says what it did at each step, one line apiece:
+- It puts the `sidewise` command on your PATH. You choose global, `--user` (under `~/.local`, no sudo) or `--local` (this project only, run as `npx sidewise`). It never runs sudo.
+- It asks for your TypeSafe API key, with the input hidden, and stores it per user: the OS keychain first, otherwise `~/.config/sidewise/env` (mode 0600). Press Enter to skip and use the free fake provider.
+- It enables the Claude Code plugin for this project, if `claude` is on your PATH.
+- It sets up `.sidewise/`, this project's run history, which git ignores.
 
+Re-running `init` changes nothing that's already right. In a second project it only enables that project. `sidewise uninstall` reverses it for this project; add `--all` to also remove the key and the CLI.
+
+**Just the Claude plugin:** `/plugin marketplace add mvp-scale/Sidewise`, then `/plugin install sidewise@mvp-scale`. The plugin still needs the CLI and a key, so run `npx @mvpscale/sidewise init --no-claude` once.
+
+**Just the CLI:** `npm install -g @mvpscale/sidewise` (global; may need sudo), `npm install -g --prefix ~/.local @mvpscale/sidewise` (no sudo; `~/.local/bin` must be on PATH) or `npm install -D @mvpscale/sidewise` (this project; run `npx sidewise`). Then add a key with `sidewise init`, or `export TYPESAFE_API_KEY=…`.
+
+`sidewise doctor` says where the key came from (`from OS keychain`, `from user file …`, `from env …`), never the key itself.
+
+### From a local build
+
+In a clone of this repo:
+
+```bash
+npm install
+cd /path/to/your/project && npm --prefix /path/to/Sidewise run dev:install
 ```
-/plugin marketplace add mvp-scale/Sidewise
-/plugin install sidewise@mvp-scale
-```
+
+`dev:install` builds, packs a tarball, and runs `init` from that tarball in the directory you ran it from, so a local build installs exactly the way the published package does.
 
 ## Quickstart
 

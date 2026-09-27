@@ -19,6 +19,15 @@ Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/uns
 - `drill` — goes down from one item a parent run flagged. Reach for it after a `fail` or `unsure` from `class`, `scan`, `loop` or `change`.
 - `loop` — a sweep across layers of ideas the agent writes. Reach for it on a design, a plan or a feature request, before any code exists.
 
+## Before the first call
+
+Find the command before you use it:
+1. Use `sidewise` if it's on PATH.
+2. Otherwise try `npx --no-install sidewise` (a project-local install).
+3. If neither works, tell the user to run `npx @mvpscale/sidewise init` in this project, and stop. Never install anything on the user's behalf.
+
+Sidewise is per project: its run history lives in the project's `.sidewise/`, which git ignores. The key is per user. `sidewise doctor` shows where it comes from, never the key itself: `key: yes · from OS keychain (encrypted, per user)`, `key: yes · from user file ~/.config/sidewise/env (0600, not encrypted)` or `key: yes · from env TYPESAFE_API_KEY`. The lookup order is env, then keychain, then that file. With no key, `doctor` says `key: no  → run "sidewise init" to add one`, and every call uses the free fake provider.
+
 ## Get started
 
 `sidewise template <verb>` prints a filled-in, valid example request for that verb. Edit the `goal`, `where` and `ask`, then pipe or pass it to the verb. `template drill --parent <id> --from <item-or-category>` shapes the sample to that run when it's in the ledger (a sweep parent keeps `over:`; a one-subject parent doesn't and names a category instead) — with no project, or an id it doesn't have, it prints the sweep sample:
