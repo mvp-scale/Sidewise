@@ -1070,7 +1070,7 @@ function refreshUnderLock(paths: SidewisePaths, Db: DatabaseSyncCtor): SqliteDb 
 
 /**
  * `opts.readOnly`: a caller that must never write index.db to disk (view, --dry-run's ledger lookups, findRun,
- * exactReuse — design binding "dry runs and free reads write nothing," and the writers'-lock liveness fix: a
+ * exactReuse: dry runs and free reads write nothing; also the writers'-lock liveness fix: a
  * 100k rebuild can hold paths.lock for many seconds, well past withLock's own 5 s timeout, so a casual read
  * must never be the thing that triggers one under that same lock and makes a REAL writer time out). A readOnly
  * caller that finds the on-disk index already fresh uses it (a plain open + a few small reads — verified

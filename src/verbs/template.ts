@@ -1,6 +1,6 @@
 /**
  * template: prints a request an agent can copy, edit and pipe straight into a verb — never a response, and
- * never spending or writing anything. The files under skills/sidewise/templates/ are CONTRACT.md's own worked
+ * never spending or writing anything. The files under skills/sidewise/templates/ are docs/contract.md's own worked
  * examples, shipped with the package so they're available from an installed install, not just the repo.
  * template still needs no project to run at all.
  *

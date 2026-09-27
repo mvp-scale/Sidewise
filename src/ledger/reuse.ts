@@ -88,7 +88,7 @@ function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: str
  *  the common "genuinely new question" reuse MISS, which used to pay for walking every candidate run for the
  *  provider only to confirm what a single missing row already proved. `opts.readOnly`: threaded through to
  *  withIndex for callers that must never persist a catch-up/rebuild here (a sweep verb's --dry-run planning,
- *  which still needs to know what WOULD reuse — design binding "dry runs... write nothing").
+ *  which still needs to know what WOULD reuse: a dry run writes nothing).
  *  `out` is built INSIDE the withIndex callback (never captured from outside it): withIndex retries `fn` from
  *  scratch against the in-memory fallback if the SQL attempt throws partway through, so a partially-filled `out`
  *  from that aborted attempt must never survive into the retry — building it fresh per `fn` invocation is what

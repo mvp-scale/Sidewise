@@ -80,7 +80,7 @@ function groupByLayer(items: readonly Item[]): Map<string, Item[]> {
  * No resolver: loop's over: is always plain arrays (checkOver's 'none' rule), so expand never needs one.
  * `dryRun`: threaded into lookupAnswers as `readOnly` — a sweep verb's --dry-run reply (sweepDryRun) is built
  * from THIS plan, so a plan built for a dry run must never persist a catch-up/rebuild of index.db to disk
- * (design binding "dry runs and free reads write nothing"); a real run's plan self-heals as before.
+ * (dry runs and free reads write nothing); a real run's plan self-heals as before.
  */
 export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryRun: boolean, opts: ExpandOptions = {}): SweepPlan {
   const { layers, items } = expand(request.side.over!, opts);
