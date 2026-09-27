@@ -17,6 +17,7 @@
 | Clean install + README quickstart, built first (`npm run build`) | `npm run test:install` |
 | Tarball content check (files allow-list, required entry points) | `npm run check:pack` |
 | Header-comment / unused-export check | `npm run check:hygiene` |
+| Regenerate the evidence doc index | `npm run gen:evidence-index` |
 | Validate the Claude Code plugin and marketplace | `claude plugin validate .` |
 
 ## Rules
@@ -37,6 +38,7 @@
 | Path | Holds |
 |---|---|
 | `src/` | engine: the YAML contract (read, validate, layers, grade, emit), evidence (code/git/units), providers, ledger, verbs, CLI |
+| `docs/` | the public contract (`contract.md`) and generated evidence for its claims (`evidence/`, indexed by `evidence/README.md`) |
 | `skills/sidewise/` | the Agent Skill (`SKILL.md` + references) |
 | `.claude-plugin/` | Claude Code plugin + marketplace manifests |
 | `test/{unit,contract,golden,e2e,live,gen}` | test tiers and mock-data generators |
