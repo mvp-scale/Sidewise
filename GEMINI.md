@@ -20,7 +20,9 @@ Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/uns
 
 ## Before the first call
 
-Find the command before you use it:
+In Claude Code with the Sidewise plugin installed, call the `sidewise` MCP tool directly — same args as the CLI (e.g. `args: ["class", "-"]`), the request YAML as `stdin`. No PATH lookup needed. The plugin key is set in the plugin's own options (`/plugin` → Sidewise → configure); `doctor` through the tool shows `key: yes · from env TYPESAFE_API_KEY` (that's how Claude passes it in).
+
+Everywhere else, find the command before you use it:
 1. Use `sidewise` if it's on PATH.
 2. Otherwise try `npx --no-install sidewise` (a project-local install).
 3. If neither works, tell the user to run `npx @mvpscale/sidewise init` in this project, and stop. Never install anything on the user's behalf.
@@ -116,7 +118,7 @@ side:
   escalate: true
 wise: {recorded: [why, area]}
 next: sidewise template drill --parent SW-0001 --from guards
-notes: [adapter fake · not evidence, budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
+notes: [adapter fake · not evidence, budget 0% used (0.00 of 5.00 USD · 1 of 500 runs)]
 ```
 
 The `id`, `gate` and probabilities above are one run's illustration, not a guarantee — they'll differ every time you run it.
@@ -143,7 +145,7 @@ recorded by <actor>" instead of adding a second line.
 `sidewise budget show` (the default with no subcommand) prints the current spend and run count. `sidewise
 budget reset` zeroes the spend and run count but keeps the current caps — nothing in the code stops any agent
 from running it, but by convention only the project owner does. `sidewise budget set --usd <n> --runs <n>`
-changes either or both caps without touching the spend already counted; the defaults are $5.00 and 500 runs.
+changes either or both caps without touching the spend already counted; the defaults are 5.00 USD and 500 runs.
 Any verb that would go over either cap stops at exit 3 before it spends anything.
 
 ## More
