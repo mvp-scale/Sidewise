@@ -1,7 +1,7 @@
 // class on the contract: request → evidence → (reuse or) one call → grade → the compact YAML response.
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { loadBudget } from '../../src/budget/budget.ts';
+import { loadBudget, recordSpend, setBudget } from '../../src/budget/budget.ts';
 import { EVIDENCE_LIMITS } from '../../src/evidence/code.ts';
 import { isContractRun, readLedger } from '../../src/ledger/log.ts';
 import type { Stub } from '../helpers/stub-provider.ts';
@@ -70,14 +70,34 @@ describe('class', () => {
     expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
-  it('--dry-run: no provider call, no budget file, no ledger line [C-088]', async () => {
+  it('--dry-run: no provider call, no budget file, no ledger line, and predicts reuse (fix #5b) [C-088] [C-134]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x' });
     const provider = stubProvider();
     const r = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 13\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    // fix #5b: nothing has ever run here, so all 13 questions would be asked, none reused.
+    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 13\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
+  });
+
+  it('--dry-run after a real run: predicts a fully-reused, zero-call plan, and warns when the cap is already reached [C-134]', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    await runClass(CLASS_YAML, { paths, provider, env });
+    const dry = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });
+    expect(dry.text).toBe('plan:\n  calls: 0\n  questions: 0\n  reused: 13\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    expect(readLedger(paths)).toHaveLength(1); // the dry run itself logged nothing
+  });
+
+  it('--dry-run warns when a real run\'s one call would be blocked by an already-reached cap (fix #5b), but does not fail', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'x' });
+    setBudget(paths, { capRuns: 1 });
+    recordSpend(paths, 0); // reach the cap without ever running class
+    const provider = stubProvider();
+    const r = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('would be blocked: the budget cap is already reached');
   });
 
   it('an oversized source file: the evidence-truncation note comes before the budget note [C-047]', async () => {

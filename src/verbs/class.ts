@@ -1,11 +1,14 @@
 /**
  * class: "does the evidence support this one goal?" One pass through the contract:
- *   request → evidence → (dry run: stop here) → preflight → reuse what the ledger already answered for the
- *   same questions on the same evidence → one call for the rest → grade → consensus → the spend and the run
- *   in one lock section → the compact side: response. A run fully answered from the ledger makes no call and
- *   is free (BRIEF §5: sweeps and one-subject runs reuse alike).
+ *   request → evidence → reuse what the ledger already answered for the same questions on the same evidence →
+ *   (dry run: stop here) → preflight → one call for the rest → grade → consensus → the spend and the run in
+ *   one lock section → the compact side: response. A run fully answered from the ledger makes no call and is
+ *   free (BRIEF §5: sweeps and one-subject runs reuse alike). fix #5a/#5b: reuse is resolved BEFORE preflight
+ *   (not after), so a fully-reused run's free call is never blocked by an already-reached budget cap, and a
+ *   dry run can predict how much of it would be reused.
  */
 import { providerIdentity } from '../classifier/select.ts';
+import { checkBudget, loadBudget } from '../budget/budget.ts';
 import type { Value } from '../contract/emit.ts';
 import { gradeSubject } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
@@ -21,6 +24,8 @@ import { loadRequest, stopText } from './request.ts';
 import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
+const CAP_NOTE = 'would be blocked: the budget cap is already reached';
+
 export async function runClass(text: string, ctx: VerbContext): Promise<VerbResult> {
   const loaded = loadRequest(text, 'class');
   if (!loaded.ok) return loaded.result;
@@ -31,20 +36,13 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
 
   const identity = providerIdentity(ctx.env);
-
-  if (ctx.dryRun) {
-    const questions = 1 + request.side.categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 1, questions, route: identity.route, baseURL: identity.baseURL }) };
-  }
-
-  const pre = preflight(ctx);
-  if (!pre.ok) return pre.result;
-
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k));
+  // readOnly on a dry run (design binding "dry runs and free reads write nothing"): never persists a catch-up
+  // or rebuild of index.db just to predict what a real run would do.
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
@@ -58,6 +56,26 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
       toAsk.push([q, k]);
     }
   }
+
+  if (ctx.dryRun) {
+    // fix #5b: a dry run predicts reuse, and checks (without spending) whether a real run's one call would
+    // itself be blocked by an already-reached cap — never a hard stop, just a heads-up.
+    let capNote: string[] = [];
+    if (toAsk.length > 0) {
+      try {
+        if (!checkBudget(loadBudget(ctx.paths).state).ok) capNote = [CAP_NOTE];
+      } catch {
+        // a corrupt/unwritable budget file is the real run's problem to report properly; a dry run stays silent.
+      }
+    }
+    return {
+      exit: 0,
+      text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }, capNote),
+    };
+  }
+
+  const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
+  if (!pre.ok) return pre.result;
 
   let costUsd: number | undefined;
   let costEstimated = false;
