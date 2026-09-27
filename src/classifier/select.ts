@@ -23,7 +23,7 @@ export function selectProvider(env: Env = process.env, deps: { fetch?: typeof fe
   return hasKey(resolveJevConfig(env, deps)) ? createTypesafeAdapter(env, deps) : createFakeAdapter();
 }
 
-/** P2: the route (direct/gateway/custom, or fake/chaos) and base URL (null for fake/chaos) a run would use —
+/** The route (direct/gateway/custom, or fake/chaos) and base URL (null for fake/chaos) a run would use —
  *  shown in --dry-run and stored on the ledger run record, never the key itself. */
 export interface ProviderIdentity {
   adapter: string;
@@ -41,7 +41,7 @@ export function providerIdentity(env: Env = process.env): ProviderIdentity {
     if (wanted === 'typesafe' || hasKey(config)) return { adapter: 'typesafe', model: config.model, route: routeLabel(config), baseURL: config.baseURL };
   } catch {
     // A config error (a floating model, a bad SIDEWISE_BASE_URL) leaves the route/base URL unknowable here;
-    // `sidewise doctor` (P5) surfaces the real ✖ message instead of this best-effort fallback.
+    // `sidewise doctor` surfaces the real ✖ message instead of this best-effort fallback.
     return { adapter: 'typesafe', model: 'unknown', route: 'custom', baseURL: null };
   }
   return { adapter: 'fake', model: FAKE_MODEL, route: 'fake', baseURL: null };

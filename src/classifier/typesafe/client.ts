@@ -11,7 +11,7 @@
  *         gateway = https://ai-gateway.vercel.sh/typesafe (AI_GATEWAY_API_KEY, `typesafe-ai/jev`).
  * Calling fetch directly keeps timeouts, errors and the wire shape under our tests with no dependency.
  *
- * Retry (P8): a retryable failure (wire.ts's JevApiError#retryable — 408/429/5xx and network/timeout errors;
+ * Retry: a retryable failure (wire.ts's JevApiError#retryable — 408/429/5xx and network/timeout errors;
  * never 401/422/other 4xx) gets up to MAX_RETRIES more tries, honouring the server's own Retry-After when it
  * sends one, else exponential backoff with jitter, capped per wait. Every attempt is still exactly one
  * postSystemOne round trip; from pay.ts's side this is still ONE ask() call either way. A failed attempt's
@@ -37,7 +37,7 @@ interface JevClient {
 
 const NO_KEY_MESSAGE = '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY (direct) or AI_GATEWAY_API_KEY (gateway), or SIDEWISE_PROVIDER=fake to try requests';
 
-/** Retries beyond the first attempt: 2 more tries, 3 attempts total (the P8 ruling). */
+/** Retries beyond the first attempt: 2 more tries, 3 attempts total. */
 const MAX_RETRIES = 2;
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 10_000;

@@ -51,7 +51,7 @@ export interface JevResponse {
 }
 
 /**
- * Fix #4: published per-input-token rates (docs.typesafe.ai/models.md); output tokens are free there. TypeSafe's
+ * Published per-input-token rates (docs.typesafe.ai/models.md); output tokens are free there. TypeSafe's
  * direct route never reports a cost at all (only provider_metadata.gateway.cost, on the gateway route, does —
  * see wire.ts's readUsageAndCost), so without this a direct-route run always showed $0.00. Only a model TypeSafe
  * has actually published a rate for appears here — an unlisted model's cost stays unreported, never guessed.

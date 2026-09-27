@@ -91,7 +91,7 @@ async function fetchWithTimeout(
 
 /** TypeSafe's real error body is {error: {type, message}} (see fixtures/wire/errors/401.json, 422.json) — read
  *  that first, so a user sees "invalid api key" rather than "[object Object]". message/error as bare strings
- *  are older/other shapes this still reads; anything else falls back to the raw JSON (P7). */
+ *  are older/other shapes this still reads; anything else falls back to the raw JSON. */
 function detailOf(body: unknown): string {
   if (!isRecord(body)) return String(body).slice(0, 200);
   const err = body.error;

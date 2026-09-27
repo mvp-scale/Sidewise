@@ -5,8 +5,8 @@
 
 export class JevConfigError extends Error {
   /** 1 (default): a provider problem (no key) — bucketed with other provider errors. 2: a config value the
-   *  caller must fix before anything runs (a bad SIDEWISE_BASE_URL) — the owner ruling for P3 treats this like
-   *  a usage mistake, not a runtime provider failure. */
+   *  caller must fix before anything runs (a bad SIDEWISE_BASE_URL) — a usage mistake, not a runtime provider
+   *  failure. */
   readonly exit: 1 | 2;
   constructor(message: string, exit: 1 | 2 = 1) {
     super(message);
@@ -100,11 +100,11 @@ function resolveTimeoutMs(env: Env): number {
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
-/** SIDEWISE_BASE_URL (P3): a documented escape hatch (a proxy, a self-hosted mirror, tests), replacing the
- *  undocumented JEV_BASE_URL — no test or script depended on the old name (grepped before dropping it), so
- *  there is one name, not two. Must parse as a URL; https is required, except http for localhost/127.0.0.1/
- *  [::1] (a local dev proxy). Anything else is a config stop in the "✖ field: problem → fix" style, at exit 2
- *  (an owner ruling: a bad override is a usage mistake to fix, not a runtime provider failure). */
+/** SIDEWISE_BASE_URL: a documented escape hatch (a proxy, a self-hosted mirror, tests), replacing the
+ *  undocumented JEV_BASE_URL — there is one name, not two. Must parse as a URL; https is required, except
+ *  http for localhost/127.0.0.1/[::1] (a local dev proxy). Anything else is a config stop in the
+ *  "✖ field: problem → fix" style, at exit 2 (a bad override is a usage mistake to fix, not a runtime
+ *  provider failure). */
 function resolveBaseURL(env: Env, baseDefault: string): string {
   const raw = clean(env.SIDEWISE_BASE_URL);
   if (raw === undefined) return baseDefault;
@@ -163,7 +163,7 @@ export function hasKey(config: JevConfig): boolean {
 
 export type ProviderRoute = 'direct' | 'gateway' | 'custom';
 
-/** The route to show/record (P2): 'direct'/'gateway' when the base URL is still that route's own default,
+/** The route to show/record: 'direct'/'gateway' when the base URL is still that route's own default,
  *  else 'custom' — a SIDEWISE_BASE_URL override changed which endpoint actually answers. */
 export function routeLabel(config: JevConfig): ProviderRoute {
   const baseDefault = config.route === 'gateway' ? GATEWAY_BASE_URL : DIRECT_BASE_URL;
