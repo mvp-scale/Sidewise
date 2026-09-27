@@ -37,16 +37,35 @@ describe('drill: parent and from resolution', () => {
     expect(r.text).toBe('✖ side.parent: SW-0001 predates the YAML contract → run class or scan again');
   });
 
-  it('a sweep parent, no over: — stops naming the fix, with the from: it was given', async () => {
+  // Fix #10: a sweep item that has code (a unit) can be drilled flat, one subject, no further layer — the
+  // fresh ask: categories are answered straight against that item's own lines, class-style. [C-144]
+  it('a sweep parent, no over:, from: names a coded item — a flat one-subject proof', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
     const scanReq =
       'side:\n  goal: handlers stay safe\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: is it unsafe?\n';
     await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
-    const bad = 'side:\n  goal: find the bug\n  parent: SW-0001\n  from: src/a.ts/findUser\n  ask:\n    injection:\n      pass: no\n      1: is it unsafe?\n';
+    const req = 'side:\n  goal: find the bug\n  parent: SW-0001\n  from: src/a.ts/findUser\n  ask:\n    injection:\n      pass: no\n      1: is it unsafe?\n';
+    const r = await runDrill(req, { paths, provider: stubProvider({ yes: () => 0.95 }), env });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('gate: fail');
+    expect(r.text).toContain('injection: {gate: fail, 1: 0.95}');
+    expect(r.text).toContain('consensus:');
+    // change --parent points at THIS drill (SW-0002, items: null), not the sweep it was drilled from
+    // (SW-0001, items !== null — change refuses a sweep parent outright).
+    expect(r.text).toContain('next: fix it, then sidewise change --parent SW-0002 --compare <before>..<after>');
+  });
+
+  // The item exists but is an idea (loop's own kind, no unit) — nothing to prove flatly without over:.
+  it('a sweep parent (loop), no over:, from: names an idea item — a clean stop, not a crash', async () => {
+    const { paths } = tempProject({});
+    const loopReq =
+      'side:\n  goal: the plan holds up\n  depth: quick\n  over:\n    part:\n      - payments\n  ask:\n    part:\n      risk:\n        pass: no\n        1: Does {part} carry too much risk?\n';
+    await runLoop(loopReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+    const bad = 'side:\n  goal: find the bug\n  parent: SW-0001\n  from: payments\n  ask:\n    a:\n      pass: yes\n      1: is it true?\n';
     const r = await runDrill(bad, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
     expect(r.text).toBe(
-      '✖ side.over: drilling into a sweep item needs it → add over: with the next layer down (sidewise template drill --parent SW-0001 --from src/a.ts/findUser)',
+      '✖ side.from: "payments" has no code → add over: with the next layer down, or drill an item scan found (sidewise template drill --parent SW-0001 --from payments)',
     );
   });
 

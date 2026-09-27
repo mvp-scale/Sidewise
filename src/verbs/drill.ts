@@ -16,7 +16,7 @@ import { m } from '../contract/emit.ts';
 import { goalGate, gradeItems, gradeSubject, sweepGate, worstFirst } from '../contract/grade.ts';
 import { firstStringLayer, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
-import type { Answer, Category } from '../contract/types.ts';
+import type { Answer, Category, Request } from '../contract/types.ts';
 import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import { createCodeResolver, readUnit } from '../evidence/units.ts';
@@ -35,6 +35,130 @@ import type { VerbContext, VerbResult } from './types.ts';
  * since sweep.ts reuses every item that didn't change. Never sidewise change: change.ts refuses a sweep parent. */
 const REDRILL_NEXT = 'fix it, then run this drill again (unchanged items are reused, so it is nearly free)';
 
+/**
+ * The one-subject shape (CONTRACT.md "drill"): fresh, narrower ask: categories answered straight against
+ * `where` — class's own flow verbatim, just with drill's own record shape (parent/from set, next: never
+ * points at drilling further). Shared by BOTH an existing one-subject-parent drill and, since fix #10, a flat
+ * proof of one coded sweep item with no over: — they differ only in where the evidence comes from and which
+ * run `change` should build on next: a one-subject PARENT already has items: null, so `request.side.parent`
+ * itself is a valid change parent; a sweep parent (items !== null) is not — change refuses it outright — so a
+ * flat proof of one of its items must point `change` at itself (this new drill run's own id) instead.
+ */
+async function runOneSubjectProof(
+  ctx: VerbContext,
+  loaded: { notes: string[] },
+  request: Request,
+  where: readonly string[],
+  changeParent: (id: string) => string,
+): Promise<VerbResult> {
+  const evidence = readCodeEvidence(ctx.paths.root, where);
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
+
+  const identity = providerIdentity(ctx.env);
+
+  if (ctx.dryRun) {
+    const questions = 1 + request.side.categories.flatMap((c) => c.questions).length;
+    return { exit: 0, text: dryRunText({ calls: 1, questions, route: identity.route, baseURL: identity.baseURL }) };
+  }
+
+  const pre = preflight(ctx);
+  if (!pre.ok) return pre.result;
+
+  const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
+  const evidenceStr = subjectEvidence(evidence.evidence.files);
+  const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
+  const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k));
+
+  const answers: Record<string, Answer> = {};
+  const reusedFrom: Record<string, string> = {};
+  const toAsk: (typeof keyed)[number][] = [];
+  for (const [q, k] of keyed) {
+    const hit = reused.get(k);
+    if (hit) {
+      answers[q.id] = hit.answer;
+      reusedFrom[q.id] = hit.id;
+    } else {
+      toAsk.push([q, k]);
+    }
+  }
+
+  let costUsd: number | undefined;
+  let calls: number;
+  if (toAsk.length === 0) {
+    costUsd = 0;
+    calls = 0;
+  } else {
+    const call: PlannedCall = { state: { goal: redact(request.side.goal), code: evidence.evidence.files }, questions: toAsk.map(([q]) => q) };
+    const asked = await askAll(ctx, 'drill', [call]);
+    if (!asked.ok) return asked.result;
+    Object.assign(answers, asked.value.answers);
+    costUsd = asked.value.costUsd;
+    calls = 1;
+  }
+
+  const keys: Record<string, string> = {};
+  for (const [q, k] of keyed) keys[q.id] = k;
+
+  const slots: SlotAnswer[] = request.side.categories
+    .filter((c) => c.questions[0]?.kind === 'yesno')
+    .flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === 'yes', p: (answers[String(q.n)] as { kind: 'yesno'; p: number }).p })));
+  const consensus = computeConsensus(slots).consensus;
+
+  const subject = gradeSubject(request.side.categories, answers);
+  const escalate = consensus !== 'STRONG' || request.side.depth === 'thorough' || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
+
+  const oneSubjectNext = (gate: 'pass' | 'fail' | 'unsure', id: string): string =>
+    gate === 'pass' ? 'act on it' : `fix it, then sidewise change --parent ${changeParent(id)} --compare <before>..<after>`;
+
+  const response = (id: string, budget: string): string =>
+    respondText(
+      subjectSide(id, subject.gate, subject, [
+        ['consensus', consensus],
+        ['escalate', escalate],
+      ]),
+      wiseRecorded(request.wise),
+      oneSubjectNext(subject.gate, id),
+      commonNotes([...loaded.notes, ...evidence.evidence.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])], budget, ctx.provider.adapter),
+    );
+
+  const run: NewContractRun = {
+    verb: 'drill',
+    actor: actorOf(ctx),
+    task: ctx.env.SIDEWISE_TASK?.trim() || null,
+    goal: request.side.goal,
+    depth: request.side.depth ?? null,
+    where: [...where],
+    parent: request.side.parent!,
+    from: request.side.from!,
+    compare: null,
+    wise: request.wise,
+    ask: { categories: request.side.categories, layers: [] },
+    over: null,
+    items: null,
+    answers,
+    keys,
+    reusedFrom,
+    categories: Object.fromEntries(subject.categories.map((c) => [c.name, c.gate])),
+    gate: subject.gate,
+    goalGate: subject.goal?.gate ?? null,
+    goalP: subject.goal?.p ?? null,
+    consensus,
+    response,
+    notes: [],
+    adapter: ctx.provider.adapter,
+    model: ctx.provider.model,
+    costUsd: costUsd ?? null,
+    calls,
+    route: identity.route,
+    baseURL: identity.baseURL,
+  };
+
+  const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
+  if (!rec.ok) return rec.result;
+  return { exit: 0, text: rec.value.run.response, run: rec.value.run };
+}
+
 export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResult> {
   const loaded = loadRequest(text, 'drill');
   if (!loaded.ok) return loaded.result;
@@ -44,23 +168,26 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
   if (!parent) return { exit: 2, text: `✖ side.parent: ${request.side.parent} is not in the ledger → check the id` };
   if (!isContractRun(parent)) return { exit: 2, text: `✖ side.parent: ${parent.id} predates the YAML contract → run class or scan again` };
 
-  const oneSubjectNext = (gate: 'pass' | 'fail' | 'unsure'): string =>
-    gate === 'pass' ? 'act on it' : `fix it, then sidewise change --parent ${request.side.parent} --compare <before>..<after>`;
-
   if (parent.items !== null) {
     // The parent was a sweep: from: names one of its items.
-    if (!request.side.over) {
-      return {
-        exit: 2,
-        text: `✖ side.over: drilling into a sweep item needs it → add over: with the next layer down (sidewise template drill --parent ${parent.id} --from ${request.side.from})`,
-      };
-    }
     const itemRec: ItemRecord | undefined = parent.items[request.side.from!];
     if (!itemRec) {
       return {
         exit: 2,
         text: `✖ side.from: "${clip(request.side.from!, 40)}" is not an item ${parent.id} listed → use one of: ${clip(Object.keys(parent.items).join(', '), 80)}`,
       };
+    }
+
+    // Fix #10: no over: at all — a flat, one-subject proof of just this one item, no further layer. Only
+    // a coded item (a unit) has evidence to read this way; an idea item (loop's own kind) has none.
+    if (!request.side.over) {
+      if (!itemRec.unit) {
+        return {
+          exit: 2,
+          text: `✖ side.from: "${clip(request.side.from!, 40)}" has no code → add over: with the next layer down, or drill an item scan found (sidewise template drill --parent ${parent.id} --from ${request.side.from})`,
+        };
+      }
+      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id);
     }
 
     const from = request.side.from!;
@@ -186,108 +313,5 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       text: `✖ side.from: "${clip(request.side.from!, 40)}" is not a category of ${parent.id} → use one of: ${parent.ask.categories.map((c) => c.name).join(', ')}`,
     };
   }
-
-  const evidence = readCodeEvidence(ctx.paths.root, parent.where);
-  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
-
-  const identity = providerIdentity(ctx.env);
-
-  if (ctx.dryRun) {
-    const questions = 1 + request.side.categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 1, questions, route: identity.route, baseURL: identity.baseURL }) };
-  }
-
-  const pre = preflight(ctx);
-  if (!pre.ok) return pre.result;
-
-  const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-  const evidenceStr = subjectEvidence(evidence.evidence.files);
-  const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
-  const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k));
-
-  const answers: Record<string, Answer> = {};
-  const reusedFrom: Record<string, string> = {};
-  const toAsk: (typeof keyed)[number][] = [];
-  for (const [q, k] of keyed) {
-    const hit = reused.get(k);
-    if (hit) {
-      answers[q.id] = hit.answer;
-      reusedFrom[q.id] = hit.id;
-    } else {
-      toAsk.push([q, k]);
-    }
-  }
-
-  let costUsd: number | undefined;
-  let calls: number;
-  if (toAsk.length === 0) {
-    costUsd = 0;
-    calls = 0;
-  } else {
-    const call: PlannedCall = { state: { goal: redact(request.side.goal), code: evidence.evidence.files }, questions: toAsk.map(([q]) => q) };
-    const asked = await askAll(ctx, 'drill', [call]);
-    if (!asked.ok) return asked.result;
-    Object.assign(answers, asked.value.answers);
-    costUsd = asked.value.costUsd;
-    calls = 1;
-  }
-
-  const keys: Record<string, string> = {};
-  for (const [q, k] of keyed) keys[q.id] = k;
-
-  const slots: SlotAnswer[] = request.side.categories
-    .filter((c) => c.questions[0]?.kind === 'yesno')
-    .flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === 'yes', p: (answers[String(q.n)] as { kind: 'yesno'; p: number }).p })));
-  const consensus = computeConsensus(slots).consensus;
-
-  const subject = gradeSubject(request.side.categories, answers);
-  const escalate = consensus !== 'STRONG' || request.side.depth === 'thorough' || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
-
-  const response = (id: string, budget: string): string =>
-    respondText(
-      subjectSide(id, subject.gate, subject, [
-        ['consensus', consensus],
-        ['escalate', escalate],
-      ]),
-      wiseRecorded(request.wise),
-      oneSubjectNext(subject.gate),
-      commonNotes([...loaded.notes, ...evidence.evidence.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : [])], budget, ctx.provider.adapter),
-    );
-
-  const run: NewContractRun = {
-    verb: 'drill',
-    actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
-    depth: request.side.depth ?? null,
-    where: parent.where,
-    parent: request.side.parent!,
-    from: request.side.from!,
-    compare: null,
-    wise: request.wise,
-    ask: { categories: request.side.categories, layers: [] },
-    over: null,
-    items: null,
-    answers,
-    keys,
-    reusedFrom,
-    categories: Object.fromEntries(subject.categories.map((c) => [c.name, c.gate])),
-    gate: subject.gate,
-    goalGate: subject.goal?.gate ?? null,
-    goalP: subject.goal?.p ?? null,
-    consensus,
-    response,
-    notes: [],
-    adapter: ctx.provider.adapter,
-    model: ctx.provider.model,
-    costUsd: costUsd ?? null,
-    calls,
-    route: identity.route,
-    baseURL: identity.baseURL,
-  };
-
-  const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
-  if (!rec.ok) return rec.result;
-  return { exit: 0, text: rec.value.run.response, run: rec.value.run };
+  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent!);
 }
