@@ -138,7 +138,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(sidewise(root, ['judge'])).toMatchObject({
       status: 2,
       stdout: '',
-      stderr: '✖ args: "judge" is not a command → use view, class, change, scan, drill, loop, template, help, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)\n',
+      stderr: '✖ args: "judge" is not a command → use view, class, change, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)\n',
     });
     expect(sidewise(root, ['view'])).toMatchObject({
       status: 2,
@@ -175,6 +175,19 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
       expect(help).toMatchObject({ status: 0, stderr: '' });
       expect(help.stdout).toContain('sidewise template');
     }
+  });
+
+  it('sidewise agent [verb]: free, no project needed, terse — help\'s agent-facing twin [C-173]', () => {
+    const overview = sidewise('/', ['agent'], { home: false });
+    expect(overview.status).toBe(0);
+    expect(overview.stdout).toContain('verbs: view, class, change, scan, drill, loop');
+
+    const classCard = sidewise('/', ['agent', 'class'], { home: false });
+    expect(classCard.status).toBe(0);
+    expect(classCard.stdout).toContain('verb: class');
+    expect(classCard.stdout).toContain('patterns:');
+
+    expect(sidewise('/', ['agent', 'nope'], { home: false }).status).toBe(2);
   });
 
   it('template works with no project at all', () => {

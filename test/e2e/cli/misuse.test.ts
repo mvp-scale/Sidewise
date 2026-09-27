@@ -93,7 +93,7 @@ describe('class: bad request input', () => {
     expect(lines).toHaveLength(7);
     expect(lines.slice(0, 6).every((l) => /^✖ .+ → .+$/.test(l))).toBe(true);
     expect(lines[5]).toMatch(/^✖ request: \d+ more problems → fix the ones above, then run again$/);
-    expect(lines[6]).toBe('→ see: sidewise help class');
+    expect(lines[6]).toBe('→ see: sidewise agent class');
   });
 });
 

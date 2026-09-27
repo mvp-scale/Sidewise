@@ -119,6 +119,19 @@ describe('mcp protocol: tools/call [C-103]', () => {
     expect(result.isError).toBe(false);
   });
 
+  it('agent class: same text as calling the CLI dispatch directly, no project needed [C-173]', async () => {
+    const ctx = fakeCtx();
+    const direct = await runCli(['agent', 'class'], ctx);
+    const resp = await handleMessage(
+      { jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['agent', 'class'] } } },
+      { runOne: runOneFor(ctx), serverVersion: '0.0.0-test' },
+    );
+    expect(direct.exit).toBe(0);
+    const result = resp?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
+    expect(result.content[0]?.text).toBe(direct.text);
+    expect(result.isError).toBe(false);
+  });
+
   it('an unknown command: isError true, matching the CLI dispatch\'s own nonzero exit', async () => {
     const ctx = fakeCtx();
     const direct = await runCli(['not-a-real-command'], ctx);

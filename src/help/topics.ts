@@ -4,6 +4,7 @@
  * reuse (what answers are free and why).
  */
 import { AREAS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
+import { proseLines } from './patterns.ts';
 import { ruleLines } from './rules.ts';
 
 export const TOPICS = ['authoring', 'verdict', 'wise', 'reuse'] as const;
@@ -23,6 +24,7 @@ function authoring(): string {
     '- a `scale:` level should name a concrete situation that stands on its own ("crashes in production"), not a bare relative point ("high").',
     '- give a `choice:` a genuine no-match option (e.g. `none`) whenever the code might fit none of the others.',
     '- ask everything you need about this evidence in one request — a second call (`drill`) is for when you need to look at something new, not more angles on what you already sent.',
+    ...proseLines('authoring'),
   ].join('\n');
 }
 

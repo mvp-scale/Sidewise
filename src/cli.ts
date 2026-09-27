@@ -41,6 +41,7 @@ import { runReport } from './verbs/report.ts';
 import { runScan } from './verbs/scan.ts';
 import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
+import { runAgent } from './help/agent.ts';
 import { HELP_TOPICS, runHelp } from './help/index.ts';
 import { VERBS } from './contract/types.ts';
 import { resolveMcpActor } from './mcp/actor.ts';
@@ -69,6 +70,7 @@ const LINES = {
   template:
     'sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  ·  or: --from <request.yaml> [--where <path>]... [--goal <text>]',
   help: `sidewise help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}|report]`,
+  agent: `sidewise agent [${VERBS.join('|')}]`,
   report: 'sidewise report [hits|patterns|history]',
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
@@ -215,7 +217,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, help, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
 
   // Node ≥ 22.13 is a hard requirement: everything but `doctor` (which still runs and reports the problem,
@@ -254,6 +256,16 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     const { positionals } = args('help', { args: rest, allowPositionals: true, options: {} });
     positionalCount('help', positionals, 0, 1);
     const r = runHelp(positionals[0]);
+    return finish(r.exit, r.text);
+  }
+
+  // agent: help's terse, agent-facing twin — same free-standing shape, no project needed, never spends or
+  // writes. `agent` alone is the universal rules and the verb list; `agent <verb>` goes dense per verb
+  // (src/help/agent.ts). Every request-validation stop's "→ see:" pointer names this, not help (request.ts).
+  if (command === 'agent') {
+    const { positionals } = args('agent', { args: rest, allowPositionals: true, options: {} });
+    positionalCount('agent', positionals, 0, 1);
+    const r = runAgent(positionals[0]);
     return finish(r.exit, r.text);
   }
 

@@ -3,6 +3,7 @@
  * the ones that caused a first-try reject in real use.
  */
 import type { Verb } from '../contract/types.ts';
+import { proseLines } from './patterns.ts';
 import { ruleLines } from './rules.ts';
 
 const EXAMPLES: Record<Verb, string> = {
@@ -87,5 +88,6 @@ export function verbHelp(verb: Verb): string {
     'Sharp rules:',
     ...SHARP[verb].map((s) => `- ${s}.`),
     ...ruleLines(verb),
+    ...proseLines(verb),
   ].join('\n');
 }

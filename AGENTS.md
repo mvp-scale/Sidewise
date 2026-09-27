@@ -66,7 +66,7 @@ Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/uns
 
 ## Run this first
 
-`sidewise help` prints a one-screen contract card: the six verbs, the rules that cause most first-try rejects, and how to read a verdict. `sidewise help <verb>` (view, class, change, scan, drill, loop) and `sidewise help <topic>` (authoring, verdict, wise, reuse) go deeper — both free, no project needed. `sidewise report [hits|patterns|history]` reads back what the ledger has learned across every place so far — free, no options beyond the view name; a read tool, not a seventh verb.
+Run `sidewise agent <verb>` first: a dense, no-prose card of that verb's enforced rules and good/bad examples, built for an agent about to write a request. `sidewise help` is the human-readable version of the same contract: a one-screen card, plus `help <verb>` (view, class, change, scan, drill, loop) and `help <topic>` (authoring, verdict, wise, reuse) going deeper — both free, no project needed. `sidewise report [hits|patterns|history]` reads back what the ledger has learned across every place so far — free, no options beyond the view name; a read tool, not a seventh verb.
 
 ## Invoke it
 

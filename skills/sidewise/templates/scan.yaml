@@ -8,7 +8,7 @@ side:
   ask:
     function:                                 # one ask: block per layer named in over — {function} fills in per item
       injection:
-        pass: no
+        pass: no                              # ask what {function} itself does, not what code outside it does
         1: Does {function} put request text straight into a query?
       access:
         pass: no

@@ -155,8 +155,9 @@ text`, the same as an unquoted `true`/`false`/`on`/`off`. [C-041]
 `pass: no` / `pass: yes` written as `false` / `true` (an older parser's booleans) is accepted: false means
 no, true means yes. [C-042]
 Every stop a request can trigger — a parse error, a validation stop, or a bad `where`/git path — ends with
-`→ see: sidewise help <verb>`, naming the verb that was actually run, on top of whatever it already told you
-to fix. [C-153]
+`→ see: sidewise agent <verb>`, naming the verb that was actually run, on top of whatever it already told you
+to fix: a stop is read by the agent that sent the request, not a person at a terminal, so it points at the
+terse agent view, not `help`. [C-153]
 
 ### Every response
 
@@ -666,6 +667,19 @@ a checklist read from a file, not a drill item/category lookup). [C-112]
 `sidewise help report` is its own recognized target, not one of the six verbs (`report` is outside the 2x3
 Know/Judge/Prove grid) and not a cross-cutting topic: purpose, an example and its own sharp rules, the same
 shape as `help <verb>`. [C-161]
+`sidewise help class`, `sidewise help scan` and `sidewise help authoring` each carry a "Good / bad" section: a
+bad snippet, a good snippet, and one line of why, for the patterns that cause a first-try reject in practice
+(a whole file in `where:` instead of a range; a question about code that isn't in `where:`; several `where:`
+entries with no file named in the question; `scan` asking `{function}` about something outside it). [C-172]
+
+## agent
+
+`sidewise agent [verb]` (free, no project needed, never spends or writes) is `help`'s terse, agent-facing twin:
+the enforced rules for that verb (the same list `help <verb>` states) and its "Good / bad" pairs, why-only, in
+at most 8 words — no prose, no headings beyond a bare label. `sidewise agent` alone gives the verb list and the
+universal rules. It is not a seventh verb, the same way `report` isn't: free, read-only, no options beyond the
+verb name. Every request-validation stop's pointer (`→ see: sidewise agent <verb>`, C-153) names this, not
+`help` — a stop is read by the agent that sent the request. [C-173]
 
 ---
 
