@@ -11,7 +11,9 @@ function fakeCtx(env: Record<string, string | undefined> = {}): CliCtx {
     cwd: process.cwd(),
     platform: process.platform,
     runner: () => ({ status: 1, stdout: '', stderr: 'not used' }),
-    packageDir: '/nonexistent',
+    // The real repo root, not a placeholder: `template` reads skills/sidewise/templates/*.yaml from here (see
+    // src/verbs/template.ts's packageDir parameter) — a fixture placeholder would 404 that read for real.
+    packageDir: process.cwd(),
     pkg: { name: 'sidewise', version: '0.0.0-test' },
     homeDir: '/nonexistent-home',
     stdin: () => Buffer.from(''),
