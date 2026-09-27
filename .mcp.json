@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "sidewise": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/sidewise.mjs", "mcp"],
+      "env": {
+        "TYPESAFE_API_KEY": "${user_config.typesafe_api_key}",
+        "AI_GATEWAY_API_KEY": "${user_config.ai_gateway_api_key}"
+      }
+    }
+  }
+}

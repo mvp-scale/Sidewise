@@ -7,5 +7,21 @@
   "homepage": "https://github.com/mvp-scale/Sidewise",
   "repository": "https://github.com/mvp-scale/Sidewise",
   "license": "Apache-2.0",
-  "keywords": ["decision-support", "checklist", "consensus", "knowledge"]
+  "keywords": ["decision-support", "checklist", "consensus", "knowledge"],
+  "userConfig": {
+    "typesafe_api_key": {
+      "type": "string",
+      "title": "TypeSafe API key",
+      "description": "From TypeSafe; leave empty to use the free fake provider.",
+      "sensitive": true,
+      "required": false
+    },
+    "ai_gateway_api_key": {
+      "type": "string",
+      "title": "AI Gateway API key",
+      "description": "From TypeSafe via the AI Gateway; leave empty to use the free fake provider.",
+      "sensitive": true,
+      "required": false
+    }
+  }
 }
