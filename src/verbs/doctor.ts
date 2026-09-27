@@ -7,10 +7,11 @@
  * JEV_MODEL, a bad SIDEWISE_BASE_URL) stops here at exit 2 with the exact same ✖ message a paid verb would
  * give, just without ever risking a spend to find it out.
  *
- * The `key`/`cli`/`plugin` lines all take their real answer from an injected `deps.resolveStored`/`deps.runner`
- * — omitted (as every existing caller of this function still does), they read conservatively (env-only key,
- * "not on PATH", "not installed") rather than ever touching a real keychain, npm or claude. Only cli.ts's own
- * production call wires the real implementations (setup/keystore.ts, setup/npm-info.ts, setup/plugin.ts).
+ * The `key`/`cli`/`plugin` lines, and the project line's "plugin enabled here", all take their real answer from
+ * an injected `deps.resolveStored`/`deps.runner` — omitted (as every existing caller of this function still
+ * does), they read conservatively (env-only key, "not on PATH", "not installed") rather than ever touching a
+ * real keychain, npm or claude. Only cli.ts's own production call wires the real implementations
+ * (setup/keystore.ts, setup/npm-info.ts, setup/plugin.ts).
  */
 import path from 'node:path';
 import { CHAOS_MODEL } from '../classifier/chaos.ts';
@@ -19,8 +20,8 @@ import { hasKey, JevConfigError, resolveJevConfig, routeLabel, type JevConfig, t
 import { emit, m, type Value } from '../contract/emit.ts';
 import { sqliteAvailable } from '../ledger/index.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
+import { envFilePath, looseFileModeWarning, readEnvFile } from '../setup/env-file.ts';
 import { readInstallRecord } from '../setup/install-record.ts';
-import { credentialsPath, looseFileModeWarning, readCredentialsFile } from '../setup/keystore.ts';
 import { findOnPath } from '../setup/npm-info.ts';
 import { pluginStatus } from '../setup/plugin.ts';
 import type { Runner } from '../setup/runner.ts';
@@ -56,18 +57,22 @@ const octal4 = (mode: number): string => mode.toString(8).padStart(4, '0');
 // Each of these builds the VALUE half only — emit()'s m() already renders "key: <value>" from the map entry,
 // so a literal "key: " here would double up (caught by doctor.test.ts before this file ever shipped it).
 
-/** The `key:` value, plus, when the credentials file's mode is looser than 0600, a matching note.
- *  `deps.resolveStored` omitted (the default for every caller but cli.ts) never looks past env — see the module doc. */
+/** The `key:` value, plus, when the env file's mode is looser than 0600 or it has an ignored line, a matching
+ *  note. `deps.resolveStored` omitted (the default for every caller but cli.ts) never looks past env — see the
+ *  module doc. */
 function keyLine(env: Record<string, string | undefined>, config: JevConfig, deps: { resolveStored?: ResolveStored }): { value: string; note?: string } {
   if (!config.apiKey) return { value: 'no  → run "sidewise init" to add one' };
   if (config.keySource === 'keychain') {
-    return { value: 'yes · from OS keychain            (lookup: env → keychain → file)' };
+    return { value: 'yes · from OS keychain (encrypted, per user)' };
   }
   if (config.keySource === 'file') {
-    const file = credentialsPath(env);
-    const creds = readCredentialsFile(file);
-    const mode = creds?.mode ?? 0o600;
-    return { value: `yes · from user file ${file} (${octal4(mode)})`, note: creds ? looseFileModeWarning(file, mode) : undefined };
+    const file = envFilePath(env);
+    const read = readEnvFile(file);
+    const mode = read?.mode ?? 0o600;
+    const note = read
+      ? (looseFileModeWarning(file, mode) ?? (read.ignoredLines > 0 ? `✖ credentials: ${file} has ${read.ignoredLines} line(s) sidewise ignored (not "export NAME='value'" for an allowed name)` : undefined))
+      : undefined;
+    return { value: `yes · from user file ${file} (${octal4(mode)}, not encrypted)`, note };
   }
   // config.keySource === 'env' (or, for a bare call with no deps.resolveStored, simply undefined — env is the
   // only source it could have come from either way): a stored key elsewhere only matters for the note below.
@@ -97,6 +102,14 @@ function pluginLine(deps: { runner?: Runner }): string {
   return `sidewise@mvp-scale · ${status.scopes[0] ?? 'user'} scope`;
 }
 
+/** Using is per project (an owner ruling): the `project:` value names the root, then whether the plugin is
+ *  enabled for THIS project specifically — project scope, checked from wherever this process runs, which is
+ *  how Claude Code's own project scope is itself resolved. */
+function projectLine(root: string, deps: { runner?: Runner }): string {
+  const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
+  return `${root} · plugin enabled here: ${(status.scopes as string[]).includes('project') ? 'yes' : 'no'}`;
+}
+
 export function runDoctor(
   env: Record<string, string | undefined>,
   paths: SidewisePaths | undefined,
@@ -112,7 +125,7 @@ export function runDoctor(
   }
 
   const who = identityFor(env, config);
-  const project = paths ? path.relative(process.cwd(), paths.root) || '.' : 'none';
+  const project = paths ? projectLine(path.relative(process.cwd(), paths.root) || '.', deps) : 'none';
   const { value: key, note: keyNote } = keyLine(env, config, deps);
   const notes = [
     'free: no call, no spend',

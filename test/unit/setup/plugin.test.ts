@@ -10,6 +10,7 @@ import {
   marketplaceExists,
   pluginCacheDir,
   pluginStatus,
+  type PluginStatus,
   removeMarketplace,
   removePluginCacheDir,
   uninstallPlugin,
@@ -23,7 +24,8 @@ function stub(status: number, stdout: string): Runner {
 describe('pluginStatus', () => {
   it('finds sidewise in a plausible claude plugin list --json shape, with its scope', () => {
     const runner = stub(0, JSON.stringify([{ name: 'other-plugin', scope: 'user' }, { name: 'sidewise', scope: 'project' }]));
-    expect(pluginStatus(runner)).toEqual({ installed: true, scopes: ['project'] });
+    const status: PluginStatus = pluginStatus(runner);
+    expect(status).toEqual({ installed: true, scopes: ['project'] });
   });
 
   it('also finds a "name@marketplace" form, nested under an object rather than a top-level array', () => {

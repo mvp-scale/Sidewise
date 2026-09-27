@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { clearInstallRecord, installRecordPath, readInstallRecord, writeInstallRecord } from '../../../src/setup/install-record.ts';
+import { clearInstallRecord, installRecordPath, type InstallRecord, readInstallRecord, writeInstallRecord } from '../../../src/setup/install-record.ts';
 
 function tmpEnv(): { XDG_CONFIG_HOME: string } {
   return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'sidewise-installrec-')) };
@@ -17,7 +17,7 @@ describe('install-record', () => {
 
   it('writes then reads back exactly, holding no secret-shaped field', () => {
     const env = tmpEnv();
-    const record = { mode: 'user' as const, npmPrefix: path.join(os.homedir(), '.local'), installedAt: '2026-09-27T00:00:00Z' };
+    const record: InstallRecord = { mode: 'user', npmPrefix: path.join(os.homedir(), '.local'), installedAt: '2026-09-27T00:00:00Z' };
     writeInstallRecord(env, record);
     expect(readInstallRecord(env)).toEqual(record);
     expect(JSON.stringify(JSON.parse(readFileSync(installRecordPath(env), 'utf8')))).not.toMatch(/key|secret|token/iu);

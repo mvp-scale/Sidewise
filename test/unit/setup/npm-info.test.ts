@@ -4,7 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { detectSelfSpec, findOnPath, isWritableDir, npmGlobalPrefix } from '../../../src/setup/npm-info.ts';
+import { detectSelfSpec, findOnPath, isWritableDir, npmGlobalPrefix, type SelfSpec } from '../../../src/setup/npm-info.ts';
 import type { RunResult, Runner } from '../../../src/setup/runner.ts';
 
 describe('findOnPath', () => {
@@ -38,11 +38,12 @@ describe('detectSelfSpec', () => {
       expect(f).toBe(path.join('/fake', 'package-lock.json'));
       return JSON.stringify(lock);
     };
-    expect(detectSelfSpec(packageDir, pkg, readFile)).toEqual({ spec: path.join('/fake', 'packages', 'sidewise-0.0.0.tgz'), kind: 'tarball' });
+    const result: SelfSpec = detectSelfSpec(packageDir, pkg, readFile);
+    expect(result).toEqual({ spec: path.join('/fake', 'packages', 'sidewise-0.0.0.tgz'), kind: 'tarball' });
   });
 
   it('a registry-resolved entry (or no matching entry, or no lockfile) is the registry spec', () => {
-    const registrySpec = { spec: '@mvpscale/sidewise@0.0.0', kind: 'registry' as const };
+    const registrySpec: SelfSpec = { spec: '@mvpscale/sidewise@0.0.0', kind: 'registry' };
     const httpsLock = JSON.stringify({ packages: { 'node_modules/@mvpscale/sidewise': { resolved: 'https://registry.npmjs.org/@mvpscale/sidewise/-/sidewise-0.0.0.tgz' } } });
     expect(detectSelfSpec(packageDir, pkg, () => httpsLock)).toEqual(registrySpec);
     expect(

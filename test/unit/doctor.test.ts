@@ -5,7 +5,7 @@ import { mkdtempSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { credentialsPath, writeCredentialsFile } from '../../src/setup/keystore.ts';
+import { envFilePath, setEnvFileValue } from '../../src/setup/env-file.ts';
 import { writeInstallRecord } from '../../src/setup/install-record.ts';
 import type { RunResult, Runner } from '../../src/setup/runner.ts';
 import { runDoctor } from '../../src/verbs/doctor.ts';
@@ -56,12 +56,20 @@ describe('doctor (P5)', () => {
     expect(r.text).not.toContain('baseURL');
   });
 
-  it('a project is found: names its root, not "none"', () => {
+  it('a project is found: names its root, not "none", and says whether the plugin is enabled here [C-102]', () => {
     const { paths } = tempProject({});
     const r = runDoctor({}, paths);
     expect(r.exit).toBe(0);
     expect(r.text).not.toContain('project: none');
-    expect(r.text).toContain(`project: ${path.relative(process.cwd(), paths.root)}`);
+    // Quoted: the value contains ": " (from "plugin enabled here:"), which emit()'s scalar() always quotes.
+    expect(r.text).toContain(`project: "${path.relative(process.cwd(), paths.root)} · plugin enabled here: no"`);
+  });
+
+  it('"plugin enabled here" is yes only when the plugin is installed at project scope [C-102]', () => {
+    const { paths } = tempProject({});
+    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'project' }]), stderr: '' });
+    const r = runDoctor({}, paths, undefined, { runner });
+    expect(r.text).toContain('plugin enabled here: yes');
   });
 
   it('reports whether node:sqlite (vs. the linear fallback) is available on this runtime', () => {
@@ -111,19 +119,19 @@ describe('doctor (P5)', () => {
       expect(r.text).toContain('key: yes · from env AI_GATEWAY_API_KEY (overrides stored)');
     });
 
-    it('a keychain-resolved key: the exact literal line (quoted, since it contains ": "), and provider/route follow it too', () => {
+    it('a keychain-resolved key: the exact literal line, and provider/route follow it too', () => {
       const r = runDoctor({}, undefined, undefined, { resolveStored: () => ({ apiKey: 'kc-key', source: 'keychain', provider: 'typesafe' }) });
-      expect(r.text).toContain('key: "yes · from OS keychain            (lookup: env → keychain → file)"');
+      expect(r.text).toContain('key: yes · from OS keychain (encrypted, per user)');
       expect(r.text).toContain('provider: typesafe');
       expect(r.text).not.toContain('kc-key');
     });
 
     it('a file-resolved key: names the exact path and its mode', () => {
       const env = tmpXdg();
-      const file = credentialsPath(env);
-      writeCredentialsFile(file, { typesafe: 'file-key' });
+      const file = envFilePath(env);
+      setEnvFileValue(file, 'TYPESAFE_API_KEY', 'file-key');
       const r = runDoctor(env, undefined, undefined, { resolveStored: () => ({ apiKey: 'file-key', source: 'file', provider: 'typesafe' }) });
-      expect(r.text).toContain(`key: yes · from user file ${file} (0600)`);
+      expect(r.text).toContain(`key: yes · from user file ${file} (0600, not encrypted)`);
       expect(r.text).not.toContain('file-key');
     });
 

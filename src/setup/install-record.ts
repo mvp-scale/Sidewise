@@ -2,12 +2,12 @@
  * `~/.config/sidewise/install.json`: how `sidewise init` installed the CLI (global/user/local, and the npm
  * prefix or project dir involved) — nothing else. `sidewise uninstall` reads it to know which `npm uninstall`
  * variant reverses the install; `sidewise doctor` reads it for the `cli:` line. Deliberately separate from
- * keystore.ts's `credentials` file in the same directory: this file holds no secrets, so it's fine to read,
- * log, or paste into a bug report.
+ * env-file.ts's `env` file in the same directory: this file holds no secrets, so it's fine to read, log, or
+ * paste into a bug report.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { sidewiseConfigDir } from './keystore.ts';
+import { sidewiseConfigDir } from './env-file.ts';
 
 type Env = Record<string, string | undefined>;
 
