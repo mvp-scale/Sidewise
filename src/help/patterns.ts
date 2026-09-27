@@ -4,8 +4,10 @@
  * `sidewise agent <verb>` (src/help/agent.ts) renders the exact same pairs terse, why-only, for an agent about
  * to write a request. One shared list so the two views can never drift apart — test/unit/help-patterns.test.ts
  * is the proof: every `good` snippet parses and validates for its own `verb`, every `bad` snippet that's
- * actually catchable (today, only the oversized-file one, by evidence/code.ts's own stop) is rejected, and the
- * rest (wording/semantic patterns no validator can see) are marked not-catchable, not silently skipped.
+ * actually catchable is rejected before it reaches the classifier — either outright, by the schema/cross
+ * validator (contract/validate.ts's NEEDS/NEVER checks, contract/layers.ts's over: rules), or (the
+ * oversized-file pattern) schema-valid either way, caught only by the evidence reader's own C-169 stop — and
+ * the rest (wording/semantic patterns no validator can see) are marked not-catchable, not silently skipped.
  */
 import type { Verb } from '../contract/types.ts';
 
@@ -22,9 +24,9 @@ export interface Pattern {
   readonly verb: Verb;
   /** Which help/agent pages show this pair: verb names, or the `authoring` topic (help only). */
   readonly in: readonly string[];
-  /** Whether `bad` is actually rejected before it ever reaches the classifier — by the schema/cross validator,
-   *  or (the oversized-file pattern) by the evidence reader's own stop. False for a wording/semantic pattern
-   *  only a human or the classifier can judge — schema-valid either way. */
+  /** Whether `bad` is actually rejected before it ever reaches the classifier — outright, by the schema/cross
+   *  validator, or (the oversized-file pattern) schema-valid either way, caught only by the evidence reader's
+   *  own stop. False for a wording/semantic pattern only a human or the classifier can judge. */
   readonly catchable: boolean;
 }
 
@@ -64,6 +66,33 @@ export const PATTERNS: readonly Pattern[] = [
     catchable: false,
     bad: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does the caller of {function} sanitize its input first?\n",
     good: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} sanitize its input before use?\n",
+  },
+  {
+    rule: '`view` checks reuse for one subject against the code in `where:` — with none named, it has nothing to check.',
+    why: 'View needs where: to check for reuse',
+    verb: 'view',
+    in: ['view'],
+    catchable: true,
+    bad: 'side:\n  goal: This handler is safe to merge\n  ask:\n    injection:\n      pass: no\n      1: Does the handler sanitize the amount field before use?\n',
+    good: 'side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does the handler sanitize the amount field before use?\n',
+  },
+  {
+    rule: '`over:` builds a sweep across many items — `view` checks one subject and rejects `over:` outright.',
+    why: 'Over: is for sweeps; view checks one thing',
+    verb: 'view',
+    in: ['view'],
+    catchable: true,
+    bad: 'side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  over:\n    file: src/pay/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\n',
+    good: 'side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does the handler put request text straight into a query?\n',
+  },
+  {
+    rule: '`loop` sweeps ideas you write yourself, not files on disk — a code-glob layer belongs to `scan`, not `loop`.',
+    why: 'Loop sweeps written ideas, not file globs',
+    verb: 'loop',
+    in: ['loop'],
+    catchable: true,
+    bad: 'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    file: src/checkout/*.ts\n  ask:\n    file:\n      done:\n        pass: yes\n        1: Does {file} own one clear responsibility?\n',
+    good: 'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part: [gateway, payments, ledger]\n  ask:\n    part:\n      done:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n',
   },
 ];
 

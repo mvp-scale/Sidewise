@@ -3,7 +3,7 @@
 // the validator and help can never quietly drift apart (lessons-2026-09-27.md §3).
 import { describe, expect, it } from 'vitest';
 import { VERBS } from '../../src/contract/types.ts';
-import { runHelp } from '../../src/help/index.ts';
+import { HELP_EXTRAS, runHelp } from '../../src/help/index.ts';
 import { PROBE_RULES, RULES } from '../../src/help/rules.ts';
 import { TOPICS } from '../../src/help/topics.ts';
 
@@ -86,6 +86,29 @@ describe('runHelp', () => {
       expect(text).toContain(r.text);
       expect(text).toContain(r.cite);
     }
+  });
+
+  it('help outcome: syntax, the self-held restriction, no --note, and a good/bad pair', () => {
+    const text = runHelp('outcome').text;
+    expect(text).toContain('## outcome');
+    expect(text).toContain('sidewise outcome <SW-####> held|overruled|failed --by <actor>');
+    expect(text.toLowerCase()).toContain("can't mark it held");
+    expect(text).toContain('--note');
+    expect(text).toContain('sidewise outcome SW-0002 held --by claude');
+    expect(text).toContain('sidewise outcome SW-0002 overruled --by claude');
+  });
+
+  it('help budget: syntax, the bare "set" stop, and a good/bad pair', () => {
+    const text = runHelp('budget').text;
+    expect(text).toContain('## budget');
+    expect(text).toContain('sidewise budget set --usd 5 --runs 500');
+    expect(text).toContain('sidewise budget set');
+    expect(text.toLowerCase()).toContain('needs --usd or --runs');
+  });
+
+  it('an unknown target names every extra ("report", "outcome", "budget") too', () => {
+    const r = runHelp('nope');
+    for (const extra of HELP_EXTRAS) expect(r.text).toContain(`"${extra}"`);
   });
 
   it('a target with control characters: a clean stop', () => {
