@@ -672,6 +672,15 @@ bad snippet, a good snippet, and one line of why, for the patterns that cause a 
 (a whole file in `where:` instead of a range; a question about code that isn't in `where:`; several `where:`
 entries with no file named in the question; `scan` asking `{function}` about something outside it). [C-172]
 
+Each of the six verb templates (`skills/sidewise/templates/{view,class,change,scan,drill,loop}.yaml`) shows
+every `side.*` field that verb's own schema and cross-validator allow it to carry — required fields with a
+live value, optional fields either live or as a commented-out example — each marked `# required` or
+`# optional` in a trailing comment, and its `wise:` block names all six catalog keys (`why`, `area`, `stage`,
+`change`, `risk`, `parent`); a test checks every template against the same rule the validator itself enforces,
+so template and schema can't quietly drift apart. The category-level schema fields that don't vary by verb —
+`need:` and `tags:`, alongside `pass:` and the three question kinds (yes/no, `scale`, `choice`) — are
+demonstrated once, in `class.yaml`, rather than repeated in all six. [C-174] [C-175]
+
 ## agent
 
 `sidewise agent [verb]` (free, no project needed, never spends or writes) is `help`'s terse, agent-facing twin:
@@ -689,6 +698,14 @@ verb name. Every request-validation stop's pointer (`→ see: sidewise agent <ve
 - `depth` counts yes/no questions only; scale and choice don't count. [C-086]
 - Nested items use `- name: <item>` plus child layers beside it, which is what agents write naturally.
   Different items may have different child layers. [C-087]
+- `sidewise --version` and `sidewise -v` print the installed package's version, one line, exit 0 — free, no
+  project needed, no Node-version gate (same free standing as the bare `--help`/`-h`). [C-178]
+- `sidewise <command> --help` and `sidewise <command> -h` work for every command, exit 0, never reaching that
+  command's own flag parser (previously an unknown-flag stop for every command but the bare top level — e.g.
+  `sidewise doctor --help` used to fail). For the six verbs it prints that verb's usage line plus `→ see:
+  sidewise help <verb> · sidewise agent <verb>`; every other command prints just its usage line, since none of
+  those has a deeper per-command help page today. Free even on too old a Node, the same as the bare
+  `--help`/`-h`. [C-179]
 - `--dry-run` (class, change, scan, drill, loop) reports the calls and question count with no call and no
   spend, as `plan: {calls, questions, ...}` followed by `notes: ["dry run: no call, no spend"]`. [C-088]
 - `--dry-run` resolves reuse first and predicts it: `calls`/`questions` count only what would still need
@@ -742,6 +759,11 @@ verb name. Every request-validation stop's pointer (`→ see: sidewise agent <ve
   own warning line if its mode is looser than 0600 or it has a line sidewise ignored. It also names the CLI's
   own install (`cli: <path> · installed --<mode> ...`) and the Claude Code plugin's overall state (`plugin:
   sidewise@mvp-scale · <scope> scope`, or `not installed → ...`). [C-098]
+- Using Sidewise is scoped per project, but Claude Code's own `/plugin install` UI (unlike `sidewise init`,
+  which already defaults to `project` scope) defaults to `user` scope — so when doctor's `plugin:` line finds
+  the plugin installed at `user` scope only, it appends a nudge toward switching: `sidewise@mvp-scale · user
+  scope (every project) → for just this one, "sidewise init --scope project"`. No nudge once `project` or
+  `local` scope is present. [C-177]
 - `sidewise init` sets up two things per user, shared across every project — the CLI (`--global`/`--user`/
   `--local`, offering `--user` instead of a sudo-needing global install) and the key (hidden input via
   `node:readline`, never argv; `--key-stdin` for automation, `--no-key` to skip; a sanity check on shape only —
@@ -751,6 +773,10 @@ verb name. Every request-validation stop's pointer (`→ see: sidewise agent <ve
   idempotent (a re-run that finds a step already done says so and changes nothing) and interactive by default;
   `--yes` takes the default answer everywhere. Every step prints exactly one line, glyph first: `✔ done`,
   `· already`, `– skipped (why)`, or `✖ problem → fix`. [C-099]
+- `sidewise init`'s final `next:` line points at `sidewise agent` — the minimum an agent needs (its enforced
+  rules and good/bad patterns) before writing a first real request — rather than inviting one straight off; if
+  any step above logged a `✖ problem` line, `next:` never claims the setup is usable, instead pointing back at
+  the fix and at re-running `sidewise init`. [C-176]
 - `sidewise uninstall` reverses init, by default acting only on the current project: the Claude Code plugin's
   project-scope install, and (asked, default **no** — it's the user's run history) that project's
   `.sidewise/`. The per-user parts — the stored key and the CLI itself — are only touched with `--all`, which

@@ -9653,7 +9653,10 @@ function cliLine(env, platform) {
 function pluginLine(deps) {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
   if (!status.installed) return 'not installed \u2192 "sidewise init --claude"';
-  return `sidewise@mvp-scale \xB7 ${status.scopes[0] ?? "user"} scope`;
+  const scopes = status.scopes;
+  const scope = scopes[0] ?? "user";
+  const userOnly = scopes.length === 1 && scope === "user";
+  return `sidewise@mvp-scale \xB7 ${scope} scope${userOnly ? ' (every project) \u2192 for just this one, "sidewise init --scope project"' : ""}`;
 }
 function projectLine(root, deps) {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
@@ -9885,7 +9888,8 @@ async function runInit(flags, ctx) {
     runner: ctx.runner,
     platform: ctx.platform
   });
-  const next = 'next: ask Claude to use Sidewise, or run "sidewise template class" to start by hand';
+  const partial = lines.some((l) => l.startsWith(GLYPH.problem));
+  const next = partial ? 'next: not usable yet \u2014 fix the \u2716 line(s) above, then re-run "sidewise init"' : 'next: run "sidewise agent" for the rules and good/bad patterns before your first request, or "sidewise template class" to start by hand';
   return { exit: 0, text: `${lines.join("\n")}
 
 ${doctorOut.text}
@@ -13458,10 +13462,16 @@ async function dispatch(argv, ctx) {
   const [command = "", ...rest] = argv;
   if (command === "") return finish(2, USAGE);
   if (command === "--help" || command === "-h") return finish(0, USAGE);
+  if (command === "--version" || command === "-v") return finish(0, ctx.pkg.version);
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith("-") && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
     return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+  }
+  if (rest.includes("--help") || rest.includes("-h")) {
+    const seeMore = VERBS.includes(command) ? `
+\u2192 see: sidewise help ${command} \xB7 sidewise agent ${command}` : "";
+    return finish(0, `${LINES3[command]}${seeMore}`);
   }
   if (command !== "doctor" && command !== "mcp") {
     const nodeStop = nodeVersionStop(ctx.nodeVersion);
