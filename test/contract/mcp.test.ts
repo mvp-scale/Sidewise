@@ -256,16 +256,13 @@ describe('the Node ≥ 22.13 guard (owner ruling) [C-106]', () => {
   });
 });
 
-describe('fix #8: no doubled ✖ prefix on the real mcp stdio path', () => {
-  // A LedgerError (or any other error dispatch() can throw) used to reach protocol.ts's tools/call catch block
-  // with its own "✖ field: ..." message already formed, which that catch then re-wrapped as "✖ sidewise: ...",
-  // doubling the glyph. Only the real `sidewise mcp` stdio loop exercises this — cli.ts's mcp branch used to
-  // call `dispatch` directly instead of `runCli`, which is the one thing that normalizes a thrown error into a
-  // single-✖ `{exit, text}` (see runCli's own catch). [C-140]
+describe('one ✖ prefix on the real mcp stdio path', () => {
+  // Only the real `sidewise mcp` stdio loop exercises this: a thrown error must reach the client with its own
+  // single "✖ field: ..." line, never re-wrapped as "✖ sidewise: ✖ ...". [C-140]
   it('an outcome call on an unknown run id comes back with exactly one ✖, not two', async () => {
-    const ctx = fakeCtx();
-    const responses = await runMcpOverStdio(ctx, [
-      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['outcome', 'SW-9999', 'held', '--by', 'someone'] } } },
+    const { root } = tempProject();
+    const responses = await runMcpOverStdio(fakeCtx(), [
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['outcome', 'SW-9999', 'held', '--by', 'someone'], project: root } } },
     ]);
     const result = responses[0]?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
     expect(result.isError).toBe(true);
