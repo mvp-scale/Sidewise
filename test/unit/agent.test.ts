@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { VERBS } from '../../src/contract/types.ts';
 import { runAgent } from '../../src/help/agent.ts';
-import { RULES } from '../../src/help/rules.ts';
+import { PROBE_RULES, RULES } from '../../src/help/rules.ts';
 
 describe('runAgent', () => {
   it('with no target: the verb list plus the universal rules, no prose', () => {
@@ -46,6 +46,14 @@ describe('runAgent', () => {
 
   it('agent with no target points explicitly at "sidewise agent probe", not just a verb', () => {
     expect(runAgent().text).toContain('sidewise agent probe');
+  });
+
+  it('agent probe: the 8 probe rules, bare — no citations, no headings', () => {
+    const text = runAgent('probe').text;
+    expect(text).toContain('target: probe');
+    for (const r of PROBE_RULES) expect(text).toContain(r.text);
+    expect(text).not.toContain('TypeSafe');
+    expect(text).not.toMatch(/^##\s/mu);
   });
 
   // Same shared rule list `help` uses (rules.ts) — never a second, divergent copy for the terse view.

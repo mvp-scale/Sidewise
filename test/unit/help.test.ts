@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { VERBS } from '../../src/contract/types.ts';
 import { runHelp } from '../../src/help/index.ts';
-import { RULES } from '../../src/help/rules.ts';
+import { PROBE_RULES, RULES } from '../../src/help/rules.ts';
 import { TOPICS } from '../../src/help/topics.ts';
 
 describe('runHelp', () => {
@@ -77,6 +77,15 @@ describe('runHelp', () => {
     expect(r.text).toContain('patterns');
     expect(r.text).toContain('history');
     expect(r.text.toLowerCase()).toContain('no options beyond the view name');
+  });
+
+  it('help probe: the 8 rules, each with its TypeSafe citation', () => {
+    const text = runHelp('probe').text;
+    expect(text).toContain('## probe');
+    for (const r of PROBE_RULES) {
+      expect(text).toContain(r.text);
+      expect(text).toContain(r.cite);
+    }
   });
 
   it('a target with control characters: a clean stop', () => {

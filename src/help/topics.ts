@@ -5,9 +5,9 @@
  */
 import { AREAS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
 import { proseLines } from './patterns.ts';
-import { ruleLines } from './rules.ts';
+import { PROBE_RULES, ruleLines } from './rules.ts';
 
-export const TOPICS = ['authoring', 'verdict', 'wise', 'reuse'] as const;
+export const TOPICS = ['authoring', 'verdict', 'wise', 'reuse', 'probe'] as const;
 export type Topic = (typeof TOPICS)[number];
 
 function authoring(): string {
@@ -79,7 +79,22 @@ function reuse(): string {
   ].join('\n');
 }
 
-const BUILDERS: Record<Topic, () => string> = { authoring, verdict, wise, reuse };
+function probe(): string {
+  return [
+    '## probe',
+    'A valid probe: the shape of a well-formed question, best practice for a higher-quality answer — guidance,',
+    "not new validator enforcement. Each rule below is TypeSafe's own published guidance, paraphrased, with its",
+    'source page cited.',
+    '',
+    ...PROBE_RULES.map((r) => `- ${r.text} (TypeSafe: ${r.cite})`),
+    '',
+    'Round 3 smoke testing found this directly: a goal phrased as the vulnerability ("runs request input as code")',
+    'read pass/fail backwards, and its probability stayed at p 0.98 before AND after the fix that removed the',
+    "vulnerability — the wording, not the classifier, was wrong. That's rule 7 above.",
+  ].join('\n');
+}
+
+const BUILDERS: Record<Topic, () => string> = { authoring, verdict, wise, reuse, probe };
 
 export function topicHelp(topic: Topic): string {
   return BUILDERS[topic]();

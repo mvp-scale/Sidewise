@@ -35,3 +35,51 @@ export const RULES: readonly Rule[] = [
 export function ruleLines(tag: string): string[] {
   return RULES.filter((r) => r.in.includes(tag)).map((r) => `- ${r.text}.`);
 }
+
+/**
+ * The "teach a valid probe" rules: the shape of a well-formed Sidewise question, TypeSafe's own published
+ * guidance, labelled as best practice for higher-quality answers — guidance, not new validator enforcement.
+ * `help probe` (topics.ts) renders these WITH their TypeSafe citation; `agent probe` (agent.ts) renders the
+ * same text bare, no citation — one shared list so the two views can't drift apart, same discipline as
+ * RULES/ruleLines above.
+ */
+interface ProbeRule {
+  readonly text: string;
+  /** Terse citation of the TypeSafe source page, e.g. "primitives/noul.md". */
+  readonly cite: string;
+}
+
+export const PROBE_RULES: readonly ProbeRule[] = [
+  {
+    text: 'One narrow judgment per question — break a complex or ill-defined question into separate questions that each evaluate one property.',
+    cite: 'concepts/how-to-build-with-system-one.md',
+  },
+  {
+    text: "The question carries its full meaning on its own — a question's number is a label for the response only; the model never sees it.",
+    cite: 'concepts/how-to-build-with-system-one.md',
+  },
+  {
+    text: "It's answerable from the code in where: — name the file in backticks when there's more than one, and send only the context the question needs.",
+    cite: 'concepts/how-to-build-with-system-one.md',
+  },
+  {
+    text: 'Yes/no questions keep one polarity per category — phrase so "yes" is the affirmative you mean, not an inverted "is free of…".',
+    cite: 'primitives/noul.md',
+  },
+  {
+    text: "Scale levels describe concrete situations, not relative points — every level is judged on its own; the model sees neither its number nor its neighbours.",
+    cite: 'primitives/score.md',
+  },
+  {
+    text: 'Choice options include a "none fits" outcome for when nothing else matches.',
+    cite: 'primitives/choice.md',
+  },
+  {
+    text: 'Phrase the goal as the safe state ("X rejects Y"), not the vulnerability ("X runs input as code") — a goal is asked as a yes/no, so the same affirmative-alignment rule applies to it.',
+    cite: 'primitives/noul.md',
+  },
+  {
+    text: 'Add the visible-scope probe as a recommended extra question: "Can this be answered from the code shown?"',
+    cite: 'concepts/how-to-build-with-system-one.md',
+  },
+];
