@@ -13249,11 +13249,8 @@ function runHelp(target) {
 }
 
 // src/mcp/actor.ts
-import { spawnSync as spawnSync2 } from "node:child_process";
-function resolveMcpActor(cwd, spawn = spawnSync2) {
-  const result = spawn("git", ["config", "user.name"], { cwd, encoding: "utf8" });
-  const name = result.status === 0 && typeof result.stdout === "string" ? result.stdout.trim() : "";
-  return name || "claude";
+function resolveMcpActor() {
+  return "claude";
 }
 
 // src/cli.ts
@@ -13412,7 +13409,7 @@ async function dispatch(argv, ctx) {
         if (nodeStop) return Promise.resolve(finish(2, nodeStop));
         const env = { ...ctx.env };
         if (project) env.SIDEWISE_HOME = project;
-        if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor(project ?? ctx.cwd);
+        if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor();
         return runCli(a, { ...ctx, env, stdin: () => Buffer.from(stdinText ?? "", "utf8") });
       },
       ctx.pkg.version
