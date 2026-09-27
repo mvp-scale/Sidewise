@@ -12302,19 +12302,19 @@ var import_yaml2 = __toESM(require_dist(), 1);
 import { readFileSync as readFileSync13 } from "node:fs";
 import path16 from "node:path";
 import { fileURLToPath } from "node:url";
-var TEMPLATES_DIR = path16.join(path16.dirname(fileURLToPath(import.meta.url)), "..", "..", "skills", "sidewise", "templates");
+var DEFAULT_PACKAGE_DIR = path16.join(path16.dirname(fileURLToPath(import.meta.url)), "..", "..");
 function drillSampleFile(parent, paths) {
   const run = paths && findRun(paths, parent);
   if (run && isContractRun(run) && run.items === null) return "drill-subject.yaml";
   return "drill.yaml";
 }
-function runTemplate(target, flags = {}, paths) {
+function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR) {
   if (!VERBS.includes(target)) return { exit: 2, text: `\u2716 template: "${clip(target, 30)}" is not a verb \u2192 one of ${VERBS.join(", ")}` };
   if (target !== "drill" && (flags.parent || flags.from)) return { exit: 2, text: `\u2716 template: --parent/--from only apply to drill \u2192 sidewise template ${target}` };
   if (target === "drill" && !!flags.parent !== !!flags.from)
     return { exit: 2, text: "\u2716 template drill: needs both --parent and --from, or neither \u2192 sidewise template drill --parent SW-#### --from <item or category>" };
   const file = target === "drill" && flags.parent ? drillSampleFile(flags.parent, paths) : `${target}.yaml`;
-  const raw = readFileSync13(path16.join(TEMPLATES_DIR, file), "utf8");
+  const raw = readFileSync13(path16.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
   if (!flags.parent && !flags.from) return { exit: 0, text: raw };
   const doc = (0, import_yaml2.parseDocument)(raw);
   doc.setIn(["side", "parent"], flags.parent);
@@ -12618,7 +12618,7 @@ async function dispatch(argv, ctx) {
       options: { parent: { type: "string" }, from: { type: "string" } }
     });
     positionalCount("template", positionals, 1, 1);
-    const r = runTemplate(positionals[0], { parent: values.parent, from: values.from }, resolvePaths(ctx.cwd, ctx.env));
+    const r = runTemplate(positionals[0], { parent: values.parent, from: values.from }, resolvePaths(ctx.cwd, ctx.env), ctx.packageDir);
     return finish(r.exit, r.text);
   }
   if (command === "doctor") {

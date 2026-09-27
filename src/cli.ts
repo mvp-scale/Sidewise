@@ -219,7 +219,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       options: { parent: { type: 'string' }, from: { type: 'string' } },
     });
     positionalCount('template', positionals, 1, 1);
-    const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from }, resolvePaths(ctx.cwd, ctx.env));
+    const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from }, resolvePaths(ctx.cwd, ctx.env), ctx.packageDir);
     return finish(r.exit, r.text);
   }
 

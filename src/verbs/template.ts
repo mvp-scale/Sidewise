@@ -30,8 +30,13 @@ export interface TemplateFlags {
 export const TEMPLATE_VERBS: readonly string[] = VERBS;
 
 // Two directories up from src/verbs/ (or dist/verbs/ once built) lands at the repo/package root, so this
-// resolves identically before and after tsc.
-const TEMPLATES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'skills', 'sidewise', 'templates');
+// resolves identically before and after tsc. It does NOT resolve correctly once bundled into one flat file
+// (bin/sidewise.mjs, P1's plugin packaging) — a bundle has no independent import.meta.url for this module
+// anymore, only the bundle's own, one level shallower — so it's only a fallback default here now; the real CLI
+// (cli.ts) always passes its own already-correct `packageDir` (PACKAGE_DIR, one hop up from cli.ts's own file,
+// which sits at the same depth under the package root in every shape: src/cli.ts, dist/cli.js, bin/sidewise.mjs)
+// explicitly instead. Only a direct unit-test call (against unbundled src/) still relies on this default.
+const DEFAULT_PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 /** The sample file name for a drill --parent/--from call: the parent's own shape when the ledger can say (a
  * sweep run has items, a one-subject run doesn't — same split drill.ts itself branches on), else the sweep
@@ -42,14 +47,14 @@ function drillSampleFile(parent: string, paths: SidewisePaths | undefined): stri
   return 'drill.yaml';
 }
 
-export function runTemplate(target: string, flags: TemplateFlags = {}, paths?: SidewisePaths): VerbResult {
+export function runTemplate(target: string, flags: TemplateFlags = {}, paths?: SidewisePaths, packageDir: string = DEFAULT_PACKAGE_DIR): VerbResult {
   if (!VERBS.includes(target as Verb)) return { exit: 2, text: `✖ template: "${clip(target, 30)}" is not a verb → one of ${VERBS.join(', ')}` };
   if (target !== 'drill' && (flags.parent || flags.from)) return { exit: 2, text: `✖ template: --parent/--from only apply to drill → sidewise template ${target}` };
   if (target === 'drill' && !!flags.parent !== !!flags.from)
     return { exit: 2, text: '✖ template drill: needs both --parent and --from, or neither → sidewise template drill --parent SW-#### --from <item or category>' };
 
   const file = target === 'drill' && flags.parent ? drillSampleFile(flags.parent, paths) : `${target}.yaml`;
-  const raw = readFileSync(path.join(TEMPLATES_DIR, file), 'utf8');
+  const raw = readFileSync(path.join(packageDir, 'skills', 'sidewise', 'templates', file), 'utf8');
   if (!flags.parent && !flags.from) return { exit: 0, text: raw };
 
   const doc = parseDocument(raw);
