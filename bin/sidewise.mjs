@@ -8259,6 +8259,32 @@ import path4 from "node:path";
 // src/ledger/index.ts
 import { createHash, randomBytes as randomBytes2 } from "node:crypto";
 import { closeSync as closeSync2, existsSync as existsSync3, openSync as openSync2, readFileSync as readFileSync4, readSync, renameSync as renameSync3, rmSync as rmSync2, statSync as statSync2 } from "node:fs";
+
+// src/util/node-version.ts
+var MIN_NODE_MAJOR = 22;
+var MIN_NODE_MINOR = 13;
+var MIN_NODE_LABEL = `${MIN_NODE_MAJOR}.${MIN_NODE_MINOR}`;
+function parseNodeVersion(v) {
+  const m2 = /^v?(\d+)\.(\d+)/u.exec(v.trim());
+  if (!m2) return void 0;
+  return { major: Number(m2[1]), minor: Number(m2[2]) };
+}
+function nodeVersionOk(v) {
+  const parsed = parseNodeVersion(v);
+  if (!parsed) return false;
+  if (parsed.major !== MIN_NODE_MAJOR) return parsed.major > MIN_NODE_MAJOR;
+  return parsed.minor >= MIN_NODE_MINOR;
+}
+function nodeVersionStop(v) {
+  if (nodeVersionOk(v)) return void 0;
+  return `\u2716 node: ${v} is too old \u2192 install Node 22.13 or newer (it powers the ledger index); https://nodejs.org`;
+}
+function doctorNodeValue(v) {
+  return nodeVersionOk(v) ? v : `${v} \u2716 too old \u2192 install Node ${MIN_NODE_LABEL}+`;
+}
+var DOCTOR_INDEX_TOO_OLD = `none (needs Node ${MIN_NODE_LABEL}+)`;
+
+// src/ledger/index.ts
 var whoKey = (who) => `${who.adapter}|${who.model}`;
 var stripLines = (entry) => entry.replace(/:(\d+(?:-\d+)?)$/u, "");
 var CHUNK_BYTES = 1 << 20;
@@ -8494,7 +8520,7 @@ CREATE TABLE places (
 );
 CREATE INDEX idx_places_val ON places(kind, val);
 `;
-var __testOnly = { forceFallback: false, throwOnCandidates: false };
+var __testOnly = { forceFallback: false, throwOnCandidates: false, forceSqliteMissing: false };
 function isSqliteExperimentalWarning(w) {
   return w.name === "ExperimentalWarning" && /sqlite/iu.test(w.message ?? "");
 }
@@ -8512,6 +8538,7 @@ function installSqliteWarningFilter() {
 }
 var sqliteCtor;
 function getSqliteCtor() {
+  if (__testOnly.forceSqliteMissing) return null;
   if (sqliteCtor !== void 0) return sqliteCtor;
   const getBuiltin = process.getBuiltinModule;
   if (typeof getBuiltin !== "function") {
@@ -8810,10 +8837,12 @@ function withIndex(paths, fn, opts = {}) {
   if (!logStat || logStat.size === 0) return fn(handleFromMemory(emptyMemoryState()));
   return runSqlite(paths, fn, { forceRebuild: opts.forceRebuild ?? false, readOnly: opts.readOnly ?? false });
 }
+var NODE_TOO_OLD_LEDGER_MESSAGE = `\u2716 ledger: node:sqlite is unavailable \u2192 install Node ${MIN_NODE_LABEL} or newer (it powers the ledger index); https://nodejs.org`;
 function runSqlite(paths, fn, opts) {
+  if (__testOnly.forceFallback) return fn(buildMemoryHandle(paths));
   try {
-    const Db = __testOnly.forceFallback ? null : getSqliteCtor();
-    if (!Db) throw new Error("node:sqlite unavailable");
+    const Db = getSqliteCtor();
+    if (!Db) throw new LedgerError(NODE_TOO_OLD_LEDGER_MESSAGE);
     const db = ensureFreshDb(paths, Db, opts);
     if (!db) return fn(buildMemoryHandle(paths));
     try {
@@ -9512,15 +9541,15 @@ function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
         ...who.wireModel ? [["wireModel", who.wireModel]] : [],
         ["key", key2],
         ["project", project],
-        ["node", nodeVersion],
-        ["index", sqliteAvailable() ? "node:sqlite" : "linear fallback (Node < 22.13)"],
+        ["node", doctorNodeValue(nodeVersion)],
+        ["index", nodeVersionOk(nodeVersion) ? sqliteAvailable() ? "node:sqlite" : "unavailable (unexpected on Node 22.13+)" : DOCTOR_INDEX_TOO_OLD],
         ["cli", cliLine(env, deps.platform ?? process.platform)],
         ["plugin", pluginLine(deps)]
       )
     ],
     ["notes", notes]
   );
-  return { exit: 0, text: emit(doc) };
+  return { exit: nodeVersionOk(nodeVersion) ? 0 : 2, text: emit(doc) };
 }
 
 // src/setup/prompt.ts
@@ -12609,6 +12638,10 @@ async function dispatch(argv, ctx) {
     if (command.startsWith("-") && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
     return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
+  if (command !== "doctor" && command !== "mcp") {
+    const nodeStop = nodeVersionStop(ctx.nodeVersion);
+    if (nodeStop) return finish(2, nodeStop);
+  }
   if (command === "template") {
     const twice = givenTwice(rest, ["parent", "from"]);
     if (twice) return finish(2, twice);
@@ -12624,7 +12657,7 @@ async function dispatch(argv, ctx) {
   if (command === "doctor") {
     const { positionals } = args("doctor", { args: rest, allowPositionals: true, options: {} });
     positionalCount("doctor", positionals, 0, 0);
-    const r = runDoctor(ctx.env, resolvePaths(ctx.cwd, ctx.env), process.version, {
+    const r = runDoctor(ctx.env, resolvePaths(ctx.cwd, ctx.env), ctx.nodeVersion, {
       resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
       runner: ctx.runner,
       platform: ctx.platform
@@ -12636,7 +12669,11 @@ async function dispatch(argv, ctx) {
     positionalCount("mcp", positionals, 0, 0);
     await runMcpServer(
       ctx.io,
-      (a, stdinText) => dispatch(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? "", "utf8") }),
+      (a, stdinText) => {
+        const nodeStop = nodeVersionStop(ctx.nodeVersion);
+        if (nodeStop) return Promise.resolve(finish(2, nodeStop));
+        return dispatch(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? "", "utf8") });
+      },
       ctx.pkg.version
     );
     return { exit: 0, text: "" };
@@ -12836,6 +12873,7 @@ function realCtx() {
     packageDir: PACKAGE_DIR,
     pkg: { name: package_default.name, version: package_default.version },
     homeDir: os3.homedir(),
+    nodeVersion: process.version,
     stdin: () => readFileSync14(0),
     get io() {
       return { input: process.stdin, output: process.stdout };
