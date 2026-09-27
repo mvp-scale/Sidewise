@@ -3,9 +3,9 @@
  *   request → evidence → reuse what the ledger already answered for the same questions on the same evidence →
  *   (dry run: stop here) → preflight → one call for the rest → grade → consensus → the spend and the run in
  *   one lock section → the compact side: response. A run fully answered from the ledger makes no call and is
- *   free (BRIEF §5: sweeps and one-subject runs reuse alike). fix #5a/#5b: reuse is resolved BEFORE preflight
- *   (not after), so a fully-reused run's free call is never blocked by an already-reached budget cap, and a
- *   dry run can predict how much of it would be reused.
+ *   free — sweeps and one-subject runs reuse alike. Reuse is resolved before preflight, so a fully-reused
+ *   run's free call is never blocked by an already-reached budget cap, and a dry run can predict how much of
+ *   it would be reused.
  */
 import { providerIdentity } from '../classifier/select.ts';
 import { checkBudget, peekBudget } from '../budget/budget.ts';
@@ -20,7 +20,7 @@ import { redact } from '../ledger/redact.ts';
 import { lookupAnswers } from '../ledger/reuse.ts';
 import { staleNotes } from '../ledger/stale.ts';
 import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
-import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
+import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
 import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
@@ -47,20 +47,11 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
-  const toAsk: (typeof keyed)[number][] = [];
-  for (const [q, k] of keyed) {
-    const hit = reused.get(k);
-    if (hit) {
-      answers[q.id] = hit.answer;
-      reusedFrom[q.id] = hit.id;
-    } else {
-      toAsk.push([q, k]);
-    }
-  }
+  const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
 
   if (ctx.dryRun) {
-    // fix #5b: a dry run predicts reuse, and checks (without spending) whether a real run's one call would
-    // itself be blocked by an already-reached cap — never a hard stop, just a heads-up.
+    // A dry run predicts reuse, and checks (without spending) whether a real run's one call would itself be
+    // blocked by an already-reached cap — never a hard stop, just a heads-up.
     let capNote: string[] = [];
     if (toAsk.length > 0) {
       // peekBudget, not loadBudget: a dry run must never be the thing that creates .sidewise/budget.json with
@@ -78,8 +69,8 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
   if (!pre.ok) return pre.result;
 
-  // lessons-2026-09-27.md §4.1: a question about to be asked fresh may have been answered before, at an
-  // overlapping place, on code that's since changed — say so, rather than re-asking blind with no comment.
+  // A question about to be asked fresh may have been answered before, at an overlapping place, on code that's
+  // since changed — say so, rather than re-asking blind with no comment.
   const stale = staleNotes(ctx.paths, request.side.where, toAsk);
 
   let costUsd: number | undefined;
@@ -111,7 +102,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const subject = gradeSubject(request.side.categories, answers);
   const escalate = consensus !== 'STRONG' || request.side.depth === 'thorough' || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
 
-  // fix #6: which prior runs this run's answers came from, when any were reused — not just that reuse happened.
+  // Which prior runs this run's answers came from, when any were reused — not just that reuse happened.
   const reusedRunIds = reusedIds(reusedFrom);
   const response = (id: string, budget: string): string =>
     respondText(

@@ -14,6 +14,7 @@ import { LockError, StoreError } from '../ledger/lock.ts';
 import { appendContractRun, checkLedger, LedgerError, type ContractRun, type NewContractRun } from '../ledger/log.ts';
 import { recordCall } from '../ledger/record.ts';
 import { redact } from '../ledger/redact.ts';
+import type { Reusable } from '../ledger/reuse.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 export interface PlannedCall {
@@ -32,7 +33,7 @@ const isProbability = (p: unknown): p is number => typeof p === 'number' && p >=
 const usableCost = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : undefined);
 
 /** One short line from whatever a provider threw (an Error, a string, a many-line HTML body). Redacted before
- *  truncation (P6): a provider error can echo back request headers or config, so this is the one place every
+ *  truncation: a provider error can echo back request headers or config, so this is the one place every
  *  caller (the first-call-failure stop, and logFailed's reason, which also flows into the ledger) is guaranteed
  *  to have already run through redact() before the text can reach a VerbResult a caller prints to stderr. */
 export function oneLine(e: unknown): string {
@@ -42,13 +43,35 @@ export function oneLine(e: unknown): string {
 
 export const actorOf = (ctx: VerbContext): string => ctx.env.SIDEWISE_ACTOR?.trim() || 'agent';
 
+/** Splits a keyed question list into what the ledger already answered (merged straight into `answers`/
+ *  `reusedFrom`, for free) and the pairs still left to actually ask — class.ts and drill's one-subject shape
+ *  both build a call from exactly this split. */
+export function splitReuse<Q extends AskedQuestion>(
+  keyed: readonly (readonly [Q, string])[],
+  reused: ReadonlyMap<string, Reusable>,
+  answers: Record<string, Answer>,
+  reusedFrom: Record<string, string>,
+): (readonly [Q, string])[] {
+  const toAsk: (readonly [Q, string])[] = [];
+  for (const [q, k] of keyed) {
+    const hit = reused.get(k);
+    if (hit) {
+      answers[q.id] = hit.answer;
+      reusedFrom[q.id] = hit.id;
+    } else {
+      toAsk.push([q, k]);
+    }
+  }
+  return toAsk;
+}
+
 function notCounted(e: unknown): { ok: false; result: VerbResult } {
   if (e instanceof BudgetError) return fail(3, `${e.message} ${NOT_COUNTED}`);
   if (isStoreFailure(e)) return fail(1, `${e.message} ${NOT_COUNTED}`);
   throw e;
 }
 
-/** BRIEF §5: a missing budget file is created with defaults, "and the answer says so" — once, on whichever run's
+/** A missing budget file is created with defaults, and the answer says so — once, on whichever run's
  * preflight finds it missing (loadBudget creates it right there; every verb threads preflight's own `created`
  * back into that same run's notes: — see commonNotes' callers). */
 export function createdNote(state: BudgetState): string {
@@ -56,10 +79,10 @@ export function createdNote(state: BudgetState): string {
 }
 
 /** Before any call: a budget with room, and a ledger that reads cleanly and can be written.
- *  fix #5a: `needsBudget: false` (the caller already knows every answer will be reused, so this run will spend
+ *  `needsBudget: false` (the caller already knows every answer will be reused, so this run will spend
  *  nothing) skips only the cap check — a fully-reused run must never be blocked by a cap it will never touch.
  *  The budget file is still loaded/created and the ledger still checked either way: a free run still writes a
- *  line. Default true preserves every existing call site's behavior unchanged. */
+ *  line. Defaults to true, so every other call site's behavior is unchanged. */
 export function preflight(ctx: VerbContext, opts: { needsBudget?: boolean } = {}): Step<{ state: BudgetState; created: boolean }> {
   const now = ctx.now ?? Date.now;
   let budget: { state: BudgetState; created: boolean };
@@ -121,7 +144,7 @@ function logFailed(ctx: VerbContext, verb: Verb, costUsd: number | undefined, re
 }
 
 /** The calls in order. Answers are merged by question id; the cost is their sum, or undefined if any call didn't
- *  report one. `costEstimated` (fix #4) is true when ANY summed call's cost came from a token-based estimate
+ *  report one. `costEstimated` is true when ANY summed call's cost came from a token-based estimate
  *  (typesafe/answers.ts) rather than the provider's own reported figure, so the total can be marked as such. */
 export async function askAll(
   ctx: VerbContext,

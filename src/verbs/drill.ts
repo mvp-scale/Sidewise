@@ -6,8 +6,8 @@
  *   a one-subject parent (class, change, or an earlier drill, items === null) → from: names one of its
  *     categories; drill sends brand-new, narrower questions straight under ask: and answers with class's
  *     own shape.
- * Both branches share parent/from resolution and next:'s ruling (task-21-brief, Controller ruling): drill's
- * own next: always points at fixing-then-proving, never at drilling further (you're already at the bottom) —
+ * Both branches share parent/from resolution and next:'s own rule: drill's own next: always points at
+ * fixing-then-proving, never at drilling further (you're already at the bottom) —
  * a one-subject parent keeps "fix it, then change"; a sweep parent says to fix and re-run this drill instead
  * (unchanged items are reused, so it is nearly free), since change refuses a sweep parent outright.
  */
@@ -25,20 +25,20 @@ import { redact } from '../ledger/redact.ts';
 import { lookupAnswers } from '../ledger/reuse.ts';
 import { computeConsensus, type SlotAnswer } from '../lens/consensus.ts';
 import { clip } from '../util/text.ts';
-import { actorOf, askAll, createdNote, preflight, record, recordFree, type PlannedCall } from './pay.ts';
+import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
 import { commonNotes, COST_ESTIMATED_NOTE, dryRunText, reusedIds, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
 import { planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
-/** A sweep parent's fail/unsure next (Controller ruling): fix the worst item, then re-run this drill — cheap,
- * since sweep.ts reuses every item that didn't change. Never sidewise change: change.ts refuses a sweep parent. */
+/** A sweep parent's fail/unsure next: fix the worst item, then re-run this drill — cheap, since sweep.ts
+ * reuses every item that didn't change. Never sidewise change: change.ts refuses a sweep parent. */
 const REDRILL_NEXT = 'fix it, then run this drill again (unchanged items are reused, so it is nearly free)';
 
 /**
  * The one-subject shape (CONTRACT.md "drill"): fresh, narrower ask: categories answered straight against
  * `where` — class's own flow verbatim, just with drill's own record shape (parent/from set, next: never
- * points at drilling further). Shared by BOTH an existing one-subject-parent drill and, since fix #10, a flat
+ * points at drilling further). Shared by BOTH an existing one-subject-parent drill and a flat
  * proof of one coded sweep item with no over: — they differ only in where the evidence comes from and which
  * run `change` should build on next: a one-subject PARENT already has items: null, so `request.side.parent`
  * itself is a valid change parent; a sweep parent (items !== null) is not — change refuses it outright — so a
@@ -59,22 +59,13 @@ async function runOneSubjectProof(
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
-  // fix #5a: reuse is resolved BEFORE preflight/dry-run (not after), same as class.ts — a fully-reused drill's
-  // free call is never blocked by an already-reached budget cap, and a dry run can predict how much reuses.
+  // Reuse is resolved before preflight/dry-run, same as class.ts: a fully-reused drill's free call is never
+  // blocked by an already-reached budget cap, and a dry run can predict how much reuses.
   const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
-  const toAsk: (typeof keyed)[number][] = [];
-  for (const [q, k] of keyed) {
-    const hit = reused.get(k);
-    if (hit) {
-      answers[q.id] = hit.answer;
-      reusedFrom[q.id] = hit.id;
-    } else {
-      toAsk.push([q, k]);
-    }
-  }
+  const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
 
   if (ctx.dryRun) {
     return { exit: 0, text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }) };
@@ -113,7 +104,7 @@ async function runOneSubjectProof(
   const oneSubjectNext = (gate: 'pass' | 'fail' | 'unsure', id: string): string =>
     gate === 'pass' ? 'act on it' : `fix it, then sidewise change --parent ${changeParent(id)} --compare <before>..<after>`;
 
-  // fix #6: which prior runs this drill's answers came from, when any were reused.
+  // Which prior runs this drill's answers came from, when any were reused.
   const reusedRunIds = reusedIds(reusedFrom);
   const response = (id: string, budget: string): string =>
     respondText(
@@ -187,7 +178,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       };
     }
 
-    // Fix #10: no over: at all — a flat, one-subject proof of just this one item, no further layer. Only
+    // No over: at all — a flat, one-subject proof of just this one item, no further layer. Only
     // a coded item (a unit) has evidence to read this way; an idea item (loop's own kind) has none.
     if (!request.side.over) {
       if (!itemRec.unit) {
@@ -231,7 +222,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
 
     if (ctx.dryRun) return sweepDryRun(plan, identity);
 
-    // Fix #5a: a fully-reused sweep drill must never be blocked by an already-reached cap.
+    // A fully-reused sweep drill must never be blocked by an already-reached cap.
     const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
     if (!pre.ok) return pre.result;
 
@@ -267,7 +258,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     }
 
     // Combines sweepNext's own never-drill-a-passing-item edge cases (goal-only-missed, everything skipped)
-    // with the Controller ruling: when there IS a worst item to fix, say so and re-run — never drill further.
+    // with drill's own rule: when there IS a worst item to fix, say so and re-run — never drill further.
     const response = (id: string, budget: string): string =>
       respondText(
         m(['id', id], ['gate', gate], ['goal', m(['gate', goalGrade], ['p', goalAnswer.p])], ['failing', failing], ['passing', passing]),

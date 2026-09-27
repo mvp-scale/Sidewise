@@ -56,8 +56,8 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
 
   const identity = providerIdentity(ctx.env);
 
-  // Fix #13/#5: evidence (both refs) is read before the dry-run branch, same as class/scan/drill/loop already
-  // do with their own evidence — a --dry-run used to return before ever checking a ref existed at all.
+  // Evidence (both refs) is read before the dry-run branch, same as class/scan/drill/loop, so a dry run still
+  // catches a missing ref instead of skipping the check.
   const compare = request.side.compare!;
   const before = readGitEvidence(ctx.paths.root, compare.before, 'before', paths);
   const after = readGitEvidence(ctx.paths.root, compare.after, 'after', paths);
@@ -73,8 +73,8 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, 'after:')];
   const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)] as const);
   const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)] as const);
-  // Fix #5a: reuse is resolved BEFORE preflight/dry-run (not after), same as class.ts — a fully-reused change's
-  // free run is never blocked by an already-reached budget cap, and a dry run can predict how much reuses.
+  // Reuse is resolved before preflight/dry-run, same as class.ts: a fully-reused change's free run is never
+  // blocked by an already-reached budget cap, and a dry run can predict how much reuses.
   const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
   const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
 
@@ -149,7 +149,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     return true;
   });
 
-  // fix #6: which prior runs this run's answers came from, when any were reused.
+  // Which prior runs this run's answers came from, when any were reused.
   const reusedRunIds = reusedIds(reusedFrom);
   const response = (id: string, budget: string): string =>
     respondText(

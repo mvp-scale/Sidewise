@@ -1,8 +1,8 @@
 /**
  * loop: "does this idea hold up?" A sweep of ideas the agent wrote itself (a design, a plan, a feature), graded
  * the same way scan grades code. No evidence to read (over: is plain arrays, never a resolver), so this is
- * mostly wiring: planSweep/runSweep do the reuse-aware work; loop grades, orders (tree order — Plan 2a decision
- * 11, unlike scan/drill's worst-first) and responds.
+ * mostly wiring: planSweep/runSweep do the reuse-aware work; loop grades, orders (tree order, unlike
+ * scan/drill's worst-first) and responds.
  */
 import { providerIdentity } from '../classifier/select.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
@@ -26,7 +26,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
 
   if (ctx.dryRun) return sweepDryRun(plan, identity);
 
-  // Fix #5a: a fully-reused loop (every layer's call: null) must never be blocked by an already-reached cap.
+  // A fully-reused loop (every layer's call: null) must never be blocked by an already-reached cap.
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
 
@@ -41,7 +41,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const goal = goalAnswer ? goalGate(goalAnswer.p) : 'pass'; // vacuous: the goal is always present, reused or asked
   const gate = sweepGate(goal, grades);
 
-  // Tree order (Decision 11), not worst-first: failing: and passing: read in the order the request was written.
+  // Tree order, not worst-first: failing: and passing: read in the order the request was written.
   const failingIds = plan.items.filter((i) => grades.get(i.id)!.ownGate !== 'pass').map((i) => i.id);
   const failing = m(...failingIds.map((id) => sweepEntry(grades.get(id)!)));
   const passing = plan.items.filter((i) => grades.get(i.id)!.gate === 'pass').map((i) => i.id);

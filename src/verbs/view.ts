@@ -4,7 +4,7 @@
  * runs, per-category record, and `reuse` when the exact question set was asked before); otherwise the raw
  * string is a place (a folder or tag, showing the newest 10/20/30 runs with outcome counts) or a run id
  * (showing its lineage up and down). Rehearsal-adapter runs (fake, chaos) are labelled and counted apart.
- * The hot cache (Plan 2) replaces the linear reads without changing the output.
+ * The hot cache replaces the linear reads without changing the output.
  */
 import path from 'node:path';
 import { providerIdentity } from '../classifier/select.ts';

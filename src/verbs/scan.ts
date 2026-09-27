@@ -2,8 +2,8 @@
  * scan: "where in this code should we look?" A sweep across code (file, then function, then call), graded the
  * same way loop grades ideas — but read from disk instead of written by the agent. createCodeResolver turns
  * over:'s file pattern into items; planSweep/runSweep do the reuse-aware work, so an unchanged function costs
- * nothing on a later scan. Unlike loop: failing: is worst first, passing: and reused:
- * are counts (not lists), and the response carries an extra scanned: {layer: count, ...} line.
+ * nothing on a later scan. Unlike loop: failing: is worst first, passing: and reused: are counts (not lists),
+ * and the response carries an extra scanned: {layer: count, ...} line.
  */
 import { providerIdentity } from '../classifier/select.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
@@ -66,7 +66,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const gate = sweepGate(goalGrade, grades);
 
   const graded = [...grades.values()].filter((g) => g.status === 'asked' || g.status === 'reused');
-  const worst = worstFirst(grades.values()); // every failing/unsure item, worst first (Decision 11) — not tree order like loop
+  const worst = worstFirst(grades.values()); // every failing/unsure item, worst first — not tree order like loop
   const failing = m(...worst.map((g) => sweepEntry(g)));
   const passing = graded.filter((g) => g.ownGate === 'pass').length;
   const reused = graded.filter((g) => g.status === 'reused').length;

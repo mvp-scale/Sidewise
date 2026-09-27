@@ -6,7 +6,7 @@
  *     calls, no spend.
  *   runSweep: pay for whatever planSweep queued (askAll), and merge with the answers already resolved for free.
  * The goal question rides on the first layer that ends up with a call; if its own answer is reused, it never
- * needs one at all. A skipped item is graded 'unsure' (Plan 2a decision 5): none of its questions are asked or
+ * needs one at all. A skipped item is graded 'unsure': none of its questions are asked or
  * pulled from reuse, so it never shows up half-answered.
  * sweepDryRun/recordSweep are the two bits of a sweep verb's own wiring (its --dry-run reply and its
  * paid/free ledger epilogue) that don't vary by verb at all — loop, scan and drill share them verbatim.
@@ -175,8 +175,8 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
   return { layers, items, planned, keys, reusedFrom, answers, askedQuestions };
 }
 
-/** Fix #5a: whether a real run of this plan would make any call at all — the one thing preflight's own budget
- *  cap check needs to know BEFORE it runs, so a fully-reused sweep (every layer's call: null) is never blocked
+/** Whether a real run of this plan would make any call at all — the one thing preflight's own budget
+ *  cap check needs to know before it runs, so a fully-reused sweep (every layer's call: null) is never blocked
  *  by an already-reached cap it will never touch. Pass as `preflight(ctx, { needsBudget: planNeedsBudget(plan) })`. */
 export function planNeedsBudget(plan: SweepPlan): boolean {
   return plan.planned.some((p) => p.call !== null);
