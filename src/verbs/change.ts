@@ -8,7 +8,7 @@
 import { providerIdentity } from '../classifier/select.ts';
 import { combine, gradeSubject, goalGate, type Mark } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions, type AskedQuestion } from '../contract/translate.ts';
-import type { Answer } from '../contract/types.ts';
+import type { Answer, Category, Gate } from '../contract/types.ts';
 import { readGitEvidence, WHOLE_FILE_NOTE } from '../evidence/git.ts';
 import { findRun, isContractRun, type NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
@@ -29,6 +29,58 @@ function planCall(
 ): PlannedCall | null {
   const toAsk = splitReuse(keyed, reused, answers, reusedFrom).map(([q]) => q);
   return toAsk.length ? { state, questions: toAsk } : null;
+}
+
+export interface ChangeCategoryGrade {
+  name: string;
+  before: Gate;
+  after: Gate;
+  /** Question numbers that missed/mid before and pass now. */
+  fixed: number[];
+  /** Question numbers that missed/mid before and still don't pass. */
+  still: number[];
+}
+
+export interface ChangeGrade {
+  categories: ChangeCategoryGrade[];
+  goal: { gate: Gate; p: number };
+  /** Passing before, not any more — sorted ascending. Non-empty alone fails the gate. */
+  regressed: number[];
+  gate: Gate;
+}
+
+/** The before/after grade a change run reports and stores: read straight from a change run's own `ask.categories`
+ *  and `answers` (keyed `before:<n>`/`after:<n>`/`goal` by `contract/translate.ts`'s `subjectQuestions`) — no new
+ *  ledger write, and reusable read-side by anything (e.g. `report.ts`) that needs the run's own regression call
+ *  instead of a stale comparison against another run. */
+export function gradeChange(categories: readonly Category[], answers: Record<string, Answer>): ChangeGrade {
+  const beforeGrade = gradeSubject(categories, answers, 'before:');
+  const afterCatsGrade = gradeSubject(categories, answers, 'after:');
+  const g = answers['goal'] as { kind: 'yesno'; p: number };
+  const goal = { gate: goalGate(g.p), p: g.p };
+
+  const beforeMarks = new Map<number, Mark>();
+  for (const c of beforeGrade.categories) for (const [n, mk] of c.marks) beforeMarks.set(n, mk);
+  const afterMarks = new Map<number, Mark>();
+  for (const c of afterCatsGrade.categories) for (const [n, mk] of c.marks) afterMarks.set(n, mk);
+
+  const categoryGrades: ChangeCategoryGrade[] = categories.map((c, i) => {
+    const beforeCat = beforeGrade.categories[i]!;
+    const afterCat = afterCatsGrade.categories[i]!;
+    const fixed = [...beforeCat.marks].filter(([n, mk]) => mk !== 'pass' && afterCat.marks.get(n) === 'pass').map(([n]) => n);
+    const still = [...beforeCat.marks].filter(([n, mk]) => mk !== 'pass' && afterCat.marks.get(n) !== 'pass').map(([n]) => n);
+    return { name: c.name, before: beforeCat.gate, after: afterCat.gate, fixed, still };
+  });
+
+  const regressed = categories
+    .flatMap((c) => c.questions)
+    .map((q) => q.n)
+    .filter((n) => beforeMarks.get(n) === 'pass' && afterMarks.get(n) !== 'pass')
+    .sort((a, b) => a - b);
+
+  const gate = regressed.length > 0 ? 'fail' : combine([goal.gate, ...afterCatsGrade.categories.map((c) => c.gate)]);
+
+  return { categories: categoryGrades, goal, regressed, gate };
 }
 
 export async function runChange(text: string, ctx: VerbContext): Promise<VerbResult> {
@@ -97,39 +149,19 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const keys: Record<string, string> = {};
   for (const [q, k] of [...beforeKeyed, ...afterKeyed]) keys[q.id] = k;
 
-  const beforeGrade = gradeSubject(categories, answers, 'before:');
+  const changeGrade = gradeChange(categories, answers);
+  const { goal, regressed, gate } = changeGrade;
   const afterCatsGrade = gradeSubject(categories, answers, 'after:');
-  const g = answers['goal'] as { kind: 'yesno'; p: number };
-  const goal = { gate: goalGate(g.p), p: g.p };
 
-  const beforeMarks = new Map<number, Mark>();
-  for (const c of beforeGrade.categories) for (const [n, mk] of c.marks) beforeMarks.set(n, mk);
-  const afterMarks = new Map<number, Mark>();
-  for (const c of afterCatsGrade.categories) for (const [n, mk] of c.marks) afterMarks.set(n, mk);
-
-  const catEntries: Array<[string, Value]> = categories.map((c, i) => {
-    const beforeCat = beforeGrade.categories[i]!;
-    const afterCat = afterCatsGrade.categories[i]!;
-    const fixed = [...beforeCat.marks].filter(([n, mk]) => mk !== 'pass' && afterCat.marks.get(n) === 'pass').map(([n]) => n);
-    const still = [...beforeCat.marks].filter(([n, mk]) => mk !== 'pass' && afterCat.marks.get(n) !== 'pass').map(([n]) => n);
-    return [
-      c.name,
-      m(
-        ['before', beforeCat.gate],
-        ['after', afterCat.gate],
-        ...(fixed.length ? [['fixed', fixed] as [string, Value]] : []),
-        ...(still.length ? [['still', still] as [string, Value]] : []),
-      ),
-    ];
-  });
-
-  const regressed = categories
-    .flatMap((c) => c.questions)
-    .map((q) => q.n)
-    .filter((n) => beforeMarks.get(n) === 'pass' && afterMarks.get(n) !== 'pass')
-    .sort((a, b) => a - b);
-
-  const gate = regressed.length > 0 ? 'fail' : combine([goal.gate, ...afterCatsGrade.categories.map((c) => c.gate)]);
+  const catEntries: Array<[string, Value]> = changeGrade.categories.map((c) => [
+    c.name,
+    m(
+      ['before', c.before],
+      ['after', c.after],
+      ...(c.fixed.length ? [['fixed', c.fixed] as [string, Value]] : []),
+      ...(c.still.length ? [['still', c.still] as [string, Value]] : []),
+    ),
+  ]);
 
   // Both states can add WHOLE_FILE_NOTE (once per call, per git.ts); shown once here, since it's one fact about the run.
   let sawWholeFileNote = false;

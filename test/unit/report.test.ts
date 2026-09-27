@@ -83,19 +83,69 @@ describe('runReport', () => {
   it('[C-165] history: no events yet says so plainly, else merges change results and outcomes newest first', () => {
     const { paths } = tempProject({});
     expect(runReport('history', { paths }).text).toBe('sidewise report history · nothing yet → run "change" or "outcome" to start one');
+    const oneQuestion = { name: 'guards', pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'q1?' }] };
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { guards: 'fail' } }), Date.now(), 'b'); // SW-0001
     appendContractRun(
       paths,
-      sampleContractRun({ verb: 'change', parent: 'SW-0001', where: ['src/a.ts'], categories: { guards: 'pass' } }),
+      sampleContractRun({
+        verb: 'change',
+        parent: 'SW-0001',
+        where: ['src/a.ts'],
+        ask: { categories: [oneQuestion], layers: [] },
+        // genuinely fixed: before misses, after passes.
+        answers: { goal: { kind: 'yesno', p: 0.9 }, 'before:1': { kind: 'yesno', p: 0.1 }, 'after:1': { kind: 'yesno', p: 0.9 } },
+        categories: { guards: 'pass' },
+      }),
       Date.now(),
       'b',
     ); // SW-0002: fixed
     appendOutcome(paths, 'SW-0001', 'overruled', 'owner');
+    // A second parent whose OWN stored gate is stale/misleading relative to this change's real before/after —
+    // exactly the SW-0006 shape the reviewer found: internally regressed, but a parent-vs-after comparison
+    // would call it "fixed" since parent.categories.guards ('unsure') isn't 'pass' while the change's own
+    // stored after-gate is 'pass'.
+    const threeQuestions = {
+      name: 'guards',
+      pass: 'yes' as const,
+      need: 'any' as const,
+      tags: [],
+      questions: [
+        { n: 1, kind: 'yesno' as const, text: 'q1?' },
+        { n: 2, kind: 'yesno' as const, text: 'q2?' },
+        { n: 3, kind: 'yesno' as const, text: 'q3?' },
+      ],
+    };
+    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], categories: { guards: 'unsure' } }), Date.now(), 'b'); // SW-0003
+    appendContractRun(
+      paths,
+      sampleContractRun({
+        verb: 'change',
+        parent: 'SW-0003',
+        where: ['src/b.ts'],
+        ask: { categories: [threeQuestions], layers: [] },
+        answers: {
+          goal: { kind: 'yesno', p: 0.9 },
+          // q1 regresses (pass -> miss); q3 is fixed (miss -> pass); need:any keeps the category gate 'pass'
+          // both before and after, so only the run's own regressed list — never a category-gate comparison —
+          // can catch this.
+          'before:1': { kind: 'yesno', p: 0.9 },
+          'before:2': { kind: 'yesno', p: 0.9 },
+          'before:3': { kind: 'yesno', p: 0.1 },
+          'after:1': { kind: 'yesno', p: 0.1 },
+          'after:2': { kind: 'yesno', p: 0.9 },
+          'after:3': { kind: 'yesno', p: 0.9 },
+        },
+        categories: { guards: 'pass' },
+      }),
+      Date.now(),
+      'b',
+    ); // SW-0004: regressed (SW-0006-shaped bug)
     for (const forceFallback of ENGINES) {
       __testOnly.forceFallback = forceFallback;
       const r = runReport('history', { paths });
       expect(r.exit).toBe(0);
       expect(r.text).toContain('src/a.ts · SW-0002 change · fixed');
+      expect(r.text).toContain('src/b.ts · SW-0004 change · regressed');
       expect(r.text).toContain('src/a.ts · SW-0001 · overruled by owner');
     }
   });

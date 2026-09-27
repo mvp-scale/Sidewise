@@ -8,8 +8,8 @@
  *              never a full-ledger scan; see isStale below).
  *   patterns — every question-set fingerprint (ledger/index.ts's patternFingerprint) ever run, with its
  *              pass/fail/unsure split, places touched, and outcomes.
- *   history  — a merged, newest-first feed of `change` results (fixed/regressed, derived from comparing a
- *              change run's own categories to its parent's — never a new ledger write) and recorded outcomes.
+ *   history  — a merged, newest-first feed of `change` results (fixed/regressed, derived from the change run's
+ *              own before/after answers — never a new ledger write) and recorded outcomes.
  */
 import { answerKey, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
@@ -17,6 +17,7 @@ import { readRecordAt, stripLines, sweepPlaces, withIndex, type PatternRow } fro
 import { isContractRun, isRun, type ContractRun, type LedgerRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { clip, hasControlChars } from '../util/text.ts';
+import { gradeChange } from './change.ts';
 import type { VerbResult } from './types.ts';
 
 export interface ReportContext {
@@ -120,20 +121,14 @@ function placesOf(rec: LedgerRecord | undefined): string {
   return sweep.length ? sweep.join(', ') : '(no place)';
 }
 
-/** `change` results turn into 'fixed'/'regressed' by comparing the run's own (after) categories to its
- *  parent's — the exact priority change.ts's own gate math already uses (a regression anywhere wins). A run
- *  that changed nothing worth naming (every shared category held steady) yields no row at all. */
-function changeStatus(rec: ContractRun, parent: ContractRun | undefined): 'fixed' | 'regressed' | undefined {
-  if (!parent) return undefined;
-  let fixed = false;
-  let regressed = false;
-  for (const [name, after] of Object.entries(rec.categories)) {
-    const before = parent.categories[name];
-    if (before === undefined) continue;
-    if (before !== 'pass' && after === 'pass') fixed = true;
-    if (before === 'pass' && after !== 'pass') regressed = true;
-  }
-  return regressed ? 'regressed' : fixed ? 'fixed' : undefined;
+/** `change` results turn into 'fixed'/'regressed' from the run's OWN before/after answers — `change.ts`'s
+ *  `gradeChange`, shared rather than copied, is the same regression call `change` itself already made (any
+ *  regression anywhere wins over any fix). Never the parent's stored gate, which can be stale by the time this
+ *  reads it. A run that changed nothing worth naming (every category held steady) yields no row at all. */
+function changeStatus(rec: ContractRun): 'fixed' | 'regressed' | undefined {
+  const graded = gradeChange(rec.ask.categories, rec.answers);
+  if (graded.regressed.length) return 'regressed';
+  return graded.categories.some((c) => c.before !== 'pass' && c.after === 'pass') ? 'fixed' : undefined;
 }
 
 function reportHistory(paths: SidewisePaths): VerbResult {
@@ -144,9 +139,7 @@ function reportHistory(paths: SidewisePaths): VerbResult {
       for (const { offset } of handle.recentChanges(ROW_LIMIT)) {
         const rec = readRecordAt(paths.log, offset);
         if (!rec || !isContractRun(rec)) continue;
-        const parentOffset = rec.parent ? handle.findOffset(rec.parent) : undefined;
-        const parent = parentOffset === undefined ? undefined : readRecordAt(paths.log, parentOffset);
-        const status = changeStatus(rec, parent && isContractRun(parent) ? parent : undefined);
+        const status = changeStatus(rec);
         if (!status) continue;
         out.push({ ts: rec.ts, text: `${placesOf(rec)} · ${rec.id} change · ${status}` });
       }
