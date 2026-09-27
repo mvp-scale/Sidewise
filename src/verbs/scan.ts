@@ -9,6 +9,7 @@ import { providerIdentity } from '../classifier/select.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
 import { m, type Value } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
+import { expandGlob } from '../evidence/glob.ts';
 import { createCodeResolver } from '../evidence/units.ts';
 import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
@@ -16,6 +17,21 @@ import { loadRequest } from './request.ts';
 import { commonNotes, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
 import { planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
+
+// Fix #17: a scan only ever looks at what over: names — nothing says so if that misses the file most likely
+// to matter. A short, fixed list (never grown per-project, never a stop): a real entrypoint or config file
+// outside every over: pattern is worth a note, not silence.
+const ENTRYPOINT_GLOBS = ['server.js', 'app.js', 'index.js', 'main.js', 'config/**', '.env*'];
+
+/** Entrypoint/config files that exist in the project but were never one of this scan's own items (at any
+ *  layer — unit.path is the same original file path all the way down file -> function -> call). undefined
+ *  when there's nothing to say. */
+function unlookedEntrypoints(root: string, items: readonly { unit?: { path: string } }[]): string | undefined {
+  const touched = new Set(items.flatMap((i) => (i.unit ? [i.unit.path] : [])));
+  const missed = [...new Set(ENTRYPOINT_GLOBS.flatMap((pattern) => expandGlob(root, pattern).files))].filter((f) => !touched.has(f));
+  if (!missed.length) return undefined;
+  return `entrypoints/config outside over: ${missed.join(', ')} — add them to over: file if they matter here`;
+}
 
 export async function runScan(text: string, ctx: VerbContext): Promise<VerbResult> {
   const loaded = loadRequest(text, 'scan');
@@ -28,6 +44,9 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
 
   if (ctx.dryRun) return sweepDryRun(plan, identity);
+
+  const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
+  if (entrypointNote) notes.push(entrypointNote);
 
   const pre = preflight(ctx);
   if (!pre.ok) return pre.result;

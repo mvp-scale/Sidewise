@@ -30,6 +30,25 @@ describe('scan', () => {
     expect(provider.calls).toHaveLength(1); // one call: the function layer (file has no ask categories)
   });
 
+  // Fix #17: a scan hints what it never looked at — a common entrypoint/config file outside every over:
+  // pattern is easy to miss entirely. [C-146]
+  it('notes a common entrypoint/config file that sits outside every over: pattern', async () => {
+    const { paths } = tempProject({ ...FILES, 'app.js': 'require("express")();\n', 'config/db.json': '{}\n' });
+    const provider = stubProvider({ yes: () => 0.1 });
+    const r = await runScan(REQUEST, { paths, provider, env }); // over: file: src/*.ts never reaches app.js or config/
+    expect(r.text).toContain('entrypoints/config outside over:');
+    expect(r.text).toContain('app.js');
+    expect(r.text).toContain('config/db.json');
+  });
+
+  it('says nothing when over: already reaches the usual entrypoints', async () => {
+    const { paths } = tempProject({ 'app.js': 'function boot() { return 1; }\n' });
+    const provider = stubProvider({ yes: () => 0.1 });
+    const reachesApp = REQUEST.replace('file: src/*.ts', 'file: app.js');
+    const r = await runScan(reachesApp, { paths, provider, env });
+    expect(r.text).not.toContain('entrypoints/config outside over:');
+  });
+
   it('a second scan of unchanged code is free [C-072] [C-073]', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
