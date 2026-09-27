@@ -11,7 +11,7 @@ import { tempProject } from '../../helpers/project.ts';
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 // index.db (ledger/index.ts) is a disposable SQLite sidecar: a real run persists it only when node:sqlite is
 // actually available (Node >= 22.13); the Node < 22.13 fallback never writes one at all.
-const EXPECTED_FILES = ['budget.json', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
+const EXPECTED_FILES = ['.gitignore', 'budget.json', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
 
 interface Line {
   kind: string;
@@ -94,7 +94,7 @@ describe('separate processes at once', () => {
     const ok = results.filter((r) => r.status === 0);
     const blocked = results.filter((r) => r.status === 3);
     expect(ok.length + blocked.length).toBe(6);
-    for (const r of blocked) expect(r.stderr).toMatch(/^✖ budget: cap reached \([^\n]+\) → the owner runs "sidewise budget reset"\n$/);
+    for (const r of blocked) expect(r.stderr).toMatch(/^✖ budget: cap reached \([^\n]+\) → the owner runs "sidewise budget set --runs <n>"\n$/);
     expect(ok.length).toBeGreaterThanOrEqual(3);
     expect(ok.length).toBeLessThanOrEqual(3 + (6 - 1));
     const s = state(root);
@@ -128,6 +128,6 @@ describe('separate processes at once', () => {
     // when checkLedger/nextRunNumber first touch the index (design binding #7: no ledger yet, touch nothing on
     // disk), and appendLine only creates log.jsonl moments later, in the same command. So this one command never
     // persists index.db even with node:sqlite available; the next command would. See ledger/index.ts's withIndex.
-    expect(state(root).files).toEqual(['budget.json', 'log.jsonl']);
+    expect(state(root).files).toEqual(['.gitignore', 'budget.json', 'log.jsonl']);
   }, 30_000);
 });

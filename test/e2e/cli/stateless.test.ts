@@ -17,12 +17,14 @@ function project(): string {
   return root;
 }
 
-/** The answer without what is expected to differ between two runs: the run id, and the budget notes line. */
+/** The answer without what is expected to differ between two runs: the run id, the budget notes line, and
+ *  (fix #6) the reused: line — present only once an earlier run's answers actually got reused, so an
+ *  identical-content-but-first-of-its-kind call and a fully-reused repeat differ there by design. */
 const answerBody = (stdout: string): string[] =>
   stdout
     .trimEnd()
     .split('\n')
-    .filter((l) => !l.startsWith('notes: '))
+    .filter((l) => !l.startsWith('notes: ') && !/^ {2}reused: /.test(l))
     .map((l) => l.replace(/SW-\d{4,}/g, 'SW-####'));
 
 describe('statelessness', () => {
@@ -54,7 +56,7 @@ describe('statelessness', () => {
     expect(again.stdout).toContain('$0.00 of $5.00 · 1 of 500 runs');
   });
 
-  it('after runs finish, .sidewise/ holds only log.jsonl, budget.json and (with node:sqlite) index.db — no lock, no temp file', () => {
+  it('after runs finish, .sidewise/ holds only .gitignore, log.jsonl, budget.json and (with node:sqlite) index.db — no lock, no temp file', () => {
     const root = project();
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
     expect(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']).status).toBe(0);
@@ -63,7 +65,7 @@ describe('statelessness', () => {
     expect(sidewise(root, ['class', 'missing.txt']).status).toBe(2);
     // index.db is the disposable id-index sidecar (ledger/index.ts): expected here, unlike a lock or .tmp file —
     // but only when this test's own Node has node:sqlite; the Node < 22.13 fallback never writes one at all.
-    const expected = ['budget.json', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
+    const expected = ['.gitignore', 'budget.json', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
     expect(readdirSync(path.join(root, '.sidewise')).sort()).toEqual(expected);
   });
 });

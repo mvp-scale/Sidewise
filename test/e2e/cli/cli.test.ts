@@ -66,7 +66,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
     const dry = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--dry-run']);
     expect(dry.status).toBe(0);
-    expect(dry.stdout).toMatch(/^plan:\n {2}calls: \d+\n {2}questions: \d+\n {2}route: \w+\nnotes: \["dry run: no call, no spend"\]\n$/);
+    expect(dry.stdout).toMatch(/^plan:\n {2}calls: \d+\n {2}questions: \d+\n {2}reused: \d+\n {2}route: \w+\nnotes: \["dry run: no call, no spend"\]\n$/);
     expect(sidewise(root, ['budget']).stdout).toContain('1 of 500 runs'); // only the class run counted; the dry run spent nothing
     const real = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree']);
     expect(real.status).toBe(0);
@@ -138,7 +138,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(sidewise(root, ['judge'])).toMatchObject({
       status: 2,
       stdout: '',
-      stderr: '✖ args: "judge" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget or doctor (sidewise --help)\n',
+      stderr: '✖ args: "judge" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)\n',
     });
     expect(sidewise(root, ['view'])).toMatchObject({
       status: 2,
@@ -169,7 +169,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     const root = project();
     const bare = sidewise(root, []);
     expect(bare.status).toBe(2);
-    expect(bare.stderr).toMatch(/^usage:\n {2}sidewise view/);
+    expect(bare.stderr).toMatch(/^new here\? → sidewise init\nusage:\n {2}sidewise view/);
     for (const flag of ['--help', '-h']) {
       const help = sidewise(root, [flag]);
       expect(help).toMatchObject({ status: 0, stderr: '' });
