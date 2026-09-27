@@ -5,6 +5,9 @@
  *   The mirror image (≤ 0.30 of the passing side) is a clear miss; anything between is "mid".
  * A category's gate follows its need (all · most · any). The goal passes at ≥ 0.70. Gates combine as
  * fail > unsure > pass. In a sweep an item passes only when its own categories and all its children pass.
+ * Fix #12: worstFirst ranks a sweep's failing items by severity (a scale question's level × p) first, when
+ * any item carries one — a plain count of fail/unsure categories is still the tiebreak, and the whole
+ * ordering when no item has a scale question at all.
  */
 import type { Item } from './layers.ts';
 import type { Answer, Category, Gate, Need } from './types.ts';
@@ -61,18 +64,32 @@ export interface CategoryGrade {
   /** By question number, ascending. */
   marks: Map<number, Mark>;
   values: Map<number, Shown>;
+  /** Fix #12: the worst (level index × p) among this category's own scale questions, else 0 (yes/no and
+   *  choice questions carry no ordered severity — worstFirst falls back to fail/unsure counts for those). */
+  severity: number;
+}
+
+/** Fix #12: a scale answer's severity — how far up its own ordered levels the top one sits, weighted by how
+ *  sure the answer is of it. A yes/no or choice answer has no level order to weigh, so it's 0. */
+function severityOf(q: Category['questions'][number], a: Answer): number {
+  if (q.kind !== 'scale' || a.kind !== 'scale') return 0;
+  const [top, p] = Object.entries(a.dist).reduce((best, e) => (e[1] > best[1] ? e : best));
+  const level = q.levels.indexOf(top);
+  return level < 0 ? 0 : level * p;
 }
 
 export function gradeCategory(cat: Category, answerOf: (n: number) => Answer | undefined): CategoryGrade {
   const marks = new Map<number, Mark>();
   const values = new Map<number, Shown>();
+  let severity = 0;
   for (const q of cat.questions) {
     const a = answerOf(q.n);
     if (!a) continue;
     marks.set(q.n, markOf(passingProbability(cat, a)));
     values.set(q.n, shown(a));
+    severity = Math.max(severity, severityOf(q, a));
   }
-  return { name: cat.name, gate: gateOf(cat.need, [...marks.values()]), marks, values };
+  return { name: cat.name, gate: gateOf(cat.need, [...marks.values()]), marks, values, severity };
 }
 
 export interface SubjectGrade {
@@ -103,6 +120,10 @@ export interface ItemGrade {
   ownGate: Gate;
   /** Rolled up: its own categories and every child. */
   gate: Gate;
+  /** Fix #12: the worst of its own categories' severity — worstFirst's primary sort key when non-zero.
+   *  Optional (rather than required like CategoryGrade's own) so a hand-built ItemGrade fixture elsewhere
+   *  that predates this fix keeps compiling; gradeItems itself always sets it. */
+  severity?: number;
 }
 
 export function gradeItems(
@@ -119,8 +140,9 @@ export function gradeItems(
     const graded = status === 'asked' || status === 'reused';
     const own = graded ? categoriesOf(it.layer).map((c) => gradeCategory(c, (n) => answers[`${it.id}#${n}`])) : [];
     const ownGate: Gate = status === 'skipped' ? 'unsure' : combine(own.map((c) => c.gate));
+    const severity = own.reduce((worst, c) => Math.max(worst, c.severity), 0);
     const children = (kids.get(it.id) ?? []).map((k) => out.get(k)!.gate);
-    out.set(it.id, { id: it.id, layer: it.layer, parent: it.parent, status, own, ownGate, gate: combine([ownGate, ...children]) });
+    out.set(it.id, { id: it.id, layer: it.layer, parent: it.parent, status, own, ownGate, gate: combine([ownGate, ...children]), severity });
   }
   return new Map([...out].reverse());
 }
@@ -131,12 +153,14 @@ export function sweepGate(goal: Gate, grades: ReadonlyMap<string, ItemGrade>): G
   return combine([goal, ...tops.map((g) => g.gate)]);
 }
 
-/** Graded items whose own categories did not all pass, worst first: most fails, then most unsures, then order. */
+/** Graded items whose own categories did not all pass, worst first: fix #12 — highest severity (a scale
+ *  question's level × p) first when any item carries one, then most fails, then most unsures, then order. A
+ *  sweep with no scale question has every item at severity 0, so this is exactly the old ordering. */
 export function worstFirst(grades: Iterable<ItemGrade>): ItemGrade[] {
   const count = (g: ItemGrade, gate: Gate): number => g.own.filter((c) => c.gate === gate).length;
   return [...grades]
     .filter((g) => (g.status === 'asked' || g.status === 'reused') && g.ownGate !== 'pass')
     .map((g, i) => ({ g, i }))
-    .sort((a, b) => count(b.g, 'fail') - count(a.g, 'fail') || count(b.g, 'unsure') - count(a.g, 'unsure') || a.i - b.i)
+    .sort((a, b) => (b.g.severity ?? 0) - (a.g.severity ?? 0) || count(b.g, 'fail') - count(a.g, 'fail') || count(b.g, 'unsure') - count(a.g, 'unsure') || a.i - b.i)
     .map(({ g }) => g);
 }

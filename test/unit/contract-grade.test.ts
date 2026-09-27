@@ -89,3 +89,37 @@ describe('gradeItems (the contract loop example)', () => {
     expect(worstFirst(grades.values()).map((g) => g.id)).not.toContain('ledger');
   });
 });
+
+describe('worstFirst: a scale question ranks by severity (level × p), not just fail/unsure counts [C-145]', () => {
+  const severity: Category = {
+    name: 'severity',
+    pass: ['none', 'low'],
+    need: 'all',
+    tags: [],
+    questions: [{ n: 1, kind: 'scale', text: 'How bad?', levels: ['none', 'low', 'medium', 'high', 'critical'] }],
+  };
+  const scale = (dist: Record<string, number>): Answer => ({ kind: 'scale', dist });
+  const flatItems = [
+    { id: 'b', layer: 'file', name: 'b', parent: null, fill: {}, text: 'b' },
+    { id: 'a', layer: 'file', name: 'a', parent: null, fill: {}, text: 'a' },
+  ];
+
+  it('a "high" item at high confidence still loses to a "critical" one, even out of original order', () => {
+    // Same fail-count (1 each) and unsure-count (0 each) either way — the old order-only tiebreak would have
+    // kept b before a (insertion order); severity must override that.
+    const answers: Record<string, Answer> = {
+      'b#1': scale({ none: 0.01, low: 0.01, medium: 0.01, high: 0.95, critical: 0.02 }), // level 3 × 0.95 = 2.85
+      'a#1': scale({ none: 0.02, low: 0.02, medium: 0.02, high: 0.04, critical: 0.9 }), // level 4 × 0.9 = 3.6
+    };
+    const grades = gradeItems(flatItems, () => [severity], () => 'asked', answers);
+    expect([...grades.values()].map((g) => g.ownGate)).toEqual(['fail', 'fail']); // both miss the passing bar
+    expect(worstFirst(grades.values()).map((g) => g.id)).toEqual(['a', 'b']);
+  });
+
+  it('a yes/no-only sweep (no scale question) keeps the original fail/unsure-count ordering unchanged', () => {
+    const yesnoOnly = { name: 'x', pass: 'no' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'bad?' }] };
+    const answers: Record<string, Answer> = { 'b#1': yes(0.9), 'a#1': yes(0.9) };
+    const grades = gradeItems(flatItems, () => [yesnoOnly], () => 'asked', answers);
+    expect(worstFirst(grades.values()).map((g) => g.id)).toEqual(['b', 'a']); // unchanged: original order
+  });
+});
