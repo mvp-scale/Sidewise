@@ -252,11 +252,14 @@ describe('change', () => {
     expect(r.text).not.toContain('evidence limit reached');
   });
 
-  it('--dry-run: no provider call, no git, questions = n*2+1 (Controller ruling) [C-088]', async () => {
-    const { paths } = tempProject({});
+  it('--dry-run: no provider call, questions = n*2+1 (Controller ruling) [C-088]', async (ctx) => {
+    if (!hasGit()) return ctx.skip();
+    const { paths, root } = tempProject({ 'src/api/user.ts': 'x\n' });
+    gitInit(root);
+    const rev = gitCommit(root, 'init'); // whatever git init's own default branch is named, HEAD/the sha always resolve
     appendContractRun(paths, sampleContractRun(), T, 'b'); // SW-0001: 1 question
     const provider = stubProvider();
-    const r = await runChange('side:\n  goal: dry run check\n  parent: SW-0001\n  compare: {before: main, after: HEAD}\n', {
+    const r = await runChange(`side:\n  goal: dry run check\n  parent: SW-0001\n  compare: {before: ${rev}, after: HEAD}\n`, {
       paths,
       provider,
       env,
@@ -266,6 +269,27 @@ describe('change', () => {
     expect(r.text).toBe('plan:\n  calls: 2\n  questions: 3\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'change')).toEqual([]);
+  });
+
+  // Fix #13/#5: --dry-run used to return before ever reading a ref, so a typo'd or nonexistent ref looked
+  // fine until the real (paid) run. It now checks the same way class/scan/drill/loop already do: evidence
+  // (here, both git refs) is read before the dry-run branch, not after. [C-148]
+  it('--dry-run stops on a ref that does not exist, same as a real run would', async (ctx) => {
+    if (!hasGit()) return ctx.skip();
+    const { paths, root } = tempProject({ 'src/api/user.ts': 'x\n' });
+    gitInit(root);
+    gitCommit(root, 'init');
+    appendContractRun(paths, sampleContractRun(), T, 'b'); // SW-0001
+    const provider = stubProvider();
+    const r = await runChange('side:\n  goal: dry run check\n  parent: SW-0001\n  compare: {before: not-a-real-ref-xyz, after: HEAD}\n', {
+      paths,
+      provider,
+      env,
+      dryRun: true,
+    });
+    expect(r.exit).toBe(2);
+    expect(r.text).toContain('not found by git');
+    expect(provider.calls).toHaveLength(0);
   });
 
   it('on gate: pass (goal and every category clear, nothing regressed), next: records the outcome held on the parent [C-065]', async () => {

@@ -56,17 +56,19 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
 
   const identity = providerIdentity(ctx.env);
 
-  if (ctx.dryRun) {
-    const n = categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 2, questions: n * 2 + 1, route: identity.route, baseURL: identity.baseURL }) };
-  }
-
+  // Fix #13/#5: evidence (both refs) is read before the dry-run branch, same as class/scan/drill/loop already
+  // do with their own evidence — a --dry-run used to return before ever checking a ref existed at all.
   const compare = request.side.compare!;
   const before = readGitEvidence(ctx.paths.root, compare.before, 'before', paths);
   const after = readGitEvidence(ctx.paths.root, compare.after, 'after', paths);
   if (!before.ok || !after.ok) {
     const errors = [...(before.ok ? [] : before.errors), ...(after.ok ? [] : after.errors)];
     return { exit: 2, text: stopText(errors) };
+  }
+
+  if (ctx.dryRun) {
+    const n = categories.flatMap((c) => c.questions).length;
+    return { exit: 0, text: dryRunText({ calls: 2, questions: n * 2 + 1, route: identity.route, baseURL: identity.baseURL }) };
   }
 
   const pre = preflight(ctx);
