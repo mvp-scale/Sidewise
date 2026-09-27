@@ -66,7 +66,7 @@ function unwritablePrefix(home: string): string {
 const YES_NO_CLAUDE_STDIN: InitFlags = { key: 'stdin', claude: false, yes: true };
 
 describe('runInit: a fresh --yes --no-claude --key-stdin run, inside a git project', () => {
-  it('installs --user when the global prefix is not writable and cwd has no package.json, stores the key to the env file (secret-tool absent), and creates .sidewise/', async () => {
+  it('installs --user when the global prefix is not writable and cwd has no package.json, stores the key to the env file (secret-tool absent), and creates a self-ignoring .sidewise/ [C-099][C-101]', async () => {
     const { ctx, home } = baseCtx();
     if (process.getuid && process.getuid() === 0) return; // root ignores the chmod; skip under root
     const prefix = unwritablePrefix(home);
@@ -168,7 +168,7 @@ describe('runInit: the plugin step defaults to project scope', () => {
 });
 
 describe('runInit: outside a git project', () => {
-  it('runs only the per-user steps (CLI, key), then stops with the exact one-line fix — never creates .sidewise/, never touches the plugin', async () => {
+  it('runs only the per-user steps (CLI, key), then stops with the exact one-line fix — never creates .sidewise/, never touches the plugin [C-099]', async () => {
     const { ctx } = baseCtx();
     const { runner, calls } = scriptedRunner({
       'npm config': () => ({ status: 0, stdout: '/usr/local\n', stderr: '' }),
@@ -188,7 +188,7 @@ describe('runInit: outside a git project', () => {
 });
 
 describe('runInit: idempotent re-run', () => {
-  it('CLI already reachable, project already there: every line says so, nothing changes', async () => {
+  it('CLI already reachable, project already there: every line says so, nothing changes [C-099]', async () => {
     const { ctx, home } = baseCtx();
     mkdirSync(path.join(ctx.cwd, '.git'));
     // Pre-seed a layout npm itself would produce: <prefix>/bin/sidewise is a symlink into

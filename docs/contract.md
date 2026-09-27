@@ -561,31 +561,41 @@ query yet that mines it into a pattern across runs the way class's per-category 
   total), honouring the server's own `Retry-After` when it sends one, else exponential backoff with jitter,
   capped at 10s per wait. 401, 422 and any other non-retryable status are never retried — the first failure is
   final. [C-096]
-- A key is resolved in order: `TYPESAFE_API_KEY`/`AI_GATEWAY_API_KEY` in env, then the OS keychain, then the
-  user credentials file (`~/.config/sidewise/credentials`, or under `$XDG_CONFIG_HOME`) that `sidewise init`
-  writes at mode 0600 in a 0700 directory. The first hit wins, and its source (`env`/`keychain`/`file`) is
-  carried alongside it. The resolved value never appears in any output, error, ledger line or note — the
-  redaction list (`ledger/redact.ts`) also scrubs it as a literal, on top of its own secret-shaped patterns.
-  [C-097]
-- `sidewise doctor` names where a resolved key came from (`key: yes · from OS keychain`, `from user file
-  <path> (0600)`, or `from env TYPESAFE_API_KEY`, with `(overrides stored)` when a stored key also exists but
-  env won), or `key: no → run "sidewise init" to add one`; a credentials file looser than 0600 gets its own
-  warning line. It also names the CLI's own install (`cli: <path> · installed --<mode> ...`) and the Claude
-  Code plugin's state (`plugin: sidewise@mvp-scale · <scope> scope`, or `not installed → ...`). [C-098]
-- `sidewise init` sets up the CLI (`--global`/`--user`/`--local`, offering `--user` instead of a sudo-needing
-  global install), the key (hidden input via `node:readline`, never argv; `--key-stdin` for automation,
-  `--no-key` to skip; a sanity check on shape only — no live check against TypeSafe), the Claude Code plugin
-  (`--claude`/`--no-claude`), and the project's `.sidewise/`. It is idempotent (a re-run that finds a step
-  already done says so and changes nothing) and interactive by default; `--yes` takes the default answer
-  everywhere. Every step prints exactly one line: `✔ done`, `· already`, `– skipped (why)`, or `✖ problem →
-  fix`. [C-099]
-- `sidewise uninstall` reverses init, asking before each destructive step (default **no** for the project's
-  `.sidewise/`, since it is the user's run history): the Claude Code plugin, the `mvp-scale` marketplace and
-  its plugin cache dir, the stored key (keychain and/or credentials file), then the CLI itself, using
-  whichever install mode `sidewise init` recorded in `~/.config/sidewise/install.json` (which holds no
-  secrets). `--yes` takes the default (destructive steps default to **yes** when asked interactively is
-  skipped, except `.sidewise/`, which still needs `--yes` plus its own default staying no); `--keep-key` and
-  `--keep-data` skip the key and `.sidewise/` steps outright. [C-100]
+- A key is resolved in order: `TYPESAFE_API_KEY`/`AI_GATEWAY_API_KEY` in env, then the OS keychain (macOS
+  `security`, Linux `secret-tool`; Windows always falls through), then `~/.config/sidewise/env` (or under
+  `$XDG_CONFIG_HOME`) — a shell env file `sidewise init` writes at mode 0600 in a 0700 directory, holding only
+  lines of the exact shape `export NAME='value'` for an allowlisted name (`TYPESAFE_API_KEY`,
+  `AI_GATEWAY_API_KEY`, `SIDEWISE_BASE_URL`, `JEV_MODEL`, `JEV_GATEWAY_MODEL`, `SIDEWISE_PROVIDER`) plus `#`
+  comments; Sidewise parses this file itself and never sources or evals it, and a line it doesn't recognise is
+  left untouched, not an error. The first hit wins, and its source (`env`/`keychain`/`file`) is carried
+  alongside it. The resolved value never appears in any output, error, ledger line or note — the redaction list
+  (`ledger/redact.ts`) also scrubs it as a literal, on top of its own secret-shaped patterns. [C-097]
+- `sidewise doctor` names where a resolved key came from (`key: yes · from OS keychain (encrypted, per user)`,
+  `from user file <path> (0600, not encrypted)`, or `from env TYPESAFE_API_KEY`, with `(overrides stored)` when
+  a stored key also exists but env won), or `key: no → run "sidewise init" to add one`; the env file gets its
+  own warning line if its mode is looser than 0600 or it has a line sidewise ignored. It also names the CLI's
+  own install (`cli: <path> · installed --<mode> ...`) and the Claude Code plugin's overall state (`plugin:
+  sidewise@mvp-scale · <scope> scope`, or `not installed → ...`). [C-098]
+- `sidewise init` sets up two things per user, shared across every project — the CLI (`--global`/`--user`/
+  `--local`, offering `--user` instead of a sudo-needing global install) and the key (hidden input via
+  `node:readline`, never argv; `--key-stdin` for automation, `--no-key` to skip; a sanity check on shape only —
+  no live check against TypeSafe) — then, per project, the Claude Code plugin (`--claude`/`--no-claude`,
+  `--scope user|project` defaulting to `project`) and the project's `.sidewise/`. Run outside a git project, it
+  does only the two per-user steps, then stops with one line pointing the user at cding into a project. It is
+  idempotent (a re-run that finds a step already done says so and changes nothing) and interactive by default;
+  `--yes` takes the default answer everywhere. Every step prints exactly one line, glyph first: `✔ done`,
+  `· already`, `– skipped (why)`, or `✖ problem → fix`. [C-099]
+- `sidewise uninstall` reverses init, by default acting only on the current project: the Claude Code plugin's
+  project-scope install, and (asked, default **no** — it's the user's run history) that project's
+  `.sidewise/`. The per-user parts — the stored key and the CLI itself — are only touched with `--all`, which
+  then also reaches every plugin scope found plus the `mvp-scale` marketplace and the plugin cache dir it left
+  behind; the CLI step uses whichever install mode `sidewise init` recorded in
+  `~/.config/sidewise/install.json` (which holds no secrets), or prints the exact commands to run by hand when
+  there's no record. `--yes` takes the default answer everywhere: yes for removal steps that run, no for
+  `.sidewise/`. `--keep-key`/`--keep-data` skip their step outright, with no question asked. [C-100]
 - `.sidewise/` carries its own `.gitignore` (`*`), created the first time anything writes into it — the ledger,
   the budget file, the id index, or `sidewise init`'s own explicit project step — so a project that never ran
   `init` is still covered on its very first run, not committing its run history by accident. [C-101]
+- `sidewise doctor`'s `project:` line names the project root and whether the Claude Code plugin is enabled for
+  it specifically (project scope), separately from the `plugin:` line's overall install state — using Sidewise
+  is always scoped to a project, so this is the answer that actually matters day to day. [C-102]

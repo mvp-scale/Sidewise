@@ -48,7 +48,7 @@ function baseCtx(): { ctx: UninstallCtx; home: string } {
 const DEFAULT_FLAGS: UninstallFlags = { all: false, keepKey: false, keepData: false, yes: true };
 
 describe('runUninstall, default (no --all): only this project', () => {
-  it('removes the plugin at project scope only, leaves the marketplace/cache dir, and never touches the key or CLI', async () => {
+  it('removes the plugin at project scope only, leaves the marketplace/cache dir, and never touches the key or CLI [C-100]', async () => {
     const { ctx, home } = baseCtx();
     writeInstallRecord(ctx.env, { mode: 'user', npmPrefix: path.join(home, '.local'), installedAt: 'x' });
     setEnvFileValue(envFilePath(ctx.env), 'TYPESAFE_API_KEY', 'a-stored-key-value');
@@ -100,7 +100,7 @@ describe('runUninstall, default (no --all): only this project', () => {
 });
 
 describe('runUninstall --all: also the per-user parts, and every plugin scope', () => {
-  it('removes every plugin scope, the marketplace, the cache dir, the key, and the CLI', async () => {
+  it('removes every plugin scope, the marketplace, the cache dir, the key, and the CLI [C-100]', async () => {
     const { ctx, home } = baseCtx();
     writeInstallRecord(ctx.env, { mode: 'user', npmPrefix: path.join(home, '.local'), installedAt: 'x' });
     setEnvFileValue(envFilePath(ctx.env), 'TYPESAFE_API_KEY', 'a-stored-key-value');
