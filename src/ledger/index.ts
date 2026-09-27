@@ -28,11 +28,14 @@
  * Schema (slim — no full JSON copy; bodies are read back from the ledger by offset, `readRecordAt`):
  *   meta(key,value): schema_version, upto (bytes indexed), line_count, fp_start + fingerprint (sha256 of the
  *     line ending at upto, for a same-size-or-larger swap statSync's size check alone would miss).
- *   runs(id PK, offset, adapter, model, verb, ts, gate, blocked, wise, parent): `wise` is a small JSON blob — the
- *     wise object plus category names — so a future Wise query can `json_extract` it; nothing bulky (answers,
- *     response, items) is copied here. `parent` (indexed) is the run's own `parent` field verbatim (NULL for
- *     none) — view's lineage walk goes up by id (an ordinary findOffset lookup on the parent id already read
- *     off the child's own record) and down via `WHERE parent = ?` on this column.
+ *   runs(id PK, offset, adapter, model, verb, ts, gate, blocked, wise, parent, pattern): `wise` is a small JSON
+ *     blob — the wise object plus category names — so a future Wise query can `json_extract` it; nothing bulky
+ *     (answers, response, items) is copied here. `parent` (indexed) is the run's own `parent` field verbatim
+ *     (NULL for none) — view's lineage walk goes up by id (an ordinary findOffset lookup on the parent id
+ *     already read off the child's own record) and down via `WHERE parent = ?` on this column. `pattern`
+ *     (Phase B, `patternFingerprint` below) is a short hash of the run's own question set (categories/layers,
+ *     names+pass+need+question text, evidence-independent) — NULL for a Plan 1 run or one with no `ask` at all
+ *     — so `sidewise report patterns` can `GROUP BY` it without re-reading every record's own body.
  *   answer_keys(adapter, model, key PK, run_id, qid): the newest holder's *origin* (resolved through
  *     reusedFrom), self-compacting — one row per (who, key) ever asked, overwritten on every later touch.
  *   outcomes(run_id PK, outcome, ts, by): latest outcome per run.
@@ -41,6 +44,7 @@
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
+import type { Category, Gate, Verb } from '../contract/types.ts';
 import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
 import { withLock } from './lock.ts';
 import { ensureDir, type SidewisePaths } from './paths.ts';
@@ -72,6 +76,48 @@ export function sweepPlaces(rec: ContractRun): { kind: 'where' | 'tag'; val: str
   for (const item of Object.values(rec.items)) if (item.unit) add('where', item.unit.path);
   for (const layer of rec.ask.layers) for (const cat of layer.categories) for (const tag of cat.tags) add('tag', tag);
   return out;
+}
+
+/** One category's question-set shape, evidence-independent (name/pass/need/question text+kind+levels/options) —
+ *  the unit `patternFingerprint` hashes. Two categories with the same name/pass/need/questions fingerprint the
+ *  same regardless of where or when they were asked, which is exactly "the same question set" Phase B's
+ *  `patterns` view groups by. */
+function categoryShape(c: Category): unknown {
+  return {
+    name: c.name,
+    pass: c.pass,
+    need: c.need,
+    questions: [...c.questions]
+      .sort((a, b) => a.n - b.n)
+      .map((q) => ({ kind: q.kind, text: q.text, ...(q.kind === 'scale' ? { levels: q.levels } : {}), ...(q.kind === 'choice' ? { options: q.options } : {}) })),
+  };
+}
+
+/** Phase B (`sidewise report patterns`): a short hash of a contract run's own question set — its categories
+ *  (one subject) or its layers of categories (a sweep), sorted by name so the SAME set fingerprints identically
+ *  regardless of authoring order. NULL for a Plan 1 run, or a contract run with no `ask` at all (shouldn't occur
+ *  in practice, but never crash over it). Deliberately excludes the evidence: two runs asking the identical
+ *  questions of different code are the same "pattern," which is the whole point of grouping by it. */
+export function patternFingerprint(rec: RunRecord | ContractRun): string | null {
+  if (!isContractRun(rec)) return null;
+  const { categories, layers } = rec.ask;
+  if (!categories.length && !layers.length) return null;
+  const shape = categories.length
+    ? [...categories].sort((a, b) => a.name.localeCompare(b.name)).map(categoryShape)
+    : [...layers].map((l) => ({ name: l.name, categories: [...l.categories].sort((a, b) => a.name.localeCompare(b.name)).map(categoryShape) }));
+  return sha256hex(JSON.stringify(shape)).slice(0, 16);
+}
+
+/** One row of `sidewise report patterns`: a question-set fingerprint, how often it's been run, its pass/fail/
+ *  unsure split, how many distinct places it's touched, and its outcomes so far. */
+export interface PatternRow {
+  pattern: string;
+  runs: number;
+  pass: number;
+  fail: number;
+  unsure: number;
+  places: number;
+  outcomes: { held: number; overruled: number; failed: number; open: number };
 }
 
 interface ReuseHit {
@@ -116,6 +162,18 @@ export interface IndexHandle {
    *  none yet — appendOutcome's own "is this exactly the same outcome, by the same actor, already there?"
    *  no-op check, without a full ledger scan. */
   latestOutcomeOf(id: string): { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string } | undefined;
+  /** Phase B (`sidewise report`): every distinct place (a `where` path or a sweep tag) ever recorded — report's
+   *  own enumeration of "everywhere there's something to say," unlike placeCandidates, which narrows FROM one
+   *  already-known place. */
+  distinctPlaces(): { kind: 'where' | 'tag'; val: string }[];
+  /** Phase B (`sidewise report patterns`): every question-set fingerprint (patternFingerprint) that's ever been
+   *  run, with its run/pass/fail/unsure/place/outcome counts. Runs with no fingerprint (a Plan 1 run, or a
+   *  contract run with no `ask`) are excluded — there's nothing to group them by. */
+  patternCounts(): PatternRow[];
+  /** Phase B (`sidewise report history`): every `change`-verb run, newest first, capped at `limit`. */
+  recentChanges(limit: number): Candidate[];
+  /** Phase B (`sidewise report history`): every recorded outcome, newest first, capped at `limit`. */
+  recentOutcomes(limit: number): { runId: string; outcome: OutcomeRecord['outcome']; ts: string; by: string }[];
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -282,13 +340,16 @@ interface MemoryState {
   places: { kind: 'where' | 'tag'; val: string; runId: string }[];
   childrenByParent: Map<string, Candidate[]>;
   outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
+  /** Every run, oldest first, regardless of adapter/model — Phase B's `recentChanges`/`patternCounts` need a
+   *  global view `candidatesByWho` (scoped per adapter+model) can't give them. */
+  allRuns: { id: string; offset: number; verb: Verb; gate: Gate | null; pattern: string | null }[];
   runCount: number;
   upto: number;
   lineCount: number;
 }
 
 function emptyMemoryState(): MemoryState {
-  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], childrenByParent: new Map(), outcomes: new Map(), runCount: 0, upto: 0, lineCount: 0 };
+  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], childrenByParent: new Map(), outcomes: new Map(), allRuns: [], runCount: 0, upto: 0, lineCount: 0 };
 }
 
 function memorySink(state: MemoryState): Sink {
@@ -296,6 +357,7 @@ function memorySink(state: MemoryState): Sink {
     run(rec, offset) {
       state.runCount += 1;
       state.runOffset.set(rec.id, offset);
+      state.allRuns.push({ id: rec.id, offset, verb: rec.verb, gate: isContractRun(rec) ? rec.gate : null, pattern: patternFingerprint(rec) });
       const parent = rec.parent ?? null;
       if (parent) {
         if (!state.childrenByParent.has(parent)) state.childrenByParent.set(parent, []);
@@ -358,6 +420,63 @@ function handleFromMemory(state: MemoryState): IndexHandle {
     },
     everHeld: (adapter, model, key) => state.reuseKey.get(whoKey({ adapter, model }))?.has(key) ?? false,
     latestOutcomeOf: (id) => state.outcomes.get(id),
+    distinctPlaces: () => {
+      const seen = new Set<string>();
+      const out: { kind: 'where' | 'tag'; val: string }[] = [];
+      for (const p of state.places) {
+        const k = `${p.kind}\u0000${p.val}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push({ kind: p.kind, val: p.val });
+      }
+      return out;
+    },
+    patternCounts: () => {
+      const patternOfRun = new Map<string, string>();
+      const byPattern = new Map<string, { runs: number; pass: number; fail: number; unsure: number }>();
+      for (const r of state.allRuns) {
+        if (!r.pattern) continue;
+        patternOfRun.set(r.id, r.pattern);
+        const cur = byPattern.get(r.pattern) ?? { runs: 0, pass: 0, fail: 0, unsure: 0 };
+        cur.runs += 1;
+        if (r.gate === 'pass') cur.pass += 1;
+        else if (r.gate === 'fail') cur.fail += 1;
+        else if (r.gate === 'unsure') cur.unsure += 1;
+        byPattern.set(r.pattern, cur);
+      }
+      const placesByPattern = new Map<string, Set<string>>();
+      for (const p of state.places) {
+        const pat = patternOfRun.get(p.runId);
+        if (!pat) continue;
+        if (!placesByPattern.has(pat)) placesByPattern.set(pat, new Set());
+        placesByPattern.get(pat)!.add(`${p.kind}\u0000${p.val}`);
+      }
+      const outcomesByPattern = new Map<string, { held: number; overruled: number; failed: number }>();
+      for (const [runId, rec] of state.outcomes) {
+        const pat = patternOfRun.get(runId);
+        if (!pat) continue;
+        const cur = outcomesByPattern.get(pat) ?? { held: 0, overruled: 0, failed: 0 };
+        cur[rec.outcome] += 1;
+        outcomesByPattern.set(pat, cur);
+      }
+      return [...byPattern.entries()]
+        .map(([pattern, c]) => {
+          const oc = outcomesByPattern.get(pattern) ?? { held: 0, overruled: 0, failed: 0 };
+          return { pattern, ...c, places: placesByPattern.get(pattern)?.size ?? 0, outcomes: { ...oc, open: c.runs - oc.held - oc.overruled - oc.failed } };
+        })
+        .sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
+    },
+    recentChanges: (limit) =>
+      state.allRuns
+        .filter((r) => r.verb === 'change')
+        .slice(-limit)
+        .reverse()
+        .map((r) => ({ id: r.id, offset: r.offset })),
+    recentOutcomes: (limit) =>
+      [...state.outcomes.entries()]
+        .slice(-limit)
+        .reverse()
+        .map(([runId, r]) => ({ runId, outcome: r.outcome, ts: r.ts, by: r.by })),
   };
 }
 
@@ -400,13 +519,15 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // SQLite engine.
 // ---------------------------------------------------------------------------------------------------------------
 
+// Bumped to 4 (from 3) here: runs gained a `pattern` column (+ its own index, and one on `verb`) for Phase B's
+// `sidewise report patterns`/`history` (patternCounts/recentChanges) — see patternFingerprint's own comment.
 // Bumped to 3 (from 2) here: runs gained a `parent` column (+ its own index) so view's "down" lineage walk
 // (WHERE parent = ?) no longer needs a full-ledger scan. Bumped to 2 (from 1) in fix round 1: outcomes gained a
 // `uid` column (appendOutcome's own no-op "repeat" check now reads the index instead of a full readLedger — it
 // needs the original outcome record's uid back). A stale on-disk index built under an older version self-heals
 // via the existing schema-version-mismatch rebuild trigger — no migration needed, just a rebuild, which is
 // exactly what self-healing is for.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 const SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -420,10 +541,13 @@ CREATE TABLE runs (
   gate TEXT,
   blocked INTEGER NOT NULL DEFAULT 0,
   wise TEXT,
-  parent TEXT
+  parent TEXT,
+  pattern TEXT
 );
 CREATE INDEX idx_runs_adapter_model ON runs(adapter, model, blocked);
 CREATE INDEX idx_runs_parent ON runs(parent);
+CREATE INDEX idx_runs_verb ON runs(verb);
+CREATE INDEX idx_runs_pattern ON runs(pattern);
 CREATE TABLE answer_keys (
   adapter TEXT NOT NULL,
   model TEXT NOT NULL,
@@ -566,7 +690,7 @@ interface SqlStatements {
 
 function prepStatements(db: SqliteDb): SqlStatements {
   return {
-    insertRun: db.prepare('INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise, parent) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?)'),
+    insertRun: db.prepare('INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise, parent, pattern) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'),
     insertKey: db.prepare('INSERT OR REPLACE INTO answer_keys (adapter, model, key, run_id, qid) VALUES (?, ?, ?, ?, ?)'),
     insertOutcome: db.prepare('INSERT OR REPLACE INTO outcomes (run_id, outcome, uid, ts, by) VALUES (?, ?, ?, ?, ?)'),
     insertPlace: db.prepare('INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)'),
@@ -587,7 +711,7 @@ function sqlSink(stmts: SqlStatements): Sink {
   return {
     run(rec, offset) {
       const gate = 'gate' in rec ? (rec.gate ?? null) : null;
-      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null);
+      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null, patternFingerprint(rec));
       if (isContractRun(rec)) {
         for (const [qid, key] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run('where', stripLines(w), rec.id);
@@ -663,6 +787,22 @@ function handleFromSql(db: SqliteDb): IndexHandle {
   const stEverHeld = db.prepare('SELECT 1 FROM answer_keys WHERE adapter = ? AND model = ? AND key = ?');
   const stLatestOutcome = db.prepare('SELECT outcome, uid, ts, by FROM outcomes WHERE run_id = ?');
   const stChildren = db.prepare('SELECT id, offset FROM runs WHERE parent = ? ORDER BY offset ASC');
+  const stDistinctPlaces = db.prepare('SELECT DISTINCT kind, val FROM places');
+  const stPatternBase = db.prepare(
+    `SELECT pattern, COUNT(*) AS runs, SUM(CASE WHEN gate = 'pass' THEN 1 ELSE 0 END) AS pass, ` +
+      `SUM(CASE WHEN gate = 'fail' THEN 1 ELSE 0 END) AS fail, SUM(CASE WHEN gate = 'unsure' THEN 1 ELSE 0 END) AS unsure ` +
+      `FROM runs WHERE pattern IS NOT NULL GROUP BY pattern`,
+  );
+  const stPatternPlaces = db.prepare(
+    `SELECT r.pattern AS pattern, COUNT(DISTINCT p.kind || ':' || p.val) AS places FROM runs r JOIN places p ON p.run_id = r.id ` +
+      `WHERE r.pattern IS NOT NULL GROUP BY r.pattern`,
+  );
+  const stPatternOutcomes = db.prepare(
+    `SELECT r.pattern AS pattern, o.outcome AS outcome, COUNT(*) AS n FROM runs r JOIN outcomes o ON o.run_id = r.id ` +
+      `WHERE r.pattern IS NOT NULL GROUP BY r.pattern, o.outcome`,
+  );
+  const stRecentChanges = db.prepare('SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?');
+  const stRecentOutcomes = db.prepare('SELECT run_id AS runId, outcome, ts, by FROM outcomes ORDER BY rowid DESC LIMIT ?');
 
   return {
     findOffset: (id) => {
@@ -706,6 +846,38 @@ function handleFromSql(db: SqliteDb): IndexHandle {
       const row = stLatestOutcome.get(id);
       return row ? { outcome: row.outcome as OutcomeRecord['outcome'], uid: String(row.uid), ts: String(row.ts), by: String(row.by) } : undefined;
     },
+    distinctPlaces: () => stDistinctPlaces.all().map((r) => ({ kind: r.kind as 'where' | 'tag', val: String(r.val) })),
+    patternCounts: () => {
+      const placesByPattern = new Map(stPatternPlaces.all().map((r) => [String(r.pattern), Number(r.places)]));
+      const outcomesByPattern = new Map<string, { held: number; overruled: number; failed: number }>();
+      for (const r of stPatternOutcomes.all()) {
+        const pattern = String(r.pattern);
+        const cur = outcomesByPattern.get(pattern) ?? { held: 0, overruled: 0, failed: 0 };
+        const outcome = r.outcome as OutcomeRecord['outcome'];
+        cur[outcome] += Number(r.n);
+        outcomesByPattern.set(pattern, cur);
+      }
+      return stPatternBase
+        .all()
+        .map((b) => {
+          const pattern = String(b.pattern);
+          const runs = Number(b.runs);
+          const oc = outcomesByPattern.get(pattern) ?? { held: 0, overruled: 0, failed: 0 };
+          return {
+            pattern,
+            runs,
+            pass: Number(b.pass),
+            fail: Number(b.fail),
+            unsure: Number(b.unsure),
+            places: placesByPattern.get(pattern) ?? 0,
+            outcomes: { ...oc, open: runs - oc.held - oc.overruled - oc.failed },
+          };
+        })
+        .sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
+    },
+    recentChanges: (limit) => stRecentChanges.all('change', limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
+    recentOutcomes: (limit) =>
+      stRecentOutcomes.all(limit).map((r) => ({ runId: String(r.runId), outcome: r.outcome as OutcomeRecord['outcome'], ts: String(r.ts), by: String(r.by) })),
   };
 }
 
