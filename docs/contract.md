@@ -620,7 +620,7 @@ pass/fail/unsure split, how many distinct places it's touched, and its outcomes 
 change that moved nothing gets no row), with every recorded outcome. Neither is a new ledger write — both are
 derived, read-side, from records the commands already wrote. [C-165]
 Every view caps its rows and says plainly how many more exist (`… N more not shown`) rather than dropping them
-silently, matching `view`'s own fix #14 idiom — `report` takes no option to raise it. [C-166]
+silently, the same idiom `view` already uses — `report` takes no option to raise it. [C-166]
 An unrecognized view name is a clean stop naming the three real ones. [C-167]
 
 ---
@@ -658,7 +658,7 @@ shape as `help <verb>`. [C-161]
 
 ---
 
-## Settled by the agent test (v1.1)
+## Setup, keys and the MCP tool
 
 - `side.verb` is optional. The tool name wins, and a mismatch is sent back. [C-085]
 - `depth` counts yes/no questions only; scale and choice don't count. [C-086]
@@ -765,7 +765,7 @@ shape as `help <verb>`. [C-161]
   undocumented — it may substitute `""` or omit the variable entirely) counts as no key everywhere key
   resolution happens, and resolution still falls through to the OS keychain or the user credentials file
   rather than treating the empty string as a real, empty key. [C-105]
-- Node ≥ 22.13 is a hard requirement (owner ruling), checked once at the top of the CLI's whole dispatch —
+- Node ≥ 22.13 is a hard requirement, checked once at the top of the CLI's whole dispatch —
   before any command does anything real, and again inside `sidewise mcp` for every `tools/call`. On an older
   Node, every command exits 2 with exactly `✖ node: v<version> is too old → install Node 22.13 or newer (it
   powers the ledger index); https://nodejs.org`, except `doctor`, which still runs (free, no call) and shows
