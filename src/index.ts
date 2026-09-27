@@ -11,8 +11,8 @@ export * from './ledger/log.ts';
 export { recordCall } from './ledger/record.ts';
 export { LockError } from './ledger/lock.ts';
 export * from './budget/budget.ts';
-// Named 'ContractRequest': until Task 32, this collided with lens/request.ts's Plan 1 'Request' (now deleted);
-// kept as the exported alias so nothing downstream has to be renamed.
+// Exported as 'ContractRequest' rather than 'Request' to avoid colliding with another request type once
+// defined elsewhere; kept as the alias so nothing downstream has to be renamed.
 export {
   VERBS,
   type Verb,
