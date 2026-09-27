@@ -108,11 +108,18 @@ function cliLine(env: Record<string, string | undefined>, platform: NodeJS.Platf
 }
 
 /** The `plugin:` value. `deps.runner` omitted (every caller but cli.ts) never actually spawns `claude` — it
- *  reads the same as "not installed", which is also the honest answer when `claude` isn't on PATH at all. */
+ *  reads the same as "not installed", which is also the honest answer when `claude` isn't on PATH at all.
+ *  When the ONLY scope found is `user`, add a one-line nudge toward `project` scope: using Sidewise is scoped
+ *  per project (see `stepPlugin` in setup/init.ts, which already defaults there), but `/plugin install` inside
+ *  Claude Code's own UI defaults to `user` scope, so a manual install can land here without ever seeing that
+ *  default questioned. [C-177] */
 function pluginLine(deps: { runner?: Runner }): string {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
   if (!status.installed) return 'not installed → "sidewise init --claude"';
-  return `sidewise@mvp-scale · ${status.scopes[0] ?? 'user'} scope`;
+  const scopes = status.scopes as string[];
+  const scope = scopes[0] ?? 'user';
+  const userOnly = scopes.length === 1 && scope === 'user';
+  return `sidewise@mvp-scale · ${scope} scope${userOnly ? ' (every project) → for just this one, "sidewise init --scope project"' : ''}`;
 }
 
 /** Using is per project: the `project:` value names the root, then whether the plugin is

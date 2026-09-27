@@ -97,6 +97,8 @@ Requires Node 22.13 or newer — it's what the ledger's `node:sqlite` index runs
 
 Claude prompts for a TypeSafe API key and an AI Gateway key (both masked, both optional — leave them empty to use the free fake provider). The plugin bundles its own CLI and its own MCP tool; nothing else to install, no npm, no PATH. Testing from a clone of this repo: `/plugin marketplace add /path/to/your/clone` instead of the GitHub form.
 
+`/plugin` defaults to installing at **user** scope (every project); Sidewise is scoped per project, so pick **project** scope in the prompt if you can, or run `sidewise init --scope project` afterward to fix it — `sidewise doctor` names the scope it finds and nudges you if it's user-only.
+
 **Everyone else (a bare terminal, Codex, Gemini CLI, ...):** run this inside the project you want Sidewise in:
 
 ```bash

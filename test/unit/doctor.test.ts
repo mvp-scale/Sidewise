@@ -220,5 +220,18 @@ describe('doctor (P5)', () => {
       const r = runDoctor({}, undefined, undefined, { runner });
       expect(r.text).toContain('plugin: sidewise@mvp-scale · user scope');
     });
+
+    it('plugin: user scope ONLY nudges toward project scope — using Sidewise is per project [C-177]', () => {
+      const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'user' }]), stderr: '' });
+      const r = runDoctor({}, undefined, undefined, { runner });
+      expect(r.text).toContain('plugin: sidewise@mvp-scale · user scope (every project) → for just this one, "sidewise init --scope project"');
+    });
+
+    it('plugin: project scope present → no user-only nudge', () => {
+      const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'project' }]), stderr: '' });
+      const r = runDoctor({}, undefined, undefined, { runner });
+      expect(r.text).toContain('plugin: sidewise@mvp-scale · project scope');
+      expect(r.text).not.toContain('sidewise init --scope project');
+    });
   });
 });

@@ -214,6 +214,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   const [command = '', ...rest] = argv;
   if (command === '') return finish(2, USAGE);
   if (command === '--help' || command === '-h') return finish(0, USAGE);
+  if (command === '--version' || command === '-v') return finish(0, ctx.pkg.version);
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
