@@ -66,7 +66,7 @@ describe('change', () => {
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0001 was a sweep → run the sweep again (unchanged items are reused for free)');
+    expect(r.text).toBe('✖ side.parent: SW-0001 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent change');
   });
 
   it('a legacy (Plan 1) parent stops', async () => {
@@ -78,7 +78,7 @@ describe('change', () => {
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0001 predates the YAML contract → run class again on this code');
+    expect(r.text).toBe('✖ side.parent: SW-0001 predates the YAML contract → run class again on this code\n→ see: sidewise agent change');
   });
 
   it('a parent not in the ledger stops, naming the id', async () => {
@@ -89,7 +89,7 @@ describe('change', () => {
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0042 is not in the ledger → check the id');
+    expect(r.text).toBe('✖ side.parent: SW-0042 is not in the ledger → check the id\n→ see: sidewise agent change');
   });
 
   it('regressed populated when something got worse: the top-level gate fails even though every "after" category can grade fine on its own', async () => {

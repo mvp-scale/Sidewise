@@ -89,9 +89,12 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const { request } = loaded;
 
   const parent = findRun(ctx.paths, request.side.parent!);
-  if (!parent) return { exit: 2, text: `✖ side.parent: ${request.side.parent} is not in the ledger → check the id` };
-  if (!isContractRun(parent)) return { exit: 2, text: `✖ side.parent: ${parent.id} predates the YAML contract → run class again on this code` };
-  if (parent.items !== null) return { exit: 2, text: `✖ side.parent: ${parent.id} was a sweep → run the sweep again (unchanged items are reused for free)` };
+  // Each of these three ran as a bare string, missing the "→ see: sidewise agent change" pointer every other
+  // stop carries (stopText's own job) — round 2/3 smoke testing hit all three with no pointer to follow
+  // (round3-findings.md, STOPS.md #1). Routed through stopText so they match every other verb's stop shape.
+  if (!parent) return { exit: 2, text: stopText([`✖ side.parent: ${request.side.parent} is not in the ledger → check the id`], 'change') };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} predates the YAML contract → run class again on this code`], 'change') };
+  if (parent.items !== null) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} was a sweep → run the sweep again (unchanged items are reused for free)`], 'change') };
 
   const categories = parent.ask.categories;
   // Two ranges on one file (parent.where can hold both) must read and charge it once, not once per range.
