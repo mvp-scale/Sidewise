@@ -39,6 +39,9 @@ side:
       12:
         choice: Where should this go?
         options: [ship, fix, block]
+    # scope:                                    # optional, recommended (TypeSafe best practice) — the visible-scope probe
+    #   pass: yes
+    #   13: Can this be answered from the code shown?
 wise:                                         # optional block; every field inside it is optional too
   why: validate                               # optional — validate | find | debug
   area: data                                  # optional — data | api | ui | auth | hosting | build | tests

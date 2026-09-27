@@ -14,6 +14,9 @@ side:
       access:
         pass: no
         2: Does {function} return a record without checking its owner?
+      # scope:                                 # optional, recommended (TypeSafe best practice) — the visible-scope probe
+      #   pass: yes
+      #   3: Can this be answered from the code shown?
                                                # scan never takes where: (over: is what it reads), from:, compare: or parent:
 wise:                                         # optional block; every field inside it is optional too
   why: find                                   # optional — validate | find | debug
