@@ -19,6 +19,25 @@ describe('splitFunctions', () => {
     ]);
   });
 
+  // Fix #7: a named function nested inside another (a route handler registered from inside a setup
+  // function, a helper closed over by an IIFE) is its own unit, exactly like a class method already was —
+  // only its start position dedupes against a genuine re-match, never mere nesting. [C-141]
+  it('finds named functions nested inside another function or an IIFE, not just top-level ones', () => {
+    const src = [
+      'function registerRoutes(app) {',
+      "  app.get('/users', function getUsers(req, res) {",
+      '    res.send(users);',
+      '  });',
+      '}',
+      '',
+      '(function () {',
+      '  function bootstrap() { return 1; }',
+      '  bootstrap();',
+      '})();',
+    ].join('\n');
+    expect(splitFunctions(src).map((u) => u.name)).toEqual(['registerRoutes', 'getUsers', 'bootstrap']);
+  });
+
   it('each unit is its source text, from its first line to its closing brace', () => {
     const fu = splitFunctions(SRC).find((u) => u.name === 'findUser')!;
     expect(fu.text.startsWith('export async function findUser(')).toBe(true);
