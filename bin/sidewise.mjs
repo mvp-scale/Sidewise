@@ -6351,15 +6351,15 @@ var require_parser = __commonJS({
     var node_process = __require("process");
     var cst = require_cst();
     var lexer = require_lexer();
-    function includesToken(list2, type) {
-      for (let i = 0; i < list2.length; ++i)
-        if (list2[i].type === type)
+    function includesToken(list3, type) {
+      for (let i = 0; i < list3.length; ++i)
+        if (list3[i].type === type)
           return true;
       return false;
     }
-    function findNonEmptyIndex(list2) {
-      for (let i = 0; i < list2.length; ++i) {
-        switch (list2[i].type) {
+    function findNonEmptyIndex(list3) {
+      for (let i = 0; i < list3.length; ++i) {
+        switch (list3[i].type) {
           case "space":
           case "comment":
           case "newline":
@@ -7657,6 +7657,13 @@ function write(paths, state) {
     renameSync(tmp, paths.budget);
   });
 }
+function peekBudget(paths) {
+  try {
+    return read(paths);
+  } catch {
+    return void 0;
+  }
+}
 function loadBudget(paths, now = Date.now()) {
   const existing = read(paths);
   if (existing) return { state: existing, created: false };
@@ -7672,8 +7679,11 @@ function usedFraction(s) {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
 }
 function checkBudget(s) {
-  if (s.runs >= s.capRuns || s.spentUsd >= s.capUsd) {
-    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 the owner runs "sidewise budget reset"` };
+  const runsCapped = s.runs >= s.capRuns;
+  const usdCapped = s.spentUsd >= s.capUsd;
+  if (runsCapped || usdCapped) {
+    const hint = runsCapped && !usdCapped ? 'the owner runs "sidewise budget set --runs <n>"' : 'the owner runs "sidewise budget reset"';
+    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 ${hint}` };
   }
   return { ok: true };
 }
@@ -8091,6 +8101,15 @@ function scoreQuestion(instructions, levels) {
   if (levels.length < 2 || levels.length > 10) throw new RangeError(`a score question needs 2-10 levels, got ${levels.length}`);
   return { type: "score", instructions, criteria: [...levels] };
 }
+var RATE_PER_INPUT_TOKEN = {
+  "jev-1.13.0": 42 / 1e9
+  // $42 per Btok = $0.042 per Mtok
+};
+function costOf(model, usage, reported) {
+  if (reported !== void 0) return { costUsd: reported };
+  const rate = RATE_PER_INPUT_TOKEN[model];
+  return rate === void 0 ? {} : { costUsd: usage.inputTokens * rate, costEstimated: true };
+}
 var malformed = (message, body) => new JevApiError(`malformed response: ${message}`, { retryable: false, body });
 var confidenceOr = (raw, fallback) => typeof raw.confidence === "number" && Number.isFinite(raw.confidence) ? raw.confidence : fallback;
 function normalized(values, id, body) {
@@ -8139,7 +8158,9 @@ function parseAnswers(raw, questions) {
     if (a.type !== void 0 && a.type !== q.type) throw malformed(`answer "${id}" has type "${String(a.type)}", expected "${q.type}"`, a);
     answers[id] = q.type === "noul" ? readNoul(a, id) : q.type === "choice" ? readChoice(a, id, Object.keys(q.criteria)) : readScore(a, id, q.criteria.length);
   }
-  return { model: typeof raw.model === "string" ? raw.model : "", answers, ...readUsageAndCost(raw) };
+  const model = typeof raw.model === "string" ? raw.model : "";
+  const { usage, costUsd } = readUsageAndCost(raw);
+  return { model, answers, usage, ...costOf(model, usage, costUsd) };
 }
 
 // src/classifier/typesafe/client.ts
@@ -8201,7 +8222,7 @@ function createTypesafeAdapter(env = process.env, deps = {}) {
         else if (a.type === "score") answers[q.id] = { type: "score", score: a.score, distribution: a.distribution, confidence: a.confidence };
         else answers[q.id] = { type: "choice", choice: a.choice, probabilities: a.probabilities, confidence: a.confidence };
       }
-      return { answers, costUsd: res.costUsd };
+      return { answers, costUsd: res.costUsd, costEstimated: res.costEstimated };
     }
   };
 }
@@ -8287,6 +8308,20 @@ var DOCTOR_INDEX_TOO_OLD = `none (needs Node ${MIN_NODE_LABEL}+)`;
 // src/ledger/index.ts
 var whoKey = (who) => `${who.adapter}|${who.model}`;
 var stripLines = (entry) => entry.replace(/:(\d+(?:-\d+)?)$/u, "");
+function sweepPlaces(rec) {
+  if (!rec.items) return [];
+  const out = [];
+  const seen = /* @__PURE__ */ new Set();
+  const add = (kind, val) => {
+    const k = `${kind}\0${val}`;
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push({ kind, val });
+  };
+  for (const item of Object.values(rec.items)) if (item.unit) add("where", item.unit.path);
+  for (const layer of rec.ask.layers) for (const cat of layer.categories) for (const tag of cat.tags) add("tag", tag);
+  return out;
+}
 var CHUNK_BYTES = 1 << 20;
 function parseLedgerLine(raw, lineNo, shown2) {
   let value;
@@ -8412,6 +8447,7 @@ function memorySink(state) {
         const table = state.reuseKey.get(wk);
         for (const [qid, key2] of Object.entries(rec.keys)) table.set(key2, { runId: rec.reusedFrom[qid] ?? rec.id, qid });
         for (const w of rec.where) state.places.push({ kind: "where", val: stripLines(w), runId: rec.id });
+        for (const p of sweepPlaces(rec)) state.places.push({ ...p, runId: rec.id });
       } else {
         for (const w of rec.where) state.places.push({ kind: "where", val: w.path, runId: rec.id });
         for (const t of rec.tags) state.places.push({ kind: "tag", val: t, runId: rec.id });
@@ -8587,6 +8623,7 @@ function sqlSink(stmts) {
       if (isContractRun(rec)) {
         for (const [qid, key2] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key2, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run("where", stripLines(w), rec.id);
+        for (const p of sweepPlaces(rec)) stmts.insertPlace.run(p.kind, p.val, rec.id);
       } else {
         for (const w of rec.where) stmts.insertPlace.run("where", w.path, rec.id);
         for (const t of rec.tags) stmts.insertPlace.run("tag", t, rec.id);
@@ -9060,7 +9097,8 @@ function toolDefinition() {
       type: "object",
       properties: {
         args: { type: "array", items: { type: "string" }, description: 'sidewise CLI arguments, e.g. ["doctor"] or ["class","-"]' },
-        stdin: { type: "string", description: 'Text to feed as stdin, for a "-" argument (e.g. the request YAML).' }
+        stdin: { type: "string", description: 'Text to feed as stdin, for a "-" argument (e.g. the request YAML).' },
+        project: { type: "string", description: "The project directory to use (SIDEWISE_HOME), when it is not the current working directory." }
       },
       required: ["args"]
     }
@@ -9088,8 +9126,9 @@ async function handleMessage(msg, deps) {
     const rawArgs = params.arguments?.args;
     const args2 = Array.isArray(rawArgs) ? rawArgs.map(String) : [];
     const stdin = typeof params.arguments?.stdin === "string" ? params.arguments.stdin : void 0;
+    const project = typeof params.arguments?.project === "string" ? params.arguments.project : void 0;
     try {
-      const { exit, text } = await deps.runOne(args2, stdin);
+      const { exit, text } = await deps.runOne(args2, stdin, project);
       return ok(id, { content: [{ type: "text", text }], isError: exit !== 0 });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -9476,6 +9515,10 @@ function identityFor(env, config) {
   };
 }
 var octal4 = (mode) => mode.toString(8).padStart(4, "0");
+function actorLine(env) {
+  const set = env.SIDEWISE_ACTOR?.trim();
+  return set || "agent (default) \u2192 set SIDEWISE_ACTOR to change";
+}
 function keyLine(env, config, deps) {
   if (!config.apiKey) return { value: 'no  \u2192 run "sidewise init" to add one' };
   if (config.keySource === "keychain") {
@@ -9541,6 +9584,7 @@ function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
         ...who.wireModel ? [["wireModel", who.wireModel]] : [],
         ["key", key2],
         ["project", project],
+        ["actor", actorLine(env)],
         ["node", doctorNodeValue(nodeVersion)],
         ["index", nodeVersionOk(nodeVersion) ? sqliteAvailable() ? "node:sqlite" : "unavailable (unexpected on Node 22.13+)" : DOCTOR_INDEX_TOO_OLD],
         ["cli", cliLine(env, deps.platform ?? process.platform)],
@@ -9952,16 +9996,24 @@ function shown(a) {
   const [top, p] = Object.entries(a.dist).reduce((best, e) => e[1] > best[1] ? e : best);
   return { top, p };
 }
+function severityOf(q, a) {
+  if (q.kind !== "scale" || a.kind !== "scale") return 0;
+  const [top, p] = Object.entries(a.dist).reduce((best, e) => e[1] > best[1] ? e : best);
+  const level = q.levels.indexOf(top);
+  return level < 0 ? 0 : level * p;
+}
 function gradeCategory(cat, answerOf) {
   const marks = /* @__PURE__ */ new Map();
   const values = /* @__PURE__ */ new Map();
+  let severity = 0;
   for (const q of cat.questions) {
     const a = answerOf(q.n);
     if (!a) continue;
     marks.set(q.n, markOf(passingProbability(cat, a)));
     values.set(q.n, shown(a));
+    severity = Math.max(severity, severityOf(q, a));
   }
-  return { name: cat.name, gate: gateOf(cat.need, [...marks.values()]), marks, values };
+  return { name: cat.name, gate: gateOf(cat.need, [...marks.values()]), marks, values, severity };
 }
 function gradeSubject(categories, answers, prefix = "") {
   const grades = categories.map((c) => gradeCategory(c, (n) => answers[`${prefix}${n}`]));
@@ -9978,8 +10030,9 @@ function gradeItems(items, categoriesOf, statusOf, answers) {
     const graded = status === "asked" || status === "reused";
     const own = graded ? categoriesOf(it.layer).map((c) => gradeCategory(c, (n) => answers[`${it.id}#${n}`])) : [];
     const ownGate = status === "skipped" ? "unsure" : combine(own.map((c) => c.gate));
+    const severity = own.reduce((worst, c) => Math.max(worst, c.severity), 0);
     const children = (kids.get(it.id) ?? []).map((k) => out.get(k).gate);
-    out.set(it.id, { id: it.id, layer: it.layer, parent: it.parent, status, own, ownGate, gate: combine([ownGate, ...children]) });
+    out.set(it.id, { id: it.id, layer: it.layer, parent: it.parent, status, own, ownGate, gate: combine([ownGate, ...children]), severity });
   }
   return new Map([...out].reverse());
 }
@@ -9989,7 +10042,7 @@ function sweepGate(goal, grades) {
 }
 function worstFirst(grades) {
   const count = (g, gate) => g.own.filter((c) => c.gate === gate).length;
-  return [...grades].filter((g) => (g.status === "asked" || g.status === "reused") && g.ownGate !== "pass").map((g, i) => ({ g, i })).sort((a, b) => count(b.g, "fail") - count(a.g, "fail") || count(b.g, "unsure") - count(a.g, "unsure") || a.i - b.i).map(({ g }) => g);
+  return [...grades].filter((g) => (g.status === "asked" || g.status === "reused") && g.ownGate !== "pass").map((g, i) => ({ g, i })).sort((a, b) => (b.g.severity ?? 0) - (a.g.severity ?? 0) || count(b.g, "fail") - count(a.g, "fail") || count(b.g, "unsure") - count(a.g, "unsure") || a.i - b.i).map(({ g }) => g);
 }
 
 // src/contract/translate.ts
@@ -10001,6 +10054,9 @@ var DEPTHS = ["quick", "standard", "thorough"];
 var DEPTH_COUNT = { quick: 10, standard: 20, thorough: 30 };
 var WHYS = ["validate", "find", "debug"];
 var AREAS = ["data", "api", "ui", "auth", "hosting", "build", "tests"];
+var STAGES = ["design", "build", "review", "pre-merge", "post-fix", "release"];
+var CHANGES = ["feature", "fix", "refactor", "dependency", "config"];
+var RISKS = ["low", "medium", "high"];
 var MAX_EXTRAS = 5;
 
 // src/contract/schema-check.ts
@@ -10150,12 +10206,16 @@ function checkSide(side, out) {
   if ("ask" in side) checkAsk(side.ask, out);
   if ("over" in side) checkOverShape(side.over, out);
 }
-function checkWise(wise, out) {
-  if (!isObj2(wise)) return out.add("wise", "is not a mapping", "write why:, area: or parent: under wise:, or leave wise out");
-  for (const k of Object.keys(wise)) if (!["why", "area", "parent"].includes(k)) out.add(`wise.${clip(k, 20)}`, "not a field", "use why, area or parent");
-  if ("why" in wise && !WHYS.includes(wise.why)) out.add("wise.why", show(wise.why), `use ${list(WHYS)}`);
-  if ("area" in wise && !AREAS.includes(wise.area)) out.add("wise.area", show(wise.area), `use ${list(AREAS)}`);
-  if ("parent" in wise && !(typeof wise.parent === "string" && RUN_ID2.test(wise.parent))) out.add("wise.parent", `${show(wise.parent)} is not a run id`, "use SW-####");
+var WISE_KEYS = ["why", "area", "stage", "change", "risk", "parent"];
+function checkWise(wise2, out) {
+  if (!isObj2(wise2)) return out.add("wise", "is not a mapping", "write why:, area: or parent: under wise:, or leave wise out");
+  for (const k of Object.keys(wise2)) if (!WISE_KEYS.includes(k)) out.add(`wise.${clip(k, 20)}`, "not a field", `use ${list(WISE_KEYS)}`);
+  if ("why" in wise2 && !WHYS.includes(wise2.why)) out.add("wise.why", show(wise2.why), `use ${list(WHYS)}`);
+  if ("area" in wise2 && !AREAS.includes(wise2.area)) out.add("wise.area", show(wise2.area), `use ${list(AREAS)}`);
+  if ("stage" in wise2 && !STAGES.includes(wise2.stage)) out.add("wise.stage", show(wise2.stage), `use ${list(STAGES)}`);
+  if ("change" in wise2 && !CHANGES.includes(wise2.change)) out.add("wise.change", show(wise2.change), `use ${list(CHANGES)}`);
+  if ("risk" in wise2 && !RISKS.includes(wise2.risk)) out.add("wise.risk", show(wise2.risk), `use ${list(RISKS)}`);
+  if ("parent" in wise2 && !(typeof wise2.parent === "string" && RUN_ID2.test(wise2.parent))) out.add("wise.parent", `${show(wise2.parent)} is not a run id`, "use SW-####");
 }
 function checkSchema(value) {
   const out = new Out();
@@ -10474,6 +10534,11 @@ function readCodeEvidence(root, where) {
 var FATAL = /fatal: (invalid object name|Path .* does not exist)/u;
 var WHOLE_FILE_NOTE = "reading whole files: line ranges may not match the parent run";
 var isGitOption = (ref) => ref.startsWith("-");
+function gitRootOf(dir, spawn) {
+  const result = spawn("git", ["rev-parse", "--show-toplevel"], { cwd: dir, encoding: "utf8" });
+  const out = typeof result.stdout === "string" ? result.stdout.trim() : "";
+  return result.status === 0 && out ? out : void 0;
+}
 var isOutside2 = (rel) => rel.startsWith("..") || path13.isAbsolute(rel);
 function keep(shown2, text, total, notes) {
   let body = redact(text);
@@ -10535,7 +10600,9 @@ function readGitEvidence(root, ref, field, paths, deps) {
       }
       continue;
     }
-    const result = spawn("git", ["show", `${ref}:${shown2}`], { cwd: root, encoding: "utf8" });
+    const gitRoot = gitRootOf(path13.dirname(full), spawn) ?? root;
+    const gitRel = path13.relative(gitRoot, full).split(path13.sep).join("/");
+    const result = spawn("git", ["show", `${ref}:${gitRel}`], { cwd: gitRoot, encoding: "utf8" });
     const stderr = typeof result.stderr === "string" ? result.stderr : "";
     if (result.status !== 0 || FATAL.test(stderr)) {
       errors.push(`\u2716 side.compare.${field}: "${ref}" not found by git (or the path doesn't exist there) \u2192 check the ref and the path`);
@@ -10571,61 +10638,69 @@ function fastReuse(paths, handle, who, key2) {
 function lookupAnswers(paths, who, keys, opts = {}) {
   const want = new Set(keys);
   if (!want.size) return /* @__PURE__ */ new Map();
-  return withIndex(
-    paths,
-    (handle) => {
-      const out = /* @__PURE__ */ new Map();
-      const remaining = /* @__PURE__ */ new Set();
-      for (const key2 of want) {
-        const hit = fastReuse(paths, handle, who, key2);
-        if (hit) {
-          out.set(key2, hit);
-          continue;
+  return onStore(
+    paths.log,
+    "read",
+    () => withIndex(
+      paths,
+      (handle) => {
+        const out = /* @__PURE__ */ new Map();
+        const remaining = /* @__PURE__ */ new Set();
+        for (const key2 of want) {
+          const hit = fastReuse(paths, handle, who, key2);
+          if (hit) {
+            out.set(key2, hit);
+            continue;
+          }
+          if (handle.everHeld(who.adapter, who.model, key2)) remaining.add(key2);
         }
-        if (handle.everHeld(who.adapter, who.model, key2)) remaining.add(key2);
-      }
-      if (remaining.size) {
-        for (const { offset } of handle.candidates(who.adapter, who.model)) {
-          if (!remaining.size) break;
-          const run = readCandidate(paths, offset, who);
-          if (!run) continue;
-          for (const [qid, key2] of Object.entries(run.keys)) {
-            if (!remaining.has(key2)) continue;
-            const answer = run.answers[qid];
-            const origin = run.reusedFrom[qid] ?? run.id;
-            if (answer && !handle.isBlocked(origin)) {
-              out.set(key2, { id: origin, answer });
-              remaining.delete(key2);
+        if (remaining.size) {
+          for (const { offset } of handle.candidates(who.adapter, who.model)) {
+            if (!remaining.size) break;
+            const run = readCandidate(paths, offset, who);
+            if (!run) continue;
+            for (const [qid, key2] of Object.entries(run.keys)) {
+              if (!remaining.has(key2)) continue;
+              const answer = run.answers[qid];
+              const origin = run.reusedFrom[qid] ?? run.id;
+              if (answer && !handle.isBlocked(origin)) {
+                out.set(key2, { id: origin, answer });
+                remaining.delete(key2);
+              }
             }
           }
         }
-      }
-      return out;
-    },
-    { readOnly: opts.readOnly ?? false }
+        return out;
+      },
+      { readOnly: opts.readOnly ?? false }
+    )
   );
 }
 function exactReuse(paths, who, keys) {
   if (!keys.length) return void 0;
-  return withIndex(
-    paths,
-    (handle) => {
-      if (keys.some((k) => !handle.everHeld(who.adapter, who.model, k))) return void 0;
-      for (const { offset } of handle.candidates(who.adapter, who.model)) {
-        const run = readCandidate(paths, offset, who);
-        if (!run) continue;
-        const qidOf = new Map(Object.entries(run.keys).map(([qid, key2]) => [key2, qid]));
-        const holds = keys.every((k) => {
-          const qid = qidOf.get(k);
-          if (qid === void 0) return false;
-          const origin = run.reusedFrom[qid] ?? run.id;
-          return !handle.isBlocked(origin);
-        });
-        if (holds) return run.id;
-      }
-      return void 0;
-    },
-    { readOnly: true }
+  return onStore(
+    paths.log,
+    "read",
+    () => withIndex(
+      paths,
+      (handle) => {
+        if (keys.some((k) => !handle.everHeld(who.adapter, who.model, k))) return void 0;
+        for (const { offset } of handle.candidates(who.adapter, who.model)) {
+          const run = readCandidate(paths, offset, who);
+          if (!run) continue;
+          const qidOf = new Map(Object.entries(run.keys).map(([qid, key2]) => [key2, qid]));
+          const holds = keys.every((k) => {
+            const qid = qidOf.get(k);
+            if (qid === void 0) return false;
+            const origin = run.reusedFrom[qid] ?? run.id;
+            return !handle.isBlocked(origin);
+          });
+          if (holds) return run.id;
+        }
+        return void 0;
+      },
+      { readOnly: true }
+    )
   );
 }
 
@@ -10665,7 +10740,7 @@ function notCounted(e) {
 function createdNote(state) {
   return `budget file created with defaults ($${state.capUsd.toFixed(2)} \xB7 ${state.capRuns} runs)`;
 }
-function preflight(ctx) {
+function preflight(ctx, opts = {}) {
   const now = ctx.now ?? Date.now;
   let budget;
   try {
@@ -10675,8 +10750,10 @@ function preflight(ctx) {
     if (isStoreFailure(e)) return fail(1, e.message);
     throw e;
   }
-  const gate = checkBudget(budget.state);
-  if (!gate.ok) return fail(3, gate.message);
+  if (opts.needsBudget ?? true) {
+    const gate = checkBudget(budget.state);
+    if (!gate.ok) return fail(3, gate.message);
+  }
   try {
     checkLedger(ctx.paths);
   } catch (e) {
@@ -10721,6 +10798,7 @@ function logFailed(ctx, verb, costUsd, reason) {
 async function askAll(ctx, verb, calls) {
   const answers = {};
   let costUsd = 0;
+  let costEstimated = false;
   let paid = 0;
   for (const [i, call] of calls.entries()) {
     let result;
@@ -10733,13 +10811,14 @@ async function askAll(ctx, verb, calls) {
     paid += 1;
     const c = usableCost(result?.costUsd);
     costUsd = costUsd === void 0 || c === void 0 ? void 0 : costUsd + c;
+    if (c !== void 0 && result?.costEstimated) costEstimated = true;
     try {
       Object.assign(answers, readAnswers(call.questions, result));
     } catch (e) {
       return logFailed(ctx, verb, costUsd, e.message);
     }
   }
-  return { ok: true, value: { answers, costUsd } };
+  return { ok: true, value: { answers, costUsd, costEstimated } };
 }
 function record(ctx, costUsd, run) {
   const now = ctx.now ?? Date.now;
@@ -11022,15 +11101,16 @@ function validateRequest(value, verb) {
 
 // src/verbs/request.ts
 var MAX_STOPS = 5;
-function stopText(stops) {
-  if (stops.length <= MAX_STOPS) return stops.join("\n");
-  return [...stops.slice(0, MAX_STOPS), `\u2716 request: ${stops.length - MAX_STOPS} more problems \u2192 fix the ones above, then run again`].join("\n");
+function stopText(stops, verb) {
+  if (!stops.length) return "";
+  const lines = stops.length <= MAX_STOPS ? [...stops] : [...stops.slice(0, MAX_STOPS), `\u2716 request: ${stops.length - MAX_STOPS} more problems \u2192 fix the ones above, then run again`];
+  return [...lines, `\u2192 see: sidewise help ${verb}`].join("\n");
 }
 function loadRequest(text, verb) {
   const read2 = readRequestText(text);
-  if (!read2.ok) return { ok: false, result: { exit: 2, text: stopText(read2.stops) } };
+  if (!read2.ok) return { ok: false, result: { exit: 2, text: stopText(read2.stops, verb) } };
   const v = validateRequest(read2.value, verb);
-  if (!v.ok) return { ok: false, result: { exit: 2, text: stopText(v.stops.map((s) => s.text)) } };
+  if (!v.ok) return { ok: false, result: { exit: 2, text: stopText(v.stops.map((s) => s.text), verb) } };
   return { ok: true, request: v.request, notes: v.notes };
 }
 
@@ -11054,12 +11134,15 @@ function subjectSide(id, gate, subject, extra) {
     ...extra ?? []
   );
 }
-function wiseRecorded(wise, extra) {
-  const fields = [...wise?.why ? ["why"] : [], ...wise?.area ? ["area"] : [], ...extra ?? []];
+function reusedIds(reusedFrom) {
+  return [...new Set(Object.values(reusedFrom))].sort();
+}
+function wiseRecorded(wise2, extra) {
+  const fields = [...wise2?.why ? ["why"] : [], ...wise2?.area ? ["area"] : [], ...extra ?? []];
   return fields.length ? fields : "none";
 }
-function respondText(side, wise, next, notes) {
-  return emit(m(["side", side], ["wise", m(["recorded", wise])], ["next", next], ["notes", [...notes]]));
+function respondText(side, wise2, next, notes) {
+  return emit(m(["side", side], ["wise", m(["recorded", wise2])], ["next", next], ["notes", [...notes]]));
 }
 function commonNotes(notes, budgetNote, adapter) {
   return [...notes, ...adapter && isRehearsal(adapter) ? [`adapter ${adapter} \xB7 not evidence`] : [], budgetNote];
@@ -11086,7 +11169,7 @@ function sweepNext(id, gate, worst, graded, onPass) {
   if (worst.length) return drillNext(id, worst[0].id);
   return graded.length ? GOAL_ONLY_NEXT : ALL_SKIPPED_NEXT;
 }
-function dryRunText(plan) {
+function dryRunText(plan, extraNotes = []) {
   return emit(
     m(
       [
@@ -11100,10 +11183,11 @@ function dryRunText(plan) {
           ...plan.baseURL ? [["baseURL", plan.baseURL]] : []
         )
       ],
-      ["notes", ["dry run: no call, no spend"]]
+      ["notes", ["dry run: no call, no spend", ...extraNotes]]
     )
   );
 }
+var COST_ESTIMATED_NOTE = "cost estimated from tokens (no live pricing reported)";
 function sweepEntry(g) {
   const catEntries = [];
   const qEntries = [];
@@ -11138,19 +11222,13 @@ async function runChange(text, ctx) {
   const categories = parent.ask.categories;
   const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
   const identity = providerIdentity(ctx.env);
-  if (ctx.dryRun) {
-    const n = categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 2, questions: n * 2 + 1, route: identity.route, baseURL: identity.baseURL }) };
-  }
   const compare = request.side.compare;
   const before = readGitEvidence(ctx.paths.root, compare.before, "before", paths);
   const after = readGitEvidence(ctx.paths.root, compare.after, "after", paths);
   if (!before.ok || !after.ok) {
     const errors = [...before.ok ? [] : before.errors, ...after.ok ? [] : after.errors];
-    return { exit: 2, text: stopText(errors) };
+    return { exit: 2, text: stopText(errors, "change") };
   }
-  const pre = preflight(ctx);
-  if (!pre.ok) return pre.result;
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const beforeEvidenceStr = subjectEvidence(before.files);
   const afterEvidenceStr = subjectEvidence(after.files);
@@ -11158,19 +11236,28 @@ async function runChange(text, ctx) {
   const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, "after:")];
   const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)]);
   const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)]);
-  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k));
-  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k));
+  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
+  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
   const answers = {};
   const reusedFrom = {};
   const beforeCall = planCall(beforeKeyed, beforeReused, { code: before.files }, answers, reusedFrom);
   const afterCall = planCall(afterKeyed, afterReused, { goal: redact(request.side.goal), code: after.files }, answers, reusedFrom);
   const calls = [...beforeCall ? [beforeCall] : [], ...afterCall ? [afterCall] : []];
+  if (ctx.dryRun) {
+    const total = beforeKeyed.length + afterKeyed.length;
+    const askedQuestions = calls.reduce((n, c) => n + c.questions.length, 0);
+    return { exit: 0, text: dryRunText({ calls: calls.length, questions: askedQuestions, reused: total - askedQuestions, route: identity.route, baseURL: identity.baseURL }) };
+  }
+  const pre = preflight(ctx, { needsBudget: calls.length > 0 });
+  if (!pre.ok) return pre.result;
   let costUsd = 0;
+  let costEstimated = false;
   if (calls.length > 0) {
     const asked2 = await askAll(ctx, "change", calls);
     if (!asked2.ok) return asked2.result;
     Object.assign(answers, asked2.value.answers);
     costUsd = asked2.value.costUsd;
+    costEstimated = asked2.value.costEstimated;
   }
   const keys = {};
   for (const [q, k] of [...beforeKeyed, ...afterKeyed]) keys[q.id] = k;
@@ -11206,14 +11293,26 @@ async function runChange(text, ctx) {
     sawWholeFileNote = true;
     return true;
   });
+  const reusedRunIds = reusedIds(reusedFrom);
   const response = (id, budget) => respondText(
-    m(["id", id], ["gate", gate], ["goal", m(["gate", goal.gate], ["p", goal.p])], ...catEntries, ["regressed", regressed]),
+    m(
+      ["id", id],
+      ["gate", gate],
+      ["goal", m(["gate", goal.gate], ["p", goal.p])],
+      ...catEntries,
+      ["regressed", regressed],
+      ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
+    ),
     wiseRecorded(request.wise, ["parent"]),
     // A regression alone can fail the gate even when every "after" category passes on its own (C-064) —
     // outcomeNext's gate-matching search would then find nothing and wrongly blame the goal (GOAL_ONLY_NEXT).
     // regressed takes priority: name it, per C-065 (revert or drill into it). [C-091]
     regressed.length ? regressionNext(id, regressed, categories) : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
-    commonNotes([...loaded.notes, ...evidenceNotes, ...pre.value.created ? [createdNote(pre.value.state)] : []], `2 states \xB7 ${budget}`, ctx.provider.adapter)
+    commonNotes(
+      [...loaded.notes, ...evidenceNotes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      `2 states \xB7 ${budget}`,
+      ctx.provider.adapter
+    )
   );
   const run = {
     verb: "change",
@@ -11278,24 +11377,19 @@ function computeConsensus(slots) {
 }
 
 // src/verbs/class.ts
+var CAP_NOTE = "would be blocked: the budget cap is already reached";
 async function runClass(text, ctx) {
   const loaded = loadRequest(text, "class");
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
-  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "class") };
   const identity = providerIdentity(ctx.env);
-  if (ctx.dryRun) {
-    const questions2 = 1 + request.side.categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 1, questions: questions2, route: identity.route, baseURL: identity.baseURL }) };
-  }
-  const pre = preflight(ctx);
-  if (!pre.ok) return pre.result;
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)]);
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k));
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
   const answers = {};
   const reusedFrom = {};
   const toAsk = [];
@@ -11308,7 +11402,21 @@ async function runClass(text, ctx) {
       toAsk.push([q, k]);
     }
   }
+  if (ctx.dryRun) {
+    let capNote = [];
+    if (toAsk.length > 0) {
+      const state = peekBudget(ctx.paths);
+      if (state && !checkBudget(state).ok) capNote = [CAP_NOTE];
+    }
+    return {
+      exit: 0,
+      text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }, capNote)
+    };
+  }
+  const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
+  if (!pre.ok) return pre.result;
   let costUsd;
+  let costEstimated = false;
   let calls;
   if (toAsk.length === 0) {
     costUsd = 0;
@@ -11319,6 +11427,7 @@ async function runClass(text, ctx) {
     if (!asked2.ok) return asked2.result;
     Object.assign(answers, asked2.value.answers);
     costUsd = asked2.value.costUsd;
+    costEstimated = asked2.value.costEstimated;
     calls = 1;
   }
   const keys = {};
@@ -11327,14 +11436,20 @@ async function runClass(text, ctx) {
   const consensus = computeConsensus(slots).consensus;
   const subject = gradeSubject(request.side.categories, answers);
   const escalate = consensus !== "STRONG" || request.side.depth === "thorough" || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
+  const reusedRunIds = reusedIds(reusedFrom);
   const response = (id, budget) => respondText(
     subjectSide(id, subject.gate, subject, [
       ["consensus", consensus],
-      ["escalate", escalate]
+      ["escalate", escalate],
+      ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
     ]),
     wiseRecorded(request.wise),
     outcomeNext(id, subject.gate, subject.categories, request.side.categories, "act on it"),
-    commonNotes([...loaded.notes, ...evidence.evidence.notes, ...pre.value.created ? [createdNote(pre.value.state)] : []], budget, ctx.provider.adapter)
+    commonNotes(
+      [...loaded.notes, ...evidence.evidence.notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      budget,
+      ctx.provider.adapter
+    )
   );
   const run = {
     verb: "class",
@@ -11616,12 +11731,11 @@ function splitFunctions(src) {
   const depth = depths(masked);
   const found = [];
   const add = (name, at, end) => {
-    if (end > at && !found.some((f) => at >= f.at && at <= f.end)) found.push({ name, at, end });
+    if (end > at && !found.some((f) => f.at === at)) found.push({ name, at, end });
   };
   for (const re of DECLARATIONS) {
     for (const hit of masked.matchAll(re)) {
       const at = hit.index;
-      if (depth[at] !== 0) continue;
       const params = hit[0].trimEnd().endsWith("(") ? at + hit[0].lastIndexOf("(") : at + hit[0].length;
       const end = hit[0].trimEnd().endsWith("=>") ? expressionOrBlock(masked, at + hit[0].length) : bodyEnd(masked, params);
       add(hit[1] || "default", at, end);
@@ -11897,6 +12011,9 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
   });
   return { layers, items, planned, keys, reusedFrom, answers, askedQuestions };
 }
+function planNeedsBudget(plan) {
+  return plan.planned.some((p) => p.call !== null);
+}
 async function runSweep(ctx, verb, plan) {
   const skippedIds = new Set(plan.planned.flatMap((p) => p.skipped));
   const askedIds = new Set(plan.planned.flatMap((p) => p.itemIds));
@@ -11912,10 +12029,10 @@ async function runSweep(ctx, verb, plan) {
     return "none";
   };
   const calls = plan.planned.map((p) => p.call).filter((c) => c !== null);
-  if (calls.length === 0) return { ok: true, value: { answers: plan.answers, costUsd: 0, statusOf } };
+  if (calls.length === 0) return { ok: true, value: { answers: plan.answers, costUsd: 0, costEstimated: false, statusOf } };
   const asked2 = await askAll(ctx, verb, calls);
   if (!asked2.ok) return asked2;
-  return { ok: true, value: { answers: { ...plan.answers, ...asked2.value.answers }, costUsd: asked2.value.costUsd, statusOf } };
+  return { ok: true, value: { answers: { ...plan.answers, ...asked2.value.answers }, costUsd: asked2.value.costUsd, costEstimated: asked2.value.costEstimated, statusOf } };
 }
 function sweepDryRun(plan, identity) {
   const calls = plan.planned.filter((p) => p.call !== null).length;
@@ -11941,143 +12058,15 @@ function recordSweep(ctx, calls, costUsd, run) {
 
 // src/verbs/drill.ts
 var REDRILL_NEXT = "fix it, then run this drill again (unchanged items are reused, so it is nearly free)";
-async function runDrill(text, ctx) {
-  const loaded = loadRequest(text, "drill");
-  if (!loaded.ok) return loaded.result;
-  const { request } = loaded;
-  const parent = findRun(ctx.paths, request.side.parent);
-  if (!parent) return { exit: 2, text: `\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id` };
-  if (!isContractRun(parent)) return { exit: 2, text: `\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class or scan again` };
-  const oneSubjectNext = (gate) => gate === "pass" ? "act on it" : `fix it, then sidewise change --parent ${request.side.parent} --compare <before>..<after>`;
-  if (parent.items !== null) {
-    if (!request.side.over) {
-      return {
-        exit: 2,
-        text: `\u2716 side.over: drilling into a sweep item needs it \u2192 add over: with the next layer down (sidewise template drill --parent ${parent.id} --from ${request.side.from})`
-      };
-    }
-    const itemRec = parent.items[request.side.from];
-    if (!itemRec) {
-      return {
-        exit: 2,
-        text: `\u2716 side.from: "${clip(request.side.from, 40)}" is not an item ${parent.id} listed \u2192 use one of: ${clip(Object.keys(parent.items).join(", "), 80)}`
-      };
-    }
-    const from = request.side.from;
-    const name = from.includes("/") ? from.slice(from.lastIndexOf("/") + 1) : from;
-    const parentId = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : null;
-    let itemText = name;
-    if (itemRec.unit) {
-      const read2 = readUnit(ctx.paths.root, itemRec.unit);
-      if (!read2.ok) return { exit: 2, text: `\u2716 side.from: the code has changed since ${parent.id} (${read2.error}) \u2192 run scan again` };
-      itemText = read2.text;
-    }
-    const root = { id: from, layer: itemRec.layer, name, parent: parentId, fill: itemRec.fill, text: itemText, ...itemRec.unit ? { unit: itemRec.unit } : {} };
-    if (!itemRec.unit) {
-      const badLayer = firstStringLayer(request.side.over);
-      if (badLayer) {
-        return {
-          exit: 2,
-          text: `\u2716 side.over.${badLayer}: "${clip(from, 40)}" is an idea, not code \u2192 give ${badLayer} as a list of items (there is nothing to split with each)`
-        };
-      }
-    }
-    const notes = [];
-    const who2 = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-    const identity2 = providerIdentity(ctx.env);
-    const plan = planSweep(request, who2, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
-    if (ctx.dryRun) return sweepDryRun(plan, identity2);
-    const pre2 = preflight(ctx);
-    if (!pre2.ok) return pre2.result;
-    const swept = await runSweep(ctx, "drill", plan);
-    if (!swept.ok) return swept.result;
-    const { answers: answers2, costUsd: costUsd2, statusOf } = swept.value;
-    const categoriesOf = (layer) => request.side.layers.find((l) => l.name === layer)?.categories ?? [];
-    const grades = gradeItems(plan.items, categoriesOf, statusOf, answers2);
-    const goalAnswer = answers2["goal"];
-    const goalGrade = goalGate(goalAnswer.p);
-    const gate = sweepGate(goalGrade, grades);
-    const graded = [...grades.values()].filter((g) => g.status === "asked" || g.status === "reused");
-    const worst = worstFirst(grades.values());
-    const failing = m(...worst.map((g) => sweepEntry(g)));
-    const passing = graded.filter((g) => g.ownGate === "pass").length;
-    const calls2 = plan.planned.filter((p) => p.call !== null).length;
-    const items = {};
-    for (const it of plan.items) {
-      const g = grades.get(it.id);
-      items[it.id] = {
-        layer: it.layer,
-        fill: it.fill,
-        ...it.unit ? { unit: it.unit } : {},
-        status: statusOf(it.id),
-        gate: g.gate,
-        categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate]))
-      };
-    }
-    const response2 = (id, budget) => respondText(
-      m(["id", id], ["gate", gate], ["goal", m(["gate", goalGrade], ["p", goalAnswer.p])], ["failing", failing], ["passing", passing]),
-      wiseRecorded(request.wise),
-      worst.length ? REDRILL_NEXT : sweepNext(id, gate, worst, graded, "act on it"),
-      commonNotes(
-        [...loaded.notes, ...notes, ...pre2.value.created ? [createdNote(pre2.value.state)] : []],
-        `${calls2} call${calls2 === 1 ? "" : "s"} \xB7 ${plan.askedQuestions} question${plan.askedQuestions === 1 ? "" : "s"} \xB7 ${budget}`,
-        ctx.provider.adapter
-      )
-    );
-    const run2 = {
-      verb: "drill",
-      actor: actorOf(ctx),
-      task: ctx.env.SIDEWISE_TASK?.trim() || null,
-      goal: request.side.goal,
-      depth: request.side.depth ?? null,
-      where: [],
-      parent: request.side.parent,
-      from: request.side.from,
-      compare: null,
-      wise: request.wise,
-      ask: { categories: [], layers: request.side.layers },
-      over: request.side.over,
-      items,
-      answers: answers2,
-      keys: Object.fromEntries(plan.keys),
-      reusedFrom: Object.fromEntries(plan.reusedFrom),
-      categories: {},
-      gate,
-      goalGate: goalGrade,
-      goalP: goalAnswer.p,
-      consensus: null,
-      response: response2,
-      notes: [],
-      adapter: ctx.provider.adapter,
-      model: ctx.provider.model,
-      costUsd: costUsd2 ?? null,
-      calls: calls2,
-      route: identity2.route,
-      baseURL: identity2.baseURL
-    };
-    return recordSweep(ctx, calls2, costUsd2, run2);
-  }
-  if (request.side.over) return { exit: 2, text: `\u2716 side.over: ${parent.id} wasn't a sweep \u2192 remove over` };
-  if (!parent.ask.categories.some((c) => c.name === request.side.from)) {
-    return {
-      exit: 2,
-      text: `\u2716 side.from: "${clip(request.side.from, 40)}" is not a category of ${parent.id} \u2192 use one of: ${parent.ask.categories.map((c) => c.name).join(", ")}`
-    };
-  }
-  const evidence = readCodeEvidence(ctx.paths.root, parent.where);
-  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
+async function runOneSubjectProof(ctx, loaded, request, where, changeParent) {
+  const evidence = readCodeEvidence(ctx.paths.root, where);
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "drill") };
   const identity = providerIdentity(ctx.env);
-  if (ctx.dryRun) {
-    const questions2 = 1 + request.side.categories.flatMap((c) => c.questions).length;
-    return { exit: 0, text: dryRunText({ calls: 1, questions: questions2, route: identity.route, baseURL: identity.baseURL }) };
-  }
-  const pre = preflight(ctx);
-  if (!pre.ok) return pre.result;
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)]);
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k));
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
   const answers = {};
   const reusedFrom = {};
   const toAsk = [];
@@ -12090,7 +12079,13 @@ async function runDrill(text, ctx) {
       toAsk.push([q, k]);
     }
   }
+  if (ctx.dryRun) {
+    return { exit: 0, text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }) };
+  }
+  const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
+  if (!pre.ok) return pre.result;
   let costUsd;
+  let costEstimated = false;
   let calls;
   if (toAsk.length === 0) {
     costUsd = 0;
@@ -12101,6 +12096,7 @@ async function runDrill(text, ctx) {
     if (!asked2.ok) return asked2.result;
     Object.assign(answers, asked2.value.answers);
     costUsd = asked2.value.costUsd;
+    costEstimated = asked2.value.costEstimated;
     calls = 1;
   }
   const keys = {};
@@ -12109,14 +12105,21 @@ async function runDrill(text, ctx) {
   const consensus = computeConsensus(slots).consensus;
   const subject = gradeSubject(request.side.categories, answers);
   const escalate = consensus !== "STRONG" || request.side.depth === "thorough" || loaded.notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
+  const oneSubjectNext = (gate, id) => gate === "pass" ? "act on it" : `fix it, then sidewise change --parent ${changeParent(id)} --compare <before>..<after>`;
+  const reusedRunIds = reusedIds(reusedFrom);
   const response = (id, budget) => respondText(
     subjectSide(id, subject.gate, subject, [
       ["consensus", consensus],
-      ["escalate", escalate]
+      ["escalate", escalate],
+      ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
     ]),
     wiseRecorded(request.wise),
-    oneSubjectNext(subject.gate),
-    commonNotes([...loaded.notes, ...evidence.evidence.notes, ...pre.value.created ? [createdNote(pre.value.state)] : []], budget, ctx.provider.adapter)
+    oneSubjectNext(subject.gate, id),
+    commonNotes(
+      [...loaded.notes, ...evidence.evidence.notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      budget,
+      ctx.provider.adapter
+    )
   );
   const run = {
     verb: "drill",
@@ -12124,7 +12127,7 @@ async function runDrill(text, ctx) {
     task: ctx.env.SIDEWISE_TASK?.trim() || null,
     goal: request.side.goal,
     depth: request.side.depth ?? null,
-    where: parent.where,
+    where: [...where],
     parent: request.side.parent,
     from: request.side.from,
     compare: null,
@@ -12153,6 +12156,133 @@ async function runDrill(text, ctx) {
   if (!rec.ok) return rec.result;
   return { exit: 0, text: rec.value.run.response, run: rec.value.run };
 }
+async function runDrill(text, ctx) {
+  const loaded = loadRequest(text, "drill");
+  if (!loaded.ok) return loaded.result;
+  const { request } = loaded;
+  const parent = findRun(ctx.paths, request.side.parent);
+  if (!parent) return { exit: 2, text: `\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id` };
+  if (!isContractRun(parent)) return { exit: 2, text: `\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class or scan again` };
+  if (parent.items !== null) {
+    const itemRec = parent.items[request.side.from];
+    if (!itemRec) {
+      return {
+        exit: 2,
+        text: `\u2716 side.from: "${clip(request.side.from, 40)}" is not an item ${parent.id} listed \u2192 use one of: ${clip(Object.keys(parent.items).join(", "), 80)}`
+      };
+    }
+    if (!request.side.over) {
+      if (!itemRec.unit) {
+        return {
+          exit: 2,
+          text: `\u2716 side.from: "${clip(request.side.from, 40)}" has no code \u2192 add over: with the next layer down, or drill an item scan found (sidewise template drill --parent ${parent.id} --from ${request.side.from})`
+        };
+      }
+      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id);
+    }
+    const from = request.side.from;
+    const name = from.includes("/") ? from.slice(from.lastIndexOf("/") + 1) : from;
+    const parentId = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : null;
+    let itemText = name;
+    if (itemRec.unit) {
+      const read2 = readUnit(ctx.paths.root, itemRec.unit);
+      if (!read2.ok) return { exit: 2, text: `\u2716 side.from: the code has changed since ${parent.id} (${read2.error}) \u2192 run scan again` };
+      itemText = read2.text;
+    }
+    const root = { id: from, layer: itemRec.layer, name, parent: parentId, fill: itemRec.fill, text: itemText, ...itemRec.unit ? { unit: itemRec.unit } : {} };
+    if (!itemRec.unit) {
+      const badLayer = firstStringLayer(request.side.over);
+      if (badLayer) {
+        return {
+          exit: 2,
+          text: `\u2716 side.over.${badLayer}: "${clip(from, 40)}" is an idea, not code \u2192 give ${badLayer} as a list of items (there is nothing to split with each)`
+        };
+      }
+    }
+    const notes = [];
+    const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
+    const identity = providerIdentity(ctx.env);
+    const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
+    if (ctx.dryRun) return sweepDryRun(plan, identity);
+    const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
+    if (!pre.ok) return pre.result;
+    const swept = await runSweep(ctx, "drill", plan);
+    if (!swept.ok) return swept.result;
+    const { answers, costUsd, costEstimated, statusOf } = swept.value;
+    const categoriesOf = (layer) => request.side.layers.find((l) => l.name === layer)?.categories ?? [];
+    const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
+    const goalAnswer = answers["goal"];
+    const goalGrade = goalGate(goalAnswer.p);
+    const gate = sweepGate(goalGrade, grades);
+    const graded = [...grades.values()].filter((g) => g.status === "asked" || g.status === "reused");
+    const worst = worstFirst(grades.values());
+    const failing = m(...worst.map((g) => sweepEntry(g)));
+    const passing = graded.filter((g) => g.ownGate === "pass").length;
+    const calls = plan.planned.filter((p) => p.call !== null).length;
+    const items = {};
+    for (const it of plan.items) {
+      const g = grades.get(it.id);
+      items[it.id] = {
+        layer: it.layer,
+        fill: it.fill,
+        ...it.unit ? { unit: it.unit } : {},
+        status: statusOf(it.id),
+        gate: g.gate,
+        categories: Object.fromEntries(g.own.map((c) => [c.name, c.gate]))
+      };
+    }
+    const response = (id, budget) => respondText(
+      m(["id", id], ["gate", gate], ["goal", m(["gate", goalGrade], ["p", goalAnswer.p])], ["failing", failing], ["passing", passing]),
+      wiseRecorded(request.wise),
+      worst.length ? REDRILL_NEXT : sweepNext(id, gate, worst, graded, "act on it"),
+      commonNotes(
+        [...loaded.notes, ...notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+        `${calls} call${calls === 1 ? "" : "s"} \xB7 ${plan.askedQuestions} question${plan.askedQuestions === 1 ? "" : "s"} \xB7 ${budget}`,
+        ctx.provider.adapter
+      )
+    );
+    const run = {
+      verb: "drill",
+      actor: actorOf(ctx),
+      task: ctx.env.SIDEWISE_TASK?.trim() || null,
+      goal: request.side.goal,
+      depth: request.side.depth ?? null,
+      where: [],
+      parent: request.side.parent,
+      from: request.side.from,
+      compare: null,
+      wise: request.wise,
+      ask: { categories: [], layers: request.side.layers },
+      over: request.side.over,
+      items,
+      answers,
+      keys: Object.fromEntries(plan.keys),
+      reusedFrom: Object.fromEntries(plan.reusedFrom),
+      categories: {},
+      gate,
+      goalGate: goalGrade,
+      goalP: goalAnswer.p,
+      consensus: null,
+      response,
+      notes: [],
+      adapter: ctx.provider.adapter,
+      model: ctx.provider.model,
+      costUsd: costUsd ?? null,
+      calls,
+      route: identity.route,
+      baseURL: identity.baseURL
+    };
+    return recordSweep(ctx, calls, costUsd, run);
+  }
+  if (request.side.over) return { exit: 2, text: `\u2716 side.over: ${parent.id} wasn't a sweep \u2192 remove over` };
+  if (!parent.ask.categories.some((c) => c.name === request.side.from)) {
+    return {
+      exit: 2,
+      text: `\u2716 side.from: "${clip(request.side.from, 40)}" is not a category of ${parent.id} \u2192 use one of: ${parent.ask.categories.map((c) => c.name).join(", ")}`
+    };
+  }
+  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent);
+}
 
 // src/verbs/loop.ts
 async function runLoop(text, ctx) {
@@ -12163,11 +12293,11 @@ async function runLoop(text, ctx) {
   const identity = providerIdentity(ctx.env);
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
   if (ctx.dryRun) return sweepDryRun(plan, identity);
-  const pre = preflight(ctx);
+  const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
   const ran = await runSweep(ctx, "loop", plan);
   if (!ran.ok) return ran.result;
-  const { answers, costUsd, statusOf } = ran.value;
+  const { answers, costUsd, costEstimated, statusOf } = ran.value;
   const categoriesOf = (layer) => request.side.layers.find((l) => l.name === layer).categories;
   const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
   const goalAnswer = answers["goal"];
@@ -12196,7 +12326,7 @@ async function runLoop(text, ctx) {
     wiseRecorded(request.wise),
     sweepNext(id, gate, worst, graded, "act on it"),
     commonNotes(
-      [...loaded.notes, ...pre.value.created ? [createdNote(pre.value.state)] : []],
+      [...loaded.notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       `${calls} call${calls === 1 ? "" : "s"} \xB7 ${plan.askedQuestions} question${plan.askedQuestions === 1 ? "" : "s"} \xB7 ${budget}`,
       ctx.provider.adapter
     )
@@ -12236,6 +12366,13 @@ async function runLoop(text, ctx) {
 }
 
 // src/verbs/scan.ts
+var ENTRYPOINT_GLOBS = ["server.js", "app.js", "index.js", "main.js", "config/**", ".env*"];
+function unlookedEntrypoints(root, items) {
+  const touched = new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []));
+  const missed = [...new Set(ENTRYPOINT_GLOBS.flatMap((pattern) => expandGlob(root, pattern).files))].filter((f) => !touched.has(f));
+  if (!missed.length) return void 0;
+  return `entrypoints/config outside over: ${missed.join(", ")} \u2014 add them to over: file if they matter here`;
+}
 async function runScan(text, ctx) {
   const loaded = loadRequest(text, "scan");
   if (!loaded.ok) return loaded.result;
@@ -12245,11 +12382,13 @@ async function runScan(text, ctx) {
   const identity = providerIdentity(ctx.env);
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
   if (ctx.dryRun) return sweepDryRun(plan, identity);
-  const pre = preflight(ctx);
+  const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
+  if (entrypointNote) notes.push(entrypointNote);
+  const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
   const swept = await runSweep(ctx, "scan", plan);
   if (!swept.ok) return swept.result;
-  const { answers, costUsd, statusOf } = swept.value;
+  const { answers, costUsd, costEstimated, statusOf } = swept.value;
   const categoriesOf = (layer) => request.side.layers.find((l) => l.name === layer)?.categories ?? [];
   const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
   const goalAnswer = answers["goal"];
@@ -12287,7 +12426,7 @@ async function runScan(text, ctx) {
     wiseRecorded(request.wise),
     sweepNext(id, gate, worst, graded, "act on it"),
     commonNotes(
-      [...loaded.notes, ...notes, ...pre.value.created ? [createdNote(pre.value.state)] : []],
+      [...loaded.notes, ...notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       `${calls} call${calls === 1 ? "" : "s"} \xB7 ${plan.askedQuestions} question${plan.askedQuestions === 1 ? "" : "s"} \xB7 ${budget}`,
       ctx.provider.adapter
     )
@@ -12337,18 +12476,48 @@ function drillSampleFile(parent, paths) {
   if (run && isContractRun(run) && run.items === null) return "drill-subject.yaml";
   return "drill.yaml";
 }
+function fromFile(from, flags) {
+  let raw;
+  try {
+    raw = readFileSync13(from, "utf8");
+  } catch (e) {
+    const code = e.code;
+    const shown2 = clip(from, 60);
+    return { exit: 2, text: `\u2716 template: --from "${shown2}" ${code === "ENOENT" ? "not found" : "cannot be read"} \u2192 check the path` };
+  }
+  let doc;
+  try {
+    doc = (0, import_yaml2.parseDocument)(raw);
+  } catch {
+    return { exit: 2, text: `\u2716 template: --from "${clip(from, 60)}" is not valid YAML \u2192 point at a Sidewise request file` };
+  }
+  if (!doc.has("side")) return { exit: 2, text: `\u2716 template: --from "${clip(from, 60)}" has no side: block \u2192 point at a Sidewise request file` };
+  if (flags.goal !== void 0) doc.setIn(["side", "goal"], flags.goal);
+  if (flags.where !== void 0) doc.setIn(["side", "where"], flags.where);
+  return { exit: 0, text: doc.toString() };
+}
 function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR) {
   if (!VERBS.includes(target)) return { exit: 2, text: `\u2716 template: "${clip(target, 30)}" is not a verb \u2192 one of ${VERBS.join(", ")}` };
-  if (target !== "drill" && (flags.parent || flags.from)) return { exit: 2, text: `\u2716 template: --parent/--from only apply to drill \u2192 sidewise template ${target}` };
-  if (target === "drill" && !!flags.parent !== !!flags.from)
-    return { exit: 2, text: "\u2716 template drill: needs both --parent and --from, or neither \u2192 sidewise template drill --parent SW-#### --from <item or category>" };
-  const file = target === "drill" && flags.parent ? drillSampleFile(flags.parent, paths) : `${target}.yaml`;
-  const raw = readFileSync13(path16.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
-  if (!flags.parent && !flags.from) return { exit: 0, text: raw };
-  const doc = (0, import_yaml2.parseDocument)(raw);
-  doc.setIn(["side", "parent"], flags.parent);
-  doc.setIn(["side", "from"], flags.from);
-  return { exit: 0, text: doc.toString() };
+  if (flags.parent !== void 0) {
+    if (target !== "drill") return { exit: 2, text: `\u2716 template: --parent only applies to drill \u2192 sidewise template ${target}` };
+    if (flags.from === void 0) {
+      return { exit: 2, text: "\u2716 template drill: needs both --parent and --from, or neither \u2192 sidewise template drill --parent SW-#### --from <item or category>" };
+    }
+    if (flags.where !== void 0 || flags.goal !== void 0) {
+      return { exit: 2, text: "\u2716 template: --where/--goal don't apply with --parent \u2192 they overlay a checklist read from --from <request.yaml> instead" };
+    }
+    const file = drillSampleFile(flags.parent, paths);
+    const raw = readFileSync13(path16.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
+    const doc = (0, import_yaml2.parseDocument)(raw);
+    doc.setIn(["side", "parent"], flags.parent);
+    doc.setIn(["side", "from"], flags.from);
+    return { exit: 0, text: doc.toString() };
+  }
+  if (flags.from !== void 0) return fromFile(flags.from, flags);
+  if (flags.where !== void 0 || flags.goal !== void 0) {
+    return { exit: 2, text: `\u2716 template: --where/--goal need --from \u2192 sidewise template ${target} --from <request.yaml>` };
+  }
+  return { exit: 0, text: readFileSync13(path16.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
 }
 
 // src/verbs/view.ts
@@ -12359,13 +12528,15 @@ function runLine(r, outcome) {
   const line3 = isRun(r) ? `${r.id} ${r.ts.slice(0, 10)} ${r.verb} L${r.level} ${r.consensus} ${r.verdict} "${clip(r.focus, 48)}" \xB7 ${outcome}` : `${r.id} ${r.ts.slice(0, 10)} ${r.verb} ${r.depth ?? "-"} ${r.gate} "${clip(r.goal, 48)}" \xB7 ${outcome}`;
   return `${clip(line3, 120 - rehearsal.length)}${rehearsal}`;
 }
-var tagsMatch = (r, place) => isRun(r) && r.tags.includes(place);
+var tagsMatch = (r, place) => {
+  if (isRun(r)) return r.tags.includes(place);
+  return isContractRun(r) && r.ask.layers.some((l) => l.categories.some((c) => c.tags.includes(place)));
+};
+var pathMatches = (p, place) => p === place || p.startsWith(`${place}/`);
 function whereMatches(r, place) {
-  if (isRun(r)) return r.where.some((w) => w.path === place || w.path.startsWith(`${place}/`));
-  return r.where.some((w) => {
-    const p = stripLines(w);
-    return p === place || p.startsWith(`${place}/`);
-  });
+  if (isRun(r)) return r.where.some((w) => pathMatches(w.path, place));
+  if (r.where.some((w) => pathMatches(stripLines(w), place))) return true;
+  return isContractRun(r) && !!r.items && Object.values(r.items).some((it) => !!it.unit && pathMatches(it.unit.path, place));
 }
 function toPlace(target, root) {
   if (hasControlChars(target)) return { stop: "\u2716 view: the target has control characters \u2192 use a folder, a tag, or SW-####" };
@@ -12390,13 +12561,32 @@ function renderPlace(place, hits, outcomeOf, limit) {
     text: [head, ...shown2.map((r) => runLine(r, outcomeOf(r.id) ?? "open")), ...older ? [`\u2026 ${older} older \u2192 raise the level to see more`] : []].join("\n")
   };
 }
-function byPlaceFullScan(place, paths, limit) {
+var GATE_RANK = { fail: 0, unsure: 1, pass: 2 };
+function renderSummary(scope, hits) {
+  const latest = /* @__PURE__ */ new Map();
+  for (const r of hits) {
+    if (!isContractRun(r)) continue;
+    for (const w of r.where.map(stripLines)) latest.set(w, r);
+    for (const p of sweepPlaces(r)) if (p.kind === "where") latest.set(p.val, r);
+  }
+  if (!latest.size) return { exit: 0, text: `sidewise view ${clip(scope, 60)} --summary \xB7 no runs yet \u2192 "sidewise class <request>" starts one` };
+  const rows = [...latest.entries()].sort(([pa, ra], [pb, rb]) => GATE_RANK[ra.gate] - GATE_RANK[rb.gate] || pa.localeCompare(pb));
+  return {
+    exit: 0,
+    text: [
+      `sidewise view ${clip(scope, 60)} --summary \xB7 ${rows.length} place${rows.length === 1 ? "" : "s"}`,
+      ...rows.map(([place, r]) => `${clip(place, 60)} \xB7 ${r.verb} ${r.gate} \xB7 ${r.id} "${clip(r.goal, 48)}"`)
+    ].join("\n")
+  };
+}
+function byPlaceFullScan(place, paths, limit, summary) {
   const records = readLedger(paths, { partialTail: true });
   const runs = records.filter((r) => isRun(r) || isContractRun(r));
   const hits = runs.filter((r) => place === "." || tagsMatch(r, place) || whereMatches(r, place));
+  if (summary) return renderSummary(place, hits);
   return renderPlace(place, hits, (id) => latestOutcome(records, id) ?? void 0, limit);
 }
-function byPlaceIndexed(place, paths, limit) {
+function byPlaceIndexed(place, paths, limit, summary) {
   return withIndex(
     paths,
     (handle) => {
@@ -12405,14 +12595,15 @@ function byPlaceIndexed(place, paths, limit) {
         const rec = readRecordAt(paths.log, offset);
         if (rec && (isRun(rec) || isContractRun(rec)) && (tagsMatch(rec, place) || whereMatches(rec, place))) hits.push(rec);
       }
+      if (summary) return renderSummary(place, hits);
       const outcomes = handle.outcomesFor(hits.map((r) => r.id));
       return renderPlace(place, hits, (id) => outcomes.get(id), limit);
     },
     { readOnly: true }
   );
 }
-function byPlace(place, paths, limit) {
-  return place === "." ? byPlaceFullScan(place, paths, limit) : byPlaceIndexed(place, paths, limit);
+function byPlace(place, paths, limit, summary) {
+  return place === "." ? byPlaceFullScan(place, paths, limit, summary) : byPlaceIndexed(place, paths, limit, summary);
 }
 function runAt(paths, handle, id) {
   const offset = handle.findOffset(id);
@@ -12428,7 +12619,23 @@ function childrenAt(paths, handle, parentId) {
   }
   return out;
 }
-function byId(id, paths, limit) {
+function detailLines(self, level) {
+  if (level < 2 || !isContractRun(self)) return [];
+  const lines = [];
+  const cats = Object.entries(self.categories);
+  if (cats.length) lines.push(`  categories: ${cats.map(([n, g]) => `${n}=${g}`).join(", ")}`);
+  else if (self.items) {
+    const items = Object.values(self.items);
+    const failing = items.filter((it) => it.gate !== "pass").length;
+    lines.push(`  items: ${items.length} (${failing} failing)`);
+  }
+  if (level >= 3) {
+    if (self.notes.length) lines.push(`  notes: ${self.notes.join("; ")}`);
+    lines.push(`  adapter: ${self.adapter} \xB7 model: ${self.model}`);
+  }
+  return lines;
+}
+function byId(id, paths, level, limit) {
   return withIndex(
     paths,
     (handle) => {
@@ -12458,6 +12665,7 @@ function byId(id, paths, limit) {
           `sidewise view ${id} \xB7 lineage ${up.length} up \xB7 ${down.length} down`,
           ...up.map((r) => `\u2191 ${runLine(r, outcomeOf(r))}`),
           `\u25B6 ${runLine(self, outcomeOf(self))}`,
+          ...detailLines(self, level),
           ...down.map((r) => `\u2193 ${runLine(r, outcomeOf(r))}`)
         ].join("\n")
       };
@@ -12501,46 +12709,275 @@ function runRequestMode(text, ctx) {
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
-  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors) };
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "view") };
   const places = request.side.where.map(stripLines);
   const runsHere = runsForPlaces(ctx.paths, places);
   const categoryNames = request.side.categories.length ? request.side.categories.map((c) => c.name) : [...new Set(runsHere.flatMap((r) => Object.keys(r.categories)))];
-  let reuse;
+  let reuse2;
   if (request.side.categories.length > 0) {
     const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
     const evidenceStr = subjectEvidence(evidence.evidence.files);
     const keys = questions.map((q) => answerKey(evidenceStr, q));
     const who = providerIdentity(ctx.env);
-    reuse = exactReuse(ctx.paths, who, keys);
+    reuse2 = exactReuse(ctx.paths, who, keys);
   }
-  const next = reuse ? `sidewise view ${reuse}` : "sidewise class";
+  const next = reuse2 ? `sidewise view ${reuse2}` : "sidewise class";
   const side = m(
     ["view", request.side.where.join(", ")],
-    ...reuse ? [["reuse", reuse]] : [],
+    ...reuse2 ? [["reuse", reuse2]] : [],
     ["runs", runsHere.length],
     ["categories", m(...categoryNames.map((name) => categoryEntry2(name, runsHere)))]
   );
   return { exit: 0, text: respondText(side, wiseRecorded(null), next, ["free"]) };
 }
-function runView(input, level, ctx) {
-  const trimmed = input.trim();
-  if (REQUEST_MODE.test(trimmed) || trimmed.startsWith("{")) return runRequestMode(input, ctx);
-  const at = RUN_ID.test(input) ? void 0 : toPlace(input, ctx.paths.root);
+function runView(arg, level, ctx, content, summary = false) {
+  const probe = (content ?? arg).trim();
+  if (REQUEST_MODE.test(probe) || probe.startsWith("{")) return runRequestMode(content ?? arg, ctx);
+  const at = RUN_ID.test(arg) ? void 0 : toPlace(arg, ctx.paths.root);
   if (at && "stop" in at) return { exit: 2, text: at.stop };
   const limit = level * 10;
-  return at ? byPlace(at.place, ctx.paths, limit) : byId(input, ctx.paths, limit);
+  return at ? byPlace(at.place, ctx.paths, limit, summary) : byId(arg, ctx.paths, level, limit);
+}
+
+// src/help/rules.ts
+var list2 = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}` : xs[0];
+var RULES = [
+  {
+    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions (a sweep: at most that many items per layer)`,
+    in: ["card", "authoring", "class", "scan", "loop"]
+  },
+  { text: `where: at most 5 path entries \u2014 this is all the code a run sees`, in: ["card", "authoring", "class", "view"] },
+  { text: `pass: yes clears at P(yes) >= 0.70; pass: no clears at P(yes) <= 0.30; in between is unsure`, in: ["card", "verdict"] },
+  { text: `every question in a category must point the same way as its pass:`, in: ["authoring"] },
+  { text: `wise.why is one of ${list2(WHYS)}`, in: ["wise"] },
+  { text: `wise.area is one of ${list2(AREAS)}`, in: ["wise"] },
+  { text: `wise.stage is one of ${list2(STAGES)}`, in: ["wise"] },
+  { text: `wise.change is one of ${list2(CHANGES)}`, in: ["wise"] },
+  { text: `wise.risk is one of ${list2(RISKS)}`, in: ["wise"] },
+  { text: `at most ${MAX_EXTRAS} scale or choice questions per request`, in: ["authoring"] }
+];
+function ruleLines(tag) {
+  return RULES.filter((r) => r.in.includes(tag)).map((r) => `- ${r.text}.`);
+}
+
+// src/help/card.ts
+function card() {
+  return [
+    "Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict \u2014 evidence,",
+    "never a command. Think of it as a citable second opinion (SW-0017), not a linter.",
+    "",
+    "## Invoke it",
+    'In Claude Code: call the `sidewise` MCP tool directly \u2014 same args as the CLI (e.g. args: ["class", "-"]),',
+    "the request YAML as stdin. There is no CLI on PATH; don't look for one. Elsewhere: use `sidewise` if it's",
+    "on PATH, else `npx --no-install sidewise`; if neither works, tell the user to run",
+    '"npx @mvpscale/sidewise init" and stop.',
+    "",
+    "## Pick your verb",
+    "| Grid | Know | Judge | Prove |",
+    "|---|---|---|---|",
+    "| Side \u2014 solve it with what's proven   | view (free) | class (1 call) | change (~1 call) |",
+    "| Wise \u2014 find what's new, and learn it | scan (1 call) | drill (1 call) | loop (1 call/layer) |",
+    "",
+    "## The contract (memorize \u2014 these cause most first-try rejects)",
+    ...ruleLines("card"),
+    "- every question in a category must point the same way as its pass: (one reversed question fails the whole gate).",
+    "",
+    "## Read the verdict",
+    "Read `goal` (+ any `choice`) first, then the failing category, then follow the `next:` line. A stop always",
+    "reads `\u2716 field: problem \u2192 fix` \u2014 the error text names exactly what to change.",
+    "",
+    "Go deeper: `sidewise help <verb>` (view, class, change, scan, drill, loop) or `sidewise help <topic>`",
+    "(authoring, verdict, wise, reuse). `sidewise template <verb>` prints a commented, filled-in sample."
+  ].join("\n");
+}
+
+// src/help/topics.ts
+var TOPICS = ["authoring", "verdict", "wise", "reuse"];
+function authoring() {
+  return [
+    "## authoring",
+    "How to write a request that survives its first try. Under the hood a yes/no question asks the classifier's",
+    "Noul primitive, a `scale:` asks Score, and a `choice:` asks Choice \u2014 one narrow, coherent judgment per",
+    "question, so keep each one to a single thing.",
+    ...ruleLines("authoring"),
+    "- `where:` is ALL the code a run sees \u2014 nothing outside it exists, however obvious the wiring seems.",
+    '- phrase the goal as the exact claim you need proven ("this handler is safe to merge", not "review this handler") \u2014 wording changes the verdict, on purpose.',
+    "- a `{blank}` in a sweep question is filled in per item; it must name that layer or one above it.",
+    "- a question's number is a label for the response only \u2014 the model never sees it, so the question text itself has to carry its full meaning on its own.",
+    '- a `scale:` level should name a concrete situation that stands on its own ("crashes in production"), not a bare relative point ("high").',
+    "- give a `choice:` a genuine no-match option (e.g. `none`) whenever the code might fit none of the others.",
+    "- ask everything you need about this evidence in one request \u2014 a second call (`drill`) is for when you need to look at something new, not more angles on what you already sent."
+  ].join("\n");
+}
+function verdict() {
+  return [
+    "## verdict",
+    "How to read what comes back:",
+    ...ruleLines("verdict"),
+    "- `need:` on a category: `all` (default, every answer clears the bar) \xB7 `most` (>= 2/3 clear, none a clear miss) \xB7 `any` (at least one clears).",
+    "- the gate passes only when the goal and every category pass; in a sweep, an item passes only when its own categories and every child does too.",
+    "- `consensus` (STRONG \xB7 SPLIT \xB7 WEAK): whether the yes/no answers agree with each other \u2014 shown on `class`, and `drill` on a one-subject parent; a sweep or `change` response never computes it.",
+    "- `escalate: true` on non-STRONG consensus, `depth: thorough`, or a goal that reads as irreversible (delete, deploy, drop, pay, migrate, secret, credential) \u2014 don't act on this alone.",
+    "- a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes \u2014 that's exactly why it lands in `unsure` rather than a weak pass.",
+    "- the answer's shape is guaranteed (a number in range, a level that's really one of yours) \u2014 whether it's the RIGHT number is what consensus, escalate and your own reading are for, not the schema.",
+    "- a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) \u2014 read which one you got before treating a stop as `unsure`.",
+    "- a stop always reads `\u2716 field: problem \u2192 fix`; run `sidewise help <verb>` when one doesn't make sense."
+  ].join("\n");
+}
+function wise() {
+  return [
+    "## wise",
+    "wise: is optional context that never reaches the classifier \u2014 it only shapes what the ledger learns:",
+    "",
+    "| field | closed values | what you get back |",
+    "|---|---|---|",
+    `| why    | ${WHYS.join(", ")} | why this run happened, for later pattern-mining |`,
+    `| area   | ${AREAS.join(", ")} | which slice of the system it touched |`,
+    `| stage  | ${STAGES.join(", ")} | where in the workflow it landed |`,
+    `| change | ${CHANGES.join(", ")} | what kind of change was under review |`,
+    `| risk   | ${RISKS.join(", ")} | how risky the change looked going in |`,
+    "",
+    ...ruleLines("wise"),
+    "- every field is optional; the response always echoes back which ones were recorded as `wise: {recorded: [...]}`, or `{recorded: none}`."
+  ].join("\n");
+}
+function reuse() {
+  return [
+    "## reuse",
+    "The exact same question, asked of the exact same code, is answered for free from the ledger \u2014 no call, no",
+    "spend, and the response says so. This is exact-match reuse: same evidence, same question text, same",
+    "provider and model; nothing here is a semantic or fuzzy match.",
+    "- `view <request-file>` checks this before you spend anything: it shows `reuse: SW-####` when the exact",
+    "  question set was already asked on unchanged code.",
+    "- a sweep (scan, loop, drill on a sweep parent) reuses per item: unchanged items cost nothing, and the",
+    "  response counts how many were reused.",
+    "- a fully-reused run should never be blocked by the spend cap, since it spends nothing \u2014 if you see that,",
+    "  it's a bug, not a feature.",
+    "- reuse keys on the evidence and the question's own text, not on how the answer is graded: moving a",
+    "  category's `pass:` or `need:` re-grades the same free answer instead of re-asking the question."
+  ].join("\n");
+}
+var BUILDERS = { authoring, verdict, wise, reuse };
+function topicHelp(topic) {
+  return BUILDERS[topic]();
+}
+
+// src/help/verbs.ts
+var EXAMPLES = {
+  view: "sidewise view src/handlers          # what does the ledger already know about this folder?\nsidewise view SW-0042               # this run's own lineage, up and down",
+  class: [
+    "side:",
+    "  goal: This login handler is safe to merge   # phrase as the exact claim to prove",
+    "  depth: quick                                # => exactly 10 yes/no below",
+    "  where: [src/user.ts:1-3]                     # include the wiring, not just the handler",
+    "  ask:",
+    "    injection: {pass: no, 1: Is request text put into a query unvalidated?, ...}",
+    "wise: {why: validate, area: auth}"
+  ].join("\n"),
+  change: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}",
+  scan: [
+    "side:",
+    "  goal: Handlers don't trust request input",
+    "  depth: quick",
+    "  over: {file: src/handlers/*.ts, function: each}     # scan by file when the file itself is the unit",
+    "  ask:",
+    "    function:",
+    "      injection: {pass: no, 1: Does {function} put request text straight into a query?}"
+  ].join("\n"),
+  drill: "sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser   # follow next:, don't hand-author the ids",
+  loop: [
+    "side:",
+    "  goal: The checkout redesign is sound",
+    "  depth: quick",
+    "  over:",
+    "    part:                              # part and story are SIBLINGS, both under over:",
+    "      - name: gateway",
+    "        story: [guest checkout, saved cards]",
+    "  ask:",
+    "    story:",
+    '      done: {pass: yes, 1: Is "{story}" testable against {part} as written?}   # asked of EVERY story'
+  ].join("\n")
+};
+var SHARP = {
+  view: ['a code file (not a request) is a place, not a request \u2014 view <folder>, ".", a tag, or SW-#### all work'],
+  class: ["goal wording changes the verdict (that's a feature, not a bug) \u2014 phrase it as the claim you need proven"],
+  change: [
+    'the files must be committed at the ref you name (or use "worktree" for the working tree) \u2014 change runs git in the repo that actually holds them',
+    "change replays the parent's own questions; it never takes ask: (use class for new questions)"
+  ],
+  scan: ["add a scale question to a layer to rank findings by severity, worst first, instead of an unordered map", "scan by file when the file itself is the unit that matters, not a function inside it"],
+  drill: ["follow the `next:` line rather than hand-authoring parent/from \u2014 it already names the id and the category or item"],
+  loop: [
+    "a sub-layer (like story under part) is a SIBLING key under over:, never nested inside its parent item",
+    'a story/part name is one word or kebab-case, at most 20 characters, and never contains "/"',
+    "every question under a layer is asked of every item at that layer \u2014 phrase it so that holds for all of them"
+  ]
+};
+var PURPOSE = {
+  view: "Side x Know: what do we already know here? Free \u2014 it reads the ledger and never calls out.",
+  class: "Side x Judge: does the evidence support this one goal? One call, one subject.",
+  change: "Side x Prove: did the change work? It replays a parent run's questions on two states.",
+  scan: "Wise x Know: where in this code should we look? A sweep across code, read by us.",
+  drill: "Wise x Judge: why did this one thing fail? It goes down from one item in a parent run.",
+  loop: "Wise x Prove: does this idea hold up? A sweep across layers of ideas the agent writes."
+};
+var WHEN = {
+  view: "before any paid call, when entering unfamiliar code, or to find proven questions.",
+  class: "a decision on one subject: merge, choose, triage, check a fix.",
+  change: "after a fix, a refactor, a dependency bump, or to compare fix A with fix B.",
+  scan: "a new codebase, a release check, a PR's changed files, or a vague bug with no location yet.",
+  drill: "after a fail or unsure from class, scan, loop or change.",
+  loop: "a design, a plan or a feature request before any code exists."
+};
+function verbHelp(verb) {
+  return [
+    `## ${verb}`,
+    PURPOSE[verb],
+    `When: ${WHEN[verb]}`,
+    "",
+    "Example:",
+    EXAMPLES[verb],
+    "",
+    "Sharp rules:",
+    ...SHARP[verb].map((s) => `- ${s}.`),
+    ...ruleLines(verb)
+  ].join("\n");
+}
+
+// src/help/index.ts
+var HELP_TOPICS = TOPICS;
+var isVerb = (s) => VERBS.includes(s);
+var isTopic = (s) => TOPICS.includes(s);
+function runHelp(target) {
+  if (target === void 0 || target === "") return { exit: 0, text: card() };
+  if (hasControlChars(target)) return { exit: 2, text: "\u2716 help: the target has control characters \u2192 use a verb or a topic name" };
+  if (isVerb(target)) return { exit: 0, text: verbHelp(target) };
+  if (isTopic(target)) return { exit: 0, text: topicHelp(target) };
+  return {
+    exit: 2,
+    text: `\u2716 help: "${clip(target, 40)}" is not a verb or topic \u2192 one of ${VERBS.join(", ")}, or a topic: ${TOPICS.join(", ")}`
+  };
+}
+
+// src/mcp/actor.ts
+import { spawnSync as spawnSync2 } from "node:child_process";
+function resolveMcpActor(cwd, spawn = spawnSync2) {
+  const result = spawn("git", ["config", "user.name"], { cwd, encoding: "utf8" });
+  const name = result.status === 0 && typeof result.stdout === "string" ? result.stdout.trim() : "";
+  return name || "claude";
 }
 
 // src/cli.ts
 var PACKAGE_DIR = path18.join(path18.dirname(fileURLToPath2(import.meta.url)), "..");
 var LINES3 = {
-  view: "sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3]",
+  view: "sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]",
   class: "sidewise class <request-file | -> [--dry-run]",
   change: "sidewise change <request-file | -> [--dry-run]  \xB7  or: sidewise change --parent SW-#### --compare <before>..<after> [--dry-run]",
   scan: "sidewise scan <request-file | -> [--dry-run]",
   drill: "sidewise drill <request-file | -> [--dry-run]",
   loop: "sidewise loop <request-file | -> [--dry-run]",
-  template: "sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]",
+  template: "sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  \xB7  or: --from <request.yaml> [--where <path>]... [--goal <text>]",
+  help: `sidewise help [${VERBS.join("|")}|${HELP_TOPICS.join("|")}]`,
   outcome: "sidewise outcome <SW-####> held|overruled|failed --by <actor>",
   budget: "sidewise budget [show | reset | set --usd <n> --runs <n>]",
   doctor: "sidewise doctor",
@@ -12636,22 +13073,33 @@ async function dispatch(argv, ctx) {
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith("-") && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, help, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
   if (command !== "doctor" && command !== "mcp") {
     const nodeStop = nodeVersionStop(ctx.nodeVersion);
     if (nodeStop) return finish(2, nodeStop);
   }
   if (command === "template") {
-    const twice = givenTwice(rest, ["parent", "from"]);
+    const twice = givenTwice(rest, ["parent", "from", "goal"]);
     if (twice) return finish(2, twice);
     const { values, positionals } = args("template", {
       args: rest,
       allowPositionals: true,
-      options: { parent: { type: "string" }, from: { type: "string" } }
+      options: { parent: { type: "string" }, from: { type: "string" }, where: { type: "string", multiple: true }, goal: { type: "string" } }
     });
     positionalCount("template", positionals, 1, 1);
-    const r = runTemplate(positionals[0], { parent: values.parent, from: values.from }, resolvePaths(ctx.cwd, ctx.env), ctx.packageDir);
+    const r = runTemplate(
+      positionals[0],
+      { parent: values.parent, from: values.from, where: values.where, goal: values.goal },
+      resolvePaths(ctx.cwd, ctx.env),
+      ctx.packageDir
+    );
+    return finish(r.exit, r.text);
+  }
+  if (command === "help") {
+    const { positionals } = args("help", { args: rest, allowPositionals: true, options: {} });
+    positionalCount("help", positionals, 0, 1);
+    const r = runHelp(positionals[0]);
     return finish(r.exit, r.text);
   }
   if (command === "doctor") {
@@ -12669,10 +13117,13 @@ async function dispatch(argv, ctx) {
     positionalCount("mcp", positionals, 0, 0);
     await runMcpServer(
       ctx.io,
-      (a, stdinText) => {
+      (a, stdinText, project) => {
         const nodeStop = nodeVersionStop(ctx.nodeVersion);
         if (nodeStop) return Promise.resolve(finish(2, nodeStop));
-        return dispatch(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? "", "utf8") });
+        const env = { ...ctx.env };
+        if (project) env.SIDEWISE_HOME = project;
+        if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor(project ?? ctx.cwd);
+        return runCli(a, { ...ctx, env, stdin: () => Buffer.from(stdinText ?? "", "utf8") });
       },
       ctx.pkg.version
     );
@@ -12755,20 +13206,24 @@ async function dispatch(argv, ctx) {
     case "view": {
       const twice = givenTwice(rest, ["level"]);
       if (twice) return finish(2, twice);
-      const { values, positionals } = args("view", { args: rest, allowPositionals: true, options: { level: { type: "string", default: "1" } } });
+      const { values, positionals } = args("view", {
+        args: rest,
+        allowPositionals: true,
+        options: { level: { type: "string", default: "1" }, summary: { type: "boolean", default: false } }
+      });
       positionalCount("view", positionals, 1, 1);
       if (!["1", "2", "3"].includes(values.level)) return finish(2, `\u2716 --level: "${clip(values.level, 20)}" is not a level \u2192 use --level 1, 2 or 3`);
       const arg = positionals[0];
-      let input = arg;
+      let content;
       if (arg === "-") {
-        input = ctx.stdin().toString("utf8");
+        content = ctx.stdin().toString("utf8");
       } else {
         try {
-          if (statSync8(arg).isFile()) input = readFileSync14(arg, "utf8");
+          if (statSync8(arg).isFile()) content = readFileSync14(arg, "utf8");
         } catch {
         }
       }
-      const r = runView(input, Number(values.level), { paths, env: ctx.env });
+      const r = runView(arg, Number(values.level), { paths, env: ctx.env }, content, values.summary);
       return finish(r.exit, r.text);
     }
     case "class":

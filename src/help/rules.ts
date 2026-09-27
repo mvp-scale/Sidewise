@@ -9,7 +9,7 @@ import { AREAS, CHANGES, DEPTH_COUNT, MAX_EXTRAS, RISKS, STAGES, WHYS } from '..
 /** Oxford-ish "a, b or c" — matches schema-check.ts's own `list()` wording in stop text. */
 const list = (xs: readonly string[]): string => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}` : xs[0]!);
 
-export interface Rule {
+interface Rule {
   readonly text: string;
   /** Which `help` output(s) must contain this text verbatim: 'card', a verb name, or a topic name. */
   readonly in: readonly string[];

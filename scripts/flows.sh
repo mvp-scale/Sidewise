@@ -289,24 +289,35 @@ need_has "10-outcome" "repeat is a no-op" "already recorded"
 pass "10-outcome" "repeating the same outcome is a no-op"
 flow_done "10-outcome"
 
-# ---- 11. budget: set tiny -> next paid verb exits 3 -> reset -> paid verb works again -----------------------
+# ---- 11. budget: set tiny -> a reused run ignores it -> next PAID verb exits 3 -> reset -> paid verb works again
 flow_start
 RUNS_NOW=$(node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of [0-9]+ runs.*/\1/')
 run budget set --usd 0.01 --runs "$RUNS_NOW"
 need_exit "11-budget" "budget set --usd 0.01 --runs $RUNS_NOW" 0
 pass "11-budget" "cap set at the current run count ($RUNS_NOW)"
 
+# fix #5a: the exact same request as 03-class/04-reuse asks nothing new (every answer is already on the
+# ledger), so it must succeed even though the run cap is already at its limit — a fully-reused run is free,
+# and the cap only ever gates an actual call.
 run class req-class.yaml
+need_exit "11-budget" "a fully-reused run ignores the cap" 0
+need_has "11-budget" "a fully-reused run ignores the cap" "reused:"
+pass "11-budget" "a fully-reused run is never blocked by the cap"
+
+# A distinct goal (not asked before): a genuinely fresh, paid call, which the cap DOES block.
+sed 's/This login handler is safe to merge/This login handler is safe to merge (budget check)/' req-class.yaml > req-class-budget.yaml
+run class req-class-budget.yaml
 need_exit "11-budget" "next paid verb over cap" 3
-need_has "11-budget" "next paid verb over cap" "sidewise budget reset"
-pass "11-budget" "the next paid verb is blocked with the reset hint (exit 3)"
+# fix #5c: only the run cap tripped here (spend is still $0.00 of the $0.01 cap) — the hint says "set --runs",
+# not "reset" (which fits when the dollar cap is the one involved).
+need_has "11-budget" "next paid verb over cap" "sidewise budget set --runs"
+pass "11-budget" "the next paid verb is blocked with the right hint (exit 3)"
 
 run budget reset
 need_exit "11-budget" "budget reset" 0
 pass "11-budget" "budget reset"
 
-# A distinct goal (not asked before): a genuinely fresh, paid call, to prove spend resumes after reset.
-sed 's/This login handler is safe to merge/This login handler is safe to merge (budget check)/' req-class.yaml > req-class-budget.yaml
+# The same fresh goal, now askable for real (the blocked attempt above was never logged) — proves spend resumes.
 run class req-class-budget.yaml
 need_exit "11-budget" "paid verb works again" 0
 RUNS_AFTER_RESET=$(node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of [0-9]+ runs.*/\1/')
