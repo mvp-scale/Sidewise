@@ -1,5 +1,5 @@
 /**
- * Stale notes (lessons-2026-09-27.md §4.1): "same question, code changed at that place" today re-asks blind;
+ * Stale notes: "same question, code changed at that place" today re-asks blind;
  * this says so instead. `class.ts` already knows, per question about to be asked fresh, the key its CURRENT
  * evidence hashes to (`toAsk`) — no new file read needed here. This just asks the ledger: did an older run at
  * an overlapping place answer the exact same question text under a DIFFERENT key? If so, the evidence changed

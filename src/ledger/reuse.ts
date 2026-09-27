@@ -3,8 +3,8 @@
  * provider and model, comes back from the ledger with no call. Keys are answerKey hashes (contract/translate.ts).
  * A run whose latest outcome is overruled or failed is never reused, nor is an answer that came from one.
  *
- * Task 29 (revised): reads the id index (ledger/index.ts — SQLite, self-healing, or its in-memory linear
- * fallback) instead of a linear readLedger scan.
+ * Reads the id index (ledger/index.ts — SQLite, self-healing, or its in-memory linear fallback) instead of a
+ * linear readLedger scan.
  *
  * lookupAnswers has an O(1) fast path per requested key through `IndexHandle.reuseKeyHit`: the *origin* run that
  * currently holds the newest answer for that key (the index's answer_keys table, self-compacting — one row per
@@ -16,7 +16,7 @@
  * on a mismatch reads the wrong slot, or none. Instead it re-reads the origin's own record and finds the
  * origin's own qid for the key locally (a 1-3 entry scan of its own `keys`), then reads the origin's own
  * `answers` at that qid — the same value a reusing run would have copied from it verbatim, so this is exactly
- * the answer Task 11's linear scan would have found from that origin's own, independent appearance in the
+ * the answer a plain linear scan would have found from that origin's own, independent appearance in the
  * ledger (see the exactReuse comment below for why this same trick does not carry over to it).
  *
  * exactReuse, and any key lookupAnswers' fast path can't safely resolve, walk `handle.candidates(adapter,
@@ -24,22 +24,22 @@
  * query — reading each candidate with one `readRecordAt(paths.log, offset)` against the SAME handle the caller
  * already opened once at the top of the call (never `findRun`, which opens the index itself — doing that per
  * candidate inside a scan would reopen/re-check the index once per candidate instead of once per call). This is
- * exactly Task 11's original newest-to-oldest walk over the whole ledger, just scoped to the matching provider
- * and backed by offsets instead of an in-memory array — including reading the answer from the CANDIDATE run's
- * own `answers[qid]`, for the same reason the fast path above re-derives the qid rather than trusting a stored
- * one. The reuse index's single "current holder" row per key has a second gap beyond the qid mismatch: it's
- * overwritten unconditionally on every apply, so if the newest run to touch a key is later overruled, it has no
- * memory of the older, still-valid run that held the same key before it — exactly the case Task 11's scan
- * handles correctly (skip the blocked run, let the earlier one's answer stand). Walking candidates newest-first
- * and skipping blocked ones reproduces that fallback exactly.
+ * a newest-to-oldest walk over the whole ledger, scoped to the matching provider and backed by offsets instead
+ * of an in-memory array — including reading the answer from the CANDIDATE run's own `answers[qid]`, for the
+ * same reason the fast path above re-derives the qid rather than trusting a stored one. The reuse index's
+ * single "current holder" row per key has a second gap beyond the qid mismatch: it's overwritten
+ * unconditionally on every apply, so if the newest run to touch a key is later overruled, it has no memory of
+ * the older, still-valid run that held the same key before it — exactly the case a plain linear scan handles
+ * correctly (skip the blocked run, let the earlier one's answer stand). Walking candidates newest-first and
+ * skipping blocked ones reproduces that behavior exactly.
  *
  * exactReuse can't use the same O(1) shortcut lookupAnswers does: it must return the id of the *matching run
- * itself* (Task 11: `return r.id`, the candidate being examined — not its reuse origin), but the reuse index
- * only remembers a key's origin, discarding the identity of whichever run most recently touched it if that run
- * itself was a reuse (its own id is never stored anywhere once overwritten). Answering from it here would
- * silently return the wrong run whenever the latest toucher reused rather than asked fresh — worse, one that
- * would go undetected by this task's own test data, since the synthetic generator never populates `reusedFrom`
- * at all (every generated run is its own origin), so a real ledger with actual reuse chains is exactly where
+ * itself* (the candidate being examined — not its reuse origin), but the reuse index only remembers a key's
+ * origin, discarding the identity of whichever run most recently touched it if that run itself was a reuse
+ * (its own id is never stored anywhere once overwritten). Answering from it here would silently return the
+ * wrong run whenever the latest toucher reused rather than asked fresh — worse, one that would go undetected
+ * by the synthetic test generator, since it never populates `reusedFrom` at all (every generated run is its
+ * own origin), so a real ledger with actual reuse chains is exactly where
  * the bug would first surface. Kept as the full scan; see docs/evidence/ledger-scale.md for the measured cost
  * and why it wasn't chased further.
  */

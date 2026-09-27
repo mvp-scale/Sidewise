@@ -92,7 +92,7 @@ export function usedFraction(s: BudgetState): number {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
 }
 
-/** fix #5c: when only the RUN cap tripped (the dollar cap has room left), raising it fits better than resetting
+/** When only the RUN cap tripped (the dollar cap has room left), raising it fits better than resetting
  *  the spend already counted — "reset" stays the hint whenever the dollar cap is involved (alone, or with runs). */
 export function checkBudget(s: BudgetState): { ok: true } | { ok: false; message: string } {
   const runsCapped = s.runs >= s.capRuns;

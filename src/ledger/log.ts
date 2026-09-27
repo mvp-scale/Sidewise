@@ -114,9 +114,9 @@ export interface ContractRun {
   costUsd: number | null;
   /** HTTP calls made (0 when every answer was reused). */
   calls: number;
-  /** P2: the route (direct/gateway/custom, or fake/chaos) and base URL a run used, never the key. Optional so a
-   *  record from before P2 (no `route`/`baseURL` at all) still reads: isRecord below doesn't require them, and
-   *  every reader must treat a missing value the same as these fields never having been asked about. */
+  /** The route (direct/gateway/custom, or fake/chaos) and base URL a run used, never the key. Optional so an
+   *  older record (no `route`/`baseURL` at all) still reads: isRecord below doesn't require them, and every
+   *  reader must treat a missing value the same as these fields never having been asked about. */
   route?: string | null;
   baseURL?: string | null;
 }
@@ -421,16 +421,14 @@ export function appendRun(paths: SidewisePaths, run: NewRun, now: number = Date.
  * Appends an outcome for a logged run. The run's latest outcome again, by the same actor, is not appended (an
  * agent retrying is a no-op): `repeat` is true and `record` is the one already there. Another actor's is appended.
  * "Does the run exist, and what's its actor" is an id lookup, so it uses the index (findRun) instead of a full
- * scan; "what was the latest outcome already recorded for it" now goes through the index's own outcomes table
- * (latestOutcomeOf — outcome, uid, ts and by, self-compacting to the newest one per run id) instead of a full
- * readLedger scan, which used to cost the whole ledger's worth of parsing just to answer a single id's question.
- * This whole function already holds paths.lock, so the withIndex calls below self-heal under that SAME lock
+ * scan; "what was the latest outcome already recorded for it" goes through the index's own outcomes table
+ * (latestOutcomeOf — outcome, uid, ts and by, self-compacting to the newest one per run id) rather than a full
+ * readLedger scan. This whole function already holds paths.lock, so the withIndex calls below self-heal under that SAME lock
  * (withLockIfNeeded sees it's already ours) rather than taking a second one. Also validates the tail (same
  * discipline as checkLedger/appendFailedLocked, via checkTail): findRun's own read tolerates an in-progress
  * append (it only needs `of`'s own line, found well before any corrupt/truncated tail); an outcome append is
  * itself a write, so — like every other write path — it must refuse on a bad or in-progress tail rather than
- * append past it. Previously this fell out incidentally of a full, non-partialTail readLedger scan; now that
- * the "latest outcome" lookup goes through the index instead (see below), the tail check is explicit.
+ * append past it.
  */
 export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome, by: string, now: number = Date.now()): { record: OutcomeRecord; repeat: boolean } {
   return withLock(paths.lock, () => {

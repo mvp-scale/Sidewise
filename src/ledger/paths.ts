@@ -19,8 +19,8 @@ export function pathsFor(root: string): SidewisePaths {
 }
 
 /**
- * Creates .sidewise/ (if missing) and, the play-test finding (I6): a self-ignoring `.sidewise/.gitignore`
- * holding `*`, so nothing inside is committed by default even when a user never ran `sidewise init` and
+ * Creates .sidewise/ (if missing) and a self-ignoring `.sidewise/.gitignore` holding `*`, so nothing inside
+ * is committed by default even when a user never ran `sidewise init` and
  * `.sidewise/` is only ever created lazily, by the first ledger/budget/index write. Called from every one of
  * those write paths (log.ts, budget.ts, ledger/index.ts) and from init's own explicit "create the project"
  * step, so first-run users are covered either way. Idempotent and cheap: skips the write once the file exists.

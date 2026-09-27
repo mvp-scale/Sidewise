@@ -2,10 +2,8 @@
  * The id index: .sidewise/index.db, a disposable SQLite sidecar (node:sqlite, lazy dynamic import) speeding up
  * every read log.ts/reuse.ts/view.ts do against log.jsonl. The log stays the source of truth (AGENTS.md): this
  * file never rewrites log.jsonl, and a missing/corrupt/stale index just costs the next call a rebuild — never a
- * wrong answer. Task 29 (revised): replaces the JSON sidecar (index.json) built in ff5f3e8 with this module,
- * Evidence for the design lives in this repo's own dated research notes (kept out of the public tree).
- * Fix round 1 (a profiling review) narrowed the index strategy itself back out of scope for now — this file's
- * schema and on-disk layout are not being tuned further here; see docs/evidence/ledger-scale.md's own note.
+ * wrong answer. This file's schema and on-disk layout are not being tuned further for now; see
+ * docs/evidence/ledger-scale.md's own note.
  *
  * Two engines behind one `withIndex` entry point, both fed by ONE line-interpretation (`applyLine`/`Sink`), so
  * they can never disagree about what a line means — only about where the answer is stored:
@@ -33,7 +31,7 @@
  *     (answers, response, items) is copied here. `parent` (indexed) is the run's own `parent` field verbatim
  *     (NULL for none) — view's lineage walk goes up by id (an ordinary findOffset lookup on the parent id
  *     already read off the child's own record) and down via `WHERE parent = ?` on this column. `pattern`
- *     (Phase B, `patternFingerprint` below) is a short hash of the run's own question set (categories/layers,
+ *     (`patternFingerprint` below) is a short hash of the run's own question set (categories/layers,
  *     names+pass+need+question text, evidence-independent) — NULL for a Plan 1 run or one with no `ask` at all
  *     — so `sidewise report patterns` can `GROUP BY` it without re-reading every record's own body.
  *   answer_keys(adapter, model, key PK, run_id, qid): the newest holder's *origin* (resolved through
@@ -57,7 +55,7 @@ const whoKey = (who: { adapter: string; model: string }): string => `${who.adapt
  *  string is. */
 export const stripLines = (entry: string): string => entry.replace(/:(\d+(?:-\d+)?)$/u, '');
 
-/** Fix #2: a sweep run's own `where` is always `[]` (scan.ts/loop.ts/drill.ts) — its real code locations live in
+/** A sweep run's own `where` is always `[]` (scan.ts/loop.ts/drill.ts) — its real code locations live in
  *  `items[id].unit.path`, and its category names for `view <tag>` live in `ask.layers[].categories[].tags`. Both
  *  sinks call this so they can never disagree about what a sweep run's places are. Deduped: a sweep can visit the
  *  same file (or tag) many times over. Shared with view.ts's whereMatches/tagsMatch, which re-verify every
@@ -80,7 +78,7 @@ export function sweepPlaces(rec: ContractRun): { kind: 'where' | 'tag'; val: str
 
 /** One category's question-set shape, evidence-independent (name/pass/need/question text+kind+levels/options) —
  *  the unit `patternFingerprint` hashes. Two categories with the same name/pass/need/questions fingerprint the
- *  same regardless of where or when they were asked, which is exactly "the same question set" Phase B's
+ *  same regardless of where or when they were asked, which is exactly "the same question set" the
  *  `patterns` view groups by. */
 function categoryShape(c: Category): unknown {
   return {
@@ -93,7 +91,7 @@ function categoryShape(c: Category): unknown {
   };
 }
 
-/** Phase B (`sidewise report patterns`): a short hash of a contract run's own question set — its categories
+/** For `sidewise report patterns`: a short hash of a contract run's own question set — its categories
  *  (one subject) or its layers of categories (a sweep), sorted by name so the SAME set fingerprints identically
  *  regardless of authoring order. NULL for a Plan 1 run, or a contract run with no `ask` at all (shouldn't occur
  *  in practice, but never crash over it). Deliberately excludes the evidence: two runs asking the identical
@@ -162,17 +160,17 @@ export interface IndexHandle {
    *  none yet — appendOutcome's own "is this exactly the same outcome, by the same actor, already there?"
    *  no-op check, without a full ledger scan. */
   latestOutcomeOf(id: string): { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string } | undefined;
-  /** Phase B (`sidewise report`): every distinct place (a `where` path or a sweep tag) ever recorded — report's
+  /** For `sidewise report`: every distinct place (a `where` path or a sweep tag) ever recorded — report's
    *  own enumeration of "everywhere there's something to say," unlike placeCandidates, which narrows FROM one
    *  already-known place. */
   distinctPlaces(): { kind: 'where' | 'tag'; val: string }[];
-  /** Phase B (`sidewise report patterns`): every question-set fingerprint (patternFingerprint) that's ever been
+  /** For `sidewise report patterns`: every question-set fingerprint (patternFingerprint) that's ever been
    *  run, with its run/pass/fail/unsure/place/outcome counts. Runs with no fingerprint (a Plan 1 run, or a
    *  contract run with no `ask`) are excluded — there's nothing to group them by. */
   patternCounts(): PatternRow[];
-  /** Phase B (`sidewise report history`): every `change`-verb run, newest first, capped at `limit`. */
+  /** For `sidewise report history`: every `change`-verb run, newest first, capped at `limit`. */
   recentChanges(limit: number): Candidate[];
-  /** Phase B (`sidewise report history`): every recorded outcome, newest first, capped at `limit`. */
+  /** For `sidewise report history`: every recorded outcome, newest first, capped at `limit`. */
   recentOutcomes(limit: number): { runId: string; outcome: OutcomeRecord['outcome']; ts: string; by: string }[];
 }
 
@@ -340,8 +338,8 @@ interface MemoryState {
   places: { kind: 'where' | 'tag'; val: string; runId: string }[];
   childrenByParent: Map<string, Candidate[]>;
   outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
-  /** Every run, oldest first, regardless of adapter/model — Phase B's `recentChanges`/`patternCounts` need a
-   *  global view `candidatesByWho` (scoped per adapter+model) can't give them. */
+  /** Every run, oldest first, regardless of adapter/model — `recentChanges`/`patternCounts` need a global view
+   *  `candidatesByWho` (scoped per adapter+model) can't give them. */
   allRuns: { id: string; offset: number; verb: Verb; gate: Gate | null; pattern: string | null }[];
   runCount: number;
   upto: number;
@@ -519,11 +517,11 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // SQLite engine.
 // ---------------------------------------------------------------------------------------------------------------
 
-// Bumped to 4 (from 3) here: runs gained a `pattern` column (+ its own index, and one on `verb`) for Phase B's
+// Bumped to 4 (from 3) here: runs gained a `pattern` column (+ its own index, and one on `verb`) for
 // `sidewise report patterns`/`history` (patternCounts/recentChanges) — see patternFingerprint's own comment.
 // Bumped to 3 (from 2) here: runs gained a `parent` column (+ its own index) so view's "down" lineage walk
-// (WHERE parent = ?) no longer needs a full-ledger scan. Bumped to 2 (from 1) in fix round 1: outcomes gained a
-// `uid` column (appendOutcome's own no-op "repeat" check now reads the index instead of a full readLedger — it
+// (WHERE parent = ?) no longer needs a full-ledger scan. Bumped to 2 (from 1): outcomes gained a `uid` column
+// (appendOutcome's own no-op "repeat" check now reads the index instead of a full readLedger — it
 // needs the original outcome record's uid back). A stale on-disk index built under an older version self-heals
 // via the existing schema-version-mismatch rebuild trigger — no migration needed, just a rebuild, which is
 // exactly what self-healing is for.
