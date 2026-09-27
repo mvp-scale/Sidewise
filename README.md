@@ -78,7 +78,7 @@ side:
   consensus: STRONG
   escalate: false
 wise: {recorded: [why, area]}
-next: sidewise drill --parent SW-0042 --category injection
+next: sidewise template drill --parent SW-0042 --from injection
 notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
 ```
 
