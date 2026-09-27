@@ -5,7 +5,7 @@
  * accepts). Rules the schema can't express live in validate.ts.
  */
 import { clip } from '../util/text.ts';
-import { AREAS, DEPTHS, VERBS, WHYS, type Stop } from './types.ts';
+import { AREAS, CHANGES, DEPTHS, RISKS, STAGES, VERBS, WHYS, type Stop } from './types.ts';
 
 const TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
 const RUN_ID = /^SW-\d{4,}$/u;
@@ -168,11 +168,16 @@ function checkSide(side: unknown, out: Out): void {
   if ('over' in side) checkOverShape(side.over, out);
 }
 
+const WISE_KEYS = ['why', 'area', 'stage', 'change', 'risk', 'parent'];
+
 function checkWise(wise: unknown, out: Out): void {
   if (!isObj(wise)) return out.add('wise', 'is not a mapping', 'write why:, area: or parent: under wise:, or leave wise out');
-  for (const k of Object.keys(wise)) if (!['why', 'area', 'parent'].includes(k)) out.add(`wise.${clip(k, 20)}`, 'not a field', 'use why, area or parent');
+  for (const k of Object.keys(wise)) if (!WISE_KEYS.includes(k)) out.add(`wise.${clip(k, 20)}`, 'not a field', `use ${list(WISE_KEYS)}`);
   if ('why' in wise && !(WHYS as readonly unknown[]).includes(wise.why)) out.add('wise.why', show(wise.why), `use ${list(WHYS)}`);
   if ('area' in wise && !(AREAS as readonly unknown[]).includes(wise.area)) out.add('wise.area', show(wise.area), `use ${list(AREAS)}`);
+  if ('stage' in wise && !(STAGES as readonly unknown[]).includes(wise.stage)) out.add('wise.stage', show(wise.stage), `use ${list(STAGES)}`);
+  if ('change' in wise && !(CHANGES as readonly unknown[]).includes(wise.change)) out.add('wise.change', show(wise.change), `use ${list(CHANGES)}`);
+  if ('risk' in wise && !(RISKS as readonly unknown[]).includes(wise.risk)) out.add('wise.risk', show(wise.risk), `use ${list(RISKS)}`);
   if ('parent' in wise && !(typeof wise.parent === 'string' && RUN_ID.test(wise.parent))) out.add('wise.parent', `${show(wise.parent)} is not a run id`, 'use SW-####');
 }
 

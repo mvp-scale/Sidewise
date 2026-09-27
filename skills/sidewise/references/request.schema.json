@@ -300,6 +300,32 @@
             "tests"
           ]
         },
+        "stage": {
+          "enum": [
+            "design",
+            "build",
+            "review",
+            "pre-merge",
+            "post-fix",
+            "release"
+          ]
+        },
+        "change": {
+          "enum": [
+            "feature",
+            "fix",
+            "refactor",
+            "dependency",
+            "config"
+          ]
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
         "parent": {
           "$ref": "#/$defs/runId"
         }

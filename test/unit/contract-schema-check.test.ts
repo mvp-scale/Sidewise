@@ -110,13 +110,28 @@ describe('checkSchema', () => {
     expect(texts(r)).toEqual(['✖ side.over.part: 0 items → give 1–30 items']);
   });
 
-  it('wise: only why, area, parent [C-016] [C-017]', () => {
+  it('wise: only why, area, stage, change, risk, parent [C-016] [C-017]', () => {
     const r = base();
     r.wise = { why: 'explore', area: 'backend', mood: 'x' };
     expect(texts(r)).toEqual([
-      '✖ wise.mood: not a field → use why, area or parent',
+      '✖ wise.mood: not a field → use why, area, stage, change, risk or parent',
       '✖ wise.why: "explore" → use validate, find or debug',
       '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests',
+    ]);
+  });
+
+  // [C-108] wise.stage is one of design, build, review, pre-merge, post-fix, release
+  // [C-109] wise.change is one of feature, fix, refactor, dependency, config
+  // [C-110] wise.risk is one of low, medium, high
+  it('wise: stage, change and risk are optional and closed [C-108] [C-109] [C-110]', () => {
+    const r = base();
+    r.wise = { stage: 'pre-merge', change: 'fix', risk: 'high' };
+    expect(texts(r)).toEqual([]);
+    r.wise = { stage: 'staging', change: 'rewrite', risk: 'severe' };
+    expect(texts(r)).toEqual([
+      '✖ wise.stage: "staging" → use design, build, review, pre-merge, post-fix or release',
+      '✖ wise.change: "rewrite" → use feature, fix, refactor, dependency or config',
+      '✖ wise.risk: "severe" → use low, medium or high',
     ]);
   });
 });
