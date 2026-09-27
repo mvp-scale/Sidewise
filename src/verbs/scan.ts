@@ -20,8 +20,13 @@ import type { VerbContext, VerbResult } from './types.ts';
 
 // A scan only ever looks at what over: names — nothing says so if that misses the file most likely
 // to matter. A short, fixed list (never grown per-project, never a stop): a real entrypoint or config file
-// outside every over: pattern is worth a note, not silence.
-const ENTRYPOINT_GLOBS = ['server.js', 'app.js', 'index.js', 'main.js', 'config/**', '.env*'];
+// outside every over: pattern is worth a note, not silence. Never .env* — naming it here would invite sending
+// secrets to the classifier via over: (AGENTS.md: secrets never in the project, config, ledger or output).
+const ENTRYPOINT_GLOBS = ['server.js', 'app.js', 'index.js', 'main.js', 'config/**'];
+
+// The note names at most this many missed paths, then says how many more — a config/** glob can match dozens
+// of files, and spelling out every one works against "help first, be concise." [C-168]
+const MISSED_SHOWN = 3;
 
 /** Entrypoint/config files that exist in the project but were never one of this scan's own items (at any
  *  layer — unit.path is the same original file path all the way down file -> function -> call). undefined
@@ -30,7 +35,9 @@ function unlookedEntrypoints(root: string, items: readonly { unit?: { path: stri
   const touched = new Set(items.flatMap((i) => (i.unit ? [i.unit.path] : [])));
   const missed = [...new Set(ENTRYPOINT_GLOBS.flatMap((pattern) => expandGlob(root, pattern).files))].filter((f) => !touched.has(f));
   if (!missed.length) return undefined;
-  return `entrypoints/config outside over: ${missed.join(', ')} — add them to over: file if they matter here`;
+  const shown = missed.slice(0, MISSED_SHOWN);
+  const named = missed.length > shown.length ? `${shown.join(', ')}, … ${missed.length - shown.length} more` : shown.join(', ');
+  return `entrypoints/config outside over: ${named} — add them to over: file if they matter here`;
 }
 
 export async function runScan(text: string, ctx: VerbContext): Promise<VerbResult> {

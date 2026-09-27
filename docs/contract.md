@@ -472,8 +472,11 @@ ahead of the existing fail/unsure category counts and written order — a "high"
 longer outranks a "critical" one just by category-fail count. Unchanged for a sweep with no scale question,
 and for `loop`. [C-145]
 A scan adds a note (never a stop) naming any common entrypoint or config file (`server.js`, `app.js`,
-`index.js`, `main.js`, `config/**`, `.env*`) that exists in the project but sits outside every `over:`
-pattern — a scan only ever reads what `over:` names. [C-146]
+`index.js`, `main.js`, `config/**` — never `.env*`, which would invite sending secrets to the classifier)
+that exists in the project but sits outside every `over:` pattern — a scan only ever reads what `over:`
+names. [C-146]
+The note names at most 3 missed paths, then `… N more` — a `config/**` glob can match many files, and
+listing every one buries the point. [C-168]
 A fully-reused scan is never blocked by an already-reached budget cap (see the dry-run/reuse rules above). [C-150]
 
 ---

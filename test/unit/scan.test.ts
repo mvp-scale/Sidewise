@@ -52,6 +52,32 @@ describe('scan', () => {
     expect(r.text).not.toContain('entrypoints/config outside over:');
   });
 
+  // R2: .env* must never appear in the note — naming it would invite sending secrets to the classifier via
+  // over:. [C-146]
+  it('never names a .env file in the entrypoint note, even when it sits outside every over: pattern', async () => {
+    const { paths } = tempProject({ ...FILES, '.env': 'SECRET=1\n', '.env.local': 'SECRET=2\n', 'app.js': 'require("express")();\n' });
+    const provider = stubProvider({ yes: () => 0.1 });
+    const r = await runScan(REQUEST, { paths, provider, env }); // over: file: src/*.ts never reaches .env or app.js
+    expect(r.text).toContain('entrypoints/config outside over:');
+    expect(r.text).toContain('app.js');
+    expect(r.text).not.toContain('.env');
+  });
+
+  // R2: a config/** glob can match many files; the note shows at most 3, then "… N more" instead of all of
+  // them. [C-168]
+  it('caps the entrypoint note at 3 missed paths, then says how many more', async () => {
+    const configFiles: Record<string, string> = {};
+    for (let i = 0; i < 6; i++) configFiles[`config/c${i}.json`] = '{}\n';
+    const { paths } = tempProject({ ...FILES, ...configFiles });
+    const provider = stubProvider({ yes: () => 0.1 });
+    const r = await runScan(REQUEST, { paths, provider, env }); // over: file: src/*.ts never reaches config/
+    const line = r.text.split('\n').find((l) => l.includes('entrypoints/config outside over:'));
+    expect(line).toBeDefined();
+    const shownPaths = line!.match(/config\/c\d\.json/gu) ?? [];
+    expect(shownPaths).toHaveLength(3);
+    expect(line).toContain('… 3 more');
+  });
+
   it('a second scan of unchanged code is free [C-072] [C-073]', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
