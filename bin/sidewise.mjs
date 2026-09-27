@@ -11292,7 +11292,14 @@ function consensusAndEscalate(categories, answers, depth, notes) {
   return { consensus, escalate };
 }
 function wiseRecorded(wise2, extra) {
-  const fields = [...wise2?.why ? ["why"] : [], ...wise2?.area ? ["area"] : [], ...extra ?? []];
+  const fields = [
+    ...wise2?.why ? ["why"] : [],
+    ...wise2?.area ? ["area"] : [],
+    ...wise2?.stage ? ["stage"] : [],
+    ...wise2?.change ? ["change"] : [],
+    ...wise2?.risk ? ["risk"] : [],
+    ...extra ?? []
+  ];
   return fields.length ? fields : "none";
 }
 function respondText(side, wise2, next, notes) {
@@ -11356,6 +11363,26 @@ function planCall(keyed, reused, state, answers, reusedFrom) {
   const toAsk = splitReuse(keyed, reused, answers, reusedFrom).map(([q]) => q);
   return toAsk.length ? { state, questions: toAsk } : null;
 }
+function gradeChange(categories, answers) {
+  const beforeGrade = gradeSubject(categories, answers, "before:");
+  const afterCatsGrade = gradeSubject(categories, answers, "after:");
+  const g = answers["goal"];
+  const goal = { gate: goalGate(g.p), p: g.p };
+  const beforeMarks = /* @__PURE__ */ new Map();
+  for (const c of beforeGrade.categories) for (const [n, mk] of c.marks) beforeMarks.set(n, mk);
+  const afterMarks = /* @__PURE__ */ new Map();
+  for (const c of afterCatsGrade.categories) for (const [n, mk] of c.marks) afterMarks.set(n, mk);
+  const categoryGrades = categories.map((c, i) => {
+    const beforeCat = beforeGrade.categories[i];
+    const afterCat = afterCatsGrade.categories[i];
+    const fixed = [...beforeCat.marks].filter(([n, mk]) => mk !== "pass" && afterCat.marks.get(n) === "pass").map(([n]) => n);
+    const still = [...beforeCat.marks].filter(([n, mk]) => mk !== "pass" && afterCat.marks.get(n) !== "pass").map(([n]) => n);
+    return { name: c.name, before: beforeCat.gate, after: afterCat.gate, fixed, still };
+  });
+  const regressed = categories.flatMap((c) => c.questions).map((q) => q.n).filter((n) => beforeMarks.get(n) === "pass" && afterMarks.get(n) !== "pass").sort((a, b) => a - b);
+  const gate = regressed.length > 0 ? "fail" : combine([goal.gate, ...afterCatsGrade.categories.map((c) => c.gate)]);
+  return { categories: categoryGrades, goal, regressed, gate };
+}
 async function runChange(text, ctx) {
   const loaded = loadRequest(text, "change");
   if (!loaded.ok) return loaded.result;
@@ -11406,31 +11433,18 @@ async function runChange(text, ctx) {
   }
   const keys = {};
   for (const [q, k] of [...beforeKeyed, ...afterKeyed]) keys[q.id] = k;
-  const beforeGrade = gradeSubject(categories, answers, "before:");
+  const changeGrade = gradeChange(categories, answers);
+  const { goal, regressed, gate } = changeGrade;
   const afterCatsGrade = gradeSubject(categories, answers, "after:");
-  const g = answers["goal"];
-  const goal = { gate: goalGate(g.p), p: g.p };
-  const beforeMarks = /* @__PURE__ */ new Map();
-  for (const c of beforeGrade.categories) for (const [n, mk] of c.marks) beforeMarks.set(n, mk);
-  const afterMarks = /* @__PURE__ */ new Map();
-  for (const c of afterCatsGrade.categories) for (const [n, mk] of c.marks) afterMarks.set(n, mk);
-  const catEntries = categories.map((c, i) => {
-    const beforeCat = beforeGrade.categories[i];
-    const afterCat = afterCatsGrade.categories[i];
-    const fixed = [...beforeCat.marks].filter(([n, mk]) => mk !== "pass" && afterCat.marks.get(n) === "pass").map(([n]) => n);
-    const still = [...beforeCat.marks].filter(([n, mk]) => mk !== "pass" && afterCat.marks.get(n) !== "pass").map(([n]) => n);
-    return [
-      c.name,
-      m(
-        ["before", beforeCat.gate],
-        ["after", afterCat.gate],
-        ...fixed.length ? [["fixed", fixed]] : [],
-        ...still.length ? [["still", still]] : []
-      )
-    ];
-  });
-  const regressed = categories.flatMap((c) => c.questions).map((q) => q.n).filter((n) => beforeMarks.get(n) === "pass" && afterMarks.get(n) !== "pass").sort((a, b) => a - b);
-  const gate = regressed.length > 0 ? "fail" : combine([goal.gate, ...afterCatsGrade.categories.map((c) => c.gate)]);
+  const catEntries = changeGrade.categories.map((c) => [
+    c.name,
+    m(
+      ["before", c.before],
+      ["after", c.after],
+      ...c.fixed.length ? [["fixed", c.fixed]] : [],
+      ...c.still.length ? [["still", c.still]] : []
+    )
+  ]);
   let sawWholeFileNote = false;
   const evidenceNotes = [...before.notes, ...after.notes].filter((n) => {
     if (n !== WHOLE_FILE_NOTE) return true;
@@ -11512,6 +11526,7 @@ function staleNotes(paths, where, toAsk) {
       const offsets = /* @__PURE__ */ new Set();
       for (const place of places) for (const c of handle.placeCandidates(place)) offsets.add(c.offset);
       const notes = [];
+      const seenOrigins = /* @__PURE__ */ new Set();
       for (const offset of offsets) {
         if (notes.length >= MAX_STALE_NOTES) break;
         const rec = readRecordAt(paths.log, offset);
@@ -11522,6 +11537,9 @@ function staleNotes(paths, where, toAsk) {
           if (!match) continue;
           const oldKey = rec.keys[String(match.n)];
           if (oldKey === void 0 || oldKey === key2) continue;
+          const origin = rec.reusedFrom[String(match.n)] ?? rec.id;
+          if (seenOrigins.has(origin)) break;
+          seenOrigins.add(origin);
           const ans = rec.answers[String(match.n)];
           const p = ans && ans.kind === "yesno" ? ` (p ${ans.p.toFixed(2)})` : "";
           notes.push(`stale: ${rec.id} answered "${clip(q.text, 50)}" on older code${p}`);
@@ -11835,7 +11853,12 @@ function bodyEnd(masked, paramsOpen) {
   const paramsClose = matching(masked, paramsOpen);
   if (paramsClose < 0) return -1;
   let k = paramsClose + 1;
-  while (k < masked.length && masked[k] !== "{" && masked[k] !== ";" && !masked.startsWith("=>", k)) k += 1;
+  let depth = 0;
+  while (k < masked.length && !(depth === 0 && (masked[k] === "{" || masked[k] === ";" || masked.startsWith("=>", k)))) {
+    if (masked[k] === "(" || masked[k] === "[") depth += 1;
+    else if (masked[k] === ")" || masked[k] === "]") depth -= 1;
+    k += 1;
+  }
   if (masked.startsWith("=>", k)) {
     k += 2;
     while (k < masked.length && /\s/u.test(masked[k])) k += 1;
@@ -11866,6 +11889,14 @@ var DECLARATIONS = [
 ];
 var METHOD = /^[ \t]*(?:(?:public|private|protected|static|async|readonly|override|get|set)\s+)*\*?([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\(/gmu;
 var NOT_METHODS = /* @__PURE__ */ new Set(["if", "for", "while", "switch", "catch", "function", "return", "with"]);
+function namedFunctionExprStarts(masked) {
+  const starts = /* @__PURE__ */ new Set();
+  for (const hit of masked.matchAll(DECLARATIONS[1])) {
+    const m2 = /=\s*(?:async\s+)?function\b/u.exec(hit[0]);
+    if (m2) starts.add(hit.index + m2.index + m2[0].lastIndexOf("function"));
+  }
+  return starts;
+}
 function dedupe(units) {
   const seen = /* @__PURE__ */ new Map();
   return units.map((u) => {
@@ -11877,6 +11908,7 @@ function dedupe(units) {
 function splitFunctions(src) {
   const masked = maskCode(src);
   const depth = depths(masked);
+  const skipStarts = namedFunctionExprStarts(masked);
   const found = [];
   const add = (name, at, end) => {
     if (end > at && !found.some((f) => f.at === at)) found.push({ name, at, end });
@@ -11884,6 +11916,7 @@ function splitFunctions(src) {
   for (const re of DECLARATIONS) {
     for (const hit of masked.matchAll(re)) {
       const at = hit.index;
+      if (re === DECLARATIONS[0] && skipStarts.has(at)) continue;
       const params = hit[0].trimEnd().endsWith("(") ? at + hit[0].lastIndexOf("(") : at + hit[0].length;
       const end = hit[0].trimEnd().endsWith("=>") ? expressionOrBlock(masked, at + hit[0].length) : bodyEnd(masked, params);
       add(hit[1] || "default", at, end);
@@ -12526,12 +12559,12 @@ function reportHits(paths) {
         if (!rec || !isContractRun(rec)) continue;
         if (rec.items === null) {
           for (const [category, gate] of Object.entries(rec.categories)) {
-            out.push({ place, category, gate, runId: rec.id, goal: rec.goal, stale: isStale2(paths.root, rec, category) });
+            out.push({ place, category, gate, runId: rec.id, goal: rec.goal, rec });
           }
         } else {
           for (const item of Object.values(rec.items)) {
             if (item.unit?.path !== place) continue;
-            for (const [category, gate] of Object.entries(item.categories)) out.push({ place, category, gate, runId: rec.id, goal: rec.goal, stale: false });
+            for (const [category, gate] of Object.entries(item.categories)) out.push({ place, category, gate, runId: rec.id, goal: rec.goal });
           }
         }
       }
@@ -12541,7 +12574,11 @@ function reportHits(paths) {
   );
   if (!rows.length) return { exit: 0, text: 'sidewise report hits \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
   rows.sort((a, b) => GATE_RANK[a.gate] - GATE_RANK[b.gate] || a.place.localeCompare(b.place) || a.category.localeCompare(b.category));
-  const lines = rows.map((r) => `${clip(r.place, 50)} \xB7 ${r.category} ${r.gate} \xB7 ${r.runId} "${clip(r.goal, 40)}"${r.stale ? " \xB7 stale" : ""}`);
+  const shown2 = rows.slice(0, ROW_LIMIT);
+  const lines = shown2.map((r) => {
+    const stale = r.rec ? isStale2(paths.root, r.rec, r.category) : false;
+    return `${clip(r.place, 50)} \xB7 ${r.category} ${r.gate} \xB7 ${r.runId} "${clip(r.goal, 40)}"${stale ? " \xB7 stale" : ""}`;
+  });
   return { exit: 0, text: [heading("hits", rows.length, "row"), ...withCap(lines, rows.length)].join("\n") };
 }
 function reportPatterns(paths) {
@@ -12561,17 +12598,10 @@ function placesOf(rec) {
   const sweep = sweepPlaces(rec).filter((p) => p.kind === "where").map((p) => p.val);
   return sweep.length ? sweep.join(", ") : "(no place)";
 }
-function changeStatus(rec, parent) {
-  if (!parent) return void 0;
-  let fixed = false;
-  let regressed = false;
-  for (const [name, after] of Object.entries(rec.categories)) {
-    const before = parent.categories[name];
-    if (before === void 0) continue;
-    if (before !== "pass" && after === "pass") fixed = true;
-    if (before === "pass" && after !== "pass") regressed = true;
-  }
-  return regressed ? "regressed" : fixed ? "fixed" : void 0;
+function changeStatus(rec) {
+  const graded = gradeChange(rec.ask.categories, rec.answers);
+  if (graded.regressed.length) return "regressed";
+  return graded.categories.some((c) => c.before !== "pass" && c.after === "pass") ? "fixed" : void 0;
 }
 function reportHistory(paths) {
   const rows = withIndex(
@@ -12581,9 +12611,7 @@ function reportHistory(paths) {
       for (const { offset } of handle.recentChanges(ROW_LIMIT)) {
         const rec = readRecordAt(paths.log, offset);
         if (!rec || !isContractRun(rec)) continue;
-        const parentOffset = rec.parent ? handle.findOffset(rec.parent) : void 0;
-        const parent = parentOffset === void 0 ? void 0 : readRecordAt(paths.log, parentOffset);
-        const status = changeStatus(rec, parent && isContractRun(parent) ? parent : void 0);
+        const status = changeStatus(rec);
         if (!status) continue;
         out.push({ ts: rec.ts, text: `${placesOf(rec)} \xB7 ${rec.id} change \xB7 ${status}` });
       }
@@ -12610,12 +12638,15 @@ function runReport(view, ctx) {
 }
 
 // src/verbs/scan.ts
-var ENTRYPOINT_GLOBS = ["server.js", "app.js", "index.js", "main.js", "config/**", ".env*"];
+var ENTRYPOINT_GLOBS = ["server.js", "app.js", "index.js", "main.js", "config/**"];
+var MISSED_SHOWN = 3;
 function unlookedEntrypoints(root, items) {
   const touched = new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []));
   const missed = [...new Set(ENTRYPOINT_GLOBS.flatMap((pattern) => expandGlob(root, pattern).files))].filter((f) => !touched.has(f));
   if (!missed.length) return void 0;
-  return `entrypoints/config outside over: ${missed.join(", ")} \u2014 add them to over: file if they matter here`;
+  const shown2 = missed.slice(0, MISSED_SHOWN);
+  const named = missed.length > shown2.length ? `${shown2.join(", ")}, \u2026 ${missed.length - shown2.length} more` : shown2.join(", ");
+  return `entrypoints/config outside over: ${named} \u2014 add them to over: file if they matter here`;
 }
 async function runScan(text, ctx) {
   const loaded = loadRequest(text, "scan");
@@ -13001,14 +13032,14 @@ function card() {
     "",
     "## Invoke it",
     'In Claude Code: call the `sidewise` MCP tool directly \u2014 same args as the CLI (e.g. args: ["class", "-"]),',
-    "the request YAML as stdin. There is no CLI on PATH; don't look for one. Elsewhere: use `sidewise` if it's",
+    "the request YAML as stdin \u2014 no PATH lookup needed. Elsewhere: use `sidewise` if it's",
     "on PATH, else `npx --no-install sidewise`; if neither works, tell the user to run",
     '"npx @mvpscale/sidewise init" and stop.',
     "",
     "## Pick your verb",
     "| Grid | Know | Judge | Prove |",
     "|---|---|---|---|",
-    "| Side \u2014 solve it with what's proven   | view (free) | class (1 call) | change (~1 call) |",
+    "| Side \u2014 solve it with what's proven   | view (free) | class (1 call) | change (up to 2 calls) |",
     "| Wise \u2014 find what's new, and learn it | scan (1 call) | drill (1 call) | loop (1 call/layer) |",
     "",
     "## The contract (memorize \u2014 these cause most first-try rejects)",
@@ -13030,7 +13061,7 @@ function card() {
 function reportHelp() {
   return [
     "## report",
-    "Side x Know, but read-only across everything the ledger holds, not one place: what's known, what recurs, what changed.",
+    "A free, read-only view across everything the ledger holds, not one place: what's known, what recurs, what changed.",
     "When: briefing a teammate or picking up a codebase cold, instead of hand-assembling several `view` calls.",
     "",
     "Example:",
