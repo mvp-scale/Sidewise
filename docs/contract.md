@@ -544,10 +544,12 @@ query yet that mines it into a pattern across runs the way class's per-category 
   Different items may have different child layers. [C-087]
 - `--dry-run` (class, change, scan, drill, loop) reports the calls and question count with no call and no
   spend, as `plan: {calls, questions, ...}` followed by `notes: ["dry run: no call, no spend"]`. [C-088]
-- The engine needs Node ≥ 22.13 to use its `node:sqlite`-backed lookup index; on an older Node (this repo's
-  own Node 20 host) it falls back to a slower, always-correct linear scan instead. Either way the ledger
-  itself (`.sidewise/log.jsonl`) stays the source of truth: the index is a disposable, self-healing cache
-  that a missing or corrupt copy only costs a rebuild, never a wrong answer. [C-089]
+- Node ≥ 22.13 is a hard requirement, not a soft preference: it's what the ledger's `node:sqlite`-backed lookup
+  index runs on. The CLI's whole dispatch checks this once, up front (see C-106) — a project's own ledger
+  itself (`.sidewise/log.jsonl`) stays the source of truth regardless: the index is a disposable, self-healing
+  cache that a missing or corrupt copy only costs a rebuild, never a wrong answer; the slower, always-correct
+  linear scan it rebuilds from is still what a corrupt or mid-write `index.db` falls back to (see C-107) — but,
+  as of the Node-version guard, no longer a normal, silent substitute for `node:sqlite` genuinely missing. [C-089]
 - `SIDEWISE_BASE_URL` overrides the TypeSafe base URL for either route (a proxy, a self-hosted mirror, tests).
   It must parse as a URL; `https` is required, except `http` for `localhost`, `127.0.0.1` or `[::1]`. Anything
   else is a stop, `✖ SIDEWISE_BASE_URL: ... → ...`, at exit 2. [C-094]
@@ -556,7 +558,8 @@ query yet that mines it into a pattern across runs the way class's per-category 
   `AI_GATEWAY_API_KEY` are set (never their value), the pinned model (plus the gateway wire model when
   relevant), whether a project/ledger is found, and the Node version and whether `node:sqlite` is available.
   Exit 0 when the config is usable; exit 2 with the same `✖` message a paid verb would give when it isn't (a
-  floating model, a bad `SIDEWISE_BASE_URL`). [C-095]
+  floating model, a bad `SIDEWISE_BASE_URL`) — including too old a Node, which doctor still runs and reports
+  rather than stopping outright (see C-106). [C-095]
 - The TypeSafe client retries a 429, a 529, or another retryable status/timeout up to 2 more times (3 attempts
   total), honouring the server's own `Retry-After` when it sends one, else exponential backoff with jitter,
   capped at 10s per wait. 401, 422 and any other non-retryable status are never retried — the first failure is
@@ -614,3 +617,19 @@ query yet that mines it into a pattern across runs the way class's per-category 
   undocumented — it may substitute `""` or omit the variable entirely) counts as no key everywhere key
   resolution happens, and resolution still falls through to the OS keychain or the user credentials file
   rather than treating the empty string as a real, empty key. [C-105]
+- Node ≥ 22.13 is a hard requirement (owner ruling), checked once at the top of the CLI's whole dispatch —
+  before any command does anything real, and again inside `sidewise mcp` for every `tools/call`. On an older
+  Node, every command exits 2 with exactly `✖ node: v<version> is too old → install Node 22.13 or newer (it
+  powers the ledger index); https://nodejs.org`, except `doctor`, which still runs (free, no call) and shows
+  `node: v<version> ✖ too old → install Node 22.13+` and `index: none (needs Node 22.13+)` in its own output
+  before it, too, exits 2 rather than 0. `sidewise mcp` still answers `initialize`/`tools/list` on too old a
+  Node — a client's handshake never hangs — but every `tools/call` comes back `isError: true` with that same
+  line, whatever command was actually asked for (`doctor` included): the guard runs before the requested
+  command ever does. [C-106]
+- The linear, in-memory fallback in the id index (`ledger/index.ts`) is no longer a normal production mode: it
+  still runs, unchanged, when an actual SQLite call throws on a good Node (a corrupt or mid-write `index.db` —
+  self-heal's own resilience, unrelated to Node version), but when `node:sqlite` is genuinely unavailable (a
+  real Node < 22.13), the index throws a `LedgerError` naming the same Node requirement instead of silently
+  degrading. This is a backstop independent of the CLI's own guard (C-106): a library consumer that reaches the
+  ledger directly, without going through `sidewise`'s dispatch, gets the same loud failure rather than a
+  quietly slower, never-persisted index. [C-107]

@@ -12,8 +12,14 @@
  *   - SQLite (node:sqlite `DatabaseSync`): self-healing on open (rebuild on missing/corrupt/wrong-schema/shorter
  *     log/fingerprint mismatch; catch-up on pure growth), persisted to .sidewise/index.db under the ledger lock
  *     (skipped when this process already holds it — see withLockIfNeeded).
- *   - Linear fallback (in-memory only, never persisted): used when node:sqlite can't be imported (Node < 22.13,
- *     e.g. this repo's Node 20 host) or ANY SQLite call throws. Slower (a full scan every call), always correct.
+ *   - Linear fallback (in-memory only, never persisted): the always-correct oracle a real SQLite call still
+ *     falls back to when it throws (a corrupt or mid-write index.db — self-heal's own safety net, unrelated to
+ *     Node version). Node ≥ 22.13 is a hard requirement (owner ruling, [C-107]): node:sqlite genuinely missing
+ *     is no longer a silent reason to use this path in production — `runSqlite` throws a LedgerError instead,
+ *     since cli.ts's own version guard means every command but `doctor` already stops before reaching here at
+ *     all; this throw is only the backstop for a caller (a library consumer) that reaches the ledger directly,
+ *     bypassing the CLI. `__testOnly.forceFallback`/`forceSqliteMissing` force this path on purpose, on any
+ *     Node, to prove the two engines agree (ledger-index.test.ts) — never set outside a test.
  * A project with no ledger yet (log.jsonl missing or empty) never touches disk here at all — no .sidewise/, no
  * index.db — for either engine: dry runs, `view`, and any command before the first write must create nothing
  * (design binding #7). Once a real write happens, log.jsonl exists first (appendLine's own mkdir), so the next
@@ -38,6 +44,7 @@ import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rm
 import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
 import { withLock } from './lock.ts';
 import { ensureDir, type SidewisePaths } from './paths.ts';
+import { MIN_NODE_LABEL } from '../util/node-version.ts';
 
 const whoKey = (who: { adapter: string; model: string }): string => `${who.adapter}|${who.model}`;
 
@@ -437,9 +444,12 @@ type DatabaseSyncCtor = new (location: string) => SqliteDb;
  *  gives the same answers as SQLite without needing a corrupt Node build. `throwOnCandidates`, when true, makes
  *  the NEXT `candidates()` call on a real SQL handle throw once (then clears itself) — simulating a query that
  *  fails partway through an otherwise-successful `fn`, so a caller like lookupAnswers can be proven to fall back
- *  to the linear scan with identical results and no state leaked from the aborted attempt. Never set outside a
- *  test. */
-export const __testOnly = { forceFallback: false, throwOnCandidates: false };
+ *  to the linear scan with identical results and no state leaked from the aborted attempt. `forceSqliteMissing`
+ *  makes `getSqliteCtor()` itself return null, as if node:sqlite genuinely doesn't exist — simulating a real
+ *  Node < 22.13 without needing one, to prove `runSqlite` throws a LedgerError instead of silently falling back
+ *  [C-107] (`forceFallback` alone still exercises the silent-on-purpose test path, unchanged). Never set outside
+ *  a test. */
+export const __testOnly = { forceFallback: false, throwOnCandidates: false, forceSqliteMissing: false };
 
 /** True for the one warning node:sqlite prints (once per process) on Node 22/24: an ExperimentalWarning naming
  *  SQLite. Every other warning (including a differently-worded ExperimentalWarning) is left alone — matched by
@@ -492,6 +502,7 @@ function installSqliteWarningFilter(): void {
 let sqliteCtor: DatabaseSyncCtor | null | undefined;
 
 function getSqliteCtor(): DatabaseSyncCtor | null {
+  if (__testOnly.forceSqliteMissing) return null; // test-only: simulate a genuine Node < 22.13, no cache poisoned
   if (sqliteCtor !== undefined) return sqliteCtor;
   const getBuiltin = (process as unknown as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
   if (typeof getBuiltin !== 'function') {
@@ -919,10 +930,25 @@ export function withIndex<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, op
   return runSqlite(paths, fn, { forceRebuild: opts.forceRebuild ?? false, readOnly: opts.readOnly ?? false });
 }
 
+// The exact, always-the-same message when node:sqlite is genuinely missing (real Node < 22.13, or the
+// __testOnly.forceSqliteMissing test hook standing in for one) — never assembled from the live process.version,
+// since the test hook forces this path on a perfectly good Node too; the fact reported is "sqlite is
+// unavailable," which is true either way, not "your Node happens to be old" (cli.ts's own nodeVersionStop
+// already covers that half for the real CLI/MCP paths, which stop long before ever reaching here). [C-107]
+const NODE_TOO_OLD_LEDGER_MESSAGE = `✖ ledger: node:sqlite is unavailable → install Node ${MIN_NODE_LABEL} or newer (it powers the ledger index); https://nodejs.org`;
+
 function runSqlite<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, opts: { forceRebuild: boolean; readOnly: boolean }): T {
+  // __testOnly.forceFallback: the one intentional, silent fallback left — proving the two engines agree
+  // (ledger-index.test.ts). Checked before the try below so it never risks tripping the new throw underneath.
+  if (__testOnly.forceFallback) return fn(buildMemoryHandle(paths));
   try {
-    const Db = __testOnly.forceFallback ? null : getSqliteCtor();
-    if (!Db) throw new Error('node:sqlite unavailable');
+    const Db = getSqliteCtor();
+    // Production never silently degrades here anymore (owner ruling): node:sqlite missing for real is only
+    // possible on a real Node < 22.13 — cli.ts's version guard already stops every command but `doctor` before
+    // reaching this far, so this throw is purely the backstop for a caller that reaches the ledger directly
+    // (a library consumer, bypassing the CLI). A LedgerError propagates straight out (see the catch below),
+    // never silently answered from an in-memory scan.
+    if (!Db) throw new LedgerError(NODE_TOO_OLD_LEDGER_MESSAGE);
     const db = ensureFreshDb(paths, Db, opts);
     if (!db) return fn(buildMemoryHandle(paths)); // readOnly, and the on-disk index wasn't already fresh
     try {

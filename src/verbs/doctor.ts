@@ -7,6 +7,10 @@
  * JEV_MODEL, a bad SIDEWISE_BASE_URL) stops here at exit 2 with the exact same ✖ message a paid verb would
  * give, just without ever risking a spend to find it out.
  *
+ * doctor is the one command cli.ts's own Node-version guard (util/node-version.ts) still runs on too old a
+ * Node, rather than stopping outright: it reports the problem in the `node:`/`index:` fields below (instead of
+ * every other command's own generic ✖ line) but still exits 2, same as they do — never a silent 0. [C-106]
+ *
  * The `key`/`cli`/`plugin` lines, and the project line's "plugin enabled here", all take their real answer from
  * an injected `deps.resolveStored`/`deps.runner` — omitted (as every existing caller of this function still
  * does), they read conservatively (env-only key, "not on PATH", "not installed") rather than ever touching a
@@ -25,6 +29,7 @@ import { readInstallRecord } from '../setup/install-record.ts';
 import { findOnPath } from '../setup/npm-info.ts';
 import { pluginStatus } from '../setup/plugin.ts';
 import type { Runner } from '../setup/runner.ts';
+import { doctorNodeValue, DOCTOR_INDEX_TOO_OLD, nodeVersionOk } from '../util/node-version.ts';
 import type { VerbResult } from './types.ts';
 
 interface Identity {
@@ -149,13 +154,15 @@ export function runDoctor(
         ...(who.wireModel ? [['wireModel', who.wireModel] as [string, Value]] : []),
         ['key', key],
         ['project', project],
-        ['node', nodeVersion],
-        ['index', sqliteAvailable() ? 'node:sqlite' : 'linear fallback (Node < 22.13)'],
+        ['node', doctorNodeValue(nodeVersion)],
+        ['index', nodeVersionOk(nodeVersion) ? (sqliteAvailable() ? 'node:sqlite' : 'unavailable (unexpected on Node 22.13+)') : DOCTOR_INDEX_TOO_OLD],
         ['cli', cliLine(env, deps.platform ?? process.platform)],
         ['plugin', pluginLine(deps)],
       ),
     ],
     ['notes', notes],
   );
-  return { exit: 0, text: emit(doc) };
+  // Node < 22.13 (owner ruling): doctor still runs and reports it (the node:/index: fields above), but the
+  // process exits 2 just like every other command's version stop — never a silent 0.
+  return { exit: nodeVersionOk(nodeVersion) ? 0 : 2, text: emit(doc) };
 }

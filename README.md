@@ -86,6 +86,8 @@ The numbers above are one run's illustration, not a guarantee — the real class
 
 ## Install
 
+Requires Node 22.13 or newer — it's what the ledger's `node:sqlite` index runs on. The CLI checks this itself and stops with a clear message on anything older (`sidewise doctor` reports it too, and still runs on an old Node so you can see what's wrong).
+
 **Claude Code: install the plugin and set your key in its options, that's all.**
 
 ```

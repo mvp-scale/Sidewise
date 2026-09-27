@@ -17,7 +17,7 @@ function tmpXdg(): { XDG_CONFIG_HOME: string } {
 
 describe('doctor (P5)', () => {
   it('no key, no project: the fake provider, "key: no", project "none"', () => {
-    const r = runDoctor({}, undefined, 'v20.11.0');
+    const r = runDoctor({}, undefined, 'v22.13.0');
     expect(r.exit).toBe(0);
     expect(r.text).toContain('doctor:');
     expect(r.text).toContain('provider: fake');
@@ -25,7 +25,7 @@ describe('doctor (P5)', () => {
     expect(r.text).toContain('key: no');
     expect(r.text).not.toContain('keys:'); // the old TYPESAFE_API_KEY/AI_GATEWAY_API_KEY map is gone — key: covers it
     expect(r.text).toContain('project: none');
-    expect(r.text).toContain('node: v20.11.0');
+    expect(r.text).toContain('node: v22.13.0');
     expect(r.text).not.toContain('baseURL');
   });
 
@@ -92,9 +92,38 @@ describe('doctor (P5)', () => {
     expect(r.text).toContain('plugin enabled here: no');
   });
 
-  it('reports whether node:sqlite (vs. the linear fallback) is available on this runtime', () => {
+  it('reports whether node:sqlite is available on this (new-enough) runtime', () => {
     const r = runDoctor({}, undefined);
-    expect(r.text).toMatch(/index: (node:sqlite|linear fallback)/);
+    expect(r.text).toMatch(/index: (node:sqlite|unavailable \(unexpected on Node 22\.13\+\))/);
+  });
+
+  describe('the Node ≥ 22.13 guard (owner ruling) [C-106]', () => {
+    it('too old a Node: doctor still runs (exit 2, not a bare stop) and names it in node:/index:', () => {
+      const r = runDoctor({}, undefined, 'v20.11.0');
+      expect(r.exit).toBe(2);
+      expect(r.text).toContain('doctor:'); // the full doc still renders — never just a bare ✖ line
+      expect(r.text).toContain('node: v20.11.0 ✖ too old → install Node 22.13+');
+      expect(r.text).toContain('index: none (needs Node 22.13+)');
+    });
+
+    it('exactly 22.13.0 is new enough: exit 0, plain node value, no ✖', () => {
+      const r = runDoctor({}, undefined, 'v22.13.0');
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('node: v22.13.0');
+      expect(r.text).not.toContain('✖ too old');
+    });
+
+    it('22.12.x is still too old — the minor version is a real cutoff, not just the major', () => {
+      const r = runDoctor({}, undefined, 'v22.12.9');
+      expect(r.exit).toBe(2);
+      expect(r.text).toContain('✖ too old');
+    });
+
+    it('a newer major (e.g. v24) is always new enough', () => {
+      const r = runDoctor({}, undefined, 'v24.0.0');
+      expect(r.exit).toBe(0);
+      expect(r.text).not.toContain('✖ too old');
+    });
   });
 
   it('a floating JEV_MODEL: exit 2, the same ✖ message a paid verb would give', () => {

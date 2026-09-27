@@ -16,6 +16,7 @@ import { tempProject } from '../helpers/project.ts';
 afterEach(() => {
   __testOnly.forceFallback = false;
   __testOnly.throwOnCandidates = false;
+  __testOnly.forceSqliteMissing = false;
 });
 
 /** True on this test run's own Node (>= 22.13): guards the handful of tests here that need to manipulate
@@ -242,6 +243,24 @@ describe('the fallback path gives identical results to whatever engine is really
     };
 
     expect(b).toEqual(a);
+  });
+});
+
+describe('node:sqlite genuinely unavailable never silently falls back in production (owner ruling) [C-107]', () => {
+  it('withIndex throws a LedgerError naming the Node requirement, instead of quietly using the linear scan', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'sqlite-missing', runs: 5 });
+    __testOnly.forceSqliteMissing = true;
+    expect(() => withIndex(paths, (h) => h.runCount())).toThrow(/node:sqlite is unavailable/);
+    expect(() => withIndex(paths, (h) => h.runCount())).toThrow(/Node 22\.13/);
+  });
+
+  it('forceFallback (the test-only equivalence path) still answers normally — only genuinely-missing sqlite throws', () => {
+    const { paths } = tempProject({});
+    writeSyntheticLedger(paths, { seed: 'sqlite-missing-2', runs: 5 });
+    __testOnly.forceFallback = true;
+    expect(() => withIndex(paths, (h) => h.runCount())).not.toThrow();
+    expect(withIndex(paths, (h) => h.runCount())).toBe(5);
   });
 });
 

@@ -86,6 +86,8 @@ Everywhere else, find the command before you use it:
 2. Otherwise try `npx --no-install sidewise` (a project-local install).
 3. If neither works, tell the user to run `npx @mvpscale/sidewise init` in this project, and stop. Never install anything on the user's behalf.
 
+Sidewise needs Node 22.13 or newer — it's what the ledger's `node:sqlite` index runs on. On an older Node, every command stops with `✖ node: v<version> is too old → install Node 22.13 or newer (it powers the ledger index); https://nodejs.org`, except `doctor`, which still runs and reports it (`node: v<version> ✖ too old → install Node 22.13+`, `index: none (needs Node 22.13+)`) before also stopping. The `sidewise` MCP tool answers `initialize`/`tools/list` either way, but every `tools/call` on an old Node comes back `isError` with that same line.
+
 Sidewise is per project: its run history lives in the project's `.sidewise/`, which git ignores. The key is per user. `sidewise doctor` shows where it comes from, never the key itself: `key: yes · from OS keychain (encrypted, per user)`, `key: yes · from user file ~/.config/sidewise/env (0600, not encrypted)` or `key: yes · from env TYPESAFE_API_KEY`. The lookup order is env, then keychain, then that file. With no key, `doctor` says `key: no  → run "sidewise init" to add one`, and every call uses the free fake provider.
 
 ## Get started

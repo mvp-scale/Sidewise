@@ -40,6 +40,7 @@ import { runLoop } from './verbs/loop.ts';
 import { runScan } from './verbs/scan.ts';
 import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
+import { nodeVersionStop } from './util/node-version.ts';
 import { clip, hasControlChars } from './util/text.ts';
 
 // This package's own root directory (one level above dist/cli.js, or src/cli.ts in dev): init passes it to
@@ -173,6 +174,9 @@ export interface CliCtx {
   packageDir: string;
   pkg: { name: string; version: string };
   homeDir: string;
+  /** `process.version`-shaped ("v22.13.0") — injectable so a test never depends on the machine's own Node
+   *  (see util/node-version.ts's guard, checked at the top of dispatch). */
+  nodeVersion: string;
   stdin: () => Buffer;
   io: PromptIO;
 }
@@ -207,6 +211,14 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
 
+  // Node ≥ 22.13 is a hard requirement (owner ruling): everything but `doctor` (which still runs and reports
+  // the problem, see below) and `mcp` (which must still start the server and answer initialize/tools/list —
+  // its own tools/call wrapper below applies this same guard to every actual call) stops here.
+  if (command !== 'doctor' && command !== 'mcp') {
+    const nodeStop = nodeVersionStop(ctx.nodeVersion);
+    if (nodeStop) return finish(2, nodeStop);
+  }
+
   // template needs no project to run: it never spends and never writes. When --parent is given, it still tries
   // a project (to shape the sample to that run) but never insists on one — no project, or the id not in its
   // ledger, just falls back to the sweep sample (runTemplate's own drillSampleFile).
@@ -228,7 +240,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (command === 'doctor') {
     const { positionals } = args('doctor', { args: rest, allowPositionals: true, options: {} });
     positionalCount('doctor', positionals, 0, 0);
-    const r = runDoctor(ctx.env, resolvePaths(ctx.cwd, ctx.env), process.version, {
+    const r = runDoctor(ctx.env, resolvePaths(ctx.cwd, ctx.env), ctx.nodeVersion, {
       resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
       runner: ctx.runner,
       platform: ctx.platform,
@@ -241,9 +253,18 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (command === 'mcp') {
     const { positionals } = args('mcp', { args: rest, allowPositionals: true, options: {} });
     positionalCount('mcp', positionals, 0, 0);
+    // initialize/tools/list/ping (protocol.ts) never call runOne, so they answer normally even on too old a
+    // Node — a client's handshake never hangs. Every real tools/call does go through runOne: on too old a
+    // Node this returns the same ✖ line as isError, for ANY requested command (doctor included) — checked
+    // once per call, before dispatch even runs, so Claude tells the user instead of the call silently using a
+    // degraded ledger.
     await runMcpServer(
       ctx.io as McpIo,
-      (a, stdinText) => dispatch(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? '', 'utf8') }),
+      (a, stdinText) => {
+        const nodeStop = nodeVersionStop(ctx.nodeVersion);
+        if (nodeStop) return Promise.resolve(finish(2, nodeStop));
+        return dispatch(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? '', 'utf8') });
+      },
       ctx.pkg.version,
     );
     return { exit: 0, text: '' };
@@ -470,6 +491,7 @@ function realCtx(): CliCtx {
     packageDir: PACKAGE_DIR,
     pkg: { name: pkg.name, version: pkg.version },
     homeDir: os.homedir(),
+    nodeVersion: process.version,
     stdin: () => readFileSync(0),
     get io(): PromptIO {
       return { input: process.stdin, output: process.stdout };

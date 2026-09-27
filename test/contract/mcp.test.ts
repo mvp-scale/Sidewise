@@ -16,6 +16,7 @@ function fakeCtx(env: Record<string, string | undefined> = {}): CliCtx {
     packageDir: process.cwd(),
     pkg: { name: 'sidewise', version: '0.0.0-test' },
     homeDir: '/nonexistent-home',
+    nodeVersion: process.version,
     stdin: () => Buffer.from(''),
     io: { input: new PassThrough(), output: new PassThrough() },
   };
@@ -23,6 +24,25 @@ function fakeCtx(env: Record<string, string | undefined> = {}): CliCtx {
 
 function runOneFor(ctx: CliCtx): RunOne {
   return (args, stdin) => runCli(args, { ...ctx, stdin: () => Buffer.from(stdin ?? '', 'utf8') });
+}
+
+/** Drives the REAL `sidewise mcp` command (cli.ts's own `dispatch`, over real stdio streams — not a hand-rolled
+ *  `runOne`): writes each message as one JSON-RPC line, closes stdin (so the server's own read loop resolves,
+ *  same as a real client disconnecting), then parses whatever it wrote back, one response per line. */
+async function runMcpOverStdio(ctx: CliCtx, messages: readonly JsonRpcRequest[]): Promise<JsonRpcResponse[]> {
+  const input = new PassThrough();
+  const output = new PassThrough();
+  const chunks: Buffer[] = [];
+  output.on('data', (c: Buffer) => chunks.push(c));
+  const done = runCli(['mcp'], { ...ctx, io: { input, output } });
+  for (const m of messages) input.write(`${JSON.stringify(m)}\n`);
+  input.end();
+  await done;
+  return Buffer.concat(chunks)
+    .toString('utf8')
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => JSON.parse(l) as JsonRpcResponse);
 }
 
 describe('mcp protocol: tools/list', () => {
@@ -124,5 +144,60 @@ describe('mcp protocol: tools/call [C-103]', () => {
   it('an unrecognized method with an id is "method not found"', async () => {
     const resp = await handleMessage({ jsonrpc: '2.0', id: 8, method: 'not/a/method' }, { runOne: runOneFor(fakeCtx()), serverVersion: '0.0.0-test' });
     expect(resp?.error?.code).toBe(-32601);
+  });
+});
+
+const NODE_STOP_LINE = '✖ node: v20.11.0 is too old → install Node 22.13 or newer (it powers the ledger index); https://nodejs.org';
+
+describe('the Node ≥ 22.13 guard (owner ruling) [C-106]', () => {
+  it('a normal command exits 2 with the exact ✖ line on too old a Node — template needs no project either', async () => {
+    const ctx: CliCtx = { ...fakeCtx(), nodeVersion: 'v20.11.0' };
+    const r = await runCli(['template', 'class'], ctx);
+    expect(r.exit).toBe(2);
+    expect(r.text).toBe(`${NODE_STOP_LINE}\n`);
+  });
+
+  it('a good Node runs the same command normally', async () => {
+    const ctx: CliCtx = { ...fakeCtx(), nodeVersion: 'v22.13.0' };
+    const r = await runCli(['template', 'class'], ctx);
+    expect(r.exit).toBe(0);
+    expect(r.text).not.toContain('✖ node:');
+  });
+
+  it('doctor still runs on too old a Node (never a bare stop) but exits 2', async () => {
+    const ctx: CliCtx = { ...fakeCtx(), nodeVersion: 'v20.11.0' };
+    const r = await runCli(['doctor'], ctx);
+    expect(r.exit).toBe(2);
+    expect(r.text).toContain('doctor:');
+    expect(r.text).toContain('node: v20.11.0 ✖ too old → install Node 22.13+');
+    expect(r.text).toContain('index: none (needs Node 22.13+)');
+  });
+
+  // These two run the REAL `sidewise mcp` command (cli.ts's own dispatch, not a hand-rolled runOne) over real
+  // stdio streams — the version guard's mcp-specific wrapping lives inside that command's own branch, so
+  // proving it needs the real loop, not protocol.ts's handleMessage in isolation.
+  it('sidewise mcp still answers initialize and tools/list on too old a Node, over the real stdio loop', async () => {
+    const ctx: CliCtx = { ...fakeCtx(), nodeVersion: 'v20.11.0' };
+    const responses = await runMcpOverStdio(ctx, [
+      { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
+      { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+    ]);
+    expect(responses[0]?.error).toBeUndefined();
+    expect(responses[1]?.result).toEqual({ tools: [toolDefinition()] });
+  });
+
+  it('every tools/call is isError with the same ✖ line on too old a Node, whatever command was asked — doctor included, over the real stdio loop', async () => {
+    const ctx: CliCtx = { ...fakeCtx(), nodeVersion: 'v20.11.0' };
+    const responses = await runMcpOverStdio(ctx, [
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['doctor'] } } },
+      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['template', 'class'] } } },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['not-a-real-command'] } } },
+    ]);
+    expect(responses).toHaveLength(3);
+    for (const resp of responses) {
+      const result = resp?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
+      expect(result.isError).toBe(true);
+      expect(result.content[0]?.text).toBe(`${NODE_STOP_LINE}\n`);
+    }
   });
 });
