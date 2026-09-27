@@ -53,9 +53,17 @@ export function consensusAndEscalate(
   return { consensus, escalate };
 }
 
-/** `wise: {recorded: [...]}` fields, or the string "none" when nothing was recorded. */
+/** `wise: {recorded: [...]}` fields, or the string "none" when nothing was recorded. Named in `Wise`'s own
+ *  field order (why, area, stage, change, risk); `extra` (e.g. change.ts's `['parent']`) is always last. */
 export function wiseRecorded(wise: Wise | null, extra?: readonly string[]): Value {
-  const fields = [...(wise?.why ? ['why'] : []), ...(wise?.area ? ['area'] : []), ...(extra ?? [])];
+  const fields = [
+    ...(wise?.why ? ['why'] : []),
+    ...(wise?.area ? ['area'] : []),
+    ...(wise?.stage ? ['stage'] : []),
+    ...(wise?.change ? ['change'] : []),
+    ...(wise?.risk ? ['risk'] : []),
+    ...(extra ?? []),
+  ];
   return fields.length ? fields : 'none';
 }
 

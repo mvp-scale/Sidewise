@@ -40,6 +40,20 @@ describe('wiseRecorded', () => {
     expect(wiseRecorded({ why: 'validate', area: 'api' }, ['parent'])).toEqual(['why', 'area', 'parent']);
     expect(wiseRecorded(null, ['parent'])).toEqual(['parent']);
   });
+
+  it('also names stage/change/risk when set, in Wise\'s own field order, extras still last [C-044]', () => {
+    expect(wiseRecorded({ stage: 'review' })).toEqual(['stage']);
+    expect(wiseRecorded({ change: 'fix' })).toEqual(['change']);
+    expect(wiseRecorded({ risk: 'high' })).toEqual(['risk']);
+    expect(wiseRecorded({ why: 'validate', area: 'api', stage: 'review', change: 'fix', risk: 'high' }, ['parent'])).toEqual([
+      'why',
+      'area',
+      'stage',
+      'change',
+      'risk',
+      'parent',
+    ]);
+  });
 });
 
 describe('outcomeNext', () => {
