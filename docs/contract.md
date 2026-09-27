@@ -599,3 +599,14 @@ query yet that mines it into a pattern across runs the way class's per-category 
 - `sidewise doctor`'s `project:` line names the project root and whether the Claude Code plugin is enabled for
   it specifically (project scope), separately from the `plugin:` line's overall install state — using Sidewise
   is always scoped to a project, so this is the answer that actually matters day to day. [C-102]
+- The Claude Code plugin bundles a stdio MCP server (`sidewise mcp`, hand-rolled, no SDK dependency) with one
+  tool, `sidewise`, taking `{ args: string[], stdin?: string }`. It runs exactly what `sidewise <args…>` would
+  run, in-process, treating `stdin` as what real stdin would have supplied, and returns the same text output
+  the CLI would print plus the exit code as `isError` (true when the exit code isn't 0) — there is no second
+  contract. [C-103]
+- The plugin's own configuration (`userConfig`) offers two masked, optional fields — a TypeSafe API key and an
+  AI Gateway key. Leaving both empty means the free fake provider, exactly as on the terminal path. [C-104]
+- An empty string substituted for either key (Claude Code's own behaviour for a blank optional value is
+  undocumented — it may substitute `""` or omit the variable entirely) counts as no key everywhere key
+  resolution happens, and resolution still falls through to the OS keychain or the user credentials file
+  rather than treating the empty string as a real, empty key. [C-105]
