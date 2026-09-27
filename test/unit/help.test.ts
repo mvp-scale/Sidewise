@@ -83,6 +83,19 @@ describe('runHelp', () => {
     expect(runHelp('a\u0000b').exit).toBe(2);
   });
 
+  it('[R10] the card never claims there is no CLI on PATH (a CLI reader just ran it to see this text)', () => {
+    expect(runHelp().text).not.toContain('There is no CLI on PATH');
+  });
+
+  it('[R10] the card says change can take up to 2 calls, not "~1 call"', () => {
+    expect(runHelp().text).toContain('change (up to 2 calls)');
+    expect(runHelp().text).not.toContain('change (~1 call)');
+  });
+
+  it('[R10] help report does not open by claiming report is a Side x Know grid cell', () => {
+    expect(runHelp('report').text).not.toContain('Side x Know');
+  });
+
   // [C-119] the shared rule list: every fact RULES says the validator enforces shows up verbatim in the help
   // output(s) it names — this is what keeps help and the validator from drifting apart.
   it('[C-119] every validator rule appears verbatim in the help output(s) it names', () => {

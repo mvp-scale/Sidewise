@@ -6,7 +6,7 @@
 export function reportHelp(): string {
   return [
     '## report',
-    "Side x Know, but read-only across everything the ledger holds, not one place: what's known, what recurs, what changed.",
+    "A free, read-only view across everything the ledger holds, not one place: what's known, what recurs, what changed.",
     'When: briefing a teammate or picking up a codebase cold, instead of hand-assembling several `view` calls.',
     '',
     'Example:',
