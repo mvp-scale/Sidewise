@@ -2,6 +2,12 @@
 /**
  * The `sidewise` command: a thin shell over the verbs. Exit 0 ok · 1 provider or ledger error · 2 invalid
  * request or usage · 3 budget blocked. Answers go to stdout; stops and errors go to stderr.
+ *
+ * `runCli(argv, ctx)` is the whole dispatch, side-effect-injectable via `ctx`: it never touches real
+ * `process.stdout`/`process.stderr`/`process.exitCode` or real stdin (fd 0) directly — it returns `{exit, text}`
+ * instead, and the real entrypoint at the bottom of this file is the only place that writes it out for real.
+ * This is what lets `sidewise mcp` (src/mcp/*) run the exact same dispatch in-process, with the MCP tool call's
+ * own `stdin` string standing in for fd 0, with no second contract and no subprocess spawned per call.
  */
 import { readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
@@ -19,9 +25,12 @@ import { LockError, StoreError } from './ledger/lock.ts';
 import { appendOutcome, findRun, isContractRun, LedgerError, type Outcome } from './ledger/log.ts';
 import { resolvePaths, type SidewisePaths } from './ledger/paths.ts';
 import type { Level } from './lens/request.ts';
+import { runMcpServer, type McpIo } from './mcp/stdio.ts';
 import { resolveStoredKey } from './setup/keystore.ts';
 import { runInit, type InitFlags } from './setup/init.ts';
 import { realRunner } from './setup/runner.ts';
+import type { Runner } from './setup/runner.ts';
+import type { PromptIO } from './setup/prompt.ts';
 import { runUninstall, type UninstallFlags } from './setup/uninstall.ts';
 import { runChange } from './verbs/change.ts';
 import { runClass } from './verbs/class.ts';
@@ -58,6 +67,7 @@ const LINES = {
   doctor: 'sidewise doctor',
   init: 'sidewise init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]',
   uninstall: 'sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]',
+  mcp: 'sidewise mcp',
 } as const;
 type Command = keyof typeof LINES;
 // The play test found a bare usage list unhelpful to someone who has never run this before: one line points
@@ -78,11 +88,12 @@ const NO_PROJECT = '✖ project: no .sidewise or .git folder here or above → r
 const MAX_REQUEST_BYTES = 1_048_576;
 const TOO_BIG = '✖ request: larger than 1 MB → a request is a short text file; point "where:" at the code instead';
 
-/** Every existing call site already prints text with no trailing newline (USAGE, a stop, budgetLine, the outcome
- * confirmation); every contract response already ends in one (respondText/dryRunText). Add it only when missing. */
-function finish(code: number, text: string): void {
-  (code === 0 ? process.stdout : process.stderr).write(text.endsWith('\n') ? text : `${text}\n`);
-  process.exitCode = code;
+/** Every existing call site prints text with no trailing newline (USAGE, a stop, budgetLine, the outcome
+ *  confirmation); every contract response already ends in one (respondText/dryRunText). Add it only when
+ *  missing. Pure: builds the `{exit, text}` result runCli returns — writing it out for real is the caller's job
+ *  (the bottom of this file for the real CLI, src/mcp/* for a tool call), so this never touches process.* itself. */
+function finish(code: number, text: string): { exit: number; text: string } {
+  return { exit: code, text: text.endsWith('\n') ? text : `${text}\n` };
 }
 
 /** parseArgs, or a UsageStop naming the unknown flag, the missing value or the extra argument. */
@@ -111,8 +122,10 @@ function givenTwice(argv: readonly string[], names: readonly string[]): string |
   return name === undefined ? undefined : `✖ --${name}: given twice → give it once`;
 }
 
-/** The request text, or a stop: a folder, a missing file, over 1 MB, or binary. */
-function readRequest(file: string): { text: string } | { stop: string } {
+/** The request text, or a stop: a folder, a missing file, over 1 MB, or binary. `stdinSource` stands in for fd
+ *  0 when `file === '-'` — the real CLI reads real stdin; the MCP path hands back the tool call's own `stdin`
+ *  string instead, so a `-` positional means the same thing either way. */
+function readRequest(file: string, stdinSource: () => Buffer): { text: string } | { stop: string } {
   if (hasControlChars(file)) return { stop: '✖ request: the file name has control characters → pass a plain path, or - to read stdin' };
   const shown = clip(file, 60);
   let bytes: Buffer;
@@ -122,7 +135,7 @@ function readRequest(file: string): { text: string } | { stop: string } {
       if (st.isDirectory()) return { stop: `✖ request: ${shown} is a folder → pass a request file, or - to read stdin` };
       if (st.size > MAX_REQUEST_BYTES) return { stop: TOO_BIG };
     }
-    bytes = readFileSync(file === '-' ? 0 : file);
+    bytes = file === '-' ? stdinSource() : readFileSync(file);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     if (code === 'ENOENT') return { stop: `✖ request: ${shown} not found → check the path, or pass - to read stdin` };
@@ -147,32 +160,51 @@ const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop
  *  instead carry exit 2 (P3: a bad SIDEWISE_BASE_URL is a config mistake to fix, not a runtime provider failure). */
 const providerExit = (e: unknown): 1 | 2 => (e instanceof JevConfigError ? e.exit : 1);
 
+/** Everything a dispatch needs instead of reaching for `process.*` directly, so the same dispatch runs for real
+ *  (the bottom of this file, with real streams) or in-process for an MCP tool call (src/mcp/stdio.ts, with the
+ *  tool call's own `stdin` string and no real stdout/stderr ever touched). `io` is only exercised by `init`/
+ *  `uninstall`'s interactive prompts — the MCP path gives them a stream that closes immediately, so a stray
+ *  `args: ["init"]` resolves with skipped/default answers instead of hanging the server. */
+export interface CliCtx {
+  env: Record<string, string | undefined>;
+  cwd: string;
+  platform: NodeJS.Platform;
+  runner: Runner;
+  packageDir: string;
+  pkg: { name: string; version: string };
+  homeDir: string;
+  stdin: () => Buffer;
+  io: PromptIO;
+}
+
 /** class, scan, drill and loop share one shape: a request file (or -), optional --dry-run. */
-async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths: SidewisePaths): Promise<void> {
+async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths: SidewisePaths, ctx: CliCtx): Promise<{ exit: number; text: string }> {
   const twice = givenTwice(rest, ['dry-run']);
   if (twice) return finish(2, twice);
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { 'dry-run': { type: 'boolean', default: false } } });
   positionalCount(command, positionals, 1, 1);
-  const read = readRequest(positionals[0]!);
+  const read = readRequest(positionals[0]!, ctx.stdin);
   if ('stop' in read) return finish(2, read.stop);
   let provider: ClassifierPort;
   try {
-    provider = selectProvider(process.env, { chaosState: path.join(paths.dir, 'chaos.json') });
+    provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json') });
   } catch (e) {
     return finish(providerExit(e), (e as Error).message);
   }
-  const r = await RUNNERS[command](read.text, { paths, provider, env: process.env, dryRun: values['dry-run'] });
+  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, dryRun: values['dry-run'] });
   return finish(r.exit, r.text);
 }
 
-async function main(argv: string[]): Promise<void> {
+/** The whole dispatch, exhaustive over `Command` by construction: every branch returns `{exit, text}`, and
+ *  nothing here ever touches `process.*` — see the module doc and `CliCtx`. */
+async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; text: string }> {
   const [command = '', ...rest] = argv;
   if (command === '') return finish(2, USAGE);
   if (command === '--help' || command === '-h') return finish(0, USAGE);
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init or uninstall (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
 
   // template needs no project to run: it never spends and never writes. When --parent is given, it still tries
@@ -187,7 +219,7 @@ async function main(argv: string[]): Promise<void> {
       options: { parent: { type: 'string' }, from: { type: 'string' } },
     });
     positionalCount('template', positionals, 1, 1);
-    const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from }, resolvePaths());
+    const r = runTemplate(positionals[0]!, { parent: values.parent, from: values.from }, resolvePaths(ctx.cwd, ctx.env));
     return finish(r.exit, r.text);
   }
 
@@ -196,12 +228,25 @@ async function main(argv: string[]): Promise<void> {
   if (command === 'doctor') {
     const { positionals } = args('doctor', { args: rest, allowPositionals: true, options: {} });
     positionalCount('doctor', positionals, 0, 0);
-    const r = runDoctor(process.env, resolvePaths(), process.version, {
-      resolveStored: () => resolveStoredKey(realRunner, process.platform, process.env),
-      runner: realRunner,
-      platform: process.platform,
+    const r = runDoctor(ctx.env, resolvePaths(ctx.cwd, ctx.env), process.version, {
+      resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
+      runner: ctx.runner,
+      platform: ctx.platform,
     });
     return finish(r.exit, r.text);
+  }
+
+  // mcp: a stdio MCP server, run until the client (or real stdin) closes, then exit 0. No project needed up
+  // front — each tool call re-enters this same dispatch and resolves its own project as normal.
+  if (command === 'mcp') {
+    const { positionals } = args('mcp', { args: rest, allowPositionals: true, options: {} });
+    positionalCount('mcp', positionals, 0, 0);
+    await runMcpServer(
+      ctx.io as McpIo,
+      (a, stdinText) => dispatch(a, { ...ctx, stdin: () => Buffer.from(stdinText ?? '', 'utf8') }),
+      ctx.pkg.version,
+    );
+    return { exit: 0, text: '' };
   }
 
   // init/uninstall need no project up front either: they check process.cwd() for a git project themselves
@@ -241,15 +286,15 @@ async function main(argv: string[]): Promise<void> {
       yes: values.yes,
     };
     const r = await runInit(flags, {
-      env: process.env,
-      cwd: process.cwd(),
-      platform: process.platform,
-      runner: realRunner,
-      io: { input: process.stdin, output: process.stdout },
-      keyStdin: flags.key === 'stdin' ? process.stdin : undefined,
-      packageDir: PACKAGE_DIR,
-      pkg: { name: pkg.name, version: pkg.version },
-      homeDir: os.homedir(),
+      env: ctx.env,
+      cwd: ctx.cwd,
+      platform: ctx.platform,
+      runner: ctx.runner,
+      io: ctx.io,
+      keyStdin: flags.key === 'stdin' ? ctx.io.input : undefined,
+      packageDir: ctx.packageDir,
+      pkg: ctx.pkg,
+      homeDir: ctx.homeDir,
     });
     return finish(r.exit, r.text);
   }
@@ -268,18 +313,18 @@ async function main(argv: string[]): Promise<void> {
     positionalCount('uninstall', positionals, 0, 0);
     const flags: UninstallFlags = { all: values.all, keepKey: values['keep-key'], keepData: values['keep-data'], yes: values.yes };
     const r = await runUninstall(flags, {
-      env: process.env,
-      cwd: process.cwd(),
-      platform: process.platform,
-      runner: realRunner,
-      io: { input: process.stdin, output: process.stdout },
-      homeDir: os.homedir(),
-      pkgName: pkg.name,
+      env: ctx.env,
+      cwd: ctx.cwd,
+      platform: ctx.platform,
+      runner: ctx.runner,
+      io: ctx.io,
+      homeDir: ctx.homeDir,
+      pkgName: ctx.pkg.name,
     });
     return finish(r.exit, r.text);
   }
 
-  const paths = resolvePaths();
+  const paths = resolvePaths(ctx.cwd, ctx.env);
   if (!paths) return finish(2, NO_PROJECT);
   switch (command) {
     case 'view': {
@@ -291,7 +336,7 @@ async function main(argv: string[]): Promise<void> {
       const arg = positionals[0]!;
       let input = arg;
       if (arg === '-') {
-        input = readFileSync(0, 'utf8');
+        input = ctx.stdin().toString('utf8');
       } else {
         try {
           if (statSync(arg).isFile()) input = readFileSync(arg, 'utf8');
@@ -299,14 +344,14 @@ async function main(argv: string[]): Promise<void> {
           // not a file: arg itself is the place/id, as in Plan 1
         }
       }
-      const r = runView(input, Number(values.level) as Level, { paths, env: process.env });
+      const r = runView(input, Number(values.level) as Level, { paths, env: ctx.env });
       return finish(r.exit, r.text);
     }
     case 'class':
     case 'scan':
     case 'drill':
     case 'loop':
-      return runSweptVerb(command, rest, paths);
+      return runSweptVerb(command, rest, paths, ctx);
     case 'change': {
       const twice = givenTwice(rest, ['dry-run', 'parent', 'compare']);
       if (twice) return finish(2, twice);
@@ -334,17 +379,17 @@ async function main(argv: string[]): Promise<void> {
         text = stringify({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) } } });
       } else {
         positionalCount('change', positionals, 1, 1);
-        const read = readRequest(positionals[0]!);
+        const read = readRequest(positionals[0]!, ctx.stdin);
         if ('stop' in read) return finish(2, read.stop);
         text = read.text;
       }
       let provider: ClassifierPort;
       try {
-        provider = selectProvider(process.env, { chaosState: path.join(paths.dir, 'chaos.json') });
+        provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json') });
       } catch (e) {
         return finish(providerExit(e), (e as Error).message);
       }
-      const r = await runChange(text, { paths, provider, env: process.env, dryRun: values['dry-run'] });
+      const r = await runChange(text, { paths, provider, env: ctx.env, dryRun: values['dry-run'] });
       return finish(r.exit, r.text);
     }
     case 'outcome': {
@@ -383,15 +428,68 @@ async function main(argv: string[]): Promise<void> {
       return finish(0, `set · ${budgetLine(setBudget(paths, caps))}`);
     }
   }
+  // Unreachable by construction: `Command` minus the early-return branches above is exactly this switch's case
+  // list. Kept only so `dispatch`'s return type stays `{exit, text}` on every path, including a future Command
+  // added to LINES without a matching case here.
+  return finish(1, `✖ sidewise: internal: unhandled command "${command}"`);
 }
 
-// Last line of defence: every failure is one line on stderr with a fix, never a stack trace.
-main(process.argv.slice(2)).catch((e: unknown) => {
-  if (e instanceof UsageStop) return finish(2, e.message);
-  if (e instanceof BudgetError) return finish(3, e.message);
-  if (e instanceof LedgerError) return finish(e.exit, e.message);
-  if (e instanceof JevConfigError) return finish(e.exit, e.message);
-  if (e instanceof LockError || e instanceof StoreError) return finish(1, e.message);
-  const text = (e instanceof Error ? e.message : String(e)).split('\n')[0]!.slice(0, 200);
-  finish(1, `✖ sidewise: ${text} → retry; if it repeats, report it with the command you ran`);
-});
+/**
+ * The whole CLI, side-effect-injectable: never touches real `process.*` — see `CliCtx` and the module doc.
+ * Every failure (a thrown UsageStop/BudgetError/LedgerError/JevConfigError/LockError/StoreError, or anything
+ * else) is mapped here to the same one-line-on-stderr shape the real CLI has always produced, so the MCP path
+ * (src/mcp/*) gets identical error handling with no second copy of this mapping.
+ */
+export async function runCli(argv: string[], ctx: CliCtx): Promise<{ exit: number; text: string }> {
+  try {
+    return await dispatch(argv, ctx);
+  } catch (e: unknown) {
+    if (e instanceof UsageStop) return finish(2, e.message);
+    if (e instanceof BudgetError) return finish(3, e.message);
+    if (e instanceof LedgerError) return finish(e.exit, e.message);
+    if (e instanceof JevConfigError) return finish(e.exit, e.message);
+    if (e instanceof LockError || e instanceof StoreError) return finish(1, e.message);
+    const text = (e instanceof Error ? e.message : String(e)).split('\n')[0]!.slice(0, 200);
+    return finish(1, `✖ sidewise: ${text} → retry; if it repeats, report it with the command you ran`);
+  }
+}
+
+/** The real ctx: real env/cwd/platform, the real runner, real stdin/stdout for prompts, and fd 0 for a `-`
+ *  positional — used only by the real entrypoint below, never by a test (which builds its own CliCtx).
+ *  `io` is a GETTER, not a plain field: merely referencing `process.stdin` (even without reading from it) makes
+ *  Node initialize it as a stream, which then fights a later synchronous `readFileSync(0)` for a large piped
+ *  request (`class -` on >1 MB of stdin threw EAGAIN once `io` was built eagerly for every command — verified
+ *  directly). A command that never touches `ctx.io` (class, doctor, template, ...) must never touch
+ *  `process.stdin` either, exactly like before this refactor. */
+function realCtx(): CliCtx {
+  return {
+    env: process.env,
+    cwd: process.cwd(),
+    platform: process.platform,
+    runner: realRunner,
+    packageDir: PACKAGE_DIR,
+    pkg: { name: pkg.name, version: pkg.version },
+    homeDir: os.homedir(),
+    stdin: () => readFileSync(0),
+    get io(): PromptIO {
+      return { input: process.stdin, output: process.stdout };
+    },
+  };
+}
+
+// Only run for real when this file is the process's own entrypoint (`node dist/cli.js ...` / `node
+// bin/sidewise.mjs ...`) — not when something (a test, src/mcp/*) imports `runCli` from it as a module, which
+// must never also kick off a real run against real process.argv/stdin/stdout as a side effect of the import.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  runCli(process.argv.slice(2), realCtx())
+    .then((r) => {
+      if (r.text) (r.exit === 0 ? process.stdout : process.stderr).write(r.text);
+      process.exitCode = r.exit;
+    })
+    .catch((e: unknown) => {
+      // Last line of defence: runCli already catches everything dispatch can throw, so this is only for a
+      // failure in realCtx() itself or in runCli's own signature — never a stack trace to the user either way.
+      process.stderr.write(`✖ sidewise: ${e instanceof Error ? e.message : String(e)} → retry; if it repeats, report it with the command you ran\n`);
+      process.exitCode = 1;
+    });
+}
