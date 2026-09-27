@@ -28,6 +28,16 @@ export function hasGit(deps?: { spawn?: Spawn }): boolean {
   return spawn('git', ['--version'], {}).status === 0;
 }
 
+/** Fix #13: the nearest git repo actually containing `dir` (its own `git rev-parse --show-toplevel`), not
+ *  necessarily the Sidewise project root — a monorepo package or a vendored project one level down is its
+ *  own repo. `undefined` when `dir` isn't inside any repo at all (git itself is the source of truth here, not
+ *  a `.git`-folder walk this module would have to duplicate and keep in sync with git's own rules). */
+function gitRootOf(dir: string, spawn: Spawn): string | undefined {
+  const result = spawn('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8' });
+  const out = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+  return result.status === 0 && out ? out : undefined;
+}
+
 const isOutside = (rel: string): boolean => rel.startsWith('..') || path.isAbsolute(rel);
 
 /** Redact, then cap per file and in total, exactly like evidence/code.ts's EVIDENCE_LIMITS. */
@@ -101,7 +111,12 @@ export function readGitEvidence(root: string, ref: string, field: 'before' | 'af
       continue;
     }
 
-    const result = spawn('git', ['show', `${ref}:${shown}`], { cwd: root, encoding: 'utf8' });
+    // Fix #13: run git in the repo that actually contains this file (its own nearest toplevel), not always
+    // the Sidewise root — a nested repo is otherwise invisible ("fatal: not a git repository"). Falls back to
+    // root when the file isn't inside any repo at all, same as always (an ordinary "ref not found" follows).
+    const gitRoot = gitRootOf(path.dirname(full), spawn) ?? root;
+    const gitRel = path.relative(gitRoot, full).split(path.sep).join('/');
+    const result = spawn('git', ['show', `${ref}:${gitRel}`], { cwd: gitRoot, encoding: 'utf8' });
     const stderr = typeof result.stderr === 'string' ? result.stderr : '';
     if (result.status !== 0 || FATAL.test(stderr)) {
       errors.push(`✖ side.compare.${field}: "${ref}" not found by git (or the path doesn't exist there) → check the ref and the path`);

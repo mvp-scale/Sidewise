@@ -1,7 +1,9 @@
 // git evidence: a ref that looks like a git option must never reach git (Review Focus #3).
+import { mkdirSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { hasGit, isGitOption, readGitEvidence } from '../../src/evidence/git.ts';
-import { tempProject } from '../helpers/project.ts';
+import { gitCommit, gitInit, tempProject } from '../helpers/project.ts';
 
 describe('isGitOption', () => {
   it.each(['-x', '--all', '-', '--output=x'])('%s looks like an option', (ref) => expect(isGitOption(ref)).toBe(true));
@@ -30,5 +32,20 @@ describe('readGitEvidence: an option-shaped ref never reaches git', () => {
     if (!hasGit()) return ctx.skip();
     const r = readGitEvidence(root, 'not-a-real-ref-xyz', 'before', ['src/a.ts']);
     expect(r.ok).toBe(false);
+  });
+
+  // Fix #13: change can't see a nested repo — readGitEvidence always ran git at the Sidewise root, so a file
+  // whose own repo lives one level down (a monorepo package, a vendored project) was always "not found by
+  // git", even on a real, committed ref. Runs git in the file's OWN nearest repo instead. [C-147]
+  it('reads a file whose own git repo is nested one level below the Sidewise root', (ctx) => {
+    const { root } = tempProject({});
+    if (!hasGit()) return ctx.skip();
+    const nested = path.join(root, 'nested');
+    mkdirSync(path.join(nested, 'src'), { recursive: true });
+    writeFileSync(path.join(nested, 'src', 'a.ts'), 'export const x = 1;\n');
+    gitInit(nested); // the Sidewise root itself is never a git repo here — old code had nothing to fall back to
+    const ref = gitCommit(nested, 'nested commit');
+    const r = readGitEvidence(root, ref, 'before', ['nested/src/a.ts']);
+    expect(r).toEqual({ ok: true, files: { 'nested/src/a.ts': 'export const x = 1;\n' }, notes: ['reading whole files: line ranges may not match the parent run'] });
   });
 });
