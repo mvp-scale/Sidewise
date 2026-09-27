@@ -1,21 +1,19 @@
 /**
- * `sidewise uninstall`: reverses init. Using Sidewise is per project (an owner ruling), so by default this only
- * disables the CURRENT project — the plugin's project-scope install, and (with confirmation; kept by default,
- * since it's the user's run history) that project's `.sidewise/`. The per-user parts — the stored key and the
- * CLI itself, shared across every project — are only touched with `--all`, which also then reaches every
- * plugin scope found (not just this project's) and the marketplace/cache dir it left behind. `--yes` takes the
- * default answer everywhere: yes for removal steps that run, no for `.sidewise/` (the one the owner called out
- * explicitly). `--keep-key`/`--keep-data` skip their step outright, with no question asked.
+ * `sidewise uninstall`: reverses init. Using Sidewise is scoped per project, so by default this only disables
+ * the CURRENT project — the plugin's project-scope install, and (with confirmation; kept by default, since
+ * it's the user's run history) that project's `.sidewise/`. The per-user parts — the stored key and the CLI
+ * itself, shared across every project — are only touched with `--all`, which also then reaches every plugin
+ * scope found (not just this project's) and the marketplace/cache dir it left behind. `--yes` takes the
+ * default answer everywhere: yes for removal steps that run, no for `.sidewise/` (removing run history needs
+ * an explicit yes). `--keep-key`/`--keep-data` skip their step outright, with no question asked.
  *
- * A hands-on pass found three rough edges this file now fixes: (1) `stepKey` used to ask "remove the stored
- * key?" even when nothing was stored, only discovering that afterward — it now checks first and skips the
- * question when there's nothing there. (2) `stepCli` gave up with "don't know how this was installed" whenever
- * `install.json` was missing, even when the CLI's own resolved PATH entry made the install mode obvious
- * (`detectInstallMode`) — it now guesses from the path first, same as `sidewise doctor`'s own `cli:` line does
- * for display. (3) every step now re-checks its own filesystem/PATH facts after acting, and anything still
- * found gets folded into a final "manual backup" block with the exact command or path to finish the job by
- * hand — the immediate `✖ problem` line already says what went wrong (AGENTS.md rule 7); this block is the
- * single place to look afterward for everything left over, whether from a failure or a deliberate "keep it".
+ * Each step checks its own filesystem/PATH facts before asking (`stepKey` skips the question outright when
+ * nothing is stored; `stepCli` falls back to `detectInstallMode` when `install.json` is missing but the CLI's
+ * own resolved PATH entry makes the install mode obvious, same as `sidewise doctor`'s own `cli:` line) and
+ * again after acting, so anything still found — from a failure, or a deliberate "keep it" — gets folded into a
+ * final "manual backup" block with the exact command or path to finish the job by hand. The immediate
+ * `✖ problem` line already says what went wrong (AGENTS.md rule 7); the backup block is the single place to
+ * look afterward for everything left over.
  */
 import { existsSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -134,9 +132,8 @@ async function stepPlugin(flags: UninstallFlags, ctx: UninstallCtx, manual: stri
 }
 
 /** Per user, shared across every project — only touched with `--all`. Checks whether a key is actually stored
- *  BEFORE asking (a hands-on-pass fix: it used to ask unconditionally and only learn "nothing stored"
- *  afterward), and re-checks after removal so a key still resolving from either source is named, not silently
- *  assumed gone. */
+ *  before asking, and re-checks after removal so a key still resolving from either source is named, not
+ *  silently assumed gone. */
 async function stepKey(flags: UninstallFlags, ctx: UninstallCtx, manual: string[]): Promise<string[]> {
   if (!flags.all) return [line('skipped', 'key', 'skipped (per-user; use --all to remove it)')];
   if (flags.keepKey) return [line('skipped', 'key', 'skipped (--keep-key)')];

@@ -1,9 +1,9 @@
 /**
  * The OS keychain, one fixed slot (service "sidewise", account "typesafe"): macOS via `security`, Linux via
  * `secret-tool`. Windows has no equivalent that's trivial and argv-safe (see storeKey's own doc for why
- * `security`/an interactive prompt don't count as "trivial" either) — this task's own scope decision, noted in
- * its report — so it always falls through to the env file there, and on any other platform. Every call goes
- * through the injected Runner; storing a secret always sends it on stdin, never argv.
+ * `security`/an interactive prompt don't count as "trivial" either), so it always falls through to the env
+ * file there, and on any other platform. Every call goes through the injected Runner; storing a secret always
+ * sends it on stdin, never argv.
  */
 import type { Runner } from './runner.ts';
 

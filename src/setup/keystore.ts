@@ -1,14 +1,12 @@
 /**
- * The one resolver: where a TypeSafe/gateway key lives outside env (the owner ruling that replaces AGENTS.md
- * rule 6) — the OS keychain first (keychain.ts), then the user env file (env-file.ts). Both are written only by
- * `sidewise init` and read by init (to show "already set, replace?"), doctor (to show the source) and, through
- * config.ts's `deps.resolveStored`, a real classifier call.
+ * The one resolver: where a TypeSafe/gateway key lives outside env — the OS keychain first (keychain.ts), then
+ * the user env file (env-file.ts). Both are written only by `sidewise init` and read by init (to show "already
+ * set, replace?"), doctor (to show the source) and, through config.ts's `deps.resolveStored`, a real
+ * classifier call.
  *
  * Keychain account "typesafe" is a single fixed slot — it has no room for a second field saying "this key is
  * for the gateway" — so only the TypeSafe-direct provider choice ever goes to the keychain; a gateway key
- * always goes to the env file, which can say so (`export AI_GATEWAY_API_KEY='...'`). This is this task's own
- * simplification: the spec's literal keychain commands (always `-a typesafe` / `account typesafe`) left the
- * gateway case unaddressed.
+ * always goes to the env file, which can say so (`export AI_GATEWAY_API_KEY='...'`).
  */
 import type { StoredKey } from '../classifier/typesafe/config.ts';
 import { envFilePath, readEnvFile, removeEnvFileValue, setEnvFileValue } from './env-file.ts';

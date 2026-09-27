@@ -1,14 +1,13 @@
 /**
  * `sidewise init`: makes the CLI reachable and gets a key stored somewhere real (both per user, shared across
  * every project), then — per project, since using Sidewise is always scoped to the project whose code and
- * ledger it's answering about — wires up the Claude Code plugin at project scope and sets up `.sidewise/`. The
- * owner's hands-on install pass (lab/specs/2026-09-27-init-design.md) found none of this worked out of the box.
+ * ledger it's answering about — wires up the Claude Code plugin at project scope and sets up `.sidewise/`.
  * Idempotent (a re-run that finds a step already done says so and changes nothing) and interactive by default;
  * `--yes` takes the default answer everywhere. Every step prints exactly one line, glyph first: `✔ done`,
  * `· already`, `– skipped (why)`, or `✖ problem → fix`.
  *
  * Run outside a git project, only the two per-user steps (CLI, key) run; there's no project to enable Sidewise
- * for, so init stops there with one line telling the user to cd into one (an owner ruling landed mid-build).
+ * for, so init stops there with one line telling the user to cd into one.
  *
  * Every external effect (npm, claude, the OS keychain, a real prompt) comes in through `InitCtx`'s `runner`/
  * `io`/`keyStdin`, so a test drives the whole flow with no real process ever spawned and no real file outside a
@@ -30,7 +29,7 @@ import type { Runner } from './runner.ts';
 export interface InitFlags {
   mode?: InstallMode;
   claude?: boolean; // true: --claude, false: --no-claude, undefined: auto (use claude if it's on PATH)
-  scope?: 'user' | 'project'; // default: 'project' (an owner ruling: using Sidewise is per project)
+  scope?: 'user' | 'project'; // default: 'project' — using Sidewise is scoped per project
   key: 'ask' | 'stdin' | 'no';
   yes: boolean;
 }
@@ -85,10 +84,10 @@ function defaultMode(cwd: string, prefixWritable: boolean): InstallMode {
 }
 
 /** A path resolved inside npm's npx cache (`~/.npm/_npx/<hash>/...` on POSIX; the Windows npx cache also sits
- *  under a `_npx` folder) is a throwaway copy npx fetched for one run, not a durable install — a hands-on pass
- *  found that re-running `init` from such a copy reported "already reachable" and never actually installed
- *  anything that survives past that one run. Checked as a plain path segment so it works whether or not the
- *  cache entry itself has since been pruned. */
+ *  under a `_npx` folder) is a throwaway copy npx fetched for one run, not a durable install — re-running
+ *  `init` from such a copy would report "already reachable" and never actually install anything that survives
+ *  past that one run. Checked as a plain path segment so it works whether or not the cache entry itself has
+ *  since been pruned. */
 function isNpxCache(binPath: string): boolean {
   return binPath.split(path.sep).includes('_npx');
 }
@@ -180,8 +179,8 @@ async function stepPlugin(flags: InitFlags, ctx: InitCtx): Promise<string[]> {
     lines.push(line('already', 'plugin', 'mvp-scale marketplace already added'));
   }
 
-  // Using Sidewise is per project (an owner ruling): the plugin defaults to project scope, enabled just for the
-  // project init runs in — --scope user remains available as an explicit override.
+  // Using Sidewise is scoped per project: the plugin defaults to project scope, enabled just for the project
+  // init runs in — --scope user remains available as an explicit override.
   const scope: PluginScope = flags.scope ?? 'project';
   const status = pluginStatus(ctx.runner);
   if (status.installed && (status.scopes as string[]).includes(scope)) {

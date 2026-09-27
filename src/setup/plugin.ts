@@ -1,10 +1,10 @@
 /**
  * The Claude Code plugin side of setup: whether `claude` is on PATH, whether the `mvp-scale` marketplace and
  * the `sidewise` plugin are already there, and the commands that add/install/remove them. `claude plugin
- * list --json`'s exact shape isn't documented anywhere this task could verify against a real `claude` binary
- * (see this task's report), so parsing here is deliberately lenient: it walks whatever JSON comes back looking
- * for an entry naming "sidewise", and falls back to "not installed" rather than guessing at a shape. Every
- * command below goes through the injected Runner — nothing here ever shells out for real inside a test.
+ * list --json`'s exact shape isn't documented anywhere verifiable against a real `claude` binary, so parsing
+ * here is deliberately lenient: it walks whatever JSON comes back looking for an entry naming "sidewise", and
+ * falls back to "not installed" rather than guessing at a shape. Every command below goes through the injected
+ * Runner — nothing here ever shells out for real inside a test.
  */
 import { existsSync, rmSync } from 'node:fs';
 import os from 'node:os';
@@ -62,8 +62,8 @@ export const uninstallPlugin = (runner: Runner, scope?: PluginScope) => runner('
 export const removeMarketplace = (runner: Runner) => runner('claude', ['plugin', 'marketplace', 'remove', 'mvp-scale']);
 
 /** `~/.claude/plugins/cache/mvp-scale`, the cache dir Claude leaves behind after `marketplace remove` (its own
- *  cleanup doesn't reach it — the play-test finding this mirrors for `.sidewise/`, just on Claude's side
- *  instead of ours). `homeDir` is injectable so a test never touches a real `~/.claude`. */
+ *  cleanup doesn't reach it, the same way a project's own `.sidewise/` is left behind on our side). `homeDir`
+ *  is injectable so a test never touches a real `~/.claude`. */
 export function pluginCacheDir(homeDir: string = os.homedir()): string {
   return path.join(homeDir, '.claude', 'plugins', 'cache', 'mvp-scale');
 }
