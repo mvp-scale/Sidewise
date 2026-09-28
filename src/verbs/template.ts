@@ -119,10 +119,8 @@ function fromRunId(id: string, flags: TemplateFlags, paths: SidewisePaths | unde
   // paths, or copied from the parent) rather than typed by the agent — a real scan/drill request never carries
   // `where:` either (NEVER forbids it for both), so it's dropped here too. Every other verb (class, loop, view)
   // stores exactly `request.side.*` on its own run, so the generic rebuild below is faithful for them.
-  // expect: (plan 2b) isn't on every ContractRun shape yet as this file was written — read it defensively so
-  // this rebuild starts including it the moment replay.ts's own NewContractRun starts writing it, with no
-  // further change needed here.
-  const replayExpect = (run as unknown as { expect?: string[] }).expect;
+  // replay's own prediction (a list of concern names, or the literal "none"), echoed back verbatim when present.
+  const replayExpect = run.expect;
   const echoesWhere = run.verb !== 'scan' && run.verb !== 'drill';
   const side: Record<string, unknown> =
     run.verb === 'replay'
