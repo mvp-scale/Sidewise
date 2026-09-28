@@ -470,12 +470,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     case 'loop':
       return runSweptVerb(command, rest, paths, ctx);
     case 'change': {
-      const twice = givenTwice(rest, ['dry-run', 'parent', 'compare']);
+      const twice = givenTwice(rest, ['dry-run', 'parent', 'compare', 'expect']);
       if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args('change', {
         args: rest,
         allowPositionals: true,
-        options: { 'dry-run': { type: 'boolean', default: false }, parent: { type: 'string' }, compare: { type: 'string' } },
+        options: { 'dry-run': { type: 'boolean', default: false }, parent: { type: 'string' }, compare: { type: 'string' }, expect: { type: 'string' } },
       });
       const usingFlags = values.parent !== undefined || values.compare !== undefined;
       let text: string;
@@ -493,7 +493,16 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         // contract), the placeholder is never read — runChange's own findRun/isContractRun checks bail first.
         const parentRun = findRun(paths, values.parent);
         const goal = parentRun && isContractRun(parentRun) ? parentRun.goal : 'The change works';
-        text = stringify({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) } } });
+        // expect: (plan 2b, required): --expect names specific concerns (comma-separated); with neither
+        // given, default to every one of the parent's own concerns (predict the fix clears all of them) —
+        // runChange's own parent checks (missing, legacy, a sweep) still fire first when those apply, since
+        // this is only a best-effort default, not a validation of the parent.
+        const expect = values.expect
+          ? values.expect.split(',').map((s) => s.trim()).filter(Boolean)
+          : parentRun && isContractRun(parentRun)
+            ? parentRun.ask.categories.filter((c) => c.section !== 'decisions').map((c) => c.name)
+            : [];
+        text = stringify({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount('change', positionals, 1, 1);
         const read = readRequest(positionals[0]!, ctx.stdin);

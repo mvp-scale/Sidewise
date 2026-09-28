@@ -6,15 +6,20 @@ import { sidewise, snapshot } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
-const VIEW_YAML = readFileSync('test/fixtures/requests/valid/view.yaml', 'utf8');
 const LOOP_YAML = readFileSync('test/fixtures/requests/valid/loop.yaml', 'utf8');
+// A view draft whose only question is CLASS_YAML's own question 1, word for word: exactReuse (ledger/reuse.ts)
+// needs every one of a draft's own keys (evidence + question text) to appear in a candidate run's key map, so
+// this has to quote the class fixture's probe exactly, not the (deliberately different, "a partial draft is
+// fine") view.yaml fixture's own wording.
+const VIEW_TEXT = 'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Is request text placed directly into the SQL query?\n';
 // A distinct goal: the contract reuses per-question answers keyed on evidence + question text, so sending the
 // exact same request twice makes the second one free (calls: 0) — a different goal keeps both runs paid.
 const CLASS_YAML_2 = CLASS_YAML.replace('This login handler is safe to merge', 'This login handler is safe to merge, second look');
 // over: {file: src/*.ts, function: each} matches the one function tempProject() ships (src/user.ts's findUser),
 // so "src/user.ts/findUser" is a known, deterministic sweep item id — not a guess.
+// function is the finest layer, depth: quick: 3 concerns categories x 3 probes + decisions.
 const SCAN_YAML =
-  'side:\n  goal: Handlers trust nothing from the request\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\n';
+  'side:\n  goal: Handlers trust nothing from the request\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does {function} put request text straight into a query?\n          2: Is the query built by string concatenation?\n          3: Does {function} run the query with db.query on that string?\n        access:\n          pass: no\n          4: Does {function} return a record without checking its owner?\n          5: Is the caller id compared to the record owner id?\n          6: Could {function} be called without any permission check?\n        leaks:\n          pass: no\n          7: Does {function} send back a raw database error?\n          8: Does {function} log the full request body?\n          9: Does the response from {function} include fields nobody asked for?\n      decisions:\n        severity:\n          pass: [none, low]\n          10:\n            scale: How severe is the worst issue in {function}?\n            levels: [none, low, medium, high, critical]\n        route:\n          pass: [ship]\n          11:\n            choice: Where should {function} go?\n            options: [ship, fix, block]\n';
 
 function project(): string {
   const { root } = tempProject();
@@ -80,14 +85,14 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
 
   it('view: request mode reuses a class run\'s answers by exact match; place mode still works', () => {
     const root = project();
-    expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0); // SW-0001, same evidence and goal/injection text as VIEW_YAML
-    writeFileSync(path.join(root, 'view.yaml'), VIEW_YAML);
+    expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0); // SW-0001, same evidence and goal/injection text as VIEW_TEXT
+    writeFileSync(path.join(root, 'view.yaml'), VIEW_TEXT);
 
     const fromFile = sidewise(root, ['view', 'view.yaml']);
     expect(fromFile.status).toBe(0);
     expect(fromFile.stdout).toContain('reuse: SW-0001');
 
-    const fromStdin = sidewise(root, ['view', '-'], { input: VIEW_YAML });
+    const fromStdin = sidewise(root, ['view', '-'], { input: VIEW_TEXT });
     expect(fromStdin.status).toBe(0);
     expect(fromStdin.stdout).toContain('reuse: SW-0001');
 

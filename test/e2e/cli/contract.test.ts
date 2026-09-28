@@ -27,9 +27,10 @@ describe('the contract, end to end, through the built CLI', () => {
     expect(change.status).toBe(0);
     expect(change.stdout).toContain('wise: {recorded: [parent]}');
 
+    // function is the finest layer, depth: quick: 3 concerns categories x 3 probes + decisions.
     writeFileSync(
       path.join(root, 'scan.yaml'),
-      'side:\n  goal: Handlers trust nothing from the request\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\n',
+      'side:\n  goal: Handlers trust nothing from the request\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does {function} put request text straight into a query?\n          2: Is the query built by string concatenation?\n          3: Does {function} run the query with db.query on that string?\n        access:\n          pass: no\n          4: Does {function} return a record without checking its owner?\n          5: Is the caller id compared to the record owner id?\n          6: Could {function} be called without any permission check?\n        leaks:\n          pass: no\n          7: Does {function} send back a raw database error?\n          8: Does {function} log the full request body?\n          9: Does the response from {function} include fields nobody asked for?\n      decisions:\n        severity:\n          pass: [none, low]\n          10:\n            scale: How severe is the worst issue in {function}?\n            levels: [none, low, medium, high, critical]\n        route:\n          pass: [ship]\n          11:\n            choice: Where should {function} go?\n            options: [ship, fix, block]\n',
     );
     const scan = sidewise(root, ['scan', 'scan.yaml']);
     expect(scan.status).toBe(0);

@@ -82,10 +82,12 @@ describe('class: bad request input', () => {
   });
 
   it('a request with many bad lines: at most 5 stops, then one line saying how many more', () => {
-    const categories = Array.from({ length: 12 }, (_, i) => `    cat${i + 1}: {pass: no}`).join('\n');
+    // 12 concerns categories, each missing its questions — wrapped in concerns: (a flat category directly
+    // under ask: is refused outright as its own single stop, which would defeat this test's own point).
+    const categories = Array.from({ length: 12 }, (_, i) => `      cat${i + 1}: {pass: no}`).join('\n');
     const noisy = file(
       'noisy.yaml',
-      `side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n${categories}\n`,
+      `side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    concerns:\n${categories}\n`,
     );
     const r = unchanged(root, ['class', noisy]);
     expect(r.status).toBe(2);

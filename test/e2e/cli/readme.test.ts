@@ -23,9 +23,15 @@ function shimBin(): string {
   return dir;
 }
 
+// `sidewise template class` (skills/sidewise/templates/class.yaml) names `src/handlers/user.ts` as its own
+// worked example's where: — tempProject()'s own default (src/user.ts) doesn't match it, so this project needs
+// that exact file to exist for "sidewise class review.yaml" (the template piped straight through) to find it.
+const HANDLER_TS =
+  'export function findUser(req, res) {\n  const id = req.query.id;\n  const sql = `SELECT * FROM users WHERE id = ${id}`;\n  db.query(sql, (err, rows) => {\n    if (err) return res.status(500).send(err.message);\n    res.json(rows[0]);\n  });\n}\n';
+
 describe('README Quickstart, run for real', () => {
   it('every line exits 0, in order', () => {
-    const { root } = tempProject();
+    const { root } = tempProject({ 'src/handlers/user.ts': HANDLER_TS });
     const bin = shimBin();
     const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, SIDEWISE_HOME: root, SIDEWISE_PROVIDER: 'fake', SIDEWISE_ACTOR: 'readme', TYPESAFE_API_KEY: '', AI_GATEWAY_API_KEY: '' };
     let combined = '';
