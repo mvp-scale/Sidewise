@@ -15,21 +15,23 @@ const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) 
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 const env = { SIDEWISE_ACTOR: 'reviewer-7' };
-// The contract's own numbers (P(yes) per question); see plan Decision 3: this gives SPLIT, not the doc's STRONG.
-// 11 (severity, scale) and 12 (route, choice) aren't yes/no: stubProvider only uses `pick` for those, never `yes`.
-const P: Record<string, number> = { goal: 0.08, '1': 0.94, '2': 0.91, '10': 0.9, '3': 0.88, '6': 0.81, '9': 0.75, '4': 0.86, '5': 0.84, '7': 0.55, '8': 0.2 };
+// The fixture's own concerns: injection [1,2,3], access [4,5,6], leaks [7,8,9] (all pass: no), then
+// decisions: severity [10, scale] and route [11, choice] — 11 numbered questions + goal = 12 total.
+// 10 (severity) and 11 (route) aren't yes/no: stubProvider only uses `pick` for those, never `yes`.
+const P: Record<string, number> = { goal: 0.08, '1': 0.94, '2': 0.91, '3': 0.88, '4': 0.86, '5': 0.84, '6': 0.81, '7': 0.55, '8': 0.2, '9': 0.75 };
+const PICK = { '10': 'high', '11': 'block' }; // neither passes (severity pass: [none, low]; route pass: [ship])
 
 describe('class', () => {
-  it('the contract class example: gate, categories, consensus SPLIT (Decision 3), one call, logged as v2 [C-033] [C-034] [C-056]', async () => {
+  it('the contract class example: gate, categories, consensus STRONG, one call, logged as v2 [C-033] [C-034] [C-056]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
-    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
     const r = await runClass(CLASS_YAML, { paths, provider, env, now: () => Date.parse('2026-09-26T12:00:00Z') });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('gate: fail');
-    expect(r.text).toContain('severity: {gate: fail, 11: {top: high, p: 0.90}}');
-    expect(r.text).toContain('route: {gate: fail, 12: {top: block, p: 0.90}}');
-    expect(r.text).toContain('consensus: SPLIT');
-    expect(r.text).toContain('escalate: true');
+    expect(r.text).toContain('severity: {gate: fail, 10: {top: high, p: 0.90}}');
+    expect(r.text).toContain('route: {gate: fail, 11: {top: block, p: 0.90}}');
+    expect(r.text).toContain('consensus: STRONG');
+    expect(r.text).toContain('escalate: false');
     expect(provider.calls).toHaveLength(1);
     // [C-035] one subject's call state is exactly {goal, code} — no run-level id/ts/actor/task ever reaches
     // the classifier ([C-023]: those are stamped by the engine afterwards, from the run it logs, not sent),
@@ -38,13 +40,13 @@ describe('class', () => {
     // [C-048] question text is never repeated in the response; the agent already has it by number.
     expect(r.text).not.toContain('Is request text placed directly into the SQL query?');
     const [run] = readLedger(paths).filter(isContractRun);
-    expect(run).toMatchObject({ id: 'SW-0001', v: 2, verb: 'class', calls: 1, consensus: 'SPLIT' });
+    expect(run).toMatchObject({ id: 'SW-0001', v: 2, verb: 'class', calls: 1, consensus: 'STRONG' });
     expect(loadBudget(paths).state.runs).toBe(1);
   });
 
   it('an identical second run makes no call and is free, and says which run it reused [C-130]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
-    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
     await runClass(CLASS_YAML, { paths, provider, env });
     const r2 = await runClass(CLASS_YAML, { paths, provider, env });
     expect(provider.calls).toHaveLength(1); // no second call
@@ -58,7 +60,7 @@ describe('class', () => {
 
   it('[C-160] a re-ask on the same place after the code changed says which older run answered it before', async () => {
     const { root, paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
-    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
     await runClass(CLASS_YAML, { paths, provider, env }); // SW-0001, on the original code
     writeFileSync(path.join(root, 'src/user.ts'), 'export function findUser(id) { return db.query("SELECT * FROM users WHERE id = ?", [id]); }\n');
     const r2 = await runClass(CLASS_YAML, { paths, provider, env }); // same place, same questions, changed code
@@ -70,7 +72,7 @@ describe('class', () => {
 
   it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
-    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
@@ -78,7 +80,7 @@ describe('class', () => {
 
   it('a cost the provider only estimated (fix #4) is noted, not shown as if it were reported [C-132]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
-    const provider = withEstimatedCost(stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } }));
+    const provider = withEstimatedCost(stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK }));
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
@@ -88,18 +90,18 @@ describe('class', () => {
     const provider = stubProvider();
     const r = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });
     expect(r.exit).toBe(0);
-    // fix #5b: nothing has ever run here, so all 13 questions would be asked, none reused.
-    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 13\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    // fix #5b: nothing has ever run here, so all 12 questions (goal + 11 numbered) would be asked, none reused.
+    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 12\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
   });
 
   it('--dry-run after a real run: predicts a fully-reused, zero-call plan, and warns when the cap is already reached [C-134]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
-    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
     await runClass(CLASS_YAML, { paths, provider, env });
     const dry = await runClass(CLASS_YAML, { paths, provider, env, dryRun: true });
-    expect(dry.text).toBe('plan:\n  calls: 0\n  questions: 0\n  reused: 13\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    expect(dry.text).toBe('plan:\n  calls: 0\n  questions: 0\n  reused: 12\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(readLedger(paths)).toHaveLength(1); // the dry run itself logged nothing
   });
 
@@ -116,7 +118,7 @@ describe('class', () => {
   it('a risky-looking goal: the irreversible note comes before the budget note [C-047]', async () => {
     const RISKY_YAML = CLASS_YAML.replace('This login handler is safe to merge', 'This will delete the login handler safely');
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
-    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
     const r = await runClass(RISKY_YAML, { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('looks irreversible');
@@ -130,7 +132,7 @@ describe('class', () => {
   it('an oversized source file: class stops before spending, and points at the agent card [C-169]', async () => {
     const big = 'x'.repeat(EVIDENCE_LIMITS.perFileChars + 5000);
     const { paths } = tempProject({ 'src/user.ts': big });
-    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' } });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(2);
     expect(r.text).toContain('too big to send');
@@ -148,16 +150,15 @@ describe('class', () => {
 
   it('a goal that misses the bar while every category passes: next says so, not categories[0]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query("SELECT * FROM users WHERE id = ?", [id]); }\n' });
-    // injection/access/leaks (pass: no) low; guards (pass: yes) high; severity picks none (a passing level);
-    // route picks ship (the only passing option) — every category passes. Only the goal itself misses.
-    const ALL_PASS: Record<string, number> = { goal: 0.1, '1': 0.1, '2': 0.1, '10': 0.1, '3': 0.9, '6': 0.9, '9': 0.9, '4': 0.1, '5': 0.1, '7': 0.1, '8': 0.1 };
-    const provider = stubProvider({ yes: (q) => ALL_PASS[q.id] ?? 0.5, pick: { '11': 'none', '12': 'ship' } });
+    // injection/access/leaks (all pass: no) low, so every probe clears; severity's default pick (none) and
+    // route's default pick (ship) are both passing options too — every category passes. Only the goal misses.
+    const ALL_PASS: Record<string, number> = { goal: 0.1, '1': 0.1, '2': 0.1, '3': 0.1, '4': 0.1, '5': 0.1, '6': 0.1, '7': 0.1, '8': 0.1, '9': 0.1 };
+    const provider = stubProvider({ yes: (q) => ALL_PASS[q.id] ?? 0.5 });
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('gate: fail');
     expect(r.text).toContain('goal: {gate: fail, p: 0.10}');
     expect(r.text).toContain('injection: {gate: pass');
-    expect(r.text).toContain('guards: {gate: pass');
     expect(r.text).toContain('access: {gate: pass');
     expect(r.text).toContain('leaks: {gate: pass');
     expect(r.text).toContain('severity: {gate: pass');
@@ -167,7 +168,7 @@ describe('class', () => {
 
   it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
-    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: { '11': 'high', '12': 'block' }, adapter: 'fake' });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK, adapter: 'fake' });
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
