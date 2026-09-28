@@ -56,6 +56,44 @@ describe('readRequestText', () => {
     ]);
   });
 
+  it('N6: every trap line is reported at once, before YAML parsing, not just the first', () => {
+    const text = 'side:\n  ask:\n    leaks:\n      pass: no\n      1: Does it log: an email?\n      2: {Is the id validated?}\n      3: Also logs: raw data\n';
+    expect(stops(text)).toEqual([
+      '✖ question 1 has ": " → put it in quotes',
+      '✖ question 2 puts it in { } → use the indented form',
+      '✖ question 3 has ": " → put it in quotes',
+    ]);
+  });
+
+  it('N6: caps at 5 stops (4 + "N more"), same shape as stopText', () => {
+    const lines = [1, 2, 3, 4, 5, 6, 7].map((n) => `      ${n}: Also logs: raw data ${n}`).join('\n');
+    const text = `side:\n  ask:\n    leaks:\n      pass: no\n${lines}\n`;
+    expect(stops(text)).toEqual([
+      '✖ question 1 has ": " → put it in quotes',
+      '✖ question 2 has ": " → put it in quotes',
+      '✖ question 3 has ": " → put it in quotes',
+      '✖ question 4 has ": " → put it in quotes',
+      '✖ request: 3 more problems → fix the ones above, then run again',
+    ]);
+  });
+
+  it('N6: an over-160-character line is reported even when it is not a question', () => {
+    const long = 'x'.repeat(170);
+    const result = stops(`side:\n  goal: ${long}\n`);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatch(/^✖ yaml: ".*" is longer than 160 characters → shorten it$/u);
+  });
+
+  it('N6: a mid-text blank like {function} is never flagged (only a leading, unquoted "{")', () => {
+    expect(value(q(1, 'Does {function} take request text straight from `req.query`?'))).toEqual({
+      side: { ask: { leaks: { pass: 'no', 1: 'Does {function} take request text straight from `req.query`?' } } },
+    });
+  });
+
+  it('N6: a properly quoted question is never flagged', () => {
+    expect(value(q(1, '"Does it log: an email?"'))).toEqual({ side: { ask: { leaks: { pass: 'no', 1: 'Does it log: an email?' } } } });
+  });
+
   it('empty, comments only, not a mapping, the old text format, an alias bomb', () => {
     const empty = '✖ request: empty → start with "side:" (sidewise template class prints a skeleton)';
     expect(stops('')).toEqual([empty]);
