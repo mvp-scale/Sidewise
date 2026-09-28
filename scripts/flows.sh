@@ -185,14 +185,14 @@ need_has "06-drill-subject" "drill (one-subject parent)" "gate:"
 pass "06-drill-subject" "followed next: through template to a one-subject drill"
 flow_done "06-drill-subject"
 
-# ---- 7. class -> change --parent <id> --compare <c1>..<c2> -------------------------------------------------
+# ---- 7. class -> replay --parent <id> --compare <c1>..<c2> -------------------------------------------------
 flow_start
-run change --parent SW-0001 --compare "$C1..$C2" --expect injection
-need_exit "07-change" "change --parent --compare" 0
-need_has "07-change" "change --parent --compare" "regressed:"
-need_has "07-change" "change --parent --compare" "fixed:"
-pass "07-change" "change replays SW-0001 across the two commits: fixed/still/regressed shape"
-flow_done "07-change"
+run replay --parent SW-0001 --compare "$C1..$C2" --expect injection
+need_exit "07-replay" "replay --parent --compare" 0
+need_has "07-replay" "replay --parent --compare" "regressed:"
+need_has "07-replay" "replay --parent --compare" "fixed:"
+pass "07-replay" "replay re-runs SW-0001 across the two commits: fixed/still/regressed shape"
+flow_done "07-replay"
 
 # ---- 8. template scan -> scan -> template drill --parent <scan id> --from <item> -> drill (sweep parent) --
 flow_start

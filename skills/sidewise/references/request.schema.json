@@ -133,7 +133,7 @@
               "type": "string"
             }
           },
-          "description": "change: two git refs"
+          "description": "replay: two git refs"
         },
         "expect": {
           "type": "array",
@@ -142,13 +142,13 @@
           "items": {
             "$ref": "#/$defs/tag"
           },
-          "description": "change, required: which of the parent's concerns this change should turn to pass"
+          "description": "replay, required: which of the parent's concerns this replay should turn to pass"
         },
         "verb": {
           "enum": [
             "view",
             "class",
-            "change",
+            "replay",
             "scan",
             "drill",
             "loop"
@@ -156,7 +156,7 @@
           "description": "optional; the tool or command name wins. If both are present and differ, the request is sent back"
         }
       },
-      "description": "Per-verb requirements (checked by the validator): class needs depth, where, ask · view needs where (a partial draft is fine) · change needs parent, compare and expect, and never ask (it replays the parent's questions; for new questions, use class) · scan and loop need depth, over, ask · drill needs parent and from; depth is optional. A sweep shows its total question count and cost before any call."
+      "description": "Per-verb requirements (checked by the validator): class needs depth, where, ask · view needs where (a partial draft is fine) · replay needs parent, compare and expect, and never ask (it re-runs the parent's questions; for new questions, use class) · scan and loop need depth, over, ask · drill needs parent and from; depth is optional. A sweep shows its total question count and cost before any call."
     },
     "sections": {
       "type": "object",

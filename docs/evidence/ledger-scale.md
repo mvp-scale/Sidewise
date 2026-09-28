@@ -116,7 +116,7 @@ Same shortcut, via `exactReuse` (used by `view`'s request-mode cache check).
 
 ### findRunById
 
-An exact SW id lookup (`change`'s parent, `outcome`'s existence check) — one PK point read. Always read-only
+An exact SW id lookup (`replay`'s parent, `outcome`'s existence check) — one PK point read. Always read-only
 this round (never rebuilds/catches up the on-disk index on a writer's behalf — see "What changed" below).
 
 | n | samples | p50 ms | p95 ms |

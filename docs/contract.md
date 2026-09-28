@@ -25,18 +25,18 @@ What changes is what it runs over:
 
 | Move | How you ask for it | Verbs |
 |---|---|---|
-| **one subject** | `where:` (no `over`) | view, class, change |
+| **one subject** | `where:` (no `over`) | view, class, replay |
 | **across** arrays (a sweep) | `over:` nested arrays = layers; `ask:` per layer with `{layer}` blanks | loop (ideas), scan (code) |
 | **down** from one item | `from:` an item in a parent run's arrays | drill |
 
-One subject is asked with `where:` and no `over:` — view, class and change. [C-007]
+One subject is asked with `where:` and no `over:` — view, class and replay. [C-007]
 A sweep is asked with `over:` (nested arrays as layers) and `ask:` per layer with `{layer}` blanks — loop
 (ideas) and scan (code). [C-008]
 Drill goes down from one item, named by `from:`, in a parent run's own arrays. [C-009]
 
 | Grid | Know | Judge | Prove |
 |---|---|---|---|
-| **Side**: solve it with what's proven | [view](#view) | [class](#class) | [change](#change) |
+| **Side**: solve it with what's proven | [view](#view) | [class](#class) | [replay](#replay) |
 | **Wise**: find what's new, and learn it | [scan](#scan) | [drill](#drill) | [loop](#loop) |
 
 ---
@@ -53,9 +53,9 @@ Drill goes down from one item, named by `from:`, in a parent run's own arrays. [
 | side | `ask` | `concerns:` (yes/no categories) + `decisions:` (scale/choice categories) for one subject. In a sweep: layer → `{concerns:, decisions:}` |
 | side | `over` | sweeps only: nested arrays |
 | side | `from` | drill only |
-| side | `compare` | change only |
-| side | `parent` | required by drill and change (what to build on); allowed on every verb otherwise, as lineage only |
-| side | `expect` | change only, required: which of the parent's concerns this change should turn to pass |
+| side | `compare` | replay only |
+| side | `parent` | required by drill and replay (what to build on); allowed on every verb otherwise, as lineage only |
+| side | `expect` | replay only, required: which of the parent's concerns this replay should turn to pass |
 | wise | `why` | `validate` · `find` · `debug` |
 | wise | `area` | `data` · `api` · `ui` · `auth` · `hosting` · `build` · `tests` |
 | wise | `stage` | `design` · `build` · `review` · `pre-merge` · `post-fix` · `release` |
@@ -92,7 +92,7 @@ category with `pass:` straight under `ask:` (no `concerns:`/`decisions:` wrapper
 [C-013]
 `over` is sweeps-only: nested arrays that define the layers; `concerns` and `decisions` are reserved words
 there too, since a layer of either name would collide with `ask`'s own sections. [C-014]
-`from` applies only to drill; `compare` only to change. `parent` is required by drill and change (the run to
+`from` applies only to drill; `compare` only to replay. `parent` is required by drill and replay (the run to
 build on); every other verb accepts it too now, purely as lineage (the same role `wise.parent` already played,
 which remains an accepted alias for it). [C-015]
 `wise.why` is one of `validate`, `find` or `debug`. [C-016]
@@ -149,7 +149,7 @@ The gate passes only when the goal and every category pass; in a sweep, an item 
 categories and all of its children pass. [C-032]
 Consensus is one of STRONG, SPLIT or WEAK: whether the yes/no answers agree with each other, separate from
 the grades. Only `class`'s response, and `drill`'s response on a one-subject parent, show it — a sweep
-response (scan, loop, or drill on a sweep parent) and `change` don't compute it. [C-033]
+response (scan, loop, or drill on a sweep parent) and `replay` don't compute it. [C-033]
 `escalate` is `true` on non-STRONG consensus, `depth: thorough`, or a goal that reads as irreversible
 (matching `delete`, `deploy`, `drop`, `pay`/`payment`, `migrat*`, `secret` or `credential`) — don't act on
 this alone. It's shown wherever consensus is (class, and drill on a one-subject parent). [C-034]
@@ -235,7 +235,7 @@ the depth cap, it says so instead of naming one. [C-046]
 `notes:` always ends with the budget line; any validation or evidence notes come first. [C-047]
 A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, offline, canned) adds `adapter
 <name> · not evidence` to `notes:`, right before the budget line, on every verb that calls the classifier
-(class, scan, drill, loop, change) — so a rehearsal answer is never mistaken for real evidence. [C-092]
+(class, scan, drill, loop, replay) — so a rehearsal answer is never mistaken for real evidence. [C-092]
 A missing `.sidewise/budget.json` is created with the defaults ($5.00, 500 runs) the first time any of those
 verbs preflights a call; that same run's `notes:` says so (`budget file created with defaults ($5.00 · 500
 runs)`), once, since every later run finds the file already there. [C-093]
@@ -244,7 +244,7 @@ rate (today, only `jev-1.13.0`, at $42 per billion input tokens; output tokens a
 estimate from its input tokens instead of showing $0.00, and `notes:` says `cost estimated from tokens (no
 live pricing reported)` so it's never mistaken for a figure TypeSafe itself reported. A model with no
 published rate keeps its cost unreported, never guessed at; a cost the gateway route did report always wins
-over the estimate. Every verb that calls the classifier (class, scan, drill, loop, change) does this the same
+over the estimate. Every verb that calls the classifier (class, scan, drill, loop, replay) does this the same
 way. [C-132]
 Question text is never repeated in a response; the agent has it by number. [C-048]
 A sweep response lists category gates per item and shows probabilities only for questions that didn't clear
@@ -306,7 +306,7 @@ failed / open, with rehearsal runs counted apart) followed by its newest runs, n
 that run's lineage up and down. [C-055]
 A scan/loop/drill sweep run's own `where` is always empty (its questions are asked per item, not per
 request); its real code locations and category tags are indexed from its items' own units and layers
-instead, so `view <folder>` and `view <tag>` find a sweep run the same way they already find a class/change/
+instead, so `view <folder>` and `view <tag>` find a sweep run the same way they already find a class/replay/
 drill run — not only `view .`. [C-120]
 `view <path>` reads a named file's own bytes only to check whether it looks like a request (`side:` or JSON);
 a real source file that isn't one is always shown as a place, never misread as "control characters" just
@@ -400,7 +400,7 @@ at an overlapping place on code that's since changed, the response's `notes:` sa
 
 ---
 
-## change
+## replay
 
 **Side × Prove: did the change work?** It replays a parent run's questions (the yardstick) on two states. [C-060]
 
@@ -411,7 +411,7 @@ side:
   goal: The injection fix works
   parent: SW-0042                  # replay this run's categories and questions
   compare: {before: main, after: HEAD}
-  expect: [injection]              # required, ≥1: which of the parent's concerns this change should fix
+  expect: [injection]              # required, ≥1: which of the parent's concerns this replay should fix
 wise:
   why: validate
   area: data
@@ -431,15 +431,15 @@ next: sidewise template drill --parent SW-0051 --from access
 notes: [2 states · budget 2% used]
 ```
 
-`change` never takes `ask`: it replays the parent's categories and questions; new questions go through
+`replay` never takes `ask`: it replays the parent's categories and questions; new questions go through
 `class`. [C-062]
-`change`'s parent must be a one-subject run (class, change, or drill's one-subject form) — a sweep parent is
+`replay`'s parent must be a one-subject run (class, replay, or drill's one-subject form) — a sweep parent is
 refused; run the sweep again instead, since unchanged items are reused there for free. [C-063]
 A category's response shows `before`/`after` gates, `fixed` (questions failing or unsure before that pass
 after) and `still` (ones that don't); anything in the run-wide `regressed` list (passing before, not after
 now) can alone fail the gate even when every `after` category passes on its own. [C-064]
 `expect:` is required: 1–9 concern names, lowercase kebab-case, each ≤ 20 characters and unique — the agent's
-own prediction of which of the parent's concerns this change should turn to pass. **Not fully wired yet**: the
+own prediction of which of the parent's concerns this replay should turn to pass. **Not fully wired yet**: the
 schema checks `expect:`'s own shape, but nothing yet checks each name against the parent's actual concern
 names, and the response carries no `expected:` grade of the prediction (`fixed`/`still` per category, and
 `regressed`, are unaffected by `expect:` either way, exactly as before this field existed).
@@ -463,17 +463,17 @@ notes: [2 states · budget 2% used]
 A non-empty `regressed` takes priority over the usual "which category matches the overall gate?" search:
 `next:` names the category the first regressed question belongs to, even when every `after` category (and the
 goal) grades pass on its own — the case above, where nothing but `regressed` explains the `fail`. [C-091]
-Called as `sidewise change --parent SW-#### --compare <before>..<after>` (no request file), the goal asked is
+Called as `sidewise replay --parent SW-#### --compare <before>..<after>` (no request file), the goal asked is
 the parent run's own goal, not a fixed placeholder. [C-066]
 The plan is for whether the yardstick predicted correctly to feed a ranking: a category that said `fail`
 and was later `fixed` and proven would count as a hit. **Not shipped yet**: there is no hit count anywhere
 in the ledger record (`ContractRun` carries no field for it), and recording a fix's outcome as `held`
 changes nothing about what `view` shows for that category afterward — the same gap as `view`'s own missing
 `best` field (above). [C-067]
-`change` reads git in the repo that actually contains each compared file — its own nearest `git rev-parse
+`replay` reads git in the repo that actually contains each compared file — its own nearest `git rev-parse
 --show-toplevel`, not only the Sidewise project root — so a file whose own repo is nested one level down (a
 monorepo package, a vendored project) is no longer invisible to it. [C-147]
-Like `class`, `change` names which prior runs its answers came from (`reused: [ids]`) when anything was
+Like `class`, `replay` names which prior runs its answers came from (`reused: [ids]`) when anything was
 reused, and its `--dry-run` predicts that reuse the same way `class`'s does. [C-152]
 
 ---
@@ -574,7 +574,7 @@ A fully-reused scan is never blocked by an already-reached budget cap (see the d
 
 **Wise × Judge: why did this one thing fail?** It goes down from one item in a parent run. [C-074]
 
-**When:** after a `fail` or `unsure` from class, scan, loop or change. [C-075]
+**When:** after a `fail` or `unsure` from class, scan, loop or replay. [C-075]
 
 ```yaml
 side:
@@ -633,11 +633,11 @@ notes: [1 call · budget 4% used]
 
 On a sweep parent (scan, loop, or an earlier sweep drill), `from:` names an item, and drill needs `over:` for
 the next layer down under it; the response is shaped like scan's, worst first. [C-076]
-On a one-subject parent (class, change, or an earlier one-subject drill), `from:` names a category instead;
+On a one-subject parent (class, replay, or an earlier one-subject drill), `from:` names a category instead;
 new, narrower questions go under `ask:` inside it, and the response has the same shape as class's, including
 consensus and escalate. [C-077]
 drill's own `next:` never points at drilling further: on a one-subject parent it says to fix it, then
-`change` against the parent; on a sweep parent it says to fix it and run this same drill again, since
+`replay` against the parent; on a sweep parent it says to fix it and run this same drill again, since
 unchanged items are reused, so it is nearly free. [C-078]
 Wise learns which narrower questions separate the real cause from the noise; they become the drill pattern
 for that category. [C-079]
@@ -752,9 +752,9 @@ stale (its evidence isn't reconstructed here). [C-163]
 `sidewise report patterns` groups every run by its own question-set fingerprint (its categories' or layers'
 names, `pass`/`need` and question text — never the evidence), showing how often each set has run, its
 pass/fail/unsure split, how many distinct places it's touched, and its outcomes so far. [C-164]
-`sidewise report history` merges, newest first: every `change` run's own result against its parent, named
-`fixed` or `regressed` (the same priority `change`'s own gate uses — any regression wins over any fix; a
-change that moved nothing gets no row), with every recorded outcome. Neither is a new ledger write — both are
+`sidewise report history` merges, newest first: every `replay` run's own result against its parent, named
+`fixed` or `regressed` (the same priority `replay`'s own gate uses — any regression wins over any fix; a
+replay that moved nothing gets no row), with every recorded outcome. Neither is a new ledger write — both are
 derived, read-side, from records the commands already wrote. [C-165]
 Every view caps its rows and says plainly how many more exist (`… N more not shown`) rather than dropping them
 silently, the same idiom `view` already uses — `report` takes no option to raise it. [C-166]
@@ -777,7 +777,7 @@ always prints the file's path either way, whether or not that succeeds. [C-204]
 
 `sidewise help` (free, no project needed) prints a one-screen contract card: the six verbs, the rules that
 cause most first-try rejects, and how to read a verdict. [C-113]
-`sidewise help <verb>` (view, class, change, scan, drill, loop) prints that verb's purpose, when to use it,
+`sidewise help <verb>` (view, class, replay, scan, drill, loop) prints that verb's purpose, when to use it,
 one annotated example, and its own sharp rules. [C-114]
 `sidewise help <verb>` now opens with a first line, `Agents: sidewise agent <verb>`, ahead of its own
 `## <verb>` heading — round-4 smoke testing's top finding: a cold CLI agent made zero `sidewise` calls at all
@@ -789,7 +789,7 @@ rather than retyped a second time), and one purpose bullet per verb from the sam
 `agent`'s overview and `help`'s own card already render — `cli.ts` splices this ahead of its usage block rather
 than hand-typing a third copy. [C-191]
 Per-verb sharp rules `help` carries: `drill` says to follow `next:` rather than hand-authoring parent/from;
-`change` says the files must be committed at the ref it names; `scan` says a `scale` question ranks findings
+`replay` says the files must be committed at the ref it names; `scan` says a `scale` question ranks findings
 by severity, worst first, and to scan by file when the file is the unit that matters; `loop` says a sub-layer
 is a sibling key under `over:`, names are ≤ 20 characters with no `/`, and every question under a layer is
 asked of every item at that layer. [C-115]
@@ -812,7 +812,7 @@ explicitly at `sidewise agent probe`. [C-181]
 The 160-character cap on a single question (or the goal) line — previously a bare literal inside
 `schema-check.ts`'s `lineProblem` — is now the named, exported constant `MAX_QUESTION_CHARS`, documented as a
 shared `rules.ts` entry reaching `sidewise help`'s one-screen card, `help authoring`, every verb that accepts
-`ask:` (`class`, `scan`, `drill`, `loop`, `view` — checked against the schema envelope; `change` never accepts
+`ask:` (`class`, `scan`, `drill`, `loop`, `view` — checked against the schema envelope; `replay` never accepts
 `ask:` at all), and both `help probe` and `agent probe`. This closes a round-4 finding: a cold agent hit `✖
 question 1: is longer than 160 characters` with zero prior warning in `agent view` or `agent probe`. Because the
 cap is Sidewise's own hard validator rule rather than TypeSafe's own published guidance, it lives in
@@ -830,7 +830,7 @@ every verb and topic. [C-182]
 A new `agent verdict` card (`tool: verdict`) and a refactored `help verdict` render the same response-vocabulary
 facts from one shared list, `rules.ts`'s `VERDICT_FACTS`: `need:`'s all/most/any bar, the goal-and-every-category
 gate rule, `consensus` (STRONG/SPLIT/WEAK) and which verbs compute it, `escalate`'s triggers, what a probability
-near 0.50 landing in `unsure` means, `change`'s per-category fixed/still/regressed grade, `reused: [SW-####]`'s
+near 0.50 landing in `unsure` means, `replay`'s per-category fixed/still/regressed grade, `reused: [SW-####]`'s
 meaning, `sidewise report hits`'s `stale` flag, and the three exit codes. `help verdict` keeps its own prose
 framing around the list; `agent verdict` renders it bare, matching every other agent card's why-only shape and
 key order. `agent`'s overview gains a third `run:` line, `sidewise agent verdict — before reading a response:
@@ -856,12 +856,12 @@ that predates the YAML contract (a Plan 1 run, no `v: 2`), is a clean stop namin
 no project reachable, the lookup itself is a clean stop (a run-id lookup has nothing to search). `--where`/
 `--goal` overlay on top of a ledger-fetched request the same way they already do for a file-based `--from`.
 [C-201]
-The `--from SW-####` rebuild is faithful to the run's own request for every verb except `change`: a `change`
+The `--from SW-####` rebuild is faithful to the run's own request for every verb except `replay`: a `replay`
 run's stored record also carries its *parent's* `where` and `ask.categories` (kept there only so it can grade
-before/after answers against the same categories — never because the original change request carried them;
-`change`'s own `NEVER` list forbids `ask`/`over`/`from`/`where`/`depth` outright). `--from SW-####` on a change
+before/after answers against the same categories — never because the original replay request carried them;
+`replay`'s own `NEVER` list forbids `ask`/`over`/`from`/`where`/`depth` outright). `--from SW-####` on a replay
 run therefore reprints only `goal`/`parent`/`compare` (plus `verb`), never the borrowed `where`/`ask`, so the
-printed request stays a schema-valid `change` request. Every other verb (`class`/`scan`/`loop`/`drill`) stores
+printed request stays a schema-valid `replay` request. Every other verb (`class`/`scan`/`loop`/`drill`) stores
 exactly its own request's fields on its own run, so the rebuild for those is a direct, unqualified copy. [C-202]
 `sidewise help report` is its own recognized target, not one of the six verbs (`report` is outside the 2x3
 Know/Judge/Prove grid) and not a cross-cutting topic: purpose, an example and its own sharp rules, the same
@@ -878,7 +878,7 @@ files on disk — that's `scan`'s job). [C-183]
 The oversized-file good/bad pair's terse `why` (shown in `agent class`) reads "Big whole files refused —
 name the range", matching the real behavior since e6b7d78 (a stop, not a silent cut). [C-184]
 
-Each of the six verb templates (`skills/sidewise/templates/{view,class,change,scan,drill,loop}.yaml`) shows
+Each of the six verb templates (`skills/sidewise/templates/{view,class,replay,scan,drill,loop}.yaml`) shows
 every `side.*` field that verb's own schema and cross-validator allow it to carry — required fields with a
 live value, optional fields either live or as a commented-out example — each marked `# required` or
 `# optional` in a trailing comment, and its `wise:` block names all six catalog keys (`why`, `area`, `stage`,
@@ -920,13 +920,13 @@ passes `project` or sets `SIDEWISE_HOME`. Round-4 finding: an agent had to fail 
 
 Every `agent <verb>` card's `rules:` list also carries that verb's own sharp-rule prose (`help/verbs.ts`'s
 `SHARP`, the same bullets `help <verb>` already states), spliced in ahead of the shared `ruleLines(verb)`
-entries. This closes a round-4 finding: `agent drill` and `agent change` — the two highest-stakes verbs, isolate
+entries. This closes a round-4 finding: `agent drill` and `agent replay` — the two highest-stakes verbs, isolate
 a finding and prove a fix — rendered an empty `rules:` section, since neither `rules.ts`'s `RULES` nor
-`patterns.ts` had any entries tagged for either verb, even though `help drill`/`help change` already had real
-prose. The splice applies to all six verbs, not just drill/change, so a verb card can't fall back to empty
+`patterns.ts` had any entries tagged for either verb, even though `help drill`/`help replay` already had real
+prose. The splice applies to all six verbs, not just drill/replay, so a verb card can't fall back to empty
 again as sharp rules are added elsewhere. `patterns.ts` also gained one good/bad pair each for `drill` (a bad
-request missing `from:`) and `change` (a bad request that includes `ask:`), both genuinely catchable outright
-by the real cross-validator (drill's trips its NEEDS check; change's trips its NEVER check, since `change` only
+request missing `from:`) and `replay` (a bad request that includes `ask:`), both genuinely catchable outright
+by the real cross-validator (drill's trips its NEEDS check; replay's trips its NEVER check, since `replay` only
 ever replays a parent run's own questions) rather than assumed. [C-192] [C-193]
 
 The Claude Code skill's own "Run this first" guidance (`skills/sidewise/SKILL.md`, carried verbatim into
@@ -956,7 +956,7 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
 - `depth` counts `concerns:` categories only (exactly 3k of them); `decisions:` questions never count toward
   it. [C-086]
 - The ledger stores a category's `section` and `family`/`familySource` alongside its usual fields, the run's
-  git HEAD sha (`commit`, or `null` outside a repo) at the time it ran, `expect` for a `change` run, and
+  git HEAD sha (`commit`, or `null` outside a repo) at the time it ran, `expect` for a `replay` run, and
   `where` for every verb (a sweep derives it from its items' own code paths). None of this changes an answer
   key or a pattern fingerprint — the same question on the same evidence still reuses for free regardless of
   which family tag or commit sha it was asked under. A `view` request-mode check (the free draft-against-the-
@@ -972,7 +972,7 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   sidewise help <verb> · sidewise agent <verb>`; every other command prints just its usage line, since none of
   those has a deeper per-command help page today. Free even on too old a Node, the same as the bare
   `--help`/`-h`. [C-179]
-- `--dry-run` (class, change, scan, drill, loop) reports the calls and question count with no call and no
+- `--dry-run` (class, replay, scan, drill, loop) reports the calls and question count with no call and no
   spend, as `plan: {calls, questions, ...}` followed by `notes: ["dry run: no call, no spend"]`. [C-088]
 - `--dry-run` resolves reuse first and predicts it: `calls`/`questions` count only what would still need
   asking, and `plan.reused` is how many of the request's questions (or, for a sweep, items) would come from
@@ -989,7 +989,7 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   not checked here — not mechanically checkable, left to `sidewise agent probe`'s own prose rule — and neither is
   a question over 160 characters, since the schema already stops that outright before a request can ever reach
   `--dry-run`. More than 3 warnings still shows only 3, plus one line naming how many more, the same overflow
-  shape used for more than 5 request stops. `change` carries no `ask:` of its own (it replays its parent's
+  shape used for more than 5 request stops. `replay` carries no `ask:` of its own (it replays its parent's
   frozen questions), so it has nothing to check. [C-198]
 - A run whose every answer is reused from prior runs is never blocked by an already-reached budget cap, on
   any verb: the cap is checked only when the run would actually need to call the classifier — reuse only
@@ -998,7 +998,7 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
 - `sidewise budget`'s cap-reached message points at the fix that actually applies: `sidewise budget set
   --runs <n>` when only the run cap tripped (the dollar cap has room left), `sidewise budget reset` whenever
   the dollar cap is involved, alone or together with the run cap. [C-133]
-- `change --dry-run` reads both git refs before answering: a nonexistent or mistyped `before`/`after` ref
+- `replay --dry-run` reads both git refs before answering: a nonexistent or mistyped `before`/`after` ref
   stops `--dry-run` the same way it stops a real run, instead of only surfacing on the paid attempt. [C-148]
 - Node ≥ 22.13 is a hard requirement, not a soft preference: it's what the ledger's `node:sqlite`-backed lookup
   index runs on. The CLI's whole dispatch checks this once, up front (see C-106) — a project's own ledger
@@ -1031,7 +1031,7 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   (`ledger/redact.ts`) also scrubs it as a literal, on top of its own secret-shaped patterns. [C-097]
 - A key resolved from the OS keychain or the user file (never env) is honored the same way everywhere a
   provider is chosen or identified — not just by `sidewise doctor` and `sidewise agent`, which already looked
-  past env. Every `cli.ts` call to `selectProvider` (class/scan/drill/loop, and `change`) and to `runView`
+  past env. Every `cli.ts` call to `selectProvider` (class/scan/drill/loop, and `replay`) and to `runView`
   passes the same `resolveStoredKey(runner, platform, env)` lookup those two commands use, via one shared
   `VerbContext`/`ViewContext` field (`resolveStored`) threaded through to every verb's own `providerIdentity`
   call (the route/adapter shown in `--dry-run`'s `plan:` and recorded on the ledger run) — so a key found only

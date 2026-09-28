@@ -50,11 +50,11 @@ yaml is 110% of json (compact)'s tokens; yaml is 70% of json (pretty, 2-space)'s
 
 yaml is 108% of json (compact)'s tokens; yaml is 65% of json (pretty, 2-space)'s tokens; yaml is 157% of Plan 1 text's tokens; yaml is 105% of prose's tokens.
 
-## `change`, `scan`, `drill`, `loop`: yaml and json (compact + pretty) only
+## `replay`, `scan`, `drill`, `loop`: yaml and json (compact + pretty) only
 
-No `plan1`/`prose` column: Plan 1 only ever implemented `class` and `view`, so there is no text-format precedent for a sweep or for `change`'s two-state replay, and a prose paraphrase would just restate the sweep rather than offer a comparable single request.
+No `plan1`/`prose` column: Plan 1 only ever implemented `class` and `view`, so there is no text-format precedent for a sweep or for `replay`'s two-state comparison, and a prose paraphrase would just restate the sweep rather than offer a comparable single request.
 
-### change
+### replay
 
 | format | tokens | bytes |
 |---|---|---|

@@ -130,8 +130,8 @@ const FORMAT_LABEL: Record<SampleFormat, string> = {
   prose: 'prose',
 };
 const FOUR_WAY_VERBS = ['class', 'view'];
-const SWEEP_VERBS = ['change', 'scan', 'drill', 'loop'];
-const NO_PLAN1_PROSE = "No `plan1`/`prose` column: Plan 1 only ever implemented `class` and `view`, so there is no text-format precedent for a sweep or for `change`'s two-state replay, and a prose paraphrase would just restate the sweep rather than offer a comparable single request.";
+const SWEEP_VERBS = ['replay', 'scan', 'drill', 'loop'];
+const NO_PLAN1_PROSE = "No `plan1`/`prose` column: Plan 1 only ever implemented `class` and `view`, so there is no text-format precedent for a sweep or for `replay`'s two-state comparison, and a prose paraphrase would just restate the sweep rather than offer a comparable single request.";
 
 function pct(part: number, whole: number): string {
   return `${Math.round((part / whole) * 100)}%`;
@@ -196,7 +196,7 @@ yaml, both jsons and prose carry the same information as each other for the same
 `;
 
   const fourWay = `## \`class\` and \`view\`: all five formats\n\n${FOUR_WAY_VERBS.map((v) => verbSection(v, rows)).join('\n')}`;
-  const sweep = `## \`change\`, \`scan\`, \`drill\`, \`loop\`: yaml and json (compact + pretty) only\n\n${NO_PLAN1_PROSE}\n\n${SWEEP_VERBS.map((v) => verbSection(v, rows)).join('\n')}`;
+  const sweep = `## \`replay\`, \`scan\`, \`drill\`, \`loop\`: yaml and json (compact + pretty) only\n\n${NO_PLAN1_PROSE}\n\n${SWEEP_VERBS.map((v) => verbSection(v, rows)).join('\n')}`;
 
   const response = `## Response side (agents read responses too)
 
