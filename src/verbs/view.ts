@@ -10,15 +10,16 @@ import path from 'node:path';
 import { providerIdentity } from '../classifier/select.ts';
 import { isRehearsal } from '../classifier/port.ts';
 import type { ResolveStored } from '../classifier/typesafe/client.ts';
+import { resolveConfig } from '../config/load.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import type { Gate } from '../contract/types.ts';
 import { RUN_ID } from '../ledger/ids.ts';
 import { readRecordAt, stripLines, sweepPlaces, withIndex, type IndexHandle } from '../ledger/index.ts';
-import { appendLookup, isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
+import { appendLookup, findRun, isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
-import { exactReuse } from '../ledger/reuse.ts';
+import { exactReuse, reuseAge } from '../ledger/reuse.ts';
 import type { Level } from '../lens/request.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { loadRequest, stopText } from './request.ts';
@@ -324,22 +325,35 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
     : [...new Set(runsHere.flatMap((r) => Object.keys(r.categories)))];
 
   let reuse: string | undefined;
+  // plan 2c B3 N2: when there's no exact reuse, say why — "never asked" (no prior run touched this place at
+  // all) vs "code in where changed since SW-x" (a prior run is right there, its evidence just no longer
+  // matches this exact question set) — instead of just omitting the field, as before.
+  let reuseMiss: string | undefined;
   if (request.side.categories.length > 0) {
     const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
     const evidenceStr = subjectEvidence(evidence.evidence.files);
     const keys = questions.map((q) => answerKey(evidenceStr, q));
     const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-    reuse = exactReuse(ctx.paths, who, keys);
+    // plan 2c B3 D2: an answer older than reuse.maxAgeDays/maxCommits is treated as a miss, not reused.
+    const reuseLimits = resolveConfig(ctx.paths, ctx.env).config.reuse;
+    reuse = exactReuse(ctx.paths, who, keys, { reuse: reuseLimits });
+    if (reuse === undefined) reuseMiss = runsHere.length ? `code in where changed since ${runsHere.at(-1)!.id}` : 'never asked';
     // A real draft check (a full ask, not just a bare place/id lookup) is logged, free — CONTRACT's own claim
     // ("the lookup is logged") was untrue until this: never a run (no SW-#### id, appendLookup's own comment),
     // never counted toward the budget or any report's run totals.
     appendLookup(ctx.paths, { goal: request.side.goal, where: request.side.where, hit: reuse !== undefined, reused: reuse ?? null });
   }
 
+  // plan 2c B3 D1: a found reuse also shows its own age/commits-since, right beside the id it already showed.
+  // `reuse` names the matching run itself (not necessarily one of `runsHere`, which is scoped by place, not by
+  // exact question-key match), so its own record is looked up directly.
+  const reuseRun = reuse ? findRun(ctx.paths, reuse) : undefined;
+  const age = reuseRun && isContractRun(reuseRun) ? reuseAge(ctx.paths, { ts: reuseRun.ts, commit: reuseRun.commit ?? null, where: reuseRun.where }) : undefined;
   const next = reuse ? `sidewise view ${reuse}` : 'sidewise class';
   const side = m(
     ['view', request.side.where.join(', ')],
-    ...(reuse ? [['reuse', reuse] as [string, Value]] : []),
+    ...(reuse ? [['reuse', reuse] as [string, Value]] : reuseMiss ? [['reuse', reuseMiss] as [string, Value]] : []),
+    ...(age ? [['reuseAge', m(['days', age.ageDays], ...(age.commitsSince !== null ? [['commits', age.commitsSince] as [string, Value]] : []))] as [string, Value]] : []),
     ['runs', runsHere.length],
     ['categories', m(...categoryNames.map((name) => categoryEntry(name, runsHere)))],
   );

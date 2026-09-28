@@ -43,6 +43,8 @@
  * the bug would first surface. Kept as the full scan; see docs/evidence/ledger-scale.md for the measured cost
  * and why it wasn't chased further.
  */
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
 import type { Answer } from '../contract/types.ts';
 import { readRecordAt, withIndex, type IndexHandle } from './index.ts';
 import { isContractRun, type ContractRun } from './log.ts';
@@ -54,10 +56,69 @@ export interface Who {
   model: string;
 }
 
+/** plan 2c B3: caps beyond which a reused answer is treated as stale and skipped (falling through to an
+ *  older still-valid holder, or a fresh ask). Either bound omitted = no cap on that dimension (today's
+ *  behavior) — see `.sidewise/config.yaml`'s `reuse: {maxAgeDays, maxCommits}` (src/config/defaults.ts). */
+export interface ReuseLimits {
+  maxAgeDays?: number;
+  maxCommits?: number;
+}
+
 export interface Reusable {
   /** The run that first answered it. */
   id: string;
   answer: Answer;
+  /** The origin run's own timestamp, commit and where — carried through for age/commits-since display
+   *  (reuseAge below) and for the maxAgeDays/maxCommits staleness check. `commit` is null when the origin
+   *  couldn't resolve one (not a repo, git absent) — never guessed. */
+  ts: string;
+  commit: string | null;
+  where: string[];
+}
+
+/** How many commits separate `sha` from HEAD, in the git repo that actually contains `wherePaths` — the same
+ *  "repo that contains the run's own where files" rule evidence/git.ts's resolveRefSha/currentCommitSha use,
+ *  duplicated here in miniature (this module doesn't own evidence/git.ts, so it can't add a rev-list export
+ *  there this round; a future cleanup could hoist one shared helper). null when git, the sha, or the repo
+ *  aren't available — never a fake 0, so a caller can't mistake "unknown" for "no drift". Never throws: a
+ *  missing git binary or an unresolvable path both just mean "can't tell". */
+function commitsSince(root: string, sha: string | null, wherePaths: readonly string[]): number | null {
+  if (!sha) return null;
+  try {
+    const first = wherePaths[0];
+    const dir = first ? path.dirname(path.resolve(root, first.split(':')[0]!)) : root;
+    const top = spawnSync('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8' });
+    const gitRoot = top.status === 0 ? top.stdout.trim() : '';
+    if (!gitRoot) return null;
+    const count = spawnSync('git', ['rev-list', '--count', `${sha}..HEAD`], { cwd: gitRoot, encoding: 'utf8' });
+    if (count.status !== 0) return null;
+    const n = Number(count.stdout.trim());
+    return Number.isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/** {ts, commit, where} -> how stale a reused answer actually is, for display (view.ts) or a staleness check
+ *  (isStale below). `ageDays` floors at 0 (a clock skew or same-instant reuse never reads as negative). */
+export interface ReuseAge {
+  ageDays: number;
+  commitsSince: number | null;
+}
+export function reuseAge(paths: SidewisePaths, r: Pick<Reusable, 'ts' | 'commit' | 'where'>, now: number = Date.now()): ReuseAge {
+  const parsed = Date.parse(r.ts);
+  const ageDays = Number.isFinite(parsed) ? Math.max(0, Math.floor((now - parsed) / 86_400_000)) : 0;
+  return { ageDays, commitsSince: commitsSince(paths.root, r.commit, r.where) };
+}
+
+/** Whether `r` is too old/too far behind to reuse under `limits` — either bound only applies when it's
+ *  actually set; `commitsSince` returning null (can't tell) never counts as stale on its own. */
+function isStale(paths: SidewisePaths, r: Pick<Reusable, 'ts' | 'commit' | 'where'>, limits: ReuseLimits | undefined, now: number): boolean {
+  if (!limits || (limits.maxAgeDays === undefined && limits.maxCommits === undefined)) return false;
+  const { ageDays, commitsSince: since } = reuseAge(paths, r, now);
+  if (limits.maxAgeDays !== undefined && ageDays > limits.maxAgeDays) return true;
+  if (limits.maxCommits !== undefined && since !== null && since > limits.maxCommits) return true;
+  return false;
 }
 
 /** The record at `offset`, if it's a contract run for `who` — a defensive re-check (the index already scopes
@@ -68,9 +129,10 @@ function readCandidate(paths: SidewisePaths, offset: number, who: Who): Contract
 }
 
 /** The fast path for one key: the reuse index's current holder, re-read from its own record (never the stored
- *  qid — see the file header). undefined when the slot is empty, its holder is blocked, or anything about it
- *  doesn't check out (a stale offset, a shape that no longer matches) — any of which falls back to the scan. */
-function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: string): Reusable | undefined {
+ *  qid — see the file header). undefined when the slot is empty, its holder is blocked, too stale under
+ *  `limits` (plan 2c B3 D2 — the caller then falls back to the scan, which can find an older still-valid
+ *  holder), or anything about it doesn't check out (a stale offset, a shape that no longer matches). */
+function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: string, limits: ReuseLimits | undefined, now: number): Reusable | undefined {
   const hit = handle.reuseKeyHit(who.adapter, who.model, key);
   if (!hit || hit.blocked) return undefined;
   const origin = readCandidate(paths, hit.offset, who);
@@ -78,7 +140,9 @@ function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: str
   const originQid = Object.entries(origin.keys).find(([, k]) => k === key)?.[0];
   if (originQid === undefined) return undefined;
   const answer = origin.answers[originQid];
-  return answer ? { id: origin.id, answer } : undefined;
+  if (!answer) return undefined;
+  const reusable: Reusable = { id: origin.id, answer, ts: origin.ts, commit: origin.commit ?? null, where: origin.where };
+  return isStale(paths, reusable, limits, now) ? undefined : reusable;
 }
 
 /** Key → the newest reusable answer for it, for the keys asked about. The fast path (above) resolves most keys
@@ -96,9 +160,24 @@ function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: str
  *  is the first read to touch `.sidewise/` at all on some paths — a structurally broken log.jsonl (e.g. a
  *  directory where the file should be) must come back as preflight's own clean StoreError, never a raw errno
  *  escaping unwrapped just because this call now sometimes runs first. */
-export function lookupAnswers(paths: SidewisePaths, who: Who, keys: readonly string[], opts: { readOnly?: boolean } = {}): Map<string, Reusable> {
+/** The record `origin` names (an id, not an offset) if it's a contract run for `who` — used only when a
+ *  candidate's own `reusedFrom[qid]` points past it to a deeper origin, so that origin's OWN ts/commit/where
+ *  (not the candidate's) drive age/commits-since and staleness (plan 2c B3). `handle.findOffset` is the same
+ *  id -> offset lookup `view.ts`'s lineage walk already relies on. */
+function readOrigin(paths: SidewisePaths, handle: IndexHandle, origin: string, who: Who): ContractRun | undefined {
+  const offset = handle.findOffset(origin);
+  return offset === undefined ? undefined : readCandidate(paths, offset, who);
+}
+
+export function lookupAnswers(
+  paths: SidewisePaths,
+  who: Who,
+  keys: readonly string[],
+  opts: { readOnly?: boolean; reuse?: ReuseLimits; now?: number } = {},
+): Map<string, Reusable> {
   const want = new Set(keys);
   if (!want.size) return new Map();
+  const now = opts.now ?? Date.now();
   return onStore(paths.log, 'read', () =>
     withIndex(
       paths,
@@ -106,7 +185,7 @@ export function lookupAnswers(paths: SidewisePaths, who: Who, keys: readonly str
         const out = new Map<string, Reusable>();
         const remaining = new Set<string>();
         for (const key of want) {
-          const hit = fastReuse(paths, handle, who, key);
+          const hit = fastReuse(paths, handle, who, key, opts.reuse, now);
           if (hit) {
             out.set(key, hit);
             continue;
@@ -122,10 +201,12 @@ export function lookupAnswers(paths: SidewisePaths, who: Who, keys: readonly str
               if (!remaining.has(key)) continue;
               const answer = run.answers[qid];
               const origin = run.reusedFrom[qid] ?? run.id;
-              if (answer && !handle.isBlocked(origin)) {
-                out.set(key, { id: origin, answer });
-                remaining.delete(key);
-              }
+              if (!answer || handle.isBlocked(origin)) continue;
+              const originRec = origin === run.id ? run : (readOrigin(paths, handle, origin, who) ?? run);
+              const reusable: Reusable = { id: origin, answer, ts: originRec.ts, commit: originRec.commit ?? null, where: originRec.where };
+              if (isStale(paths, reusable, opts.reuse, now)) continue; // keep walking: an older holder may still be valid
+              out.set(key, reusable);
+              remaining.delete(key);
             }
           }
         }
@@ -145,8 +226,9 @@ export function lookupAnswers(paths: SidewisePaths, who: Who, keys: readonly str
  * Wrapped in onStore for the same reason as lookupAnswers above: a structurally broken log.jsonl must surface
  * as the usual clean StoreError, never a raw errno.
  */
-export function exactReuse(paths: SidewisePaths, who: Who, keys: readonly string[]): string | undefined {
+export function exactReuse(paths: SidewisePaths, who: Who, keys: readonly string[], opts: { reuse?: ReuseLimits; now?: number } = {}): string | undefined {
   if (!keys.length) return undefined;
+  const now = opts.now ?? Date.now();
   return onStore(paths.log, 'read', () =>
     withIndex(
       paths,
@@ -155,6 +237,7 @@ export function exactReuse(paths: SidewisePaths, who: Who, keys: readonly string
         for (const { offset } of handle.candidates(who.adapter, who.model)) {
           const run = readCandidate(paths, offset, who);
           if (!run) continue;
+          if (isStale(paths, { ts: run.ts, commit: run.commit ?? null, where: run.where }, opts.reuse, now)) continue; // plan 2c B3 D2: too old/far behind — keep walking
           const qidOf = new Map(Object.entries(run.keys).map(([qid, key]) => [key, qid]));
           const holds = keys.every((k) => {
             const qid = qidOf.get(k);

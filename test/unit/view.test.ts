@@ -146,8 +146,11 @@ describe('view: request mode', () => {
     const text = 'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Is request text placed directly into the SQL query?\n';
     const r = runView(text, 1, { paths, env: {} });
     expect(r.exit).toBe(0);
+    // plan 2c B3 N2: no prior run touched this place at all -> "never asked", not just an omitted field.
     expect(r.text).toBe(
-      ['side:', '  view: src/user.ts:1-3', '  runs: 0', '  categories:', '    injection: {runs: 0}', 'wise: {recorded: none}', 'next: sidewise class', 'notes: [free]'].join('\n') + '\n',
+      ['side:', '  view: src/user.ts:1-3', '  reuse: never asked', '  runs: 0', '  categories:', '    injection: {runs: 0}', 'wise: {recorded: none}', 'next: sidewise class', 'notes: [free]'].join(
+        '\n',
+      ) + '\n',
     );
   });
 
@@ -165,6 +168,9 @@ describe('view: request mode', () => {
     const r = runView(draft, 1, { paths, env: {} });
     expect(r.text).toContain('runs: 1');
     expect(r.text).toContain('injection: {runs: 1, pass: 0, fail: 1, last: SW-0001}');
+    // plan 2c B3 N2: a prior run DID touch this place, but its evidence key no longer matches this exact draft
+    // (a different goal text) — say so by name, not just omit the field.
+    expect(r.text).toContain('reuse: code in where changed since SW-0001');
   });
 
   it('reuse: the exact same request comes back as reuse, and the view call spends nothing [C-050] [C-053] [C-054]', async () => {
@@ -178,6 +184,8 @@ describe('view: request mode', () => {
     // The SAME request text: same goal, same categories/questions, same where.
     const r = runView(text, 1, { paths, env: {} });
     expect(r.text).toContain('reuse: SW-0001');
+    // plan 2c B3 D1: a found reuse also shows its own age (no git repo here, so no commits-since to show).
+    expect(r.text).toContain('reuseAge: {days: 0}');
     expect(r.text).toContain('next: sidewise view SW-0001');
     // Plan 2b: a real draft check (a full ask, not just a bare place/id lookup) is logged, free — one new
     // "lookup" record, never a run: it carries no SW-#### id and never touches the budget (checked below).

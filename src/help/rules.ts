@@ -146,6 +146,7 @@ export const VERDICT_FACTS: readonly string[] = [
   "the answer's shape is guaranteed (a number in range, a level that's really one of yours) — whether it's the RIGHT number is what consensus, escalate and your own reading are for, not the schema",
   "`replay`'s per-category grade: `fixed` (failed or unsure before, passes now), `still` (failed or unsure before, still doesn't), `regressed` (passed before, not any more — regressed alone fails the gate even when every `after` category passes)",
   '`reused: [SW-####]` names prior runs an answer\'s evidence and question text matched exactly — free, not a new call',
+  'the cache returns old answers to old questions; learning comes from new ones',
   "`sidewise report hits` flags a one-subject answer `stale` once the code at its own `where` has changed since — re-run it rather than trust it",
   'a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) — read which one you got before treating a stop as `unsure`',
   'a stop always reads `✖ field: problem → fix`; run `sidewise help <verb>` when one doesn\'t make sense',

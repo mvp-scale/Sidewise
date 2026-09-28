@@ -29,6 +29,12 @@ function linearLookup(records: readonly LedgerRecord[], who: Who, keys: readonly
   }
   return out;
 }
+/** lookupAnswers now returns each hit's own ts/commit/where too (plan 2c B3, for age/commits-since display and
+ *  staleness eviction) — this oracle only ever claimed id/answer correctness, so every comparison against it
+ *  projects the real result down to that same shape first. */
+function idAnswerOnly(m: ReadonlyMap<string, { id: string; answer: unknown }>): Record<string, { id: string; answer: unknown }> {
+  return Object.fromEntries([...m].map(([k, v]) => [k, { id: v.id, answer: v.answer }]));
+}
 function linearExact(records: readonly LedgerRecord[], who: Who, keys: readonly string[]): string | undefined {
   if (!keys.length) return undefined;
   const blocked = blockedRuns(records);
@@ -81,7 +87,7 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
         const keys = Array.from({ length: 1 + Math.floor(rand() * 3) }, () => pick(allKeys));
         const wantLookup = linearLookup(records, who, keys);
         const gotLookup = lookupAnswers(paths, who, keys);
-        expect(Object.fromEntries(gotLookup)).toEqual(Object.fromEntries(wantLookup));
+        expect(idAnswerOnly(gotLookup)).toEqual(Object.fromEntries(wantLookup));
         expect(exactReuse(paths, who, keys)).toBe(linearExact(records, who, keys));
       }
     },
@@ -174,7 +180,7 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
     // not just "SW-0001 itself is blocked" but "everything that ever copied from it is blocked too."
     expect(lookupAnswers(paths, who, ['k-chain']).size).toBe(0);
     expect(exactReuse(paths, who, ['k-chain'])).toBeUndefined();
-    expect(Object.fromEntries(lookupAnswers(paths, who, ['k-chain']))).toEqual(Object.fromEntries(linearLookup(records, who, ['k-chain'])));
+    expect(idAnswerOnly(lookupAnswers(paths, who, ['k-chain']))).toEqual(Object.fromEntries(linearLookup(records, who, ['k-chain'])));
     expect(exactReuse(paths, who, ['k-chain'])).toBe(linearExact(records, who, ['k-chain']));
 
     // The blocked-newest-holder case: SW-0005 (newest) is blocked, so the older, still-valid SW-0004 must be
@@ -182,13 +188,13 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
     // at SW-0005, so this only works if the fallback correctly walks PAST a blocked current holder.
     const gotNewest = lookupAnswers(paths, who, ['k-newest']);
     expect(gotNewest.get('k-newest')?.id).toBe('SW-0004');
-    expect(Object.fromEntries(gotNewest)).toEqual(Object.fromEntries(linearLookup(records, who, ['k-newest'])));
+    expect(idAnswerOnly(gotNewest)).toEqual(Object.fromEntries(linearLookup(records, who, ['k-newest'])));
     expect(exactReuse(paths, who, ['k-newest'])).toBe(linearExact(records, who, ['k-newest']));
 
     // Cross-check against the fallback engine too: both engines must agree, not just each agree with the oracle.
     __testOnly.forceFallback = true;
     try {
-      expect(Object.fromEntries(lookupAnswers(paths, who, ['k-chain', 'k-newest']))).toEqual(Object.fromEntries(linearLookup(records, who, ['k-chain', 'k-newest'])));
+      expect(idAnswerOnly(lookupAnswers(paths, who, ['k-chain', 'k-newest']))).toEqual(Object.fromEntries(linearLookup(records, who, ['k-chain', 'k-newest'])));
       expect(exactReuse(paths, who, ['k-newest'])).toBe(linearExact(records, who, ['k-newest']));
     } finally {
       __testOnly.forceFallback = false;

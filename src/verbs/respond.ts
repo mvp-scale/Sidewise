@@ -8,6 +8,9 @@ import { emit, m, type Value } from '../contract/emit.ts';
 import type { CategoryGrade, ItemGrade, Shown, SubjectGrade } from '../contract/grade.ts';
 import type { Answer, Category, Depth, Gate, Side, Wise } from '../contract/types.ts';
 import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
+import { findRun, isContractRun } from '../ledger/log.ts';
+import type { SidewisePaths } from '../ledger/paths.ts';
+import { reuseAge } from '../ledger/reuse.ts';
 import { computeConsensus, type Consensus, type SlotAnswer } from '../lens/consensus.ts';
 import { clip } from '../util/text.ts';
 
@@ -35,6 +38,27 @@ export function subjectSide(id: string, gate: Gate, subject: SubjectGrade, extra
  *  verb's response says which prior runs its answers came from, not just that some were reused. */
 export function reusedIds(reusedFrom: Record<string, string>): string[] {
   return [...new Set(Object.values(reusedFrom))].sort();
+}
+
+export interface ReusedDetail {
+  id: string;
+  ageDays: number;
+  commitsSince?: number;
+}
+
+/** plan 2c B3 D1: age/commits-since for each distinct run an answer was reused from — a richer sibling of
+ *  reusedIds, for a caller that can afford one extra ledger read per distinct origin id (today: only view.ts's
+ *  request mode; class/scan/drill/loop/replay still show the plain reusedIds list — see this piece's own
+ *  report for why threading this further wasn't in scope this round). An origin id that no longer resolves to
+ *  a real contract run (shouldn't happen for a live reusedFrom entry, but never trusted blindly) is omitted
+ *  rather than guessed. */
+export function reusedDetail(paths: SidewisePaths, reusedFrom: Record<string, string>, now: number = Date.now()): ReusedDetail[] {
+  return reusedIds(reusedFrom).flatMap((id) => {
+    const run = findRun(paths, id);
+    if (!run || !isContractRun(run)) return [];
+    const age = reuseAge(paths, { ts: run.ts, commit: run.commit ?? null, where: run.where }, now);
+    return [{ id, ageDays: age.ageDays, ...(age.commitsSince !== null ? { commitsSince: age.commitsSince } : {}) }];
+  });
 }
 
 /** class and drill's one-subject shape both derive consensus and escalate the same way: consensus is the
