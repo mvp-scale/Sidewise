@@ -39,12 +39,13 @@
  *   outcomes(run_id PK, outcome, ts, by): latest outcome per run.
  *   places(kind, val, run_id): one row per `where` entry (kind 'where') or legacy tag (kind 'tag'), literal
  *     values only (no prefix expansion at write time — `placeCandidates` below does a LIKE-prefix read instead).
- *   families(run_id, family): one row per distinct concern `family` a run's own categories carry (plan 2b) —
- *     a normalized table, not a JSON blob, so `sidewise report` can `GROUP BY family` with a plain indexed
- *     query. The `wise` column's own JSON blob already carries problem/nodes/touches/blast for free (it
- *     serializes the run's whole `Wise` object verbatim, and that type gained those fields in plan 2b too) —
- *     no schema change needed for those; `family` is the one genuinely new thing to index, since it lives on
- *     each `Category`, not on `wise`.
+ *   categories(run_id, name, section, family, gate): one row per category a run's own ask carried — one-subject
+ *     (`ask.categories`) or a sweep's own layers (`ask.layers[].categories`), never both — so `sidewise report`
+ *     can `GROUP BY family` with a plain indexed query instead of a JSON blob (plan 2b's "family per category
+ *     as queryable"; see `runCategories` below). The `wise` column's own JSON blob already carries
+ *     problem/nodes/touches/blast for free (it serializes the run's whole `Wise` object verbatim, and that
+ *     type gained those fields in plan 2b too) — no schema change needed for those; `family` (and `section`)
+ *     are the genuinely new things to index here, since they live on each `Category`, not on `wise`.
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
