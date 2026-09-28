@@ -27,7 +27,7 @@ describe('checkSchema', () => {
     expect(texts({ ...base(), focus: 'x' })).toEqual(['✖ focus: not a block → the request holds only side: and wise:; put fields under side:']);
   });
 
-  it('side fields: unknown, goal, depth, where, parent, compare, verb, from, expect [C-010] [C-012]', () => {
+  it('side fields: unknown, goal, depth, where, parent, compare, verb, from, expect [C-010] [C-012] [C-210]', () => {
     const r = base();
     r.side.level = 1;
     expect(texts(r)).toEqual(['✖ side.level: not a field → use goal, depth, where, parent, ask, over, from, compare, verb or expect']);
@@ -135,7 +135,7 @@ describe('checkSchema', () => {
     expect(texts(reserved)).toContain('✖ side.over.concerns: "concerns"/"decisions" are reserved for ask sections → use a different layer name');
   });
 
-  it('wise: only why, area, stage, change, risk, parent, problem, uses, touches, blast, or a valid custom key [C-016] [C-017]', () => {
+  it('wise: only why, area, stage, change, risk, parent, problem, uses, touches, blast, or a valid custom key [C-016] [C-017] [C-207]', () => {
     const r = base();
     r.wise = { why: 'explore', area: 'backend', Mood: 'x' };
     expect(texts(r)).toEqual([
@@ -155,7 +155,7 @@ describe('checkSchema', () => {
     ]);
   });
 
-  it('wise: a custom (non-catalog) key is accepted when lower-kebab and short enough', () => {
+  it('wise: a custom (non-catalog) key is accepted when lower-kebab and short enough [C-207]', () => {
     const r = base();
     r.wise = { why: 'validate', 'ticket-id': 'SW-1', tags: ['a', 'b'] };
     expect(texts(r)).toEqual([]);
@@ -167,10 +167,18 @@ describe('checkSchema', () => {
     expect(texts(tooLong)).toEqual([`✖ wise.${'a'.repeat(19)}…: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters`]);
   });
 
+  // [C-208] the wise: block is capped at 25 YAML source lines, counted from the raw request text (not the
+  // parsed value) — checkSchema's optional third argument.
+  it('wise: the block is capped at 25 source lines, counted from the raw text [C-208]', () => {
+    const wiseLines = (n: number): string => `wise:\n${Array.from({ length: n - 1 }, (_, i) => `  k${i}: x`).join('\n')}`;
+    expect(checkSchema(base(), 'class', wiseLines(25))).toEqual([]);
+    expect(checkSchema(base(), 'class', wiseLines(26)).map((s) => s.text)).toEqual(['✖ wise: 26 lines → the wise block is capped at 25 lines']);
+  });
+
   // [C-108] wise.stage is one of design, build, review, pre-merge, post-fix, release, operate
   // [C-109] wise.change is one of feature, fix, refactor, dependency, config
   // [C-110] wise.risk is one of low, medium, high
-  it('wise: stage, change and risk are optional and closed [C-108] [C-109] [C-110]', () => {
+  it('wise: stage, change and risk are optional and closed [C-108] [C-109] [C-110] [C-209]', () => {
     const r = base();
     r.wise = { stage: 'pre-merge', change: 'fix', risk: 'high' };
     expect(texts(r)).toEqual([]);
@@ -184,13 +192,13 @@ describe('checkSchema', () => {
     ]);
   });
 
-  it('wise: every closed field also accepts "unknown"', () => {
+  it('wise: every closed field also accepts "unknown" [C-206]', () => {
     const r = base();
     r.wise = { why: 'unknown', area: 'unknown', stage: 'unknown', change: 'unknown', risk: 'unknown', blast: 'unknown' };
     expect(texts(r)).toEqual([]);
   });
 
-  it('wise: problem, uses, touches, blast (the knowledge fields)', () => {
+  it('wise: problem, uses, touches, blast (the knowledge fields) [C-205]', () => {
     const r = base();
     r.wise = { problem: 'x', uses: 'a:b', touches: [] };
     expect(texts(r)).toEqual([

@@ -48,7 +48,7 @@ function markerProvider(): ClassifierPort {
 }
 
 describe('replay', () => {
-  it('a class parent that has since been fixed on the worktree: fixed, no regression [C-060]', async () => {
+  it('a class parent that has since been fixed on the worktree: fixed, no regression [C-060] [C-211]', async () => {
     const { paths, root } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`SELECT * FROM t WHERE id = ${x}`); }\n' });
     const classText = `side:\n  goal: fix sql injection\n  depth: quick\n  where: [src/a.ts]\n${QUICK_ASK}`;
     await runClass(classText, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
@@ -311,7 +311,7 @@ describe('replay', () => {
     expect(r.text).toContain('gate: fail');
   });
 
-  it('expect: none predicts no flips at all; a flip that happens anyway is listed as unexpected: [N4]', async (ctx) => {
+  it('expect: none predicts no flips at all; a flip that happens anyway is listed as unexpected: [N4] [C-210] [C-212] [C-213]', async (ctx) => {
     if (!hasGit()) return ctx.skip();
     const { paths, root } = tempProject({ 'src/a.ts': 'export function f(x) {\n  return db.query(`SELECT * FROM t WHERE id = ${x}`); // VULN\n}\n' });
     gitInit(root);
