@@ -17,6 +17,13 @@ afterEach(() => {
 
 const at = (day: number) => Date.parse(`2026-09-${String(day).padStart(2, '0')}T12:00:00Z`);
 
+/** A full, contract-valid quick-depth one-subject ask: 3 concerns categories x 3 probes + decisions (>=1 scale,
+ *  >=1 choice). `name` stays the first category so the tests below can still target it by name — view matches
+ *  a category by name alone (view.ts's categoryEntry), so a view draft naming the same category doesn't need
+ *  to repeat this full shape; only the class/change runs that actually get graded do. */
+const fullClassAsk = (name: string): string =>
+  `  ask:\n    concerns:\n      ${name}:\n        pass: no\n        1: q1?\n        2: q2?\n        3: q3?\n      c1:\n        pass: yes\n        4: q4?\n        5: q5?\n        6: q6?\n      c2:\n        pass: yes\n        7: q7?\n        8: q8?\n        9: q9?\n    decisions:\n      severity:\n        pass: [none]\n        10:\n          scale: how bad?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        11:\n          choice: where to?\n          options: [ship, block]\n`;
+
 describe('view', () => {
   it('a folder shows outcome counts and runs newest first; a tag works too [C-055]', () => {
     const { paths } = tempProject({});
@@ -136,7 +143,7 @@ describe('view', () => {
 describe('view: request mode', () => {
   it('the contract example, no history: runs 0, next class, free [C-053] [C-054]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
-    const text = 'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n';
+    const text = 'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Is request text placed directly into the SQL query?\n';
     const r = runView(text, 1, { paths, env: {} });
     expect(r.exit).toBe(0);
     expect(r.text).toBe(
@@ -147,11 +154,14 @@ describe('view: request mode', () => {
   it('with history: per-category counts, and reuse when the exact question set was asked before [C-052] [C-059]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
     // First: a real class run on this file with this exact category (Task 15's runClass), so it lands in the ledger as v2.
-    await runClass(
-      'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n',
-      { paths, provider: stubProvider({ yes: () => 0.9 }), env: {} },
-    );
-    const draft = 'side:\n  goal: yes it is\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n';
+    await runClass(`side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n${fullClassAsk('injection')}`, {
+      paths,
+      provider: stubProvider({ yes: () => 0.9 }),
+      env: {},
+    });
+    // A view draft is lenient about the count rules, so it can stay thin — only the category NAME has to match
+    // (view.ts's categoryEntry matches by name alone, never by the exact question set).
+    const draft = 'side:\n  goal: yes it is\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Is request text placed directly into the SQL query?\n';
     const r = runView(draft, 1, { paths, env: {} });
     expect(r.text).toContain('runs: 1');
     expect(r.text).toContain('injection: {runs: 1, pass: 0, fail: 1, last: SW-0001}');
@@ -160,8 +170,7 @@ describe('view: request mode', () => {
   it('reuse: the exact same request comes back as reuse, and the view call spends nothing [C-050] [C-053] [C-054]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
     // The fake adapter (Task 7) is what providerIdentity({}) names too, so the run and the lookup agree on who answered.
-    const text =
-      'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: Is request text placed directly into the SQL query?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n';
+    const text = `side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n${fullClassAsk('injection')}`;
     const classResult = await runClass(text, { paths, provider: createFakeAdapter(), env: {} });
     expect(classResult.exit).toBe(0);
     const linesBefore = readLedger(paths).length;
@@ -170,16 +179,21 @@ describe('view: request mode', () => {
     const r = runView(text, 1, { paths, env: {} });
     expect(r.text).toContain('reuse: SW-0001');
     expect(r.text).toContain('next: sidewise view SW-0001');
-    expect(readLedger(paths).length).toBe(linesBefore);
+    // Plan 2b: a real draft check (a full ask, not just a bare place/id lookup) is logged, free — one new
+    // "lookup" record, never a run: it carries no SW-#### id and never touches the budget (checked below).
+    expect(readLedger(paths).length).toBe(linesBefore + 1);
     expect(readFileSync(paths.budget, 'utf8')).toBe(budgetBefore);
   });
 
   it('a fixed-and-held category gets no hit ranking: view shows the plain per-category record, nothing else [C-052] [C-067]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
-    const text =
-      'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    injection:\n      pass: no\n      1: q1?\n      2: q2?\n      3: q3?\n      4: q4?\n      5: q5?\n      6: q6?\n      7: q7?\n      8: q8?\n      9: q9?\n      10: q10?\n';
+    const text = `side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n${fullClassAsk('injection')}`;
     await runClass(text, { paths, provider: stubProvider({ yes: () => 0.9 }), env: {} }); // SW-0001: injection fails
-    await runChange('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n', { paths, provider: stubProvider({ yes: () => 0.05 }), env: {} }); // SW-0002: injection now passes
+    await runChange('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+      paths,
+      provider: stubProvider({ yes: () => 0.05 }),
+      env: {},
+    }); // SW-0002: injection now passes
     appendOutcome(paths, 'SW-0001', 'held', 'owner'); // the yardstick's prediction is confirmed: a "hit"
     const r = runView(text, 1, { paths, env: {} });
     // The record is still just runs/pass/fail/last, unranked — recording the hit changed nothing about it
