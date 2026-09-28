@@ -27,6 +27,13 @@ describe('runHelp', () => {
     expect(r.text).toContain('Sharp rules:');
   });
 
+  // [C-191] Round-4 finding: a cold CLI agent made zero `sidewise` calls at all — it never discovered `sidewise
+  // agent` exists. Every verb help page now opens by pointing a cold agent at its own terse twin, first.
+  it.each(VERBS)('[C-191] help %s opens with "Agents: sidewise agent <verb>", before the heading', (verb) => {
+    const r = runHelp(verb);
+    expect(r.text.split('\n')[0]).toBe(`Agents: sidewise agent ${verb}`);
+  });
+
   it('[C-115] help drill: says to follow next:, not hand-author parent/from', () => {
     expect(runHelp('drill').text).toContain('next:');
   });

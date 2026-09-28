@@ -1,6 +1,9 @@
 /**
  * `sidewise help <verb>`: purpose, when to use it, one annotated example, and that verb's own sharp rules —
- * the ones that caused a first-try reject in real use.
+ * the ones that caused a first-try reject in real use. The output opens with `Agents: sidewise agent <verb>`,
+ * ahead of the `## <verb>` heading, so a cold agent reading a human help page still lands on its own terse
+ * twin (round-4 smoke testing: a cold CLI agent made zero `sidewise` calls at all — it never discovered
+ * `sidewise agent` exists). [C-191]
  */
 import type { Verb } from '../contract/types.ts';
 import { proseLines } from './patterns.ts';
@@ -93,6 +96,7 @@ export const VERB_LINE: Record<Verb, string> = {
 
 export function verbHelp(verb: Verb): string {
   return [
+    `Agents: sidewise agent ${verb}`,
     `## ${verb}`,
     PURPOSE[verb],
     `When: ${WHEN[verb]}`,
