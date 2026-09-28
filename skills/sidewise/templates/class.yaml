@@ -9,6 +9,7 @@ side:
                                                # a question about code NOT in where: has nothing to answer from — add it here
                                                # with more than one file, name the one you mean in the question (in `backticks`)
   ask:                                        # required — two sections: concerns (yes/no) and decisions (scale/choice)
+                                               # questions are numbered 1…N across the WHOLE request, decisions included — no gaps, no restart at decisions
     concerns:                                 # exactly 3k categories for the depth above (quick: 3), each with exactly 3 probes — three angles on one path (sidewise agent probe)
       injection:
         pass: no                              # every question in this category must answer "no" when things are fine
@@ -52,6 +53,7 @@ wise:                                         # optional block; every field insi
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0001                           # optional — a related run, for lineage (side.parent is accepted on every verb too)
   # problem: The user id from the request reaches a SQL query unchecked      # optional — one line, your own words: what you're solving now
-  # nodes: container:api -> component:user-handler -> container:db          # optional — a C4 chain: level:name ( -> level:name)*, "; "-joined for more than one
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - component:web-app/user-handler -> container:db
   # touches: [userId, findUser]               # optional — up to 5 entities/objects this run is about
   # blast: component                          # optional — code | component | container | system | person

@@ -8,6 +8,7 @@ side:
     file: src/handlers/*.ts                   # a glob, scanned by file (add a severity scale below to rank findings)
     function: each                            # "each" splits the layer above into its next unit (function, then call)
   ask:                                        # required — one concerns:/decisions: pair per layer named in over — {function} fills in per item
+                                               # questions are numbered 1…N across the WHOLE request, decisions included — no gaps, no restart at decisions
     function:
       concerns:                               # exactly 3k categories for the depth above (quick: 3), each with exactly 3 probes
         injection:
@@ -51,6 +52,7 @@ wise:                                         # optional block; every field insi
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0001                           # optional — a related run, for lineage
   # problem: Screening every request handler for unvalidated input reaching a query or a missing permission check   # optional
-  # nodes: container:api -> component:handlers -> container:db            # optional — a C4 chain: level:name ( -> level:name)*
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - container:api -> component:handlers -> container:db
   # touches: [handlers]                       # optional — up to 5 entities/objects this run is about
   # blast: system                             # optional — code | component | container | system | person

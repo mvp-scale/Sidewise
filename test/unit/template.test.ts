@@ -290,7 +290,7 @@ describe('runTemplate', () => {
     loop: { required: ['goal', 'depth', 'over', 'ask'], optional: ['where', 'verb'] },
     drill: { required: ['goal', 'parent', 'from', 'ask'], optional: ['depth', 'over', 'verb'] },
   };
-  const WISE_KEYS = ['why', 'area', 'stage', 'change', 'risk', 'parent', 'problem', 'nodes', 'touches', 'blast'];
+  const WISE_KEYS = ['why', 'area', 'stage', 'change', 'risk', 'parent', 'problem', 'uses', 'touches', 'blast'];
 
   describe('templates show the full field envelope [C-174]', () => {
     it.each(VERBS)('%s: every side.* field it accepts appears in its template (live or commented)', (verb) => {

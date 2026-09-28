@@ -20,6 +20,7 @@ wise:                                         # optional block; every field insi
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0001                           # optional — a related run, for lineage
   # problem: Checking whether the injection fix from SW-0040 is already proven here   # optional — one line, your own words
-  # nodes: container:api -> component:user-handler             # optional — a C4 chain: level:name ( -> level:name)*
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - container:api -> component:user-handler
   # touches: [userId]                         # optional — up to 5 entities/objects this run is about
   # blast: component                          # optional — code | component | container | system | person

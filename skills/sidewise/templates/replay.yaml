@@ -14,6 +14,7 @@ wise:                                         # optional block; every field insi
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0001                           # optional — a related run, for lineage (distinct from side.parent above)
   # problem: Removing the SQL injection in findUser flagged by SW-0042        # optional — one line, your own words
-  # nodes: container:api -> component:user-handler -> container:db           # optional — a C4 chain: level:name ( -> level:name)*
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - component:user-handler -> container:db
   # touches: [userId, findUser]               # optional — up to 5 entities/objects this run is about
   # blast: component                          # optional — code | component | container | system | person

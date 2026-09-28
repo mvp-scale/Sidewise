@@ -58,6 +58,8 @@ wise:                                         # optional block; every field insi
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0001                           # optional — a related run, for lineage
   # problem: Stress-testing the checkout split into gateway/payments/ledger before writing any code   # optional
-  # nodes: system:checkout -> container:gateway; system:checkout -> container:payments    # optional — chains joined by "; "
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - system:checkout -> container:gateway
+  #   - system:checkout -> container:payments
   # touches: [gateway, payments, ledger]       # optional — up to 5 entities/objects this run is about
   # blast: system                             # optional — code | component | container | system | person

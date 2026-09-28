@@ -9,6 +9,7 @@ side:
   over:                                       # optional — only when the parent was a sweep; a one-subject parent has none (see drill-subject.yaml)
     call: each                                # the NEXT layer down from the item named above
   ask:                                        # required — the parent's 3 angles become 3 new concerns here, each attacked from 3 angles of its own
+                                               # questions are numbered 1…N across the WHOLE request, decisions included — no gaps, no restart at decisions
     call:
       concerns:                                 # reach/guard/sink are injection's own 3 roles (sidewise agent probe) — named
         reach:                                  # by role here, not by family, so family: is given explicitly on each
@@ -49,6 +50,7 @@ wise:                                         # optional block; every field insi
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0060                           # optional — a related run, for lineage (distinct from side.parent above)
   # problem: Narrowing scan's injection flag on findUser down to the exact call that's unsafe   # optional
-  # nodes: component:user-handler -> code:findUser -> container:db        # optional — a C4 chain: level:name ( -> level:name)*
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - component:user-handler -> code:findUser -> container:db
   # touches: [findUser]                       # optional — up to 5 entities/objects this run is about
   # blast: code                               # optional — code | component | container | system | person
