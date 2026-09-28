@@ -37,9 +37,11 @@ function fakeCtx(overrides: Partial<CliCtx> = {}): CliCtx {
   };
 }
 
+// A full, valid quick-depth ask (plan 2b: 3 concerns categories x 3 probes + 2 decisions) — the exact request
+// shape doesn't matter for this file's own assertions (key resolution / route selection), only that it validates.
 const classReq =
-  'side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n' +
-  Array.from({ length: 10 }, (_, i) => `      ${i + 1}: is question ${i + 1} true?\n`).join('');
+  'side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n' +
+  '  ask:\n    concerns:\n      injection:\n        pass: no\n        1: q1?\n        2: q2?\n        3: q3?\n      access:\n        pass: no\n        4: q4?\n        5: q5?\n        6: q6?\n      leaks:\n        pass: no\n        7: q7?\n        8: q8?\n        9: q9?\n    decisions:\n      severity:\n        pass: [none, low]\n        10:\n          scale: How bad?\n          levels: [none, low, high]\n      route:\n        pass: [ship]\n        11:\n          choice: Where to?\n          options: [ship, block]\n';
 
 function project(): string {
   const { root } = tempProject({ 'src/a.ts': 'x' });
