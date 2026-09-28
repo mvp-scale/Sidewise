@@ -94,7 +94,9 @@ describe('separate processes at once', () => {
     const ok = results.filter((r) => r.status === 0);
     const blocked = results.filter((r) => r.status === 3);
     expect(ok.length + blocked.length).toBe(6);
-    for (const r of blocked) expect(r.stderr).toMatch(/^✖ budget: cap reached \([^\n]+\) → the owner runs "sidewise budget set --runs <n>"\n$/);
+    for (const r of blocked) {
+      expect(r.stderr).toMatch(/^✖ budget: cap reached \([^\n]+\) → the owner runs "sidewise budget set --runs <n>"\n→ see: sidewise agent budget\n$/);
+    }
     expect(ok.length).toBeGreaterThanOrEqual(3);
     expect(ok.length).toBeLessThanOrEqual(3 + (6 - 1));
     const s = state(root);

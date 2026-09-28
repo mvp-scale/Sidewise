@@ -6,12 +6,17 @@ import type { VerbResult } from './types.ts';
 
 const MAX_STOPS = 5;
 
+/** `stopText` also serves the four tools beyond the six verbs (report/outcome/budget/template) — none of them
+ *  is a `Verb` (none takes `ask:`, none calls the classifier), so this widens just enough to name them too,
+ *  without `verbs/` importing `help/agent.ts`'s `AGENT_TOOLS` just for a type. */
+export type AgentTarget = Verb | 'report' | 'outcome' | 'budget' | 'template';
+
 /** At most 5 stops, then one line saying how many more (pasted junk must not flood an agent's context), then a
- *  pointer at that verb's own agent card — every stop is a knowledge gap `sidewise agent <verb>` can close, not
- *  just the field it names. A stop is read by an agent, not a person at a terminal, so it points at the terse
- *  agent view (`sidewise agent`), not the prose `sidewise help`. Empty input (never a real call site today —
- *  every caller already guards on its own failure check) stays empty, no bare pointer line. */
-export function stopText(stops: readonly string[], verb: Verb): string {
+ *  pointer at that verb/tool's own agent card — every stop is a knowledge gap `sidewise agent <target>` can
+ *  close, not just the field it names. A stop is read by an agent, not a person at a terminal, so it points at
+ *  the terse agent view (`sidewise agent`), not the prose `sidewise help`. Empty input (never a real call site
+ *  today — every caller already guards on its own failure check) stays empty, no bare pointer line. */
+export function stopText(stops: readonly string[], verb: AgentTarget): string {
   if (!stops.length) return '';
   const lines = stops.length <= MAX_STOPS ? [...stops] : [...stops.slice(0, MAX_STOPS), `✖ request: ${stops.length - MAX_STOPS} more problems → fix the ones above, then run again`];
   return [...lines, `→ see: sidewise agent ${verb}`].join('\n');

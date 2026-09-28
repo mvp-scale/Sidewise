@@ -85,7 +85,10 @@ describe('view', () => {
 
   it('an unknown id exits 2 with a fix', () => {
     const { paths } = tempProject({});
-    expect(runView('SW-0099', 1, { paths, env: {} })).toEqual({ exit: 2, text: '✖ view: SW-0099 is not in the ledger → "sidewise view <folder>" lists recent runs' });
+    expect(runView('SW-0099', 1, { paths, env: {} })).toEqual({
+      exit: 2,
+      text: '✖ view: SW-0099 is not in the ledger → "sidewise view <folder>" lists recent runs\n→ see: sidewise agent view',
+    });
   });
 
   it('[C-121] fix #1: a real source file (not a request) is a place, even when cli.ts already read its bytes as `content`', () => {
@@ -285,7 +288,10 @@ describe('view <id>: the lineage walk via the index matches the old full-ledger 
           ].join('\n'),
         },
       },
-      { id: 'SW-9999', expected: { exit: 2, text: '✖ view: SW-9999 is not in the ledger → "sidewise view <folder>" lists recent runs' } },
+      {
+        id: 'SW-9999',
+        expected: { exit: 2, text: '✖ view: SW-9999 is not in the ledger → "sidewise view <folder>" lists recent runs\n→ see: sidewise agent view' },
+      },
     ];
 
     for (const { id, expected } of cases) expect(runView(id, 1, { paths, env: {} })).toEqual(expected);

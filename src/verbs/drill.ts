@@ -159,8 +159,8 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
   const { request } = loaded;
 
   const parent = findRun(ctx.paths, request.side.parent!);
-  if (!parent) return { exit: 2, text: `✖ side.parent: ${request.side.parent} is not in the ledger → check the id` };
-  if (!isContractRun(parent)) return { exit: 2, text: `✖ side.parent: ${parent.id} predates the YAML contract → run class or scan again` };
+  if (!parent) return { exit: 2, text: stopText([`✖ side.parent: ${request.side.parent} is not in the ledger → check the id`], 'drill') };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} predates the YAML contract → run class or scan again`], 'drill') };
 
   if (parent.items !== null) {
     // The parent was a sweep: from: names one of its items.
@@ -168,7 +168,10 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     if (!itemRec) {
       return {
         exit: 2,
-        text: `✖ side.from: "${clip(request.side.from!, 40)}" is not an item ${parent.id} listed → use one of: ${clip(Object.keys(parent.items).join(', '), 80)}`,
+        text: stopText(
+          [`✖ side.from: "${clip(request.side.from!, 40)}" is not an item ${parent.id} listed → use one of: ${clip(Object.keys(parent.items).join(', '), 80)}`],
+          'drill',
+        ),
       };
     }
 
@@ -178,7 +181,12 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       if (!itemRec.unit) {
         return {
           exit: 2,
-          text: `✖ side.from: "${clip(request.side.from!, 40)}" has no code → add over: with the next layer down, or drill an item scan found (sidewise template drill --parent ${parent.id} --from ${request.side.from})`,
+          text: stopText(
+            [
+              `✖ side.from: "${clip(request.side.from!, 40)}" has no code → add over: with the next layer down, or drill an item scan found (sidewise template drill --parent ${parent.id} --from ${request.side.from})`,
+            ],
+            'drill',
+          ),
         };
       }
       // C-171: this range is the item's own whole-file/function/call span, chosen by scan/loop's own resolver,
@@ -192,7 +200,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     let itemText = name; // an idea item's text is its own name (layers.ts), unless it's code (a unit)
     if (itemRec.unit) {
       const read = readUnit(ctx.paths.root, itemRec.unit);
-      if (!read.ok) return { exit: 2, text: `✖ side.from: the code has changed since ${parent.id} (${read.error}) → run scan again` };
+      if (!read.ok) return { exit: 2, text: stopText([`✖ side.from: the code has changed since ${parent.id} (${read.error}) → run scan again`], 'drill') };
       itemText = read.text;
     }
     const root: Item = { id: from, layer: itemRec.layer, name, parent: parentId, fill: itemRec.fill, text: itemText, ...(itemRec.unit ? { unit: itemRec.unit } : {}) };
@@ -206,7 +214,10 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       if (badLayer) {
         return {
           exit: 2,
-          text: `✖ side.over.${badLayer}: "${clip(from, 40)}" is an idea, not code → give ${badLayer} as a list of items (there is nothing to split with each)`,
+          text: stopText(
+            [`✖ side.over.${badLayer}: "${clip(from, 40)}" is an idea, not code → give ${badLayer} as a list of items (there is nothing to split with each)`],
+            'drill',
+          ),
         };
       }
     }
@@ -292,11 +303,14 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
   }
 
   // The parent was one subject: from: names one of its categories.
-  if (request.side.over) return { exit: 2, text: `✖ side.over: ${parent.id} wasn't a sweep → remove over` };
+  if (request.side.over) return { exit: 2, text: stopText([`✖ side.over: ${parent.id} wasn't a sweep → remove over`], 'drill') };
   if (!parent.ask.categories.some((c) => c.name === request.side.from)) {
     return {
       exit: 2,
-      text: `✖ side.from: "${clip(request.side.from!, 40)}" is not a category of ${parent.id} → use one of: ${parent.ask.categories.map((c) => c.name).join(', ')}`,
+      text: stopText(
+        [`✖ side.from: "${clip(request.side.from!, 40)}" is not a category of ${parent.id} → use one of: ${parent.ask.categories.map((c) => c.name).join(', ')}`],
+        'drill',
+      ),
     };
   }
   return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent!);

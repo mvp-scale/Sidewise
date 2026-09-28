@@ -23,7 +23,7 @@ describe('drill: parent and from resolution', () => {
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0042 is not in the ledger → check the id');
+    expect(r.text).toBe('✖ side.parent: SW-0042 is not in the ledger → check the id\n→ see: sidewise agent drill');
   });
 
   it('a legacy (Plan 1) parent stops', async () => {
@@ -35,7 +35,7 @@ describe('drill: parent and from resolution', () => {
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0001 predates the YAML contract → run class or scan again');
+    expect(r.text).toBe('✖ side.parent: SW-0001 predates the YAML contract → run class or scan again\n→ see: sidewise agent drill');
   });
 
   // Fix #10: a sweep item that has code (a unit) can be drilled flat, one subject, no further layer — the
@@ -81,7 +81,7 @@ describe('drill: parent and from resolution', () => {
     const r = await runDrill(bad, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
     expect(r.text).toBe(
-      '✖ side.from: "payments" has no code → add over: with the next layer down, or drill an item scan found (sidewise template drill --parent SW-0001 --from payments)',
+      '✖ side.from: "payments" has no code → add over: with the next layer down, or drill an item scan found (sidewise template drill --parent SW-0001 --from payments)\n→ see: sidewise agent drill',
     );
   });
 
@@ -107,7 +107,7 @@ describe('drill: parent and from resolution', () => {
       'side:\n  goal: find the bug\n  parent: SW-0001\n  from: injection\n  over:\n    call: each\n  ask:\n    call:\n      x:\n        pass: no\n        1: is it unsafe?\n';
     const r = await runDrill(bad, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe("✖ side.over: SW-0001 wasn't a sweep → remove over");
+    expect(r.text).toBe("✖ side.over: SW-0001 wasn't a sweep → remove over\n→ see: sidewise agent drill");
   });
 });
 
@@ -223,7 +223,9 @@ describe('drill: a sweep parent (loop) — an idea item has no unit, unlike scan
       'side:\n  goal: find why refunds is unsound\n  parent: SW-0001\n  from: payments/refunds\n  depth: quick\n  over:\n    cause: each\n  ask:\n    cause:\n      risk:\n        pass: yes\n        1: Is {cause} handled today?\n';
     const r = await runDrill(drillReq, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.over.cause: "payments/refunds" is an idea, not code → give cause as a list of items (there is nothing to split with each)');
+    expect(r.text).toBe(
+      '✖ side.over.cause: "payments/refunds" is an idea, not code → give cause as a list of items (there is nothing to split with each)\n→ see: sidewise agent drill',
+    );
   });
 });
 

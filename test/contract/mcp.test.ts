@@ -272,7 +272,7 @@ describe('one ✖ prefix on the real mcp stdio path', () => {
     ]);
     const result = responses[0]?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toBe('✖ outcome: SW-9999 is not in the ledger → check the id with "sidewise view SW-9999"\n');
+    expect(result.content[0]?.text).toBe('✖ outcome: SW-9999 is not in the ledger → check the id with "sidewise view SW-9999"\n→ see: sidewise agent outcome\n');
     expect(result.content[0]?.text.match(/✖/g)).toHaveLength(1);
   });
 });

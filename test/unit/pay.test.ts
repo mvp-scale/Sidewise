@@ -44,7 +44,10 @@ describe('preflight: stops before any call or spend', () => {
     recordCall1(paths);
     const r = preflight(ctxOf(paths, stubProvider()));
     // fix #5c: the run cap alone tripped, so the hint is "set --runs", not "reset" (see budget.test.ts).
-    expect(!r.ok && r.result).toEqual({ exit: 3, text: '✖ budget: cap reached ($0.00 of $5.00 · 1 of 1 runs) → the owner runs "sidewise budget set --runs <n>"' });
+    expect(!r.ok && r.result).toEqual({
+      exit: 3,
+      text: '✖ budget: cap reached ($0.00 of $5.00 · 1 of 1 runs) → the owner runs "sidewise budget set --runs <n>"\n→ see: sidewise agent budget',
+    });
   });
 
   it('needsBudget: false (fix #5a) [C-136] skips the cap even when it is already reached — a fully-reused run is free', () => {

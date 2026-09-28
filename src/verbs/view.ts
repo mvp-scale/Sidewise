@@ -61,10 +61,12 @@ function whereMatches(r: AnyRun, place: string): boolean {
 
 /** A folder, a tag or a path as a project-relative place; an absolute path inside the project is fine. */
 function toPlace(target: string, root: string): { place: string } | { stop: string } {
-  if (hasControlChars(target)) return { stop: '✖ view: the target has control characters → use a folder, a tag, or SW-####' };
+  if (hasControlChars(target)) return { stop: stopText(['✖ view: the target has control characters → use a folder, a tag, or SW-####'], 'view') };
   if (!path.isAbsolute(target) && !target.split(/[\\/]/).includes('..')) return { place: target.replace(/^\.\//, '').replace(/\/+$/, '') || '.' };
   const rel = path.relative(root, path.resolve(root, target));
-  if (rel.startsWith('..') || path.isAbsolute(rel)) return { stop: `✖ view: "${clip(target, 60)}" is outside the project → use a folder inside it, a tag, or SW-####` };
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
+    return { stop: stopText([`✖ view: "${clip(target, 60)}" is outside the project → use a folder inside it, a tag, or SW-####`], 'view') };
+  }
   return { place: rel.split(path.sep).join('/') || '.' };
 }
 
@@ -212,7 +214,7 @@ function byId(id: string, paths: SidewisePaths, level: Level, limit: number): Ve
     paths,
     (handle) => {
       const self = runAt(paths, handle, id);
-      if (!self) return { exit: 2, text: `✖ view: ${id} is not in the ledger → "sidewise view <folder>" lists recent runs` };
+      if (!self) return { exit: 2, text: stopText([`✖ view: ${id} is not in the ledger → "sidewise view <folder>" lists recent runs`], 'view') };
       const up: AnyRun[] = [];
       let cursor = self.parent ? runAt(paths, handle, self.parent) : undefined;
       while (cursor && up.length < limit) {

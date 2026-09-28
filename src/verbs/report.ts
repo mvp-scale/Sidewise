@@ -18,6 +18,7 @@ import { isContractRun, isRun, type ContractRun, type LedgerRecord } from '../le
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { gradeChange } from './change.ts';
+import { stopText } from './request.ts';
 import type { VerbResult } from './types.ts';
 
 export interface ReportContext {
@@ -167,8 +168,8 @@ function reportHistory(paths: SidewisePaths): VerbResult {
 
 export function runReport(view: string | undefined, ctx: ReportContext): VerbResult {
   const target = view?.trim() || 'hits';
-  if (hasControlChars(target)) return { exit: 2, text: '✖ report: the view name has control characters → use hits, patterns or history' };
-  if (!isView(target)) return { exit: 2, text: `✖ report: "${clip(target, 40)}" is not a view → use hits, patterns or history` };
+  if (hasControlChars(target)) return { exit: 2, text: stopText(['✖ report: the view name has control characters → use hits, patterns or history'], 'report') };
+  if (!isView(target)) return { exit: 2, text: stopText([`✖ report: "${clip(target, 40)}" is not a view → use hits, patterns or history`], 'report') };
   if (target === 'hits') return reportHits(ctx.paths);
   if (target === 'patterns') return reportPatterns(ctx.paths);
   return reportHistory(ctx.paths);

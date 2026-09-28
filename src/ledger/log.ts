@@ -433,10 +433,12 @@ export function appendRun(paths: SidewisePaths, run: NewRun, now: number = Date.
 export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome, by: string, now: number = Date.now()): { record: OutcomeRecord; repeat: boolean } {
   return withLock(paths.lock, () => {
     const run = findRun(paths, of);
-    if (!run) throw new LedgerError(`✖ outcome: ${of} is not in the ledger → check the id with "sidewise view ${of}"`, 2);
+    // Neither stop can reuse verbs/request.ts's stopText: ledger/ sits below verbs/, and importing it here would
+    // be a layering inversion (the same reason budget/budget.ts appends its own literal suffix instead).
+    if (!run) throw new LedgerError(`✖ outcome: ${of} is not in the ledger → check the id with "sidewise view ${of}"\n→ see: sidewise agent outcome`, 2);
     const who = redactSecrets(by); // the same transform the run's actor went through: compare like with like
     if (outcome === 'held' && who === run.actor) {
-      throw new LedgerError(`✖ outcome: ${who} asked ${of}, so it can't mark it held → another agent or the owner records "held"`);
+      throw new LedgerError(`✖ outcome: ${who} asked ${of}, so it can't mark it held → another agent or the owner records "held"\n→ see: sidewise agent outcome`);
     }
     onStore(paths.log, 'read', () => {
       const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));

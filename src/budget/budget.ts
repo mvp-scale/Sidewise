@@ -29,8 +29,13 @@ type Caps = { capUsd: number; capRuns: number };
 const iso = (now: number): string => new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z');
 const money = (n: number): string => `$${n.toFixed(2)}`;
 const fresh = (now: number, caps: Caps = DEFAULT_BUDGET): BudgetState => ({ capUsd: caps.capUsd, capRuns: caps.capRuns, spentUsd: 0, runs: 0, resetAt: iso(now) });
+// Every stop below carries its own fix already; the trailing line just points at the deeper card, the same
+// pointer every other stop in the codebase ends with (`sidewise agent <verb|tool>`, C-153) — `budget` isn't a
+// `Verb`, so this can't reuse `verbs/request.ts`'s `stopText` without `budget/` importing from `verbs/`, a
+// layering inversion the rest of the codebase avoids; the literal suffix is the smaller fix.
+const AGENT_POINTER = '\n→ see: sidewise agent budget';
 const corrupt = (code?: string): BudgetError =>
-  new BudgetError(`✖ budget: .sidewise/budget.json is unreadable${code ? ` (${code})` : ''} → the owner runs "sidewise budget reset" to start a fresh budget`);
+  new BudgetError(`✖ budget: .sidewise/budget.json is unreadable${code ? ` (${code})` : ''} → the owner runs "sidewise budget reset" to start a fresh budget${AGENT_POINTER}`);
 
 function isState(v: unknown): v is BudgetState {
   if (!v || typeof v !== 'object') return false;
@@ -99,7 +104,7 @@ export function checkBudget(s: BudgetState): { ok: true } | { ok: false; message
   const usdCapped = s.spentUsd >= s.capUsd;
   if (runsCapped || usdCapped) {
     const hint = runsCapped && !usdCapped ? 'the owner runs "sidewise budget set --runs <n>"' : 'the owner runs "sidewise budget reset"';
-    return { ok: false, message: `✖ budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs) → ${hint}` };
+    return { ok: false, message: `✖ budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs) → ${hint}${AGENT_POINTER}` };
   }
   return { ok: true };
 }
@@ -139,7 +144,7 @@ export function resetBudget(paths: SidewisePaths, now: number = Date.now()): Bud
 
 export function setBudget(paths: SidewisePaths, caps: { capUsd?: number; capRuns?: number }, now: number = Date.now()): BudgetState {
   for (const [name, v] of Object.entries(caps)) {
-    if (v !== undefined && !(Number.isFinite(v) && v > 0)) throw new BudgetError(`✖ budget: ${name} must be a positive number, got ${v} → e.g. --usd 5 --runs 500`);
+    if (v !== undefined && !(Number.isFinite(v) && v > 0)) throw new BudgetError(`✖ budget: ${name} must be a positive number, got ${v} → e.g. --usd 5 --runs 500${AGENT_POINTER}`);
   }
   return withLock(paths.lock, () => {
     const s = read(paths) ?? fresh(now);
