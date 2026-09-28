@@ -2,10 +2,29 @@
 import { describe, expect, it } from 'vitest';
 import type { Value } from '../../src/contract/emit.ts';
 import { gradeCategory, gradeSubject, type ItemGrade } from '../../src/contract/grade.ts';
-import type { Category, Gate } from '../../src/contract/types.ts';
-import { categoryEntry, commonNotes, drillNext, dryRunText, outcomeNext, regressionNext, respondText, reusedIds, shownValue, subjectSide, sweepNext, wiseRecorded } from '../../src/verbs/respond.ts';
+import type { Category, Gate, Side } from '../../src/contract/types.ts';
+import {
+  categoryEntry,
+  commonNotes,
+  drillNext,
+  dryRunText,
+  outcomeNext,
+  probeWarnings,
+  regressionNext,
+  respondText,
+  reusedIds,
+  shownValue,
+  subjectSide,
+  sweepNext,
+  wiseRecorded,
+} from '../../src/verbs/respond.ts';
 
 const cat = (name: string, pass: Category['pass'], nums: number[]): Category => ({ name, pass, need: 'all', tags: [], questions: nums.map((n) => ({ n, kind: 'yesno' as const, text: `Is ${n}?` })) });
+
+/** A minimal one-subject Side: only `categories`/`where` vary per test; every other field is a fixed filler. */
+const side = (categories: Category[], where: string[] = []): Side => ({ goal: 'x', where, categories, layers: [] });
+/** One category, one yes/no question with the given text — everything probeWarnings' own tests vary. */
+const oneQuestion = (text: string): Category => ({ name: 'a', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text }] });
 
 describe('respondText / subjectSide / categoryEntry (the contract class golden, minus consensus/escalate wiring)', () => {
   it("matches Task 10's golden shape", () => {
@@ -141,6 +160,51 @@ describe('dryRunText extraNotes (fix #5b)', () => {
     expect(dryRunText({ calls: 0, questions: 0, reused: 3, route: 'fake' }, ['would be blocked: budget cap already reached'])).toBe(
       'plan:\n  calls: 0\n  questions: 0\n  reused: 3\n  route: fake\nnotes: ["dry run: no call, no spend", "would be blocked: budget cap already reached"]\n',
     );
+  });
+});
+
+describe('probeWarnings (item F, round 4 fix batch G): up to 3 warn-only "probe:" dry-run notes', () => {
+  it('a clean request: no warnings', () => {
+    expect(probeWarnings(side([cat('injection', 'no', [1, 2])]))).toEqual([]);
+  });
+
+  it('two question marks in one line reads as a compound question', () => {
+    expect(probeWarnings(side([oneQuestion('Does it sanitize input? Does it also log it?')]))).toEqual([
+      'probe: "Does it sanitize input? Does it also log it?" reads as two questions joined into one — split it',
+    ]);
+  });
+
+  it('" and " joining two clauses reads as a compound question too', () => {
+    expect(probeWarnings(side([oneQuestion('Does it sanitize input and reject bad rows?')]))).toEqual([
+      'probe: "Does it sanitize input and reject bad rows?" reads as two questions joined into one — split it',
+    ]);
+  });
+
+  it('a backticked path named in a question but missing from where: is flagged', () => {
+    expect(probeWarnings(side([oneQuestion('Does `src/other.ts` sanitize the field?')], ['src/handler.ts']))).toEqual([
+      'probe: "src/other.ts" is named in a question but not in where: — it has nothing to answer from',
+    ]);
+  });
+
+  it('a backticked path that IS in where: (bare, or with a line range) is never flagged', () => {
+    expect(probeWarnings(side([oneQuestion('Does `src/handler.ts` sanitize the field?')], ['src/handler.ts']))).toEqual([]);
+    expect(probeWarnings(side([oneQuestion('Does `src/handler.ts` sanitize the field?')], ['src/handler.ts:1-20']))).toEqual([]);
+  });
+
+  it('with no where: at all (scan/loop/drill legitimately have none), the backtick check never fires', () => {
+    expect(probeWarnings(side([oneQuestion('Does `src/handler.ts` sanitize the field?')], []))).toEqual([]);
+  });
+
+  it('a sweep layer\'s own questions are checked too, not just flat categories', () => {
+    const swept: Side = { goal: 'x', where: [], categories: [], layers: [{ name: 'file', categories: [oneQuestion('Does it validate and also normalize input?')] }] };
+    expect(probeWarnings(swept)).toEqual(['probe: "Does it validate and also normalize input?" reads as two questions joined into one — split it']);
+  });
+
+  it('caps at 3, naming how many more', () => {
+    const many = side([oneQuestion('A and B?'), oneQuestion('C and D?'), oneQuestion('E and F?'), oneQuestion('G and H?')]);
+    const warnings = probeWarnings(many);
+    expect(warnings).toHaveLength(4);
+    expect(warnings[3]).toBe('probe: 1 more question warning(s) not shown');
   });
 });
 

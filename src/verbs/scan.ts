@@ -14,7 +14,7 @@ import { createCodeResolver } from '../evidence/units.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
-import { commonNotes, COST_ESTIMATED_NOTE, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
 import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
@@ -50,7 +50,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const identity = providerIdentity(ctx.env);
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
 
-  if (ctx.dryRun) return sweepDryRun(plan, identity);
+  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
 
   const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
   if (entrypointNote) notes.push(entrypointNote);

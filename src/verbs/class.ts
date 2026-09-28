@@ -20,7 +20,7 @@ import { lookupAnswers } from '../ledger/reuse.ts';
 import { staleNotes } from '../ledger/stale.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, consensusAndEscalate, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
+import { commonNotes, consensusAndEscalate, COST_ESTIMATED_NOTE, dryRunText, outcomeNext, probeWarnings, respondText, reusedIds, subjectSide, wiseRecorded } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 const CAP_NOTE = 'would be blocked: the budget cap is already reached';
@@ -60,7 +60,10 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     }
     return {
       exit: 0,
-      text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }, capNote),
+      text: dryRunText(
+        { calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL },
+        [...capNote, ...probeWarnings(request.side)],
+      ),
     };
   }
 

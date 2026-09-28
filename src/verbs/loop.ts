@@ -11,7 +11,7 @@ import type { Category } from '../contract/types.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
-import { commonNotes, COST_ESTIMATED_NOTE, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
 import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
@@ -24,7 +24,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const identity = providerIdentity(ctx.env);
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
 
-  if (ctx.dryRun) return sweepDryRun(plan, identity);
+  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
 
   // A fully-reused loop (every layer's call: null) must never be blocked by an already-reached cap.
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });

@@ -25,7 +25,7 @@ import { lookupAnswers } from '../ledger/reuse.ts';
 import { clip } from '../util/text.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, consensusAndEscalate, COST_ESTIMATED_NOTE, dryRunText, reusedIds, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { commonNotes, consensusAndEscalate, COST_ESTIMATED_NOTE, dryRunText, probeWarnings, reusedIds, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
 import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
@@ -67,7 +67,13 @@ async function runOneSubjectProof(
   const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
 
   if (ctx.dryRun) {
-    return { exit: 0, text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }) };
+    return {
+      exit: 0,
+      text: dryRunText(
+        { calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL },
+        probeWarnings(request.side),
+      ),
+    };
   }
 
   const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
@@ -227,7 +233,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     const identity = providerIdentity(ctx.env);
     const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
 
-    if (ctx.dryRun) return sweepDryRun(plan, identity);
+    if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
 
     // A fully-reused sweep drill must never be blocked by an already-reached cap.
     const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });

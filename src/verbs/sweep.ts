@@ -211,21 +211,26 @@ export async function runSweep(
 }
 
 /** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. `identity` is the route/base
- *  URL a real call would use (providerIdentity(ctx.env)) — the only thing beyond the plan itself this needs. */
-export function sweepDryRun(plan: SweepPlan, identity: { route: string; baseURL: string | null }): VerbResult {
+ *  URL a real call would use (providerIdentity(ctx.env)) — the only thing beyond the plan itself this needs.
+ *  `extraNotes` (item F): each caller's own `probeWarnings(request.side)`, so a sweep's dry run warns on the
+ *  same mechanically-checkable authoring issues a one-subject dry run does. */
+export function sweepDryRun(plan: SweepPlan, identity: { route: string; baseURL: string | null }, extraNotes: readonly string[] = []): VerbResult {
   const calls = plan.planned.filter((p) => p.call !== null).length;
   const askedItems = plan.planned.reduce((n, p) => n + p.itemIds.length, 0);
   const skippedItems = plan.planned.reduce((n, p) => n + p.skipped.length, 0);
   return {
     exit: 0,
-    text: dryRunText({
-      calls,
-      questions: plan.askedQuestions,
-      items: plan.items.length,
-      reused: plan.items.length - askedItems - skippedItems,
-      route: identity.route,
-      baseURL: identity.baseURL,
-    }),
+    text: dryRunText(
+      {
+        calls,
+        questions: plan.askedQuestions,
+        items: plan.items.length,
+        reused: plan.items.length - askedItems - skippedItems,
+        route: identity.route,
+        baseURL: identity.baseURL,
+      },
+      extraNotes,
+    ),
   };
 }
 

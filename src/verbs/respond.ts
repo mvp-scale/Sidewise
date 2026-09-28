@@ -6,9 +6,10 @@
 import { isRehearsal } from '../classifier/port.ts';
 import { emit, m, type Value } from '../contract/emit.ts';
 import type { CategoryGrade, ItemGrade, Shown, SubjectGrade } from '../contract/grade.ts';
-import type { Answer, Category, Depth, Gate, Wise } from '../contract/types.ts';
+import type { Answer, Category, Depth, Gate, Side, Wise } from '../contract/types.ts';
 import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
 import { computeConsensus, type Consensus, type SlotAnswer } from '../lens/consensus.ts';
+import { clip } from '../util/text.ts';
 
 /** A bare number for yes/no; {top, p} for scale/choice. */
 export function shownValue(s: Shown): Value {
@@ -154,6 +155,42 @@ export function dryRunText(
       ['notes', ['dry run: no call, no spend', ...extraNotes]],
     ),
   );
+}
+
+const MAX_PROBE_WARNINGS = 3;
+
+/** Every yes/no/scale/choice question across a request's own shape: flat categories for one subject, or every
+ *  layer's categories for a sweep — never both at once (`Side.categories` is empty in a sweep, `Side.layers` is
+ *  empty for one subject). */
+function allQuestions(side: Side): readonly { text: string }[] {
+  return [...side.categories, ...side.layers.flatMap((l) => l.categories)].flatMap((c) => c.questions);
+}
+
+/** Item F (round 4 fix batch G): up to 3 `probe:`-prefixed WARNINGS in `--dry-run`'s own notes for
+ *  mechanically-checkable authoring issues in `ask:` — never a new stop, never a new validator rule. Explicitly
+ *  skips a category mixing yes/no polarity words: that's a semantic judgment call, not something this can check
+ *  by pattern alone (`sidewise agent probe`'s own rule 4 already teaches it in prose). A question over 160
+ *  characters is likewise skipped here — the schema stops that outright (schema-check.ts), so by the time a
+ *  request reaches `--dry-run` it can no longer be true. */
+export function probeWarnings(side: Side): string[] {
+  const warnings: string[] = [];
+  for (const q of allQuestions(side)) {
+    const marks = q.text.match(/\?/g)?.length ?? 0;
+    if (marks >= 2 || / and /.test(q.text)) {
+      warnings.push(`probe: "${clip(q.text, 60)}" reads as two questions joined into one — split it`);
+    }
+    if (side.where.length > 0) {
+      for (const m of q.text.matchAll(/`([^`]+)`/g)) {
+        const named = m[1]!;
+        if (!side.where.includes(named) && !side.where.some((w) => w.startsWith(`${named}:`))) {
+          warnings.push(`probe: "${clip(named, 60)}" is named in a question but not in where: — it has nothing to answer from`);
+        }
+      }
+    }
+  }
+  return warnings.length > MAX_PROBE_WARNINGS
+    ? [...warnings.slice(0, MAX_PROBE_WARNINGS), `probe: ${warnings.length - MAX_PROBE_WARNINGS} more question warning(s) not shown`]
+    : warnings;
 }
 
 /** On the direct route TypeSafe reports no cost at all; when the answering model has a published rate
