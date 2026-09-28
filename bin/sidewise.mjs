@@ -9197,7 +9197,7 @@ var TOOL_NAME = "sidewise";
 function toolDefinition() {
   return {
     name: TOOL_NAME,
-    description: 'Run a sidewise CLI command in this project \u2014 the same arguments and stdin the sidewise CLI takes (e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). Returns the same text output sidewise would print, and marks the result an error when the exit code is not 0.',
+    description: 'First call args: ["agent"] to learn the commands and rules, then args: ["agent", "<command>"] before writing a request. Otherwise runs any sidewise CLI command in this project \u2014 the same arguments and stdin the sidewise CLI takes (e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). Returns the same text output sidewise would print, and marks the result an error when the exit code is not 0.',
     inputSchema: {
       type: "object",
       properties: {
@@ -13174,62 +13174,106 @@ var PROBE_RULES = [
 
 // src/help/agent.ts
 var isVerb = (s) => VERBS.includes(s);
+function renderCard(id, rules, patterns = [], run = []) {
+  return [...id, "rules:", ...rules, ...patterns, ...run].join("\n");
+}
+var AGENT_TOOLS = ["report", "outcome", "budget", "template"];
 function overview() {
-  return ["verbs: " + VERBS.join(", "), "rules:", ...ruleLines("card"), "run: sidewise agent <verb>", "run: sidewise agent probe"].join("\n");
+  return renderCard(
+    [`verbs: ${VERBS.join(", ")}`, `tools: ${AGENT_TOOLS.join(", ")}`],
+    ruleLines("card"),
+    [],
+    ["run: sidewise agent <verb>", "run: sidewise agent <tool>", "run: sidewise agent probe"]
+  );
 }
 function verbCard(verb) {
-  return [`verb: ${verb}`, "rules:", ...ruleLines(verb), ...terseLines(verb)].join("\n");
+  return renderCard([`verb: ${verb}`], ruleLines(verb), terseLines(verb));
 }
 function probeCard() {
-  return ["target: probe", "rules:", ...PROBE_RULES.map((r) => `- ${r.text}`)].join("\n");
+  return renderCard(
+    ["tool: probe"],
+    PROBE_RULES.map((r) => `- ${r.text}`)
+  );
 }
 function outcomeCard() {
-  return [
-    "target: outcome",
-    "rules:",
-    "- syntax: sidewise outcome <SW-####> held|overruled|failed --by <actor>",
-    "- no --note flag: keep a reason in your own notes, not here",
-    "- an actor can't mark its own asked run held: use a different --by, or record overruled or failed",
-    "- same outcome, same actor, twice: exit 0, no-op",
-    "patterns:",
-    "- why: can't self-certify a run as held",
-    "  bad:",
-    "    sidewise outcome SW-0002 held --by claude",
-    "  good:",
-    "    sidewise outcome SW-0002 overruled --by claude"
-  ].join("\n");
+  return renderCard(
+    ["tool: outcome"],
+    [
+      "- syntax: sidewise outcome <SW-####> held|overruled|failed --by <actor>",
+      "- no --note flag: keep a reason in your own notes, not here",
+      "- an actor can't mark its own asked run held: use a different --by, or record overruled or failed",
+      "- same outcome, same actor, twice: exit 0, no-op"
+    ],
+    [
+      "patterns:",
+      "- why: can't self-certify a run as held",
+      "  bad:",
+      "    sidewise outcome SW-0002 held --by claude",
+      "  good:",
+      "    sidewise outcome SW-0002 overruled --by claude"
+    ]
+  );
 }
 function budgetCard() {
-  return [
-    "target: budget",
-    "rules:",
-    "- three subcommands: show (default), reset, set",
-    "- set needs --usd, --runs, or both",
-    "- reset zeroes spend and run count, keeps the caps",
-    "- over either cap: exit 3, before spending anything",
-    "patterns:",
-    "- why: set with no flags changes nothing",
-    "  bad:",
-    "    sidewise budget set",
-    "  good:",
-    "    sidewise budget set --usd 5 --runs 500"
-  ].join("\n");
+  return renderCard(
+    ["tool: budget"],
+    [
+      "- three subcommands: show (default), reset, set",
+      "- set needs --usd, --runs, or both",
+      "- reset zeroes spend and run count, keeps the caps",
+      "- over either cap: exit 3, before spending anything"
+    ],
+    [
+      "patterns:",
+      "- why: set with no flags changes nothing",
+      "  bad:",
+      "    sidewise budget set",
+      "  good:",
+      "    sidewise budget set --usd 5 --runs 500"
+    ]
+  );
 }
 function reportCard() {
-  return [
-    "target: report",
-    "rules:",
-    "- free: never calls a provider, never writes to the ledger",
-    "- views: hits (default), patterns, history \u2014 nothing else",
-    "patterns:",
-    "- why: no view beyond hits, patterns or history exists",
-    "  bad:",
-    "    sidewise report level2",
-    "  good:",
-    "    sidewise report patterns"
-  ].join("\n");
+  return renderCard(
+    ["tool: report"],
+    ["- free: never calls a provider, never writes to the ledger", "- views: hits (default), patterns, history \u2014 nothing else"],
+    [
+      "patterns:",
+      "- why: no view beyond hits, patterns or history exists",
+      "  bad:",
+      "    sidewise report level2",
+      "  good:",
+      "    sidewise report patterns"
+    ]
+  );
 }
-var AGENT_TOPICS = { probe: probeCard, outcome: outcomeCard, budget: budgetCard, report: reportCard };
+function templateCard() {
+  return renderCard(
+    ["tool: template"],
+    [
+      "- syntax: sidewise template <verb> [--parent SW-#### --from <item-or-category>]",
+      "- or: sidewise template <verb> --from <request.yaml> [--where <path>]... [--goal <text>]",
+      "- free: no project needed, never spends, never writes",
+      "- --parent only applies to drill, and needs --from too",
+      "- --where/--goal need --from; refused together with --parent"
+    ],
+    [
+      "patterns:",
+      "- why: --parent only works with drill",
+      "  bad:",
+      "    sidewise template class --parent SW-0002 --from injection",
+      "  good:",
+      "    sidewise template drill --parent SW-0002 --from injection"
+    ]
+  );
+}
+var AGENT_TOPICS = {
+  probe: probeCard,
+  outcome: outcomeCard,
+  budget: budgetCard,
+  report: reportCard,
+  template: templateCard
+};
 var agentExtras = () => Object.keys(AGENT_TOPICS);
 var AGENT_EXTRAS = Object.keys(AGENT_TOPICS);
 function runAgent(target) {
