@@ -219,9 +219,24 @@ function benchRebuild(paths: SidewisePaths, n: number): BenchRow {
 /** Copies the already-warm (fully caught-up) log+index into a fresh temp dir, appends `extraLines` more
  *  realistic lines to the COPY's log only, fsyncs the copy, then times one fresh withIndex call catching it up.
  *  A new copy per sample — "fresh open" (design binding #2: every real Sidewise process opens its own
- *  connection; there's no warm-WAL state to reuse between commands, see the spike's Surprise §1). */
+ *  connection; there's no warm-WAL state to reuse between commands, see the spike's Surprise §1).
+ *
+ *  Bug fixed 2026-09-28 (plan 2c Phase C "before C3" step): this used to route through `timeCalls`, which times
+ *  its OWN wall-clock span around the whole per-sample closure — copy, append, fsync, `nextRunNumber`, AND the
+ *  temp dir's `rmSync` cleanup — while the closure separately computed its own `ms` around just `nextRunNumber`
+ *  and returned it, a return value `timeCalls` never reads. So every reported catchup1/catchup50 number was
+ *  actually "copy ~n-sized log+db to a fresh dir (fsynced) + one real catch-up + recursively delete that dir
+ *  again," not the catch-up alone — and copying/deleting O(n) bytes of fixture data on every sample is exactly
+ *  what made the row APPEAR to grow with n (10k: ~92-109 ms; 100k: ~431-497 ms), even though instrumenting the
+ *  real code path (`tryOpenAndCheck`/`catchUpInPlace`/close, via a throwaway trace build) showed the genuine
+ *  catch-up cost is ~15-40 ms at 100k, not the ~600 ms this same buggy harness reported once the fixture also
+ *  grew to include the realistic 10-20-key/run generator. No O(n) exists in `src/ledger/index.ts`'s catch-up
+ *  path itself — this was a bench-fixture-only artifact. Fixed by timing only `nextRunNumber` directly, not
+ *  through `timeCalls`'s generic wrapper (which is still correct for every OTHER row, where the timed closure
+ *  really is just the operation under test). */
 function benchCatchUp(fixture: { logPath: string; dbPath: string; extraText: string }, extraLines: number, samples: number): BenchRow {
-  const durations = timeCalls(samples, () => {
+  const durations: number[] = [];
+  for (let i = 0; i < samples; i++) {
     const dir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-bench-catchup-'));
     try {
       const paths = pathsFor(dir);
@@ -237,14 +252,11 @@ function benchCatchUp(fixture: { logPath: string; dbPath: string; extraText: str
       }
       const t0 = performance.now();
       nextRunNumber(paths);
-      const ms = performance.now() - t0;
+      durations.push(performance.now() - t0);
+    } finally {
       rmSync(dir, { recursive: true, force: true });
-      return ms;
-    } catch (e) {
-      rmSync(dir, { recursive: true, force: true });
-      throw e;
     }
-  });
+  }
   return toRow(`catchup${extraLines}`, durations);
 }
 
@@ -277,27 +289,51 @@ async function benchWiseQuery(dbPath: string): Promise<WiseRow | undefined> {
  *  distinct goal/evidence file each time so it can never be answered from reuse (calls must be 1, not 0). */
 async function benchClassCall(paths: SidewisePaths, n: number): Promise<ClassRow> {
   writeFileSync(path.join(paths.root, 'bench-evidence.ts'), 'export const benchmarked = true;\n');
-  // depth: quick needs exactly 10 yes/no questions for one subject (global-constraints.md) — fewer than that is
-  // a validation stop (exit 2, calls never happen), which is exactly bug (a) this revision has to fix: the old
-  // bench's `class` row timed a stop it never paid for.
+  // The synthetic ledger's own cost (0.01 USD/run x n) blows past the DEFAULT_CONFIG budget cap ($5/500 runs,
+  // src/config/defaults.ts) long before this call even runs at 10k+ — checkBudget counts the WHOLE ledger, not
+  // just this adapter's own runs, so without this the paid call below always stops at "budget: cap reached"
+  // (exit 3, calls: -1) and never actually pays, no matter how the request itself is shaped. A generous
+  // project-local override (never touching the real DEFAULT_CONFIG) keeps this row measuring the real call.
+  writeFileSync(paths.config, `budget:\n  usd: ${Math.max(100, n) * 1}\n  runs: ${n + 1000}\n`);
+  // depth: quick needs exactly 3 concerns categories of 3 probes each (3k x 3 — plan 2b's contract; see
+  // skills/sidewise/templates/class.yaml) — anything else is a validation stop (exit 2, calls never happen).
+  // Fixed 2026-09-28 (plan 2c Phase C): this used the pre-2b flat `ask.reach` shape (10 questions, no
+  // concerns/decisions split), which the current schema rejects outright — every run of this bench silently
+  // timed a ~10ms validation STOP (exit 2, calls: -1), never a real paid call, and the doc's "class" row was
+  // reporting that stop's cost as if it were the real end-to-end number.
   const classText = [
     'side:',
     `  goal: bench paid call reaches the ledger end to end at ${n}`,
     '  depth: quick',
     '  where: [bench-evidence.ts]',
     '  ask:',
-    '    reach:',
-    '      pass: yes',
-    '      1: Does this file export a constant?',
-    '      2: Is the constant named benchmarked?',
-    '      3: Is the value a boolean?',
-    '      4: Is the value literally true?',
-    '      5: Does the file use export const?',
-    '      6: Is there only one export in the file?',
-    '      7: Is the file valid TypeScript?',
-    '      8: Does the file end with a newline?',
-    '      9: Is the file free of side effects?',
-    '      10: Does the file avoid any imports?',
+    '    concerns:',
+    '      exports:',
+    '        pass: no',
+    '        1: Is the constant declared with `let` instead of `const`?',
+    '        2: Is the exported name something other than `benchmarked`?',
+    '        3: Is the value something other than a boolean?',
+    '      shape:',
+    '        pass: no',
+    '        4: Does the file contain more than one export?',
+    '        5: Does the file import any other module?',
+    '        6: Does the file omit a trailing newline?',
+    '      safety:',
+    '        pass: no',
+    '        7: Does the file have any side effects at module load time?',
+    '        8: Is the file invalid TypeScript?',
+    '        9: Is the constant\'s value anything other than literally `true`?',
+    '    decisions:',
+    '      severity:',
+    '        pass: [none]',
+    '        10:',
+    '          scale: How severe is the worst issue found?',
+    '          levels: [none, low, medium, high, critical]',
+    '      route:',
+    '        pass: [ship]',
+    '        11:',
+    '          choice: Where should this go?',
+    '          options: [ship, fix, block]',
     '',
   ].join('\n');
   const before = existsSync(paths.log) ? statSync(paths.log).size : 0;
