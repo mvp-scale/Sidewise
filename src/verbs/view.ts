@@ -16,7 +16,7 @@ import { readCodeEvidence } from '../evidence/code.ts';
 import type { Gate } from '../contract/types.ts';
 import { RUN_ID } from '../ledger/ids.ts';
 import { readRecordAt, stripLines, sweepPlaces, withIndex, type IndexHandle } from '../ledger/index.ts';
-import { isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
+import { appendLookup, isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { exactReuse } from '../ledger/reuse.ts';
 import type { Level } from '../lens/request.ts';
@@ -317,6 +317,10 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
     const keys = questions.map((q) => answerKey(evidenceStr, q));
     const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
     reuse = exactReuse(ctx.paths, who, keys);
+    // A real draft check (a full ask, not just a bare place/id lookup) is logged, free — CONTRACT's own claim
+    // ("the lookup is logged") was untrue until this: never a run (no SW-#### id, appendLookup's own comment),
+    // never counted toward the budget or any report's run totals.
+    appendLookup(ctx.paths, { goal: request.side.goal, where: request.side.where, hit: reuse !== undefined, reused: reuse ?? null });
   }
 
   const next = reuse ? `sidewise view ${reuse}` : 'sidewise class';
