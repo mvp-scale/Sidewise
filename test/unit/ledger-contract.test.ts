@@ -49,7 +49,7 @@ describe('contract runs', () => {
     expect(() => readLedger(paths)).toThrow(/line 2 of \.sidewise\/log\.jsonl is not a ledger record/);
   });
 
-  it('recordCall({ contract }) spends and appends in one lock section; a failed append puts the budget back', () => {
+  it('recordCall({ contract }) spends and appends in one lock section; a broken ledger fails the budget closed too [plan 2c B1]', () => {
     const { paths } = tempProject({});
     const { budget, record } = recordCall(paths, 0.02, { contract: sampleContractRun() }, T);
     expect(record.id).toBe('SW-0001');
@@ -57,8 +57,10 @@ describe('contract runs', () => {
     expect(budget.runs).toBe(1);
     rmSync(paths.log);
     mkdirSync(paths.log);
+    // Spend is now derived FROM the ledger (plan 2c B1), so a broken ledger fails every budget read closed too
+    // — there's no separate counter left to roll back to, the way the old budget.json design needed.
     expect(() => recordCall(paths, 0.02, { contract: sampleContractRun() }, T)).toThrow(/EISDIR/);
-    expect(loadBudget(paths).state.runs).toBe(1);
+    expect(() => loadBudget(paths)).toThrow(/EISDIR/);
   });
 
   it('outcomes attach to contract runs; the asker still cannot mark its own run held', () => {

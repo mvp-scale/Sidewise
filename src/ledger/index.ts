@@ -51,7 +51,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
 import type { Category, Gate, Verb } from '../contract/types.ts';
 import { normalizeWise } from '../contract/wise-fields.ts';
-import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
+import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type FailedRecord, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
 import { withLock } from './lock.ts';
 import { ensureDir, type SidewisePaths } from './paths.ts';
 import { MIN_NODE_LABEL } from '../util/node-version.ts';
@@ -201,6 +201,9 @@ export interface IndexHandle {
   recentReplays(limit: number): Candidate[];
   /** For `sidewise report history`: every recorded outcome, newest first, capped at `limit`. */
   recentOutcomes(limit: number): { runId: string; outcome: OutcomeRecord['outcome']; ts: string; by: string }[];
+  /** For the budget (plan 2c B1): total `costUsd` and count of every contract-run/run/failed record with
+   *  `ts >= sinceIso` — one indexed query, never a full-ledger scan on the paid path. See `budgetRollup` below. */
+  budgetRollup(sinceIso: string): { spentUsd: number; runs: number };
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -210,6 +213,10 @@ export interface IndexHandle {
 interface Sink {
   run(rec: RunRecord | ContractRun, offset: number): void;
   outcome(rec: OutcomeRecord): void;
+  /** A failed call: never gets an id-index entry (no SW-####, nothing to look up by), but its `ts`/`costUsd`
+   *  still count toward the budget rollup below (plan 2c B1: "budget.runs == paid runs + failed records") —
+   *  see budgetRollup's own comment for why this needs its own tiny table rather than living in `runs`. */
+  failed(rec: FailedRecord): void;
 }
 
 const CHUNK_BYTES = 1 << 20; // 1 MiB: bounds memory during a scan regardless of log.jsonl's size.
@@ -254,7 +261,11 @@ function applyLine(sink: Sink, raw: string, startByte: number, lineNo: number, s
     sink.outcome(value);
     return false;
   }
-  if (value.kind !== 'run') return false; // 'failed': counted in the budget, not in the id index
+  if (value.kind === 'failed') {
+    sink.failed(value);
+    return false; // never gets an id-index entry — see Sink.failed's own comment
+  }
+  if (value.kind !== 'run') return false;
   sink.run(value, startByte);
   return true;
 }
@@ -384,6 +395,9 @@ interface MemoryState {
   categories: { runId: string; name: string; section: string; family: string | null; gate: string | null }[];
   childrenByParent: Map<string, Candidate[]>;
   outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
+  /** id -> {ts, cost}, one entry per run/failed record ever applied (keyed, like the SQL `spend` table's own
+   *  PRIMARY KEY, so a reprocessed id replaces rather than double-counts) — plan 2c B1's budget rollup source. */
+  spend: Map<string, { ts: string; cost: number }>;
   /** Every run, oldest first, regardless of adapter/model — `recentReplays`/`patternCounts` need a global view
    *  `candidatesByWho` (scoped per adapter+model) can't give them. */
   allRuns: { id: string; offset: number; verb: Verb; gate: Gate | null; pattern: string | null }[];
@@ -393,13 +407,14 @@ interface MemoryState {
 }
 
 function emptyMemoryState(): MemoryState {
-  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], categories: [], childrenByParent: new Map(), outcomes: new Map(), allRuns: [], runCount: 0, upto: 0, lineCount: 0 };
+  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], categories: [], childrenByParent: new Map(), outcomes: new Map(), allRuns: [], spend: new Map(), runCount: 0, upto: 0, lineCount: 0 };
 }
 
 function memorySink(state: MemoryState): Sink {
   return {
     run(rec, offset) {
       state.runCount += 1;
+      state.spend.set(rec.id, { ts: rec.ts, cost: rec.costUsd ?? 0 });
       state.runOffset.set(rec.id, offset);
       state.allRuns.push({ id: rec.id, offset, verb: rec.verb, gate: isContractRun(rec) ? rec.gate : null, pattern: patternFingerprint(rec) });
       const parent = rec.parent ?? null;
@@ -426,6 +441,9 @@ function memorySink(state: MemoryState): Sink {
       if (rec.outcome === 'held') state.blocked.delete(rec.of);
       else state.blocked.add(rec.of);
       state.outcomes.set(rec.of, { outcome: rec.outcome, uid: rec.uid, ts: rec.ts, by: rec.by });
+    },
+    failed(rec) {
+      state.spend.set(rec.id, { ts: rec.ts, cost: rec.costUsd ?? 0 });
     },
   };
 }
@@ -538,6 +556,16 @@ function handleFromMemory(state: MemoryState): IndexHandle {
         .slice(-limit)
         .reverse()
         .map(([runId, r]) => ({ runId, outcome: r.outcome, ts: r.ts, by: r.by })),
+    budgetRollup: (sinceIso) => {
+      let spentUsd = 0;
+      let runs = 0;
+      for (const s of state.spend.values()) {
+        if (s.ts < sinceIso) continue;
+        spentUsd += s.cost;
+        runs += 1;
+      }
+      return { spentUsd, runs };
+    },
   };
 }
 
@@ -580,6 +608,11 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // SQLite engine.
 // ---------------------------------------------------------------------------------------------------------------
 
+// Bumped to 6 (from 5) here: a new `spend` table carries one row per costed record (every RunRecord/
+// ContractRun AND, newly, every FailedRecord too — failed calls previously had no index row at all; see
+// Sink.failed's own comment) so the budget (plan 2c B1) can compute spentUsd/runs since a given timestamp with
+// one indexed query instead of a full-ledger scan. Caps (usd/runs/per/since) now live in `.sidewise/
+// config.yaml`, not a separate running counter — see src/budget/budget.ts.
 // Bumped to 5 (from 4) here: a new `categories` table carries each contract run's own category shapes
 // (name, section, family, its own gate) — plan 2b's "family per category as queryable" — populated the same
 // way `places`/`answer_keys` are, from the same one-subject `ask.categories` or sweep `ask.layers[].categories`
@@ -594,7 +627,7 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // needs the original outcome record's uid back). A stale on-disk index built under an older version self-heals
 // via the existing schema-version-mismatch rebuild trigger — no migration needed, just a rebuild, which is
 // exactly what self-healing is for.
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 const SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -646,6 +679,12 @@ CREATE TABLE categories (
   PRIMARY KEY (run_id, name)
 );
 CREATE INDEX idx_categories_family ON categories(family);
+CREATE TABLE spend (
+  id TEXT PRIMARY KEY,
+  ts TEXT NOT NULL,
+  cost REAL NOT NULL
+);
+CREATE INDEX idx_spend_ts ON spend(ts);
 `;
 
 /** Every category a contract run's own ask carries: one-subject (`ask.categories`) or a sweep's own layers
@@ -771,6 +810,7 @@ interface SqlStatements {
   insertPlace: SqliteStatement;
   insertCategory: SqliteStatement;
   updateBlocked: SqliteStatement;
+  insertSpend: SqliteStatement;
 }
 
 function prepStatements(db: SqliteDb): SqlStatements {
@@ -781,6 +821,7 @@ function prepStatements(db: SqliteDb): SqlStatements {
     insertPlace: db.prepare('INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)'),
     insertCategory: db.prepare('INSERT OR REPLACE INTO categories (run_id, name, section, family, gate) VALUES (?, ?, ?, ?, ?)'),
     updateBlocked: db.prepare('UPDATE runs SET blocked = ? WHERE id = ?'),
+    insertSpend: db.prepare('INSERT OR REPLACE INTO spend (id, ts, cost) VALUES (?, ?, ?)'),
   };
 }
 
@@ -798,6 +839,7 @@ function sqlSink(stmts: SqlStatements): Sink {
     run(rec, offset) {
       const gate = 'gate' in rec ? (rec.gate ?? null) : null;
       stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null, patternFingerprint(rec));
+      stmts.insertSpend.run(rec.id, rec.ts, rec.costUsd ?? 0);
       if (isContractRun(rec)) {
         for (const [qid, key] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run('where', stripLines(w), rec.id);
@@ -811,6 +853,9 @@ function sqlSink(stmts: SqlStatements): Sink {
     outcome(rec) {
       stmts.insertOutcome.run(rec.of, rec.outcome, rec.uid, rec.ts, rec.by);
       stmts.updateBlocked.run(rec.outcome === 'held' ? 0 : 1, rec.of);
+    },
+    failed(rec) {
+      stmts.insertSpend.run(rec.id, rec.ts, rec.costUsd ?? 0);
     },
   };
 }
@@ -896,6 +941,7 @@ function handleFromSql(db: SqliteDb): IndexHandle {
   );
   const stRecentReplays = db.prepare('SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?');
   const stRecentOutcomes = db.prepare('SELECT run_id AS runId, outcome, ts, by FROM outcomes ORDER BY rowid DESC LIMIT ?');
+  const stBudgetRollup = db.prepare('SELECT COALESCE(SUM(cost), 0) AS spentUsd, COUNT(*) AS runs FROM spend WHERE ts >= ?');
 
   return {
     findOffset: (id) => {
@@ -976,6 +1022,10 @@ function handleFromSql(db: SqliteDb): IndexHandle {
     recentReplays: (limit) => stRecentReplays.all('replay', limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
     recentOutcomes: (limit) =>
       stRecentOutcomes.all(limit).map((r) => ({ runId: String(r.runId), outcome: r.outcome as OutcomeRecord['outcome'], ts: String(r.ts), by: String(r.by) })),
+    budgetRollup: (sinceIso) => {
+      const row = stBudgetRollup.get(sinceIso) as { spentUsd: number; runs: number };
+      return { spentUsd: Number(row.spentUsd), runs: Number(row.runs) };
+    },
   };
 }
 
@@ -1221,6 +1271,14 @@ export function withIndex<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, op
   if (!logStat || logStat.size === 0) return fn(handleFromMemory(emptyMemoryState()));
 
   return runSqlite(paths, fn, { forceRebuild: opts.forceRebuild ?? false, readOnly: opts.readOnly ?? false });
+}
+
+/** The budget's own read (plan 2c B1): total spend/run count for every record (run, contract-run or failed)
+ *  timestamped `sinceIso` or later — one indexed query on the SQLite path, a bounded in-memory filter on the
+ *  fallback. Safe to call from inside an already-held `paths.lock` (e.g. `recordCall`): `withIndex`/`ensureFreshDb`
+ *  use `withLockIfNeeded`, which detects a lock this same process already holds and skips re-acquiring it. */
+export function budgetRollup(paths: SidewisePaths, sinceIso: string, opts: { readOnly?: boolean } = {}): { spentUsd: number; runs: number } {
+  return withIndex(paths, (handle) => handle.budgetRollup(sinceIso), { readOnly: opts.readOnly ?? false });
 }
 
 // The exact, always-the-same message when node:sqlite is genuinely missing (real Node < 22.13, or the

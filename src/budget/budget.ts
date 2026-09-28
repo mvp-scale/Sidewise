@@ -1,11 +1,24 @@
 /**
- * The budget: one hard spend cap and one run cap in .sidewise/budget.json. It NEVER resets on its own; only
- * `sidewise budget reset` (the owner) starts a fresh budget, so there are no surprise bills. The run cap
- * always applies, including when a provider does not report cost. A corrupt file refuses to run (fail closed).
+ * The budget (plan 2c B1): caps (`usd`, `runs`, `per`, `since`) live in `.sidewise/config.yaml`'s `budget:` key;
+ * spent/runs are derived from the ledger itself — every RunRecord/ContractRun/FailedRecord already carries its
+ * own `costUsd`, summed via an index rollup (ledger/index.ts's `budgetRollup`) — so there is no separate counter
+ * to ever drift out of sync with what was actually recorded. `per: total` (the default) counts everything since
+ * `since` (unset = the whole ledger, from the start); `per: day`/`hour` additionally floors the window to the
+ * start of the current UTC day/hour, whichever is later. The run cap always applies, including when a provider
+ * does not report cost.
+ *
+ * `.sidewise/budget.json` (the pre-2c running-counter file) is read at most once, purely to migrate its caps
+ * into config.yaml the first time nothing there says otherwise (`budget.since` unset in config); after that it
+ * is never consulted again, and never trusted if corrupt — config.yaml is the sole authority once it exists.
  */
-import { existsSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { onStore, withLock } from '../ledger/lock.ts';
-import { ensureDir, type SidewisePaths } from '../ledger/paths.ts';
+import { existsSync, readFileSync } from 'node:fs';
+import type { SidewiseConfig } from '../config/defaults.ts';
+import { resolveConfig } from '../config/load.ts';
+import { writeConfigOverride } from '../config/write.ts';
+import { budgetRollup } from '../ledger/index.ts';
+import { withLock } from '../ledger/lock.ts';
+import { appendFailedLocked, type NewFailed } from '../ledger/log.ts';
+import type { SidewisePaths } from '../ledger/paths.ts';
 
 export interface BudgetState {
   capUsd: number;
@@ -15,8 +28,6 @@ export interface BudgetState {
   resetAt: string;
 }
 
-export const DEFAULT_BUDGET = { capUsd: 5, capRuns: 500 } as const;
-
 export class BudgetError extends Error {
   constructor(message: string) {
     super(message);
@@ -24,73 +35,92 @@ export class BudgetError extends Error {
   }
 }
 
-type Caps = { capUsd: number; capRuns: number };
-
 const iso = (now: number): string => new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z');
 const money = (n: number): string => `$${n.toFixed(2)}`;
-const fresh = (now: number, caps: Caps = DEFAULT_BUDGET): BudgetState => ({ capUsd: caps.capUsd, capRuns: caps.capRuns, spentUsd: 0, runs: 0, resetAt: iso(now) });
+const EPOCH = iso(0);
 // Every stop below carries its own fix already; the trailing line just points at the deeper card, the same
 // pointer every other stop in the codebase ends with (`sidewise agent <verb|tool>`, C-153) — `budget` isn't a
 // `Verb`, so this can't reuse `verbs/request.ts`'s `stopText` without `budget/` importing from `verbs/`, a
 // layering inversion the rest of the codebase avoids; the literal suffix is the smaller fix.
 const AGENT_POINTER = '\n→ see: sidewise agent budget';
-const corrupt = (code?: string): BudgetError =>
-  new BudgetError(`✖ budget: .sidewise/budget.json is unreadable${code ? ` (${code})` : ''} → the owner runs "sidewise budget reset" to start a fresh budget${AGENT_POINTER}`);
 
-function isState(v: unknown): v is BudgetState {
-  if (!v || typeof v !== 'object') return false;
-  const s = v as Record<string, unknown>;
-  const numeric = ['capUsd', 'capRuns', 'spentUsd', 'runs'].every((k) => typeof s[k] === 'number' && Number.isFinite(s[k]) && (s[k] as number) >= 0);
-  return numeric && typeof s.resetAt === 'string';
-}
-
-function read(paths: SidewisePaths): BudgetState | undefined {
+/** The pre-2c `.sidewise/budget.json` shape, read at most once for migration — never thrown on, never trusted
+ *  for spend after that: any problem (missing, corrupt, wrong shape) simply reads as "nothing to migrate,"
+ *  since config.yaml is the real authority now and a stale legacy file must never block a real run. */
+function readLegacyBudgetJson(paths: SidewisePaths): { capUsd: number; capRuns: number; resetAt: string } | undefined {
   if (!existsSync(paths.budget)) return undefined;
-  let value: unknown;
   try {
-    value = JSON.parse(readFileSync(paths.budget, 'utf8'));
-  } catch (e) {
-    const code = (e as NodeJS.ErrnoException).code;
-    throw corrupt(typeof code === 'string' ? code : undefined); // unreadable for any reason: fail closed
+    const v = JSON.parse(readFileSync(paths.budget, 'utf8')) as Record<string, unknown>;
+    const capUsd = v.capUsd;
+    const capRuns = v.capRuns;
+    const resetAt = v.resetAt;
+    if (typeof capUsd === 'number' && Number.isFinite(capUsd) && typeof capRuns === 'number' && Number.isFinite(capRuns) && typeof resetAt === 'string') {
+      return { capUsd, capRuns, resetAt };
+    }
+  } catch {
+    /* corrupt or unreadable: nothing to migrate */
   }
-  if (!isState(value)) throw corrupt();
-  return value;
+  return undefined;
 }
 
-/** Always under the lock: write a temp file, then rename it over budget.json, so a reader never sees half a file. */
-function write(paths: SidewisePaths, state: BudgetState): void {
-  const tmp = `${paths.budget}.tmp`;
-  onStore(paths.budget, 'write', () => {
-    ensureDir(paths);
-    writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`);
-    renameSync(tmp, paths.budget);
-  });
+/** `per: total`'s window start is `since` (or the beginning of the ledger, unset); `day`/`hour` additionally
+ *  floor it to the start of the current UTC day/hour, whichever is LATER than `since` — so a mid-window reset
+ *  still narrows the window further, never widens it back out. */
+function windowStartMs(budget: SidewiseConfig['budget'], now: number): number {
+  const sinceMs = budget.since ? Date.parse(budget.since) : 0;
+  const floor = Number.isNaN(sinceMs) ? 0 : sinceMs;
+  if (budget.per === 'total') return floor;
+  const d = new Date(now);
+  const periodStartMs =
+    budget.per === 'day' ? Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) : Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours());
+  return Math.max(floor, periodStartMs);
 }
 
-/** A read-only peek at the current budget, for a dry run: never creates the file, never writes, never throws
- *  (dry runs and free reads write nothing — loadBudget below creates the file with defaults
- *  on first use, which a dry run must never trigger). Missing or corrupt reads as `undefined` rather than
- *  created or reported — a dry run only wants to warn when it can positively tell the cap is already reached;
- *  a real run still gets loadBudget's own proper creation/corruption handling. */
-export function peekBudget(paths: SidewisePaths): BudgetState | undefined {
+function stateFromConfig(paths: SidewisePaths, config: SidewiseConfig, now: number, opts: { readOnly?: boolean } = {}): BudgetState {
+  const sinceMs = windowStartMs(config.budget, now);
+  const { spentUsd, runs } = budgetRollup(paths, iso(sinceMs), opts);
+  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: config.budget.since ?? EPOCH };
+}
+
+/** Ledger-derived state with no side effects at all (no migration attempt, no locking of its own) — safe to
+ *  call from inside an already-held `paths.lock` (ledger/record.ts's `recordCall`), unlike `loadBudget`, whose
+ *  migration path takes the lock itself. */
+export function budgetStateNow(paths: SidewisePaths, now: number = Date.now(), env: Record<string, string | undefined> = process.env): BudgetState {
+  const { config } = resolveConfig(paths, env);
+  return stateFromConfig(paths, config, now);
+}
+
+/** A read-only peek at the current budget, for a dry run: never migrates, never writes, never throws. Any
+ *  problem reads as `undefined` rather than reported — a dry run only wants to warn when it can positively tell
+ *  the cap is already reached; a real run still gets `loadBudget`'s own migration and error handling. */
+export function peekBudget(paths: SidewisePaths, now: number = Date.now(), env: Record<string, string | undefined> = process.env): BudgetState | undefined {
   try {
-    return read(paths);
+    const { config } = resolveConfig(paths, env);
+    return stateFromConfig(paths, config, now, { readOnly: true });
   } catch {
     return undefined;
   }
 }
 
-export function loadBudget(paths: SidewisePaths, now: number = Date.now()): { state: BudgetState; created: boolean } {
-  const existing = read(paths);
-  if (existing) return { state: existing, created: false };
-  // Create under the lock, and only if still missing: two first runs at once must not reset each other's count.
+/** Migrates a legacy `.sidewise/budget.json`'s caps into config.yaml, once — only when config.yaml doesn't
+ *  already say something about `budget.since` (the marker that this project's budget has already been touched
+ *  under the new scheme, whether by a real `budget reset` or by this very migration). A no-op every subsequent
+ *  call. Returns true only when it actually wrote, so `loadBudget` can report it as `created` — the same
+ *  one-time-notice spirit as the old "budget file created with defaults." */
+function migrateLegacyIfNeeded(paths: SidewisePaths, env: Record<string, string | undefined>): boolean {
+  if (resolveConfig(paths, env).sources['budget.since'] === 'config') return false;
   return withLock(paths.lock, () => {
-    const again = read(paths);
-    if (again) return { state: again, created: false };
-    const state = fresh(now);
-    write(paths, state);
-    return { state, created: true };
+    if (resolveConfig(paths, env).sources['budget.since'] === 'config') return false;
+    const legacy = readLegacyBudgetJson(paths);
+    if (!legacy) return false;
+    writeConfigOverride(paths, { budget: { usd: legacy.capUsd, runs: legacy.capRuns, per: 'total', since: legacy.resetAt } });
+    return true;
   });
+}
+
+export function loadBudget(paths: SidewisePaths, now: number = Date.now(), env: Record<string, string | undefined> = process.env): { state: BudgetState; created: boolean } {
+  const created = migrateLegacyIfNeeded(paths, env);
+  return { state: budgetStateNow(paths, now, env), created };
 }
 
 export function usedFraction(s: BudgetState): number {
@@ -109,49 +139,40 @@ export function checkBudget(s: BudgetState): { ok: true } | { ok: false; message
   return { ok: true };
 }
 
-/** Counts one call. The caller holds the lock. Returns the state before (for a rollback) and after. */
-export function spendLocked(paths: SidewisePaths, costUsd: number, now: number = Date.now()): { before: BudgetState | undefined; after: BudgetState } {
-  const before = read(paths);
-  const s = before ?? fresh(now);
-  const after = { ...s, spentUsd: s.spentUsd + (Number.isFinite(costUsd) ? Math.max(0, costUsd) : 0), runs: s.runs + 1 };
-  write(paths, after);
-  return { before, after };
-}
-
-/** Undoes spendLocked when the matching ledger line could not be written. The caller holds the lock. */
-export function restoreLocked(paths: SidewisePaths, before: BudgetState | undefined): void {
-  if (before) write(paths, before);
-  else onStore(paths.budget, 'write', () => rmSync(paths.budget, { force: true }));
-}
-
+/** Test/fixture convenience (no real caller in src/ outside this module): simulates one more spent call by
+ *  appending a minimal FailedRecord with the given cost, so budget-invariant tests (and the concurrency-stress
+ *  e2e fixture) can "reach the cap" without a real classifier call. Counts toward `runs`/`spentUsd` exactly like
+ *  any other ledger entry — there is no separate counter left to bump directly. */
 export function recordSpend(paths: SidewisePaths, costUsd: number, now: number = Date.now()): BudgetState {
-  return withLock(paths.lock, () => spendLocked(paths, costUsd, now).after);
+  const failed: NewFailed = {
+    verb: 'class',
+    actor: 'test',
+    adapter: 'test',
+    model: 'test',
+    costUsd: Number.isFinite(costUsd) ? Math.max(0, costUsd) : 0,
+    reason: 'recordSpend (test helper)',
+  };
+  withLock(paths.lock, () => appendFailedLocked(paths, failed, now));
+  return budgetStateNow(paths, now);
 }
 
-export function resetBudget(paths: SidewisePaths, now: number = Date.now()): BudgetState {
-  return withLock(paths.lock, () => {
-    let caps: Caps = DEFAULT_BUDGET;
-    try {
-      caps = read(paths) ?? DEFAULT_BUDGET;
-    } catch {
-      /* corrupt: start again from the defaults */
-    }
-    const next = fresh(now, caps);
-    write(paths, next);
-    return next;
-  });
+/** Moves `since` to now — the window narrows from here on; nothing already in the ledger is touched or erased. */
+export function resetBudget(paths: SidewisePaths, now: number = Date.now(), env: Record<string, string | undefined> = process.env): BudgetState {
+  writeConfigOverride(paths, { budget: { since: iso(now) } });
+  return budgetStateNow(paths, now, env);
 }
 
-export function setBudget(paths: SidewisePaths, caps: { capUsd?: number; capRuns?: number }, now: number = Date.now()): BudgetState {
+export function setBudget(paths: SidewisePaths, caps: { capUsd?: number; capRuns?: number }, now: number = Date.now(), env: Record<string, string | undefined> = process.env): BudgetState {
   for (const [name, v] of Object.entries(caps)) {
     if (v !== undefined && !(Number.isFinite(v) && v > 0)) throw new BudgetError(`✖ budget: ${name} must be a positive number, got ${v} → e.g. --usd 5 --runs 500${AGENT_POINTER}`);
   }
-  return withLock(paths.lock, () => {
-    const s = read(paths) ?? fresh(now);
-    const next = { ...s, ...(caps.capUsd !== undefined ? { capUsd: caps.capUsd } : {}), ...(caps.capRuns !== undefined ? { capRuns: caps.capRuns } : {}) };
-    write(paths, next);
-    return next;
+  writeConfigOverride(paths, {
+    budget: {
+      ...(caps.capUsd !== undefined ? { usd: caps.capUsd } : {}),
+      ...(caps.capRuns !== undefined ? { runs: caps.capRuns } : {}),
+    },
   });
+  return budgetStateNow(paths, now, env);
 }
 
 export function budgetLine(s: BudgetState): string {
