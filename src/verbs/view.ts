@@ -9,6 +9,7 @@
 import path from 'node:path';
 import { providerIdentity } from '../classifier/select.ts';
 import { isRehearsal } from '../classifier/port.ts';
+import type { ResolveStored } from '../classifier/typesafe/client.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
@@ -24,10 +25,13 @@ import { loadRequest, stopText } from './request.ts';
 import { respondText, wiseRecorded } from './respond.ts';
 import type { VerbResult } from './types.ts';
 
-/** view never spends and never picks a live provider: just enough of VerbContext to read the ledger and evidence. */
+/** view never spends and never picks a live provider: just enough of VerbContext to read the ledger and evidence.
+ *  `resolveStored`, when given, lets `providerIdentity` below see a keychain/user-file key too, the same as
+ *  `doctor`/`agent` — see VerbContext's own note on why this matters for reuse-key matching. */
 export interface ViewContext {
   paths: SidewisePaths;
   env: Record<string, string | undefined>;
+  resolveStored?: ResolveStored;
 }
 
 type AnyRun = RunRecord | ContractRun;
@@ -311,7 +315,7 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
     const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
     const evidenceStr = subjectEvidence(evidence.evidence.files);
     const keys = questions.map((q) => answerKey(evidenceStr, q));
-    const who = providerIdentity(ctx.env);
+    const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
     reuse = exactReuse(ctx.paths, who, keys);
   }
 

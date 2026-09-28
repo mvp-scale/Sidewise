@@ -180,6 +180,12 @@ function cap(flag: string, raw: string): number | string {
 
 const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop } as const;
 
+// Item H (batch G): a key stored in the OS keychain or the user file (~/.config/sidewise/env), with no env
+// var set, must behave identically everywhere a provider is chosen or identified — not just in doctor/agent,
+// which already pass this same lookup. One helper, reused at every call site below, so a future provider- or
+// identity-selection call can't be added without it by accident the way selectProvider/providerIdentity were.
+const resolveStoredFor = (c: CliCtx) => () => resolveStoredKey(c.runner, c.platform, c.env);
+
 /** Most provider-selection failures (no key) are bucketed as provider errors (exit 1); a JevConfigError can
  *  instead carry exit 2 — a bad SIDEWISE_BASE_URL is a config mistake to fix, not a runtime provider failure. */
 const providerExit = (e: unknown): 1 | 2 => (e instanceof JevConfigError ? e.exit : 1);
@@ -214,11 +220,11 @@ async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths
   if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
   let provider: ClassifierPort;
   try {
-    provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json') });
+    provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json'), resolveStored: resolveStoredFor(ctx) });
   } catch (e) {
     return finish(providerExit(e), (e as Error).message);
   }
-  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, dryRun: values['dry-run'] });
+  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
   return finish(r.exit, r.text);
 }
 
@@ -449,7 +455,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
           // not a file: treat arg itself as the place/id
         }
       }
-      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env }, content, values.summary);
+      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary);
       return finish(r.exit, r.text);
     }
     case 'report': {
@@ -496,11 +502,11 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       }
       let provider: ClassifierPort;
       try {
-        provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json') });
+        provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json'), resolveStored: resolveStoredFor(ctx) });
       } catch (e) {
         return finish(providerExit(e), (e as Error).message);
       }
-      const r = await runChange(text, { paths, provider, env: ctx.env, dryRun: values['dry-run'] });
+      const r = await runChange(text, { paths, provider, env: ctx.env, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case 'outcome': {

@@ -53,7 +53,7 @@ async function runOneSubjectProof(
   const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, 'drill') };
 
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
@@ -230,7 +230,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
 
     const notes: string[] = [];
     const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-    const identity = providerIdentity(ctx.env);
+    const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
     const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
 
     if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));

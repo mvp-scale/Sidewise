@@ -34,7 +34,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, 'class') };
 
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];

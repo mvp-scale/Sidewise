@@ -901,6 +901,15 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   left untouched, not an error. The first hit wins, and its source (`env`/`keychain`/`file`) is carried
   alongside it. The resolved value never appears in any output, error, ledger line or note — the redaction list
   (`ledger/redact.ts`) also scrubs it as a literal, on top of its own secret-shaped patterns. [C-097]
+- A key resolved from the OS keychain or the user file (never env) is honored the same way everywhere a
+  provider is chosen or identified — not just by `sidewise doctor` and `sidewise agent`, which already looked
+  past env. Every `cli.ts` call to `selectProvider` (class/scan/drill/loop, and `change`) and to `runView`
+  passes the same `resolveStoredKey(runner, platform, env)` lookup those two commands use, via one shared
+  `VerbContext`/`ViewContext` field (`resolveStored`) threaded through to every verb's own `providerIdentity`
+  call (the route/adapter shown in `--dry-run`'s `plan:` and recorded on the ledger run) — so a key found only
+  in the keychain or `~/.config/sidewise/env`, with no env var set, is never silently treated as "no key" and
+  answered by the fake provider while `doctor` reports `key: yes`. An env var still wins over a stored key,
+  unchanged. [C-203]
 - The secret-shaped-key redaction pattern (`ledger/redact.ts`'s `KEY_VALUE`) refuses to start its value match on
   `{` or `[`: a real secret is never itself a literal YAML mapping or list, so a Sidewise-chosen name that
   happens to contain a secret-ish word (a sweep item or category like `issue-token`, `verify-token`,

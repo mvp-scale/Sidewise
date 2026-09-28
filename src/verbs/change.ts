@@ -100,7 +100,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   // Two ranges on one file (parent.where can hold both) must read and charge it once, not once per range.
   const paths = [...new Set(parent.where.map((w) => w.split(':')[0]!))];
 
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
 
   // Evidence (both refs) is read before the dry-run branch, same as class/scan/drill/loop, so a dry run still
   // catches a missing ref instead of skipping the check.

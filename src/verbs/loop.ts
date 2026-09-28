@@ -21,7 +21,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const { request } = loaded;
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
 
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));

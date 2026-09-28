@@ -32,12 +32,12 @@ export interface ProviderIdentity {
   baseURL: string | null;
 }
 
-export function providerIdentity(env: Env = process.env): ProviderIdentity {
+export function providerIdentity(env: Env = process.env, deps: { resolveStored?: ResolveStored } = {}): ProviderIdentity {
   const wanted = env.SIDEWISE_PROVIDER?.trim();
   if (wanted === 'fake') return { adapter: 'fake', model: FAKE_MODEL, route: 'fake', baseURL: null };
   if (wanted === 'chaos') return { adapter: 'chaos', model: CHAOS_MODEL, route: 'chaos', baseURL: null };
   try {
-    const config = resolveJevConfig(env);
+    const config = resolveJevConfig(env, deps);
     if (wanted === 'typesafe' || hasKey(config)) return { adapter: 'typesafe', model: config.model, route: routeLabel(config), baseURL: config.baseURL };
   } catch {
     // A config error (a floating model, a bad SIDEWISE_BASE_URL) leaves the route/base URL unknowable here;
