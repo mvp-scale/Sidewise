@@ -74,7 +74,6 @@ export const DEFAULT_CONFIG: SidewiseConfig = {
 /** Top-level config keys, in the order `sidewise config` prints them. Used by validate.ts for the
  *  unknown-key/did-you-mean check and by load.ts for the printer. */
 export const CONFIG_KEYS = ['budget', 'provider', 'baseURL', 'model', 'pricing', 'timeoutMs', 'retries', 'backoffMs', 'sweep', 'requestMaxBytes', 'reuse', 'wise'] as const;
-export type ConfigKey = (typeof CONFIG_KEYS)[number];
 
 /** Request-contract concepts an agent might mistake for project settings — plan 2c B1's "not configurable
  *  (request contract) → set it per request" stop. `depth` is the named example in the plan; the others are the
