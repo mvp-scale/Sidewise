@@ -37,26 +37,26 @@ type Field = 'depth' | 'where' | 'ask' | 'parent' | 'compare' | 'over' | 'from' 
 const NEEDS: Record<Verb, Field[]> = {
   class: ['depth', 'where', 'ask'],
   view: ['where'],
-  change: ['parent', 'compare', 'expect'],
+  replay: ['parent', 'compare', 'expect'],
   scan: ['depth', 'over', 'ask'],
   loop: ['depth', 'over', 'ask'],
   drill: ['parent', 'from', 'ask'],
 };
 
-// side.parent is allowed on every verb now (plan 2b): required by drill/change (NEEDS above), lineage-only
+// side.parent is allowed on every verb now (plan 2b): required by drill/replay (NEEDS above), lineage-only
 // everywhere else — so it is deliberately absent from every list below. wise.parent remains an accepted alias.
 const NEVER: Record<Verb, Field[]> = {
   class: ['over', 'from', 'compare', 'expect'],
   view: ['over', 'from', 'compare', 'expect'],
-  change: ['ask', 'over', 'from', 'where', 'depth'],
+  replay: ['ask', 'over', 'from', 'where', 'depth'],
   scan: ['where', 'from', 'compare', 'expect'],
   loop: ['from', 'compare', 'expect'],
   drill: ['compare', 'where', 'expect'],
 };
 
-const STRINGS: Record<Verb, StringRule> = { scan: 'scan', drill: 'each-only', loop: 'none', class: 'none', view: 'none', change: 'none' };
+const STRINGS: Record<Verb, StringRule> = { scan: 'scan', drill: 'each-only', loop: 'none', class: 'none', view: 'none', replay: 'none' };
 
-/** Keys the response uses beside the categories: a category can't share one. "expected" is change's new
+/** Keys the response uses beside the categories: a category can't share one. "expected" is replay's new
  *  expect: grade (plan 2b); a category with this name would collide with its response key. */
 const RESERVED = ['id', 'gate', 'goal', 'consensus', 'escalate', 'regressed', 'expected', 'failing', 'passing', 'scanned', 'reused', 'view', 'reuse', 'runs', 'categories'];
 
@@ -81,13 +81,13 @@ function how(field: Field, verb: Verb): string {
     case 'from':
       return 'add "from: <an item id or a category of the parent run>"';
     case 'expect':
-      return 'add "expect: [concern-name, ...]" (which of the parent\'s concerns this change should fix)';
+      return 'add "expect: [concern-name, ...]" (which of the parent\'s concerns this replay should fix)';
   }
 }
 
 function never(field: Field, verb: Verb): string {
-  if (verb === 'change' && field === 'ask') return "✖ side.ask: change replays the parent's questions → remove ask; for new questions, use class";
-  if (field === 'expect') return '✖ side.expect: only change predicts fixed concerns → remove it';
+  if (verb === 'replay' && field === 'ask') return "✖ side.ask: replay re-runs the parent's questions → remove ask; for new questions, use class";
+  if (field === 'expect') return '✖ side.expect: only replay predicts fixed concerns → remove it';
   if (field === 'over') return `✖ side.over: ${verb} asks about one subject → remove over, or use loop or scan to sweep`;
   if (field === 'where' && verb === 'scan') return '✖ side.where: scan reads the files in over → remove where';
   if (field === 'where') return `✖ side.where: ${verb} reads the parent run's code → remove where`;

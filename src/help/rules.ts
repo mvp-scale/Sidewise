@@ -130,17 +130,17 @@ export const PROBE_RULES: readonly ProbeRule[] = [
  * prose framing around them, `agent verdict` (agent.ts) renders the same list bare — one shared list so the
  * two views can't state the verdict rules differently (same discipline as PROBE_RULES above). Round-4 finding:
  * this vocabulary (`consensus`, `escalate`, `stale`, `reused`, fixed/still/regressed) was documented only in
- * `help report`'s own prose (and change.ts's/report.ts's doc comments), never surfaced before a response ever
+ * `help report`'s own prose (and replay.ts's/report.ts's doc comments), never surfaced before a response ever
  * showed it. [C-196]
  */
 export const VERDICT_FACTS: readonly string[] = [
   '`need:` on a category: `all` (default, every answer clears the bar) · `most` (>= 2/3 clear, none a clear miss) · `any` (at least one clears)',
   "the gate passes only when the goal and every category pass; in a sweep, an item passes only when its own categories and every child does too",
-  '`consensus` (STRONG · SPLIT · WEAK): whether the yes/no answers agree with each other — shown on `class`, and `drill` on a one-subject parent; a sweep or `change` response never computes it',
+  '`consensus` (STRONG · SPLIT · WEAK): whether the yes/no answers agree with each other — shown on `class`, and `drill` on a one-subject parent; a sweep or `replay` response never computes it',
   "`escalate: true` on non-STRONG consensus, `depth: thorough`, or a goal that reads as irreversible (delete, deploy, drop, pay, migrate, secret, credential) — don't act on this alone",
   "a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes — that's exactly why it lands in `unsure` rather than a weak pass",
   "the answer's shape is guaranteed (a number in range, a level that's really one of yours) — whether it's the RIGHT number is what consensus, escalate and your own reading are for, not the schema",
-  "`change`'s per-category grade: `fixed` (failed or unsure before, passes now), `still` (failed or unsure before, still doesn't), `regressed` (passed before, not any more — regressed alone fails the gate even when every `after` category passes)",
+  "`replay`'s per-category grade: `fixed` (failed or unsure before, passes now), `still` (failed or unsure before, still doesn't), `regressed` (passed before, not any more — regressed alone fails the gate even when every `after` category passes)",
   '`reused: [SW-####]` names prior runs an answer\'s evidence and question text matched exactly — free, not a new call',
   "`sidewise report hits` flags a one-subject answer `stale` once the code at its own `where` has changed since — re-run it rather than trust it",
   'a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) — read which one you got before treating a stop as `unsure`',

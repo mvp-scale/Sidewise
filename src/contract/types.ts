@@ -1,5 +1,5 @@
 /** The request and answer model of the YAML call contract v1 (skills/sidewise/references/contract.md). */
-export const VERBS = ['view', 'class', 'change', 'scan', 'drill', 'loop'] as const;
+export const VERBS = ['view', 'class', 'replay', 'scan', 'drill', 'loop'] as const;
 export type Verb = (typeof VERBS)[number];
 
 export const DEPTHS = ['quick', 'standard', 'thorough'] as const;
@@ -78,7 +78,7 @@ export interface Side {
   parent?: string;
   from?: string;
   compare?: { before: string; after: string };
-  /** change only: which of the parent's concerns this change should turn to pass. */
+  /** replay only: which of the parent's concerns this replay should turn to pass. */
   expect?: string[];
   /** One subject: the categories straight under ask (concerns first, then decisions). Empty in a sweep. */
   categories: Category[];

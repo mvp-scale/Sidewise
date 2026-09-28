@@ -196,8 +196,8 @@ export interface IndexHandle {
    *  category as queryable" made real, not just stored. Categories with no family set are excluded (nothing to
    *  group them by, same discipline as patternCounts). */
   familyCounts(): FamilyRow[];
-  /** For `sidewise report history`: every `change`-verb run, newest first, capped at `limit`. */
-  recentChanges(limit: number): Candidate[];
+  /** For `sidewise report history`: every `replay`-verb run, newest first, capped at `limit`. */
+  recentReplays(limit: number): Candidate[];
   /** For `sidewise report history`: every recorded outcome, newest first, capped at `limit`. */
   recentOutcomes(limit: number): { runId: string; outcome: OutcomeRecord['outcome']; ts: string; by: string }[];
 }
@@ -369,7 +369,7 @@ interface MemoryState {
   categories: { runId: string; name: string; section: string; family: string | null; gate: string | null }[];
   childrenByParent: Map<string, Candidate[]>;
   outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
-  /** Every run, oldest first, regardless of adapter/model — `recentChanges`/`patternCounts` need a global view
+  /** Every run, oldest first, regardless of adapter/model — `recentReplays`/`patternCounts` need a global view
    *  `candidatesByWho` (scoped per adapter+model) can't give them. */
   allRuns: { id: string; offset: number; verb: Verb; gate: Gate | null; pattern: string | null }[];
   runCount: number;
@@ -512,9 +512,9 @@ function handleFromMemory(state: MemoryState): IndexHandle {
         .map(([family, v]) => ({ family, categories: v.categories, runs: v.runs.size, pass: v.pass, fail: v.fail, unsure: v.unsure }))
         .sort((a, b) => b.categories - a.categories || a.family.localeCompare(b.family));
     },
-    recentChanges: (limit) =>
+    recentReplays: (limit) =>
       state.allRuns
-        .filter((r) => r.verb === 'change')
+        .filter((r) => r.verb === 'replay')
         .slice(-limit)
         .reverse()
         .map((r) => ({ id: r.id, offset: r.offset })),
@@ -572,7 +572,7 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // already serializes the whole `wise` object into `runs.wise` verbatim, so they're already queryable via
 // json_extract on that column, same as why/area/stage were before them.
 // Bumped to 4 (from 3) here: runs gained a `pattern` column (+ its own index, and one on `verb`) for
-// `sidewise report patterns`/`history` (patternCounts/recentChanges) — see patternFingerprint's own comment.
+// `sidewise report patterns`/`history` (patternCounts/recentReplays) — see patternFingerprint's own comment.
 // Bumped to 3 (from 2) here: runs gained a `parent` column (+ its own index) so view's "down" lineage walk
 // (WHERE parent = ?) no longer needs a full-ledger scan. Bumped to 2 (from 1): outcomes gained a `uid` column
 // (appendOutcome's own no-op "repeat" check now reads the index instead of a full readLedger — it
@@ -879,7 +879,7 @@ function handleFromSql(db: SqliteDb): IndexHandle {
       `SUM(CASE WHEN gate = 'unsure' THEN 1 ELSE 0 END) AS unsure ` +
       `FROM categories WHERE family IS NOT NULL GROUP BY family`,
   );
-  const stRecentChanges = db.prepare('SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?');
+  const stRecentReplays = db.prepare('SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?');
   const stRecentOutcomes = db.prepare('SELECT run_id AS runId, outcome, ts, by FROM outcomes ORDER BY rowid DESC LIMIT ?');
 
   return {
@@ -958,7 +958,7 @@ function handleFromSql(db: SqliteDb): IndexHandle {
         .all()
         .map((r) => ({ family: String(r.family), categories: Number(r.categories), runs: Number(r.runs), pass: Number(r.pass), fail: Number(r.fail), unsure: Number(r.unsure) }))
         .sort((a, b) => b.categories - a.categories || a.family.localeCompare(b.family)),
-    recentChanges: (limit) => stRecentChanges.all('change', limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
+    recentReplays: (limit) => stRecentReplays.all('replay', limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
     recentOutcomes: (limit) =>
       stRecentOutcomes.all(limit).map((r) => ({ runId: String(r.runId), outcome: r.outcome as OutcomeRecord['outcome'], ts: String(r.ts), by: String(r.by) })),
   };

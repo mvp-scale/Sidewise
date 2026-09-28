@@ -20,7 +20,7 @@ const EXAMPLES: Record<Verb, string> = {
     '    injection: {pass: no, 1: Is request text put into a query unvalidated?, ...}',
     'wise: {why: validate, area: auth}',
   ].join('\n'),
-  change: 'side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}',
+  replay: 'side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}',
   scan: [
     'side:',
     '  goal: Handlers don\'t trust request input',
@@ -46,15 +46,15 @@ const EXAMPLES: Record<Verb, string> = {
 };
 
 /** Exported so `agent.ts`'s `verbCard()` can splice these into the same `rules:` list as `ruleLines(verb)` —
- *  one shared source for both views, never a second copy (round-4 finding: `agent drill`/`agent change`
+ *  one shared source for both views, never a second copy (round-4 finding: `agent drill`/`agent replay`
  *  rendered an empty `rules:` section since neither verb had any RULES/patterns.ts entries of its own; this
  *  prose already existed here, just unreachable from `agent`). [C-192] */
 export const SHARP: Record<Verb, string[]> = {
   view: ['a code file (not a request) is a place, not a request — view <folder>, ".", a tag, or SW-#### all work'],
   class: ['goal wording changes the verdict (that\'s a feature, not a bug) — phrase it as the claim you need proven'],
-  change: [
-    'the files must be committed at the ref you name (or use "worktree" for the working tree) — change runs git in the repo that actually holds them',
-    'change replays the parent\'s own questions; it never takes ask: (use class for new questions)',
+  replay: [
+    'the files must be committed at the ref you name (or use "worktree" for the working tree) — replay runs git in the repo that actually holds them',
+    'replay re-runs the parent\'s own questions; it never takes ask: (use class for new questions)',
   ],
   scan: ['add a scale question to a layer to rank findings by severity, worst first, instead of an unordered map', 'scan by file when the file itself is the unit that matters, not a function inside it'],
   drill: ['follow the `next:` line rather than hand-authoring parent/from — it already names the id and the category or item'],
@@ -68,7 +68,7 @@ export const SHARP: Record<Verb, string[]> = {
 const PURPOSE: Record<Verb, string> = {
   view: 'Side x Know: what do we already know here? Free — it reads the ledger and never calls out.',
   class: 'Side x Judge: does the evidence support this one goal? One call, one subject.',
-  change: 'Side x Prove: did the change work? It replays a parent run\'s questions on two states.',
+  replay: 'Side x Prove: did the change work? It replays a parent run\'s questions on two states.',
   scan: 'Wise x Know: where in this code should we look? A sweep across code, read by us.',
   drill: 'Wise x Judge: why did this one thing fail? It goes down from one item in a parent run.',
   loop: 'Wise x Prove: does this idea hold up? A sweep across layers of ideas the agent writes.',
@@ -77,9 +77,9 @@ const PURPOSE: Record<Verb, string> = {
 const WHEN: Record<Verb, string> = {
   view: 'before any paid call, when entering unfamiliar code, or to find proven questions.',
   class: 'a decision on one subject: merge, choose, triage, check a fix.',
-  change: 'after a fix, a refactor, a dependency bump, or to compare fix A with fix B.',
+  replay: 'after a fix, a refactor, a dependency bump, or to compare fix A with fix B.',
   scan: 'a new codebase, a release check, a PR\'s changed files, or a vague bug with no location yet.',
-  drill: 'after a fail or unsure from class, scan, loop or change.',
+  drill: 'after a fail or unsure from class, scan, loop or replay.',
   loop: 'a design, a plan or a feature request before any code exists.',
 };
 
@@ -92,7 +92,7 @@ const WHEN: Record<Verb, string> = {
 export const VERB_LINE: Record<Verb, string> = {
   view: "free; what's already known, before any paid call",
   class: 'one decision on one thing (merge, choose, triage, check a fix)',
-  change: "re-check a run's questions after a fix, across two git refs",
+  replay: "re-check a run's questions after a fix, across two git refs",
   scan: "sweep many files when the problem's location is unknown",
   drill: 'go down from one flagged item of an earlier run',
   loop: 'check a design or plan before code exists',

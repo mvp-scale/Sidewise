@@ -1,5 +1,5 @@
 /**
- * Git as classifier evidence for change: two states of the same files, read either from a ref (`git show`) or
+ * Git as classifier evidence for replay: two states of the same files, read either from a ref (`git show`) or
  * from the working tree (the literal ref "worktree"). A ref that looks like a git option (starts with "-")
  * must never reach git — checked before any spawnSync call, so it can't be re-split or re-interpreted as an
  * option. git is always spawned as an argv array, never through a shell.
@@ -17,7 +17,7 @@ type Spawn = typeof spawnSync;
 
 const FATAL = /fatal: (invalid object name|Path .* does not exist)/u;
 
-/** change reads whole files, never line ranges. Exported so change.ts can dedupe it across the two states. */
+/** replay reads whole files, never line ranges. Exported so replay.ts can dedupe it across the two states. */
 export const WHOLE_FILE_NOTE = 'reading whole files: line ranges may not match the parent run';
 
 /** A string git would read as an option, not a ref: it must never be handed to git. */
@@ -69,7 +69,7 @@ function keep(shown: string, text: string, total: number, notes: string[]): { bo
 
 /**
  * `ref === 'worktree'`: each path read straight off disk, whole file. Otherwise: `git show ref:path`, whole
- * file. Either way, whole files only (change never has line ranges) — a note says so once, not once per file.
+ * file. Either way, whole files only (replay never has line ranges) — a note says so once, not once per file.
  */
 export function readGitEvidence(root: string, ref: string, field: 'before' | 'after', paths: readonly string[], deps?: { spawn?: Spawn }): GitResult {
   if (ref !== 'worktree' && isGitOption(ref)) {

@@ -90,7 +90,7 @@ export interface ContractRun {
   from: string | null;
   compare: { before: string; after: string } | null;
   wise: Wise | null;
-  /** The questions asked: categories (one subject) or layers (a sweep). change stores its parent's. */
+  /** The questions asked: categories (one subject) or layers (a sweep). replay stores its parent's. */
   ask: { categories: Category[]; layers: Layer[] };
   over: Record<string, unknown> | null;
   items: Record<string, ItemRecord> | null;
@@ -100,7 +100,7 @@ export interface ContractRun {
   keys: Record<string, string>;
   /** Question id → the run whose answer was reused for it. */
   reusedFrom: Record<string, string>;
-  /** One subject: category → gate (change: the "after" gates). */
+  /** One subject: category → gate (replay: the "after" gates). */
   categories: Record<string, Gate>;
   gate: Gate;
   goalGate: Gate | null;
@@ -381,7 +381,7 @@ function matchingRun(at: number, logPath: string, id: string): RunRecord | Contr
  * that's genuinely corrupt (not just a stale offset) still fails closed with readLedger's usual LedgerError,
  * thrown from within that rebuild, not swallowed here.
  * Always `readOnly`: findRun is a pure query, called both inside an already-held lock (appendOutcome) and,
- * just as often, outside any lock at all (change/drill resolving side.parent, including during --dry-run,
+ * just as often, outside any lock at all (replay/drill resolving side.parent, including during --dry-run,
  * before preflight ever runs) — it must never be the thing that takes the ledger lock to rebuild/catch up the
  * on-disk index on a real writer's behalf. When the on-disk index isn't already fresh, it falls back to an
  * in-memory scan instead (always correct, just not persisted) rather than write anything to disk.

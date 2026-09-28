@@ -1,6 +1,6 @@
 /**
  * The compact YAML response, shared by every verb (contract "Every response"). Pure formatting, no I/O: builds
- * the `side:`/`plan:` Value tree and hands it to emit.ts. Pins the exact shapes later verbs (change, loop, scan,
+ * the `side:`/`plan:` Value tree and hands it to emit.ts. Pins the exact shapes later verbs (replay, loop, scan,
  * drill) depend on — a change here is a change to what every verb prints.
  */
 import { isRehearsal } from '../classifier/port.ts';
@@ -56,7 +56,7 @@ export function consensusAndEscalate(
 
 /** `wise: {recorded: [...]}` fields, or the string "none" when nothing was recorded. Named in `Wise`'s own
  *  field order (why, area, stage, change, risk, problem, nodes, touches, blast — plan 2b's four knowledge
- *  fields appended last, in that order); `extra` (e.g. change.ts's `['parent']`) always comes after those. */
+ *  fields appended last, in that order); `extra` (e.g. replay.ts's `['parent']`) always comes after those. */
 export function wiseRecorded(wise: Wise | null, extra?: readonly string[]): Value {
   const fields = [
     ...(wise?.why ? ['why'] : []),
@@ -111,7 +111,7 @@ export function drillNext(id: string, target: string): string {
 }
 
 /**
- * Anything in `regressed` can alone fail change's gate even when every "after" category grades pass on its
+ * Anything in `regressed` can alone fail replay's gate even when every "after" category grades pass on its
  * own (a `need: any` category clearing on a question that never regressed, say) — outcomeNext's own "which
  * category matches the overall gate?" search then finds nothing and falls back to GOAL_ONLY_NEXT, which is
  * wrong here: the goal can pass too. C-065: anything regressed should be reverted or drilled into; next:

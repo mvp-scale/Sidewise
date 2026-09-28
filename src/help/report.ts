@@ -97,7 +97,7 @@ export function reportHelp(): string {
     '- no options beyond the view name — hits (default), patterns, history or web; anything else is a stop.',
     '- `hits`: the newest run\'s own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.',
     '- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.',
-    '- `history`: a merged, newest-first feed of `change` results (fixed/regressed) and recorded outcomes.',
+    '- `history`: a merged, newest-first feed of `replay` results (fixed/regressed) and recorded outcomes.',
     '- `web`: writes one self-contained `.sidewise/viewer.html` (a place x concern consensus map, a heat map, a session summary) and tries to open it in a browser; always prints the file\'s path, opened or not. The only view that writes anything, and only ever that one file — never the ledger.',
     '- every view caps its rows and says plainly how many more exist, rather than dropping them silently.',
     ...proseCliPairs(REPORT_PAIRS),

@@ -38,7 +38,7 @@ const byNumber = (categories: readonly Category[]): Question[] => categories.fla
 
 export const goalQuestion = (goal: string): AskedQuestion => ({ id: 'goal', n: null, kind: 'yesno', text: goal });
 
-/** One subject: "1".."N" (with a prefix for change's two states). */
+/** One subject: "1".."N" (with a prefix for replay's two states). */
 export function subjectQuestions(categories: readonly Category[], prefix = ''): AskedQuestion[] {
   return byNumber(categories).map((q) => asked(q, `${prefix}${q.n}`, q.text));
 }

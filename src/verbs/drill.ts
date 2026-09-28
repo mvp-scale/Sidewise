@@ -3,13 +3,13 @@
  * arrays — shaped like that parent (docs/contract.md "drill"). Which shape branches on parent.items:
  *   a sweep parent (scan or loop, items !== null) → from: names one of its items; drill sweeps the next
  *     layer down from that one item (sweep.ts's shared engine), worst first, same as scan.
- *   a one-subject parent (class, change, or an earlier drill, items === null) → from: names one of its
+ *   a one-subject parent (class, replay, or an earlier drill, items === null) → from: names one of its
  *     categories; drill sends brand-new, narrower questions straight under ask: and answers with class's
  *     own shape.
  * Both branches share parent/from resolution and next:'s own rule: drill's own next: always points at
  * fixing-then-proving, never at drilling further (you're already at the bottom) —
- * a one-subject parent keeps "fix it, then change"; a sweep parent says to fix and re-run this drill instead
- * (unchanged items are reused, so it is nearly free), since change refuses a sweep parent outright.
+ * a one-subject parent keeps "fix it, then replay"; a sweep parent says to fix and re-run this drill instead
+ * (unchanged items are reused, so it is nearly free), since replay refuses a sweep parent outright.
  */
 import { providerIdentity } from '../classifier/select.ts';
 import { m, type Value } from '../contract/emit.ts';
@@ -31,7 +31,7 @@ import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDr
 import type { VerbContext, VerbResult } from './types.ts';
 
 /** A sweep parent's fail/unsure next: fix the worst item, then re-run this drill — cheap, since sweep.ts
- * reuses every item that didn't change. Never sidewise change: change.ts refuses a sweep parent. */
+ * reuses every item that didn't change. Never sidewise replay: replay.ts refuses a sweep parent. */
 const REDRILL_NEXT = 'fix it, then run this drill again (unchanged items are reused, so it is nearly free)';
 
 /** The `where` a sweep drill records (plan 2b: recorded for every verb): every item's own code path, unique,
@@ -48,16 +48,16 @@ function whereFromItems(items: readonly { unit?: { path: string } }[]): string[]
  * `where` — class's own flow verbatim, just with drill's own record shape (parent/from set, next: never
  * points at drilling further). Shared by BOTH an existing one-subject-parent drill and a flat
  * proof of one coded sweep item with no over: — they differ only in where the evidence comes from and which
- * run `change` should build on next: a one-subject PARENT already has items: null, so `request.side.parent`
- * itself is a valid change parent; a sweep parent (items !== null) is not — change refuses it outright — so a
- * flat proof of one of its items must point `change` at itself (this new drill run's own id) instead.
+ * run `replay` should build on next: a one-subject PARENT already has items: null, so `request.side.parent`
+ * itself is a valid replay parent; a sweep parent (items !== null) is not — replay refuses it outright — so a
+ * flat proof of one of its items must point `replay` at itself (this new drill run's own id) instead.
  */
 async function runOneSubjectProof(
   ctx: VerbContext,
   loaded: { notes: string[] },
   request: Request,
   where: readonly string[],
-  changeParent: (id: string) => string,
+  replayParent: (id: string) => string,
   evidenceOpts?: ReadCodeEvidenceOptions,
 ): Promise<VerbResult> {
   const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
@@ -112,7 +112,7 @@ async function runOneSubjectProof(
   const subject = gradeSubject(request.side.categories, answers);
 
   const oneSubjectNext = (gate: 'pass' | 'fail' | 'unsure', id: string): string =>
-    gate === 'pass' ? 'act on it' : `fix it, then sidewise change --parent ${changeParent(id)} --compare <before>..<after>`;
+    gate === 'pass' ? 'act on it' : `fix it, then sidewise replay --parent ${replayParent(id)} --compare <before>..<after>`;
 
   // Which prior runs this drill's answers came from, when any were reused.
   const reusedRunIds = reusedIds(reusedFrom);

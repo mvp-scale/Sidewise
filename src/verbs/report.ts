@@ -10,7 +10,7 @@
  *              never a full-ledger scan; see isStale below).
  *   patterns — every question-set fingerprint (ledger/index.ts's patternFingerprint) ever run, with its
  *              pass/fail/unsure split, places touched, and outcomes.
- *   history  — a merged, newest-first feed of `change` results (fixed/regressed, derived from the change run's
+ *   history  — a merged, newest-first feed of `replay` results (fixed/regressed, derived from the replay run's
  *              own before/after answers — never a new ledger write) and recorded outcomes.
  *   web      — a place x concern consensus map, a heat map and a session summary, as one static HTML file
  *              (report-web.ts), opened in a browser when one is available.
@@ -22,7 +22,7 @@ import { isContractRun, isRun, type ContractRun, type LedgerRecord } from '../le
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { realRunner, type Runner } from '../setup/runner.ts';
 import { clip, hasControlChars } from '../util/text.ts';
-import { gradeChange } from './change.ts';
+import { gradeReplay } from './replay.ts';
 import { runReportWeb, type ReportWebContext } from './report-web.ts';
 import { stopText } from './request.ts';
 import type { VerbResult } from './types.ts';
@@ -141,12 +141,12 @@ function placesOf(rec: LedgerRecord | undefined): string {
   return sweep.length ? sweep.join(', ') : '(no place)';
 }
 
-/** `change` results turn into 'fixed'/'regressed' from the run's OWN before/after answers — `change.ts`'s
- *  `gradeChange`, shared rather than copied, is the same regression call `change` itself already made (any
+/** `replay` results turn into 'fixed'/'regressed' from the run's OWN before/after answers — `replay.ts`'s
+ *  `gradeReplay`, shared rather than copied, is the same regression call `replay` itself already made (any
  *  regression anywhere wins over any fix). Never the parent's stored gate, which can be stale by the time this
  *  reads it. A run that changed nothing worth naming (every category held steady) yields no row at all. */
-function changeStatus(rec: ContractRun): 'fixed' | 'regressed' | undefined {
-  const graded = gradeChange(rec.ask.categories, rec.answers);
+function replayStatus(rec: ContractRun): 'fixed' | 'regressed' | undefined {
+  const graded = gradeReplay(rec.ask.categories, rec.answers);
   if (graded.regressed.length) return 'regressed';
   return graded.categories.some((c) => c.before !== 'pass' && c.after === 'pass') ? 'fixed' : undefined;
 }
@@ -156,12 +156,12 @@ function reportHistory(paths: SidewisePaths): VerbResult {
     paths,
     (handle) => {
       const out: { ts: string; text: string }[] = [];
-      for (const { offset } of handle.recentChanges(ROW_LIMIT)) {
+      for (const { offset } of handle.recentReplays(ROW_LIMIT)) {
         const rec = readRecordAt(paths.log, offset);
         if (!rec || !isContractRun(rec)) continue;
-        const status = changeStatus(rec);
+        const status = replayStatus(rec);
         if (!status) continue;
-        out.push({ ts: rec.ts, text: `${placesOf(rec)} · ${rec.id} change · ${status}` });
+        out.push({ ts: rec.ts, text: `${placesOf(rec)} · ${rec.id} replay · ${status}` });
       }
       for (const o of handle.recentOutcomes(ROW_LIMIT)) {
         const runOffset = handle.findOffset(o.runId);
@@ -172,7 +172,7 @@ function reportHistory(paths: SidewisePaths): VerbResult {
     },
     { readOnly: true },
   );
-  if (!rows.length) return { exit: 0, text: 'sidewise report history · nothing yet → run "change" or "outcome" to start one' };
+  if (!rows.length) return { exit: 0, text: 'sidewise report history · nothing yet → run "replay" or "outcome" to start one' };
   rows.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
   return { exit: 0, text: [heading('history', rows.length, 'event'), ...withCap(rows.map((r) => r.text), rows.length)].join('\n') };
 }

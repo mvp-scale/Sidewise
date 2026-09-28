@@ -1,6 +1,6 @@
 /**
  * `sidewise help [verb|topic]`: free, no project needed — the guidance lives in the tool, not beside it.
- * `help` alone prints the one-screen contract card; `help <verb>` (view, class, change, scan, drill, loop) goes
+ * `help` alone prints the one-screen contract card; `help <verb>` (view, class, replay, scan, drill, loop) goes
  * deeper on one verb; `help <topic>` (authoring, verdict, wise, reuse, probe) covers a cross-cutting rule;
  * `help report|outcome|budget` covers the three free/record tools outside the 2x3 verb grid (report.ts). Never
  * spends, never touches the ledger. cli.ts wires this in as the `help` command.

@@ -1,5 +1,5 @@
 /**
- * change: "did the fix work?" Replays a one-subject parent's questions on two states (before/after a ref, or
+ * replay: "did the fix work?" Replays a one-subject parent's questions on two states (before/after a ref, or
  * the worktree) — never a sweep parent's, which has its own items to re-sweep. Two calls at most (one per
  * state), reusing per question exactly like class.ts; goal is asked once, on the "after" state only. Grading
  * pairs before/after per category (fixed/still) and across all of them (regressed), which alone can fail the
@@ -31,7 +31,7 @@ function planCall(
   return toAsk.length ? { state, questions: toAsk } : null;
 }
 
-export interface ChangeCategoryGrade {
+export interface ReplayCategoryGrade {
   name: string;
   before: Gate;
   after: Gate;
@@ -41,19 +41,19 @@ export interface ChangeCategoryGrade {
   still: number[];
 }
 
-export interface ChangeGrade {
-  categories: ChangeCategoryGrade[];
+export interface ReplayGrade {
+  categories: ReplayCategoryGrade[];
   goal: { gate: Gate; p: number };
   /** Passing before, not any more — sorted ascending. Non-empty alone fails the gate. */
   regressed: number[];
   gate: Gate;
 }
 
-/** The before/after grade a change run reports and stores: read straight from a change run's own `ask.categories`
+/** The before/after grade a replay run reports and stores: read straight from a replay run's own `ask.categories`
  *  and `answers` (keyed `before:<n>`/`after:<n>`/`goal` by `contract/translate.ts`'s `subjectQuestions`) — no new
  *  ledger write, and reusable read-side by anything (e.g. `report.ts`) that needs the run's own regression call
  *  instead of a stale comparison against another run. */
-export function gradeChange(categories: readonly Category[], answers: Record<string, Answer>): ChangeGrade {
+export function gradeReplay(categories: readonly Category[], answers: Record<string, Answer>): ReplayGrade {
   const beforeGrade = gradeSubject(categories, answers, 'before:');
   const afterCatsGrade = gradeSubject(categories, answers, 'after:');
   const g = answers['goal'] as { kind: 'yesno'; p: number };
@@ -64,7 +64,7 @@ export function gradeChange(categories: readonly Category[], answers: Record<str
   const afterMarks = new Map<number, Mark>();
   for (const c of afterCatsGrade.categories) for (const [n, mk] of c.marks) afterMarks.set(n, mk);
 
-  const categoryGrades: ChangeCategoryGrade[] = categories.map((c, i) => {
+  const categoryGrades: ReplayCategoryGrade[] = categories.map((c, i) => {
     const beforeCat = beforeGrade.categories[i]!;
     const afterCat = afterCatsGrade.categories[i]!;
     const fixed = [...beforeCat.marks].filter(([n, mk]) => mk !== 'pass' && afterCat.marks.get(n) === 'pass').map(([n]) => n);
@@ -83,26 +83,26 @@ export function gradeChange(categories: readonly Category[], answers: Record<str
   return { categories: categoryGrades, goal, regressed, gate };
 }
 
-export async function runChange(text: string, ctx: VerbContext): Promise<VerbResult> {
-  const loaded = loadRequest(text, 'change');
+export async function runReplay(text: string, ctx: VerbContext): Promise<VerbResult> {
+  const loaded = loadRequest(text, 'replay');
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 
   const parent = findRun(ctx.paths, request.side.parent!);
-  // Each of these three ran as a bare string, missing the "→ see: sidewise agent change" pointer every other
+  // Each of these three ran as a bare string, missing the "→ see: sidewise agent replay" pointer every other
   // stop carries (stopText's own job) — round 2/3 smoke testing hit all three with no pointer to follow
   // (round3-findings.md, STOPS.md #1). Routed through stopText so they match every other verb's stop shape.
-  if (!parent) return { exit: 2, text: stopText([`✖ side.parent: ${request.side.parent} is not in the ledger → check the id`], 'change') };
-  if (!isContractRun(parent)) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} predates the YAML contract → run class again on this code`], 'change') };
-  if (parent.items !== null) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} was a sweep → run the sweep again (unchanged items are reused for free)`], 'change') };
+  if (!parent) return { exit: 2, text: stopText([`✖ side.parent: ${request.side.parent} is not in the ledger → check the id`], 'replay') };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} predates the YAML contract → run class again on this code`], 'replay') };
+  if (parent.items !== null) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} was a sweep → run the sweep again (unchanged items are reused for free)`], 'replay') };
 
   const categories = parent.ask.categories;
-  // expect: names which of the parent's concerns this change should turn to pass (plan 2b) — every entry must
+  // expect: names which of the parent's concerns this replay should turn to pass (plan 2b) — every entry must
   // be a real concern of the parent; decisions categories don't count (they're never "fixed").
   const concernNames = categories.filter((c) => c.section === 'concerns').map((c) => c.name);
   const badExpect = request.side.expect!.find((name) => !concernNames.includes(name));
   if (badExpect !== undefined) {
-    return { exit: 2, text: stopText([`✖ side.expect: "${badExpect}" is not a concern of ${parent.id} → use one of ${concernNames.join(', ')}`], 'change') };
+    return { exit: 2, text: stopText([`✖ side.expect: "${badExpect}" is not a concern of ${parent.id} → use one of ${concernNames.join(', ')}`], 'replay') };
   }
   // Two ranges on one file (parent.where can hold both) must read and charge it once, not once per range.
   const paths = [...new Set(parent.where.map((w) => w.split(':')[0]!))];
@@ -116,7 +116,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const after = readGitEvidence(ctx.paths.root, compare.after, 'after', paths);
   if (!before.ok || !after.ok) {
     const errors = [...(before.ok ? [] : before.errors), ...(after.ok ? [] : after.errors)];
-    return { exit: 2, text: stopText(errors, 'change') };
+    return { exit: 2, text: stopText(errors, 'replay') };
   }
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
@@ -126,7 +126,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, 'after:')];
   const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)] as const);
   const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)] as const);
-  // Reuse is resolved before preflight/dry-run, same as class.ts: a fully-reused change's free run is never
+  // Reuse is resolved before preflight/dry-run, same as class.ts: a fully-reused replay's free run is never
   // blocked by an already-reached budget cap, and a dry run can predict how much reuses.
   const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
   const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
@@ -149,7 +149,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   let costUsd: number | undefined = 0;
   let costEstimated = false;
   if (calls.length > 0) {
-    const asked = await askAll(ctx, 'change', calls);
+    const asked = await askAll(ctx, 'replay', calls);
     if (!asked.ok) return asked.result;
     Object.assign(answers, asked.value.answers);
     costUsd = asked.value.costUsd;
@@ -159,11 +159,11 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   const keys: Record<string, string> = {};
   for (const [q, k] of [...beforeKeyed, ...afterKeyed]) keys[q.id] = k;
 
-  const changeGrade = gradeChange(categories, answers);
-  const { goal, regressed, gate } = changeGrade;
+  const replayGrade = gradeReplay(categories, answers);
+  const { goal, regressed, gate } = replayGrade;
   const afterCatsGrade = gradeSubject(categories, answers, 'after:');
 
-  const catEntries: Array<[string, Value]> = changeGrade.categories.map((c) => [
+  const catEntries: Array<[string, Value]> = replayGrade.categories.map((c) => [
     c.name,
     m(
       ['before', c.before],
@@ -177,7 +177,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   // when it missed/was mid before and clears now, "still" when it missed/was mid before and still doesn't
   // clear. A concern that already passed before predicts nothing meaningful either way, so it's left out of
   // both lists (plan 2b: "grading the prediction against the expected concerns").
-  const gradeByName = new Map(changeGrade.categories.map((c) => [c.name, c]));
+  const gradeByName = new Map(replayGrade.categories.map((c) => [c.name, c]));
   const expectedFixed: string[] = [];
   const expectedStill: string[] = [];
   for (const name of request.side.expect!) {
@@ -223,7 +223,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     );
 
   const run: NewContractRun = {
-    verb: 'change',
+    verb: 'replay',
     actor: actorOf(ctx),
     task: ctx.env.SIDEWISE_TASK?.trim() || null,
     goal: request.side.goal,
@@ -252,7 +252,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     calls: calls.length,
     route: identity.route,
     baseURL: identity.baseURL,
-    // change replays the parent's own questions rather than reading the worktree at HEAD, so there's no single
+    // replay re-runs the parent's own questions rather than reading the worktree at HEAD, so there's no single
     // commit this run itself is "at" the way class/scan/loop/drill are — left null on purpose.
     commit: null,
   };

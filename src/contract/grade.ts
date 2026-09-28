@@ -94,7 +94,7 @@ export function gradeCategory(cat: Category, answerOf: (n: number) => Answer | u
 
 export interface SubjectGrade {
   gate: Gate;
-  /** Absent when the goal was not asked (change's "before" state). */
+  /** Absent when the goal was not asked (replay's "before" state). */
   goal?: { gate: Gate; p: number };
   categories: CategoryGrade[];
 }

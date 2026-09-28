@@ -32,7 +32,7 @@ import { realRunner } from './setup/runner.ts';
 import type { Runner } from './setup/runner.ts';
 import type { PromptIO } from './setup/prompt.ts';
 import { runUninstall, type UninstallFlags } from './setup/uninstall.ts';
-import { runChange } from './verbs/change.ts';
+import { runReplay } from './verbs/replay.ts';
 import { runClass } from './verbs/class.ts';
 import { runDoctor } from './verbs/doctor.ts';
 import { runDrill } from './verbs/drill.ts';
@@ -64,12 +64,12 @@ const PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'
 const LINES = {
   view: 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]',
   class: 'sidewise class <request-file | -> [--dry-run]',
-  change: 'sidewise change <request-file | -> [--dry-run]  ·  or: sidewise change --parent SW-#### --compare <before>..<after> [--dry-run]',
+  replay: 'sidewise replay <request-file | -> [--dry-run]  ·  or: sidewise replay --parent SW-#### --compare <before>..<after> [--dry-run]',
   scan: 'sidewise scan <request-file | -> [--dry-run]',
   drill: 'sidewise drill <request-file | -> [--dry-run]',
   loop: 'sidewise loop <request-file | -> [--dry-run]',
   template:
-    'sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  ·  or: --from <request.yaml> [--where <path>]... [--goal <text>]',
+    'sidewise template <view|class|replay|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  ·  or: --from <request.yaml> [--where <path>]... [--goal <text>]',
   help: `sidewise help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}|${HELP_EXTRAS.join('|')}]`,
   agent: `sidewise agent [${VERBS.join('|')}|${AGENT_EXTRAS.join('|')}]`,
   report: 'sidewise report [hits|patterns|history]',
@@ -238,7 +238,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, change, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
 
   // "<command> --help"/"-h" is answered here, generically, for every command, before that command's own
@@ -469,10 +469,10 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     case 'drill':
     case 'loop':
       return runSweptVerb(command, rest, paths, ctx);
-    case 'change': {
+    case 'replay': {
       const twice = givenTwice(rest, ['dry-run', 'parent', 'compare', 'expect']);
       if (twice) return finish(2, withAgentPointer(twice, command));
-      const { values, positionals } = args('change', {
+      const { values, positionals } = args('replay', {
         args: rest,
         allowPositionals: true,
         options: { 'dry-run': { type: 'boolean', default: false }, parent: { type: 'string' }, compare: { type: 'string' }, expect: { type: 'string' } },
@@ -481,19 +481,19 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       let text: string;
       if (usingFlags) {
         if (values.parent === undefined || values.compare === undefined) {
-          return finish(2, withAgentPointer('✖ --parent/--compare: give both, or neither → sidewise change --parent SW-#### --compare <before>..<after>', command));
+          return finish(2, withAgentPointer('✖ --parent/--compare: give both, or neither → sidewise replay --parent SW-#### --compare <before>..<after>', command));
         }
-        positionalCount('change', positionals, 0, 0);
+        positionalCount('replay', positionals, 0, 0);
         const sep = values.compare.indexOf('..');
         if (sep <= 0 || sep >= values.compare.length - 2) {
           return finish(2, withAgentPointer(`✖ --compare: "${clip(values.compare, 60)}" is not <before>..<after> → e.g. --compare main..HEAD`, command));
         }
         // The goal comes from the parent run itself (not a fixed placeholder): a real parent's own goal is what
         // "did the fix work?" is asking about. When the parent can't supply one (missing, or predates the
-        // contract), the placeholder is never read — runChange's own findRun/isContractRun checks bail first.
+        // contract), the placeholder is never read — runReplay's own findRun/isContractRun checks bail first.
         const parentRun = findRun(paths, values.parent);
         const goal = parentRun && isContractRun(parentRun) ? parentRun.goal : 'The change works';
-        // expect: (plan 2b, required): --expect names specific concerns (comma-separated) this change should
+        // expect: (plan 2b, required): --expect names specific concerns (comma-separated) this replay should
         // turn to pass — the agent's own prediction, never a default. Omitting it defeats the point (the agent
         // must actually predict), so the flag form requires it exactly like the file form's schema does.
         const expect = values.expect
@@ -504,12 +504,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
           const sample = concernNames.length > 0 ? concernNames.join(',') : 'injection,guards';
           return finish(
             2,
-            withAgentPointer(`✖ --expect: name the concerns this change should fix → sidewise change --parent SW-#### --compare <before>..<after> --expect ${sample}`, command),
+            withAgentPointer(`✖ --expect: name the concerns this replay should fix → sidewise replay --parent SW-#### --compare <before>..<after> --expect ${sample}`, command),
           );
         }
         text = stringify({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
-        positionalCount('change', positionals, 1, 1);
+        positionalCount('replay', positionals, 1, 1);
         const read = readRequest(positionals[0]!, ctx.stdin);
         if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
         text = read.text;
@@ -520,7 +520,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       } catch (e) {
         return finish(providerExit(e), (e as Error).message);
       }
-      const r = await runChange(text, { paths, provider, env: ctx.env, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
+      const r = await runReplay(text, { paths, provider, env: ctx.env, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case 'outcome': {

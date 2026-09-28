@@ -111,22 +111,22 @@ function fromRunId(id: string, flags: TemplateFlags, paths: SidewisePaths | unde
   if (!run) return { exit: 2, text: stopText([`✖ template: --from "${id}" is not in the ledger → check the id, or point --from at a request file`], 'template') };
   if (!isContractRun(run)) return { exit: 2, text: stopText([`✖ template: --from "${id}" predates the YAML contract → point --from at a request file instead`], 'template') };
 
-  // `change` is the one verb where the stored fields aren't a faithful copy of the original request: a change
-  // run stores its PARENT's `where`/`ask.categories` too (change.ts), so it can grade before/after answers
-  // against the same categories — but a real change request never carries `where`/`ask`/`depth`/`over` at all
-  // (contract/validate.ts's NEVER list forbids every one of them for change). scan and drill are the other two
+  // `replay` is the one verb where the stored fields aren't a faithful copy of the original request: a replay
+  // run stores its PARENT's `where`/`ask.categories` too (replay.ts), so it can grade before/after answers
+  // against the same categories — but a real replay request never carries `where`/`ask`/`depth`/`over` at all
+  // (contract/validate.ts's NEVER list forbids every one of them for replay). scan and drill are the other two
   // exceptions: their own `where` is recorded for `sidewise view`'s own place lookups (derived from over's item
   // paths, or copied from the parent) rather than typed by the agent — a real scan/drill request never carries
   // `where:` either (NEVER forbids it for both), so it's dropped here too. Every other verb (class, loop, view)
   // stores exactly `request.side.*` on its own run, so the generic rebuild below is faithful for them.
   // expect: (plan 2b) isn't on every ContractRun shape yet as this file was written — read it defensively so
-  // this rebuild starts including it the moment change.ts's own NewContractRun starts writing it, with no
+  // this rebuild starts including it the moment replay.ts's own NewContractRun starts writing it, with no
   // further change needed here.
-  const changeExpect = (run as unknown as { expect?: string[] }).expect;
+  const replayExpect = (run as unknown as { expect?: string[] }).expect;
   const echoesWhere = run.verb !== 'scan' && run.verb !== 'drill';
   const side: Record<string, unknown> =
-    run.verb === 'change'
-      ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare, ...(changeExpect ? { expect: changeExpect } : {}) }
+    run.verb === 'replay'
+      ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare, ...(replayExpect ? { expect: replayExpect } : {}) }
       : {
           verb: run.verb,
           goal: run.goal,

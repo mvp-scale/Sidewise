@@ -62,7 +62,7 @@ export * from './ledger/reuse.ts';
 export * from './verbs/types.ts';
 export { runClass } from './verbs/class.ts';
 export { runView } from './verbs/view.ts';
-export { runChange } from './verbs/change.ts';
+export { runReplay } from './verbs/replay.ts';
 export { runScan } from './verbs/scan.ts';
 export { runDrill } from './verbs/drill.ts';
 export { runLoop } from './verbs/loop.ts';
