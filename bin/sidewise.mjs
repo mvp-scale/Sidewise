@@ -8568,7 +8568,7 @@ function handleFromMemory(state) {
       }
       return [...byFamily.entries()].map(([family, v]) => ({ family, categories: v.categories, runs: v.runs.size, pass: v.pass, fail: v.fail, unsure: v.unsure })).sort((a, b) => b.categories - a.categories || a.family.localeCompare(b.family));
     },
-    recentChanges: (limit) => state.allRuns.filter((r) => r.verb === "change").slice(-limit).reverse().map((r) => ({ id: r.id, offset: r.offset })),
+    recentReplays: (limit) => state.allRuns.filter((r) => r.verb === "replay").slice(-limit).reverse().map((r) => ({ id: r.id, offset: r.offset })),
     recentOutcomes: (limit) => [...state.outcomes.entries()].slice(-limit).reverse().map(([runId, r]) => ({ runId, outcome: r.outcome, ts: r.ts, by: r.by }))
   };
 }
@@ -8781,7 +8781,7 @@ function handleFromSql(db) {
   const stFamilyCounts = db.prepare(
     `SELECT family, COUNT(*) AS categories, COUNT(DISTINCT run_id) AS runs, SUM(CASE WHEN gate = 'pass' THEN 1 ELSE 0 END) AS pass, SUM(CASE WHEN gate = 'fail' THEN 1 ELSE 0 END) AS fail, SUM(CASE WHEN gate = 'unsure' THEN 1 ELSE 0 END) AS unsure FROM categories WHERE family IS NOT NULL GROUP BY family`
   );
-  const stRecentChanges = db.prepare("SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?");
+  const stRecentReplays = db.prepare("SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?");
   const stRecentOutcomes = db.prepare("SELECT run_id AS runId, outcome, ts, by FROM outcomes ORDER BY rowid DESC LIMIT ?");
   return {
     findOffset: (id) => {
@@ -8850,7 +8850,7 @@ function handleFromSql(db) {
       }).sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
     },
     familyCounts: () => stFamilyCounts.all().map((r) => ({ family: String(r.family), categories: Number(r.categories), runs: Number(r.runs), pass: Number(r.pass), fail: Number(r.fail), unsure: Number(r.unsure) })).sort((a, b) => b.categories - a.categories || a.family.localeCompare(b.family)),
-    recentChanges: (limit) => stRecentChanges.all("change", limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
+    recentReplays: (limit) => stRecentReplays.all("replay", limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
     recentOutcomes: (limit) => stRecentOutcomes.all(limit).map((r) => ({ runId: String(r.runId), outcome: r.outcome, ts: String(r.ts), by: String(r.by) }))
   };
 }
@@ -10211,19 +10211,48 @@ function worstFirst(grades) {
 import { createHash as createHash2 } from "node:crypto";
 
 // src/contract/types.ts
-var VERBS = ["view", "class", "change", "scan", "drill", "loop"];
+var VERBS = ["view", "class", "replay", "scan", "drill", "loop"];
 var DEPTHS = ["quick", "standard", "thorough"];
 var DEPTH_COUNT = { quick: 9, standard: 18, thorough: 27 };
 var SWEEP_ITEM_CAP = { quick: 10, standard: 20, thorough: 30 };
 var WHYS = ["validate", "find", "debug"];
 var AREAS = ["data", "api", "ui", "auth", "hosting", "build", "tests"];
-var STAGES = ["design", "build", "review", "pre-merge", "post-fix", "release"];
+var STAGES = ["design", "build", "review", "pre-merge", "post-fix", "release", "operate"];
 var CHANGES = ["feature", "fix", "refactor", "dependency", "config"];
 var RISKS = ["low", "medium", "high"];
 var DECISIONS_MIN = 2;
 var DECISIONS_MAX = 5;
 var FAMILIES = ["access", "injection", "secrets", "input", "output", "availability", "correctness", "design", "design-risk", "done", "other"];
 var BLASTS = ["code", "component", "container", "system", "person"];
+
+// src/contract/wise-fields.ts
+var UNKNOWN_VALUE = "unknown";
+var WISE_FIELDS = [
+  { key: "why", kind: "closed-single", values: WHYS },
+  { key: "area", kind: "closed-list", values: AREAS, maxList: 2, note: "omit for whole-system questions: uses carries the map" },
+  { key: "stage", kind: "closed-single", values: STAGES, note: "operate = live production/incident" },
+  { key: "change", kind: "closed-single", values: CHANGES, note: "only when a code change is involved" },
+  { key: "risk", kind: "closed-single", values: RISKS, note: "the stakes if this answer is wrong" },
+  { key: "problem", kind: "freetext", note: "one line \u2264160: what you're solving, in your own words" },
+  { key: "uses", kind: "chain-list", maxList: 5, note: "list \u22645 of chains (grammar below)" },
+  { key: "blast", kind: "closed-single", values: BLASTS, note: "the widest level one failure reaches (person = users' data or accounts)" },
+  { key: "touches", kind: "freetext-list", maxList: 5, note: 'list \u22645 domain objects/fields (not concepts like "authentication", not language built-ins)' }
+];
+var WISE_PARENT_KEY = "parent";
+var WISE_KEYS = [...WISE_FIELDS.map((f) => f.key), WISE_PARENT_KEY];
+var CHAIN_LEVELS = ["person", "system", "container", "component", "code"];
+var NAME = "[A-Za-z0-9._-]+";
+var PART = `(?:${CHAIN_LEVELS.join("|")}):${NAME}(?:/${NAME})*\\??`;
+var CHAIN_RE = new RegExp(`^${PART}(?: -> ${PART})*$`, "u");
+var MAX_WISE_LINES = 25;
+var MAX_CUSTOM_KEY_LEN = 20;
+var MAX_FREETEXT_LEN = 160;
+var MAX_TOUCH_LEN = 40;
+var CUSTOM_KEY_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/u;
+var isCustomKey = (k) => CUSTOM_KEY_RE.test(k) && k.length <= MAX_CUSTOM_KEY_LEN;
+function closedValues(field) {
+  return [...field.values ?? [], UNKNOWN_VALUE];
+}
 
 // src/contract/schema-check.ts
 var TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
@@ -10234,10 +10263,6 @@ var SIDE_KEYS = ["goal", "depth", "where", "parent", "ask", "over", "from", "com
 var CATEGORY_KEYS = ["pass", "need", "tags", "family"];
 var SECTION_NAMES = ["concerns", "decisions"];
 var NOT_QUESTIONS = /^(yes|no|true|false|on|off|y|n)$/iu;
-var NODE_LEVELS = ["person", "system", "container", "component", "code"];
-var NODE = `(?:${NODE_LEVELS.join("|")}):[A-Za-z0-9._/-]+`;
-var CHAIN = `${NODE}(?: -> ${NODE})*`;
-var NODES_RE = new RegExp(`^${CHAIN}(?:; ${CHAIN})*$`, "u");
 var isObj2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 var len = (s) => [...s].length;
 var show = (v) => clip(typeof v === "string" ? `"${v}"` : JSON.stringify(v) ?? String(v), 40);
@@ -10368,10 +10393,47 @@ function checkTouches(v, out) {
   if (!Array.isArray(v)) return out.add("wise.touches", "must be a list", "write [a, b]");
   if (v.length > 5) out.add("wise.touches", `${v.length} entries`, "give up to 5");
   v.forEach((x, i) => {
-    if (typeof x !== "string" || x.includes("\n") || len(x) < 1 || len(x) > 40) {
-      out.add(`wise.touches[${i}]`, show(x), "each entry is 1\u201340 characters, one line");
+    if (typeof x !== "string" || x.includes("\n") || len(x) < 1 || len(x) > MAX_TOUCH_LEN) {
+      out.add(`wise.touches[${i}]`, show(x), `each entry is 1\u2013${MAX_TOUCH_LEN} characters, one line`);
     }
   });
+}
+function checkUses(v, out) {
+  const list3 = typeof v === "string" ? [v] : v;
+  if (!Array.isArray(list3)) return void out.add("wise.uses", show(v), "write a level:name chain, e.g. container:api -> component:dao");
+  if (list3.length < 1 || list3.length > 5) {
+    out.add("wise.uses", `${list3.length} chains`, "give 1\u20135");
+    return void 0;
+  }
+  let ok2 = true;
+  list3.forEach((x, i) => {
+    const field = typeof v === "string" ? "wise.uses" : `wise.uses[${i}]`;
+    if (typeof x !== "string") {
+      out.add(field, show(x), "write level:name, e.g. container:web-app");
+      ok2 = false;
+    } else if (len(x) > MAX_FREETEXT_LEN) {
+      out.add(field, `is longer than ${MAX_FREETEXT_LEN} characters`, "shorten the chain");
+      ok2 = false;
+    } else if (!CHAIN_RE.test(x)) {
+      out.add(field, show(x), "write level:name, e.g. container:web-app");
+      ok2 = false;
+    }
+  });
+  return ok2 ? list3 : void 0;
+}
+function checkClosedSingle(field, v, out) {
+  const allowed = closedValues(field);
+  if (!allowed.includes(v)) out.add(`wise.${field.key}`, show(v), `use ${list(field.values)}`);
+}
+function checkClosedList(field, v, out) {
+  const allowed = closedValues(field);
+  if (Array.isArray(v) && (v.length < 1 || v.length > (field.maxList ?? Infinity))) {
+    out.add(`wise.${field.key}`, show(v), `one value or a list of \u2264${field.maxList}: [${field.values.slice(0, field.maxList).join(", ")}]`);
+    return;
+  }
+  const entries = Array.isArray(v) ? v : [v];
+  const bad = entries.find((x) => !allowed.includes(x));
+  if (bad !== void 0) out.add(`wise.${field.key}`, show(v), `use ${list(field.values)}, or a list of \u2264${field.maxList}`);
 }
 function checkSide(side, verb, out) {
   if (!isObj2(side)) return out.add("side", "is not a mapping", "put goal: and the other fields under side:");
@@ -10398,8 +10460,9 @@ function checkSide(side, verb, out) {
   }
   if ("expect" in side) {
     const e = side.expect;
-    if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === "string" && isTag(x))) {
-      out.add("side.expect", show(e), "give 1\u20139 concern names, lowercase kebab-case, \u2264 20 characters");
+    if (e === "none") {
+    } else if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === "string" && isTag(x))) {
+      out.add("side.expect", show(e), 'give 1\u20139 concern names, lowercase kebab-case, \u2264 20 characters, or the word "none"');
     } else if (new Set(e).size !== e.length) {
       out.add("side.expect", "repeated concern name", "make each one different");
     }
@@ -10408,32 +10471,65 @@ function checkSide(side, verb, out) {
   if ("ask" in side) checkAsk(side.ask, verb, out);
   if ("over" in side) checkOverShape(side.over, out);
 }
-var WISE_KEYS = ["why", "area", "stage", "change", "risk", "parent", "problem", "nodes", "touches", "blast"];
-function checkWise(wise2, out) {
-  if (!isObj2(wise2)) return out.add("wise", "is not a mapping", "write why:, area: or parent: under wise:, or leave wise out");
-  for (const k of Object.keys(wise2)) if (!WISE_KEYS.includes(k)) out.add(`wise.${clip(k, 20)}`, "not a field", `use ${list(WISE_KEYS)}`);
-  if ("why" in wise2 && !WHYS.includes(wise2.why)) out.add("wise.why", show(wise2.why), `use ${list(WHYS)}`);
-  if ("area" in wise2 && !AREAS.includes(wise2.area)) out.add("wise.area", show(wise2.area), `use ${list(AREAS)}`);
-  if ("stage" in wise2 && !STAGES.includes(wise2.stage)) out.add("wise.stage", show(wise2.stage), `use ${list(STAGES)}`);
-  if ("change" in wise2 && !CHANGES.includes(wise2.change)) out.add("wise.change", show(wise2.change), `use ${list(CHANGES)}`);
-  if ("risk" in wise2 && !RISKS.includes(wise2.risk)) out.add("wise.risk", show(wise2.risk), `use ${list(RISKS)}`);
-  if ("parent" in wise2 && !(typeof wise2.parent === "string" && RUN_ID2.test(wise2.parent))) out.add("wise.parent", `${show(wise2.parent)} is not a run id`, "use SW-####");
-  if ("problem" in wise2) {
-    const bad = lineProblem(wise2.problem);
-    if (bad) out.add("wise.problem", bad, "write one line of 3\u2013160 characters: what you're solving now");
-  }
-  if ("nodes" in wise2) {
-    const n = wise2.nodes;
-    if (typeof n !== "string") out.add("wise.nodes", show(n), "write a level:name chain, e.g. container:api -> component:dao");
-    else if (len(n) > MAX_QUESTION_CHARS) out.add("wise.nodes", `is longer than ${MAX_QUESTION_CHARS} characters`, "shorten the chain");
-    else if (!NODES_RE.test(n)) {
-      out.add("wise.nodes", `${show(n)} is not a level:name chain`, `use level:name ( -> level:name)*, joined by "; " (level: ${list(NODE_LEVELS)})`);
+function checkWiseField(field, v, out) {
+  switch (field.kind) {
+    case "closed-single":
+      checkClosedSingle(field, v, out);
+      return;
+    case "closed-list":
+      checkClosedList(field, v, out);
+      return;
+    case "freetext": {
+      const bad = lineProblem(v);
+      if (bad) out.add(`wise.${field.key}`, bad, "write one line of 3\u2013160 characters: what you're solving now");
+      return;
     }
+    case "chain-list":
+      checkUses(v, out);
+      return;
+    case "freetext-list":
+      checkTouches(v, out);
+      return;
   }
-  if ("touches" in wise2) checkTouches(wise2.touches, out);
-  if ("blast" in wise2 && !BLASTS.includes(wise2.blast)) out.add("wise.blast", show(wise2.blast), `use ${list(BLASTS)}`);
 }
-function checkSchema(value, verb) {
+function checkUnknownWiseKey(k, out) {
+  out.add(`wise.${clip(k, 20)}`, "not a field", `use ${list(WISE_KEYS)}, or a lower-kebab key \u2264${MAX_CUSTOM_KEY_LEN} characters`);
+}
+function checkCustomWiseValue(k, v, out) {
+  if (Array.isArray(v) && (v.length < 1 || v.length > 5)) return out.add(`wise.${k}`, `${v.length} entries`, "give 1\u20135");
+  const entries = Array.isArray(v) ? v : [v];
+  const bad = entries.find((x) => typeof x !== "string" || x.includes("\n") || len(x) > MAX_FREETEXT_LEN);
+  if (bad !== void 0) out.add(`wise.${k}`, show(bad), `write one line \u2264${MAX_FREETEXT_LEN} characters, or a list of \u22645`);
+}
+function wiseBlockLineCount(rawText) {
+  if (!rawText) return void 0;
+  const lines = rawText.split(/\r?\n/u);
+  const start = lines.findIndex((l) => /^wise\s*:/u.test(l));
+  if (start === -1) return void 0;
+  let count = 1;
+  for (let i = start + 1; i < lines.length; i++) {
+    const line3 = lines[i];
+    if (line3.trim() !== "" && !/^\s/u.test(line3)) break;
+    count++;
+  }
+  return count;
+}
+function checkWise(wise2, out, rawText) {
+  if (!isObj2(wise2)) return out.add("wise", "is not a mapping", "write why:, area: or parent: under wise:, or leave wise out");
+  const byKey = new Map(WISE_FIELDS.map((f) => [f.key, f]));
+  const isKnown = (k) => k === WISE_PARENT_KEY || byKey.has(k);
+  for (const k of Object.keys(wise2)) if (!isKnown(k) && !isCustomKey(k)) checkUnknownWiseKey(k, out);
+  for (const f of WISE_FIELDS) if (f.key in wise2) checkWiseField(f, wise2[f.key], out);
+  if (WISE_PARENT_KEY in wise2 && !(typeof wise2[WISE_PARENT_KEY] === "string" && RUN_ID2.test(wise2[WISE_PARENT_KEY]))) {
+    out.add(`wise.${WISE_PARENT_KEY}`, `${show(wise2[WISE_PARENT_KEY])} is not a run id`, "use SW-####");
+  }
+  for (const [k, v] of Object.entries(wise2)) if (!isKnown(k) && isCustomKey(k)) checkCustomWiseValue(k, v, out);
+  const lineCount = wiseBlockLineCount(rawText);
+  if (lineCount !== void 0 && lineCount > MAX_WISE_LINES) {
+    out.add("wise", `${lineCount} lines`, `the wise block is capped at ${MAX_WISE_LINES} lines`);
+  }
+}
+function checkSchema(value, verb, rawText) {
   const out = new Out();
   if (!isObj2(value)) {
     out.add("request", "is not a mapping", "start with side:");
@@ -10444,13 +10540,13 @@ function checkSchema(value, verb) {
   }
   if (!("side" in value)) out.add("side", "missing", "start with side: and a goal");
   else checkSide(value.side, verb, out);
-  if ("wise" in value) checkWise(value.wise, out);
+  if ("wise" in value) checkWise(value.wise, out, rawText);
   return out.stops;
 }
 
 // src/contract/layers.ts
 var MAX_LAYERS = 4;
-var NAME = /^[^/#\n]{1,80}$/u;
+var NAME2 = /^[^/#\n]{1,80}$/u;
 var TAG2 = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
 var BLANK = /\{([a-z0-9]+(?:-[a-z0-9]+)*)\}/gu;
 function parseItem(raw) {
@@ -10551,7 +10647,7 @@ function checkOver(over, rule, cap2) {
         out.push(`\u2716 side.over.${layer}: ${it.problem}`);
         continue;
       }
-      if (!NAME.test(it.name)) out.push(`\u2716 side.over.${layer}: item "${clip(it.name, 30)}" \u2192 names are 1\u201380 characters, without "/" or "#"`);
+      if (!NAME2.test(it.name)) out.push(`\u2716 side.over.${layer}: item "${clip(it.name, 30)}" \u2192 names are 1\u201380 characters, without "/" or "#"`);
       if (seen.has(it.name)) out.push(`\u2716 side.over.${layer}: "${clip(it.name, 30)}" twice under ${under} \u2192 give each item its own name`);
       seen.add(it.name);
       for (const [child, v] of Object.entries(it.children)) {
@@ -10774,16 +10870,28 @@ function readCodeEvidence(root, where, opts = {}) {
 var FATAL = /fatal: (invalid object name|Path .* does not exist)/u;
 var WHOLE_FILE_NOTE = "reading whole files: line ranges may not match the parent run";
 var isGitOption = (ref) => ref.startsWith("-");
-function currentCommitSha(root, deps) {
-  const spawn = deps?.spawn ?? spawnSync;
-  const result = spawn("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
-  const out = typeof result.stdout === "string" ? result.stdout.trim() : "";
-  return result.status === 0 && out ? out : null;
-}
 function gitRootOf(dir, spawn) {
   const result = spawn("git", ["rev-parse", "--show-toplevel"], { cwd: dir, encoding: "utf8" });
   const out = typeof result.stdout === "string" ? result.stdout.trim() : "";
   return result.status === 0 && out ? out : void 0;
+}
+function firstWhereDir(root, wherePaths) {
+  const first = wherePaths[0];
+  if (!first) return root;
+  return path14.dirname(path14.resolve(root, first.split(":")[0]));
+}
+function resolveRefSha(root, ref, wherePaths, deps) {
+  if (ref !== "worktree" && isGitOption(ref)) return null;
+  const spawn = deps?.spawn ?? spawnSync;
+  const dir = firstWhereDir(root, wherePaths);
+  const gitRoot = gitRootOf(dir, spawn) ?? (wherePaths.length ? void 0 : root);
+  if (!gitRoot) return null;
+  const result = spawn("git", ["rev-parse", ref === "worktree" ? "HEAD" : ref], { cwd: gitRoot, encoding: "utf8" });
+  const out = typeof result.stdout === "string" ? result.stdout.trim() : "";
+  return result.status === 0 && out ? out : null;
+}
+function currentCommitSha(root, wherePaths = [], deps) {
+  return resolveRefSha(root, "worktree", wherePaths, deps);
 }
 function keep(shown2, text, total, notes) {
   let body = redact(text);
@@ -11103,6 +11211,45 @@ function recordFree(ctx, run) {
 var import_yaml = __toESM(require_dist(), 1);
 var SKELETON = "(sidewise template class prints a skeleton)";
 var QUESTION_LINE = /^\s*(\d+)\s*:\s?(.*)$/u;
+var MAX_STOPS = 5;
+function isQuotedWhole(s) {
+  return s.length >= 2 && s.startsWith('"') && s.endsWith('"') || s.length >= 2 && s.startsWith("'") && s.endsWith("'");
+}
+function stripComment(line3) {
+  let quote;
+  for (let i = 0; i < line3.length; i++) {
+    const c = line3[i];
+    if (quote) {
+      if (c === quote) quote = void 0;
+      continue;
+    }
+    if (c === '"' || c === "'") quote = c;
+    else if (c === "#" && (i === 0 || /\s/u.test(line3[i - 1]))) return line3.slice(0, i);
+  }
+  return line3;
+}
+function scanLines(src) {
+  const stops = [];
+  const lines = src.split(/\r?\n/u);
+  for (const raw of lines) {
+    const code = stripComment(raw);
+    if (!code.trim()) continue;
+    const q = QUESTION_LINE.exec(code);
+    if (q) {
+      const text = (q[2] ?? "").trim();
+      if (!isQuotedWhole(text)) {
+        if (text.startsWith("{")) stops.push(`\u2716 question ${q[1]} puts it in { } \u2192 use the indented form`);
+        else if (/:(\s|$)/u.test(text)) stops.push(`\u2716 question ${q[1]} has ": " \u2192 put it in quotes`);
+      }
+    }
+    if ([...code].length > MAX_QUESTION_CHARS) stops.push(`\u2716 yaml: "${clip(code.trim(), 40)}" is longer than ${MAX_QUESTION_CHARS} characters \u2192 shorten it`);
+  }
+  return stops;
+}
+function capStops(stops) {
+  if (stops.length <= MAX_STOPS) return [...stops];
+  return [...stops.slice(0, MAX_STOPS - 1), `\u2716 request: ${stops.length - (MAX_STOPS - 1)} more problems \u2192 fix the ones above, then run again`];
+}
 function sourceLine(lines, line3) {
   for (let no = Math.min(line3, lines.length); no >= 1; no--) {
     const text = lines[no - 1] ?? "";
@@ -11127,6 +11274,8 @@ function readRequestText(text) {
   const src = text.replace(/^﻿/u, "");
   if (!src.trim()) return { ok: false, stops: [`\u2716 request: empty \u2192 start with "side:" ${SKELETON}`] };
   if (/^\s*sidewise\s+\w+\s+L\d/u.test(src)) return { ok: false, stops: [`\u2716 request: this is the old text format \u2192 send YAML ${SKELETON}`] };
+  const scanned = scanLines(src);
+  if (scanned.length) return { ok: false, stops: capStops(scanned) };
   const doc = (0, import_yaml.parseDocument)(src, { version: "1.2", schema: "core", uniqueKeys: true });
   const first = doc.errors[0];
   if (first) return { ok: false, stops: [describeParseError(src.split(/\r?\n/u), first.code, first.linePos?.[0]?.line ?? 1)] };
@@ -11145,7 +11294,7 @@ function readRequestText(text) {
 var NEEDS = {
   class: ["depth", "where", "ask"],
   view: ["where"],
-  change: ["parent", "compare", "expect"],
+  replay: ["parent", "compare", "expect"],
   scan: ["depth", "over", "ask"],
   loop: ["depth", "over", "ask"],
   drill: ["parent", "from", "ask"]
@@ -11153,12 +11302,12 @@ var NEEDS = {
 var NEVER = {
   class: ["over", "from", "compare", "expect"],
   view: ["over", "from", "compare", "expect"],
-  change: ["ask", "over", "from", "where", "depth"],
+  replay: ["ask", "over", "from", "where", "depth"],
   scan: ["where", "from", "compare", "expect"],
   loop: ["from", "compare", "expect"],
   drill: ["compare", "where", "expect"]
 };
-var STRINGS = { scan: "scan", drill: "each-only", loop: "none", class: "none", view: "none", change: "none" };
+var STRINGS = { scan: "scan", drill: "each-only", loop: "none", class: "none", view: "none", replay: "none" };
 var RESERVED2 = ["id", "gate", "goal", "consensus", "escalate", "regressed", "expected", "failing", "passing", "scanned", "reused", "view", "reuse", "runs", "categories"];
 var IRREVERSIBLE = /\b(delete|deploy|drop|pay|payment|migrat\w*|secret|credential)s?\b/iu;
 var IRREVERSIBLE_NOTE = "looks irreversible; don't act on this alone";
@@ -11180,12 +11329,12 @@ function how(field, verb) {
     case "from":
       return 'add "from: <an item id or a category of the parent run>"';
     case "expect":
-      return `add "expect: [concern-name, ...]" (which of the parent's concerns this change should fix)`;
+      return `add "expect: [concern-name, ...]" (which of the parent's concerns this replay should fix), or "expect: none" to predict no flips`;
   }
 }
 function never(field, verb) {
-  if (verb === "change" && field === "ask") return "\u2716 side.ask: change replays the parent's questions \u2192 remove ask; for new questions, use class";
-  if (field === "expect") return "\u2716 side.expect: only change predicts fixed concerns \u2192 remove it";
+  if (verb === "replay" && field === "ask") return "\u2716 side.ask: replay re-runs the parent's questions \u2192 remove ask; for new questions, use class";
+  if (field === "expect") return "\u2716 side.expect: only replay predicts fixed concerns \u2192 remove it";
   if (field === "over") return `\u2716 side.over: ${verb} asks about one subject \u2192 remove over, or use loop or scan to sweep`;
   if (field === "where" && verb === "scan") return "\u2716 side.where: scan reads the files in over \u2192 remove where";
   if (field === "where") return `\u2716 side.where: ${verb} reads the parent run's code \u2192 remove where`;
@@ -11348,7 +11497,7 @@ function checkCross(raw, verb) {
       if (verb === "view") {
         for (const i of issues) notes.push(`${i.field}: ${i.problem} (${i.fix}); class will stop on this`);
       } else {
-        for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix}`));
+        for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix} \u2192 see: sidewise agent probe`));
       }
     }
   } else {
@@ -11382,7 +11531,7 @@ function checkCross(raw, verb) {
         const isFinest = name === finest;
         const issues = contractIssues(cats, isFinest ? depth : void 0, `side.ask.${name}`);
         if (isFinest) {
-          for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix}`));
+          for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix} \u2192 see: sidewise agent probe`));
         } else if (issues.length) {
           notes.push(`side.ask.${name} ask is thin (optional layer; counts aren't enforced) \u2014 e.g. ${issues[0].field}: ${issues[0].problem}`);
         }
@@ -11410,11 +11559,11 @@ function checkCross(raw, verb) {
     }
   };
 }
-function validateRequest(value, verb) {
+function validateRequest(value, verb, rawText) {
   const blanks = [];
   findBlanks(value, "", blanks);
   if (blanks.length) return { ok: false, stops: blanks };
-  const schema = checkSchema(value, verb);
+  const schema = checkSchema(value, verb, rawText);
   if (schema.length) return { ok: false, stops: schema };
   const raw = value;
   const { stops, side, notes: crossNotes } = checkCross(raw, verb);
@@ -11427,16 +11576,16 @@ function validateRequest(value, verb) {
 }
 
 // src/verbs/request.ts
-var MAX_STOPS = 5;
+var MAX_STOPS2 = 5;
 function stopText(stops, verb) {
   if (!stops.length) return "";
-  const lines = stops.length <= MAX_STOPS ? [...stops] : [...stops.slice(0, MAX_STOPS), `\u2716 request: ${stops.length - MAX_STOPS} more problems \u2192 fix the ones above, then run again`];
+  const lines = stops.length <= MAX_STOPS2 ? [...stops] : [...stops.slice(0, MAX_STOPS2), `\u2716 request: ${stops.length - MAX_STOPS2} more problems \u2192 fix the ones above, then run again`];
   return [...lines, `\u2192 see: sidewise agent ${verb}`].join("\n");
 }
 function loadRequest(text, verb) {
   const read2 = readRequestText(text);
   if (!read2.ok) return { ok: false, result: { exit: 2, text: stopText(read2.stops, verb) } };
-  const v = validateRequest(read2.value, verb);
+  const v = validateRequest(read2.value, verb, text);
   if (!v.ok) return { ok: false, result: { exit: 2, text: stopText(v.stops.map((s) => s.text), verb) } };
   return { ok: true, request: v.request, notes: v.notes };
 }
@@ -11499,14 +11648,15 @@ function consensusAndEscalate(categories, answers, depth, notes) {
 function wiseRecorded(wise2, extra) {
   const fields = [
     ...wise2?.why ? ["why"] : [],
-    ...wise2?.area ? ["area"] : [],
+    ...wise2?.area && (!Array.isArray(wise2.area) || wise2.area.length) ? ["area"] : [],
     ...wise2?.stage ? ["stage"] : [],
     ...wise2?.change ? ["change"] : [],
     ...wise2?.risk ? ["risk"] : [],
     ...wise2?.problem ? ["problem"] : [],
-    ...wise2?.nodes ? ["nodes"] : [],
+    ...wise2?.uses?.length ? ["uses"] : [],
     ...wise2?.touches?.length ? ["touches"] : [],
     ...wise2?.blast ? ["blast"] : [],
+    ...wise2?.extras ? Object.keys(wise2.extras).sort() : [],
     ...extra ?? []
   ];
   return fields.length ? fields : "none";
@@ -11618,12 +11768,12 @@ function sweepEntry(g) {
   return [g.id, m(...catEntries, ...qEntries.map(([n, v]) => [String(n), v]))];
 }
 
-// src/verbs/change.ts
+// src/verbs/replay.ts
 function planCall(keyed, reused, state, answers, reusedFrom) {
   const toAsk = splitReuse(keyed, reused, answers, reusedFrom).map(([q]) => q);
   return toAsk.length ? { state, questions: toAsk } : null;
 }
-function gradeChange(categories, answers) {
+function gradeReplay(categories, answers) {
   const beforeGrade = gradeSubject(categories, answers, "before:");
   const afterCatsGrade = gradeSubject(categories, answers, "after:");
   const g = answers["goal"];
@@ -11643,19 +11793,21 @@ function gradeChange(categories, answers) {
   const gate = regressed.length > 0 ? "fail" : combine([goal.gate, ...afterCatsGrade.categories.map((c) => c.gate)]);
   return { categories: categoryGrades, goal, regressed, gate };
 }
-async function runChange(text, ctx) {
-  const loaded = loadRequest(text, "change");
+async function runReplay(text, ctx) {
+  const loaded = loadRequest(text, "replay");
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const parent = findRun(ctx.paths, request.side.parent);
-  if (!parent) return { exit: 2, text: stopText([`\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id`], "change") };
-  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code`], "change") };
-  if (parent.items !== null) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} was a sweep \u2192 run the sweep again (unchanged items are reused for free)`], "change") };
+  if (!parent) return { exit: 2, text: stopText([`\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id`], "replay") };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code`], "replay") };
+  if (parent.items !== null) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} was a sweep \u2192 run the sweep again (unchanged items are reused for free)`], "replay") };
   const categories = parent.ask.categories;
   const concernNames = categories.filter((c) => c.section === "concerns").map((c) => c.name);
-  const badExpect = request.side.expect.find((name) => !concernNames.includes(name));
+  const expect = request.side.expect;
+  const expectList = expect === "none" ? [] : expect;
+  const badExpect = expectList.find((name) => !concernNames.includes(name));
   if (badExpect !== void 0) {
-    return { exit: 2, text: stopText([`\u2716 side.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "change") };
+    return { exit: 2, text: stopText([`\u2716 side.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "replay") };
   }
   const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
@@ -11664,7 +11816,7 @@ async function runChange(text, ctx) {
   const after = readGitEvidence(ctx.paths.root, compare.after, "after", paths);
   if (!before.ok || !after.ok) {
     const errors = [...before.ok ? [] : before.errors, ...after.ok ? [] : after.errors];
-    return { exit: 2, text: stopText(errors, "change") };
+    return { exit: 2, text: stopText(errors, "replay") };
   }
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const beforeEvidenceStr = subjectEvidence(before.files);
@@ -11690,7 +11842,7 @@ async function runChange(text, ctx) {
   let costUsd = 0;
   let costEstimated = false;
   if (calls.length > 0) {
-    const asked2 = await askAll(ctx, "change", calls);
+    const asked2 = await askAll(ctx, "replay", calls);
     if (!asked2.ok) return asked2.result;
     Object.assign(answers, asked2.value.answers);
     costUsd = asked2.value.costUsd;
@@ -11698,26 +11850,33 @@ async function runChange(text, ctx) {
   }
   const keys = {};
   for (const [q, k] of [...beforeKeyed, ...afterKeyed]) keys[q.id] = k;
-  const changeGrade = gradeChange(categories, answers);
-  const { goal, regressed, gate } = changeGrade;
+  const replayGrade = gradeReplay(categories, answers);
+  const { goal, regressed, gate } = replayGrade;
   const afterCatsGrade = gradeSubject(categories, answers, "after:");
-  const catEntries = changeGrade.categories.map((c) => [
+  const questionCountByName = new Map(categories.map((c) => [c.name, c.questions.length]));
+  const catEntries = replayGrade.categories.map((c) => [
     c.name,
     m(
       ["before", c.before],
       ["after", c.after],
       ...c.fixed.length ? [["fixed", c.fixed]] : [],
-      ...c.still.length ? [["still", c.still]] : []
+      ...c.still.length ? [["still", c.still]] : [],
+      ["probes", `${c.fixed.length}/${questionCountByName.get(c.name) ?? c.fixed.length + c.still.length} fixed`]
     )
   ]);
-  const gradeByName = new Map(changeGrade.categories.map((c) => [c.name, c]));
+  const gradeByName = new Map(replayGrade.categories.map((c) => [c.name, c]));
   const expectedFixed = [];
   const expectedStill = [];
-  for (const name of request.side.expect) {
+  for (const name of expectList) {
     const g = gradeByName.get(name);
     if (!g || g.before === "pass") continue;
     (g.after === "pass" ? expectedFixed : expectedStill).push(name);
   }
+  const expectSet = new Set(expectList);
+  const unexpected = concernNames.filter((name) => {
+    const g = gradeByName.get(name);
+    return g !== void 0 && g.before !== g.after && !expectSet.has(name);
+  });
   let sawWholeFileNote = false;
   const evidenceNotes = [...before.notes, ...after.notes].filter((n) => {
     if (n !== WHOLE_FILE_NOTE) return true;
@@ -11733,6 +11892,7 @@ async function runChange(text, ctx) {
       ["goal", m(["gate", goal.gate], ["p", goal.p])],
       ...catEntries,
       ["expected", m(["fixed", expectedFixed], ["still", expectedStill])],
+      ...unexpected.length ? [["unexpected", unexpected]] : [],
       ["regressed", regressed],
       ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
     ),
@@ -11747,8 +11907,10 @@ async function runChange(text, ctx) {
       ctx.provider.adapter
     )
   );
+  const beforeSha = resolveRefSha(ctx.paths.root, compare.before, parent.where);
+  const afterSha = resolveRefSha(ctx.paths.root, compare.after, parent.where);
   const run = {
-    verb: "change",
+    verb: "replay",
     actor: actorOf(ctx),
     task: ctx.env.SIDEWISE_TASK?.trim() || null,
     goal: request.side.goal,
@@ -11757,6 +11919,7 @@ async function runChange(text, ctx) {
     parent: request.side.parent,
     from: null,
     compare,
+    expect,
     wise: request.wise,
     ask: { categories, layers: [] },
     over: null,
@@ -11777,9 +11940,8 @@ async function runChange(text, ctx) {
     calls: calls.length,
     route: identity.route,
     baseURL: identity.baseURL,
-    // change replays the parent's own questions rather than reading the worktree at HEAD, so there's no single
-    // commit this run itself is "at" the way class/scan/loop/drill are — left null on purpose.
-    commit: null
+    commit: afterSha,
+    commits: { before: beforeSha, after: afterSha }
   };
   const rec = calls.length === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
   if (!rec.ok) return rec.result;
@@ -11907,7 +12069,7 @@ async function runClass(text, ctx) {
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root),
+    commit: currentCommitSha(ctx.paths.root, request.side.where),
     wise: request.wise,
     ask: { categories: request.side.categories, layers: [] },
     over: null,
@@ -12405,8 +12567,6 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
     }
   }
   const goalQ = goalQuestion(request.side.goal);
-  const goalKey = answerKey("", goalQ);
-  allKeys.push(goalKey);
   const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun });
   const cap2 = SWEEP_ITEM_CAP[request.side.depth ?? "quick"];
   const keys = /* @__PURE__ */ new Map();
@@ -12419,11 +12579,13 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
     const callQuestions = [];
     const itemIds = [];
     const skipped = [];
+    const resolvedItems2 = [];
     for (const item of itemsByLayer.get(layer.name) ?? []) {
       const itemAsks = asksByItem.get(item.id) ?? [];
       if (!itemAsks.length) continue;
       const missing = itemAsks.filter((a) => !reused.has(a.key));
       if (missing.length === 0) {
+        resolvedItems2.push(item);
         for (const a of itemAsks) {
           const hit = reused.get(a.key);
           reusedFrom.set(a.q.id, hit.id);
@@ -12436,6 +12598,7 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
         askedCount += 1;
         callItems.push(item);
         itemIds.push(item.id);
+        resolvedItems2.push(item);
         for (const a of itemAsks) {
           keys.set(a.q.id, a.key);
           const hit = reused.get(a.key);
@@ -12449,9 +12612,13 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
         }
       }
     }
-    return { layer: layer.name, callItems, callQuestions, itemIds, skipped };
+    return { layer: layer.name, callItems, callQuestions, itemIds, skipped, resolvedItems: resolvedItems2 };
   });
-  const goalHit = reused.get(goalKey);
+  const resolvedItems = work.flatMap((w) => w.resolvedItems).sort((a, b) => a.id.localeCompare(b.id));
+  const resolvedText = resolvedItems.map((it) => it.text).join("\n");
+  const goalKey = answerKey(resolvedText, goalQ);
+  const goalReused = lookupAnswers(paths, who, [goalKey], { readOnly: dryRun });
+  const goalHit = goalReused.get(goalKey);
   if (goalHit) {
     reusedFrom.set(goalQ.id, goalHit.id);
     keys.set(goalQ.id, goalKey);
@@ -12541,7 +12708,7 @@ var WHERE_CAP = 50;
 function whereFromItems(items) {
   return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP);
 }
-async function runOneSubjectProof(ctx, loaded, request, where, changeParent, evidenceOpts) {
+async function runOneSubjectProof(ctx, loaded, request, where, replayParent, evidenceOpts) {
   const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "drill") };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
@@ -12583,7 +12750,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, changeParent, evi
   for (const [q, k] of keyed) keys[q.id] = k;
   const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
   const subject = gradeSubject(request.side.categories, answers);
-  const oneSubjectNext = (gate, id) => gate === "pass" ? "act on it" : `fix it, then sidewise change --parent ${changeParent(id)} --compare <before>..<after>`;
+  const oneSubjectNext = (gate, id) => gate === "pass" ? "act on it" : `fix it, then sidewise replay --parent ${replayParent(id)} --compare <before>..<after>`;
   const reusedRunIds = reusedIds(reusedFrom);
   const response = (id, budget) => respondText(
     subjectSide(id, subject.gate, subject, [
@@ -12609,7 +12776,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, changeParent, evi
     parent: request.side.parent,
     from: request.side.from,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root),
+    commit: currentCommitSha(ctx.paths.root, where),
     wise: request.wise,
     ask: { categories: request.side.categories, layers: [] },
     over: null,
@@ -12720,17 +12887,18 @@ async function runDrill(text, ctx) {
         ctx.provider.adapter
       )
     );
+    const where = whereFromItems(plan.items);
     const run = {
       verb: "drill",
       actor: actorOf(ctx),
       task: ctx.env.SIDEWISE_TASK?.trim() || null,
       goal: request.side.goal,
       depth: request.side.depth ?? null,
-      where: whereFromItems(plan.items),
+      where,
       parent: request.side.parent,
       from: request.side.from,
       compare: null,
-      commit: currentCommitSha(ctx.paths.root),
+      commit: currentCommitSha(ctx.paths.root, where),
       wise: request.wise,
       ask: { categories: [], layers: request.side.layers },
       over: request.side.over,
@@ -12813,7 +12981,7 @@ async function runLoop(text, ctx) {
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root),
+    commit: currentCommitSha(ctx.paths.root, request.side.where),
     wise: request.wise,
     ask: { categories: [], layers: request.side.layers },
     over: request.side.over,
@@ -13559,8 +13727,8 @@ function placesOf(rec) {
   const sweep = sweepPlaces(rec).filter((p) => p.kind === "where").map((p) => p.val);
   return sweep.length ? sweep.join(", ") : "(no place)";
 }
-function changeStatus(rec) {
-  const graded = gradeChange(rec.ask.categories, rec.answers);
+function replayStatus(rec) {
+  const graded = gradeReplay(rec.ask.categories, rec.answers);
   if (graded.regressed.length) return "regressed";
   return graded.categories.some((c) => c.before !== "pass" && c.after === "pass") ? "fixed" : void 0;
 }
@@ -13569,12 +13737,12 @@ function reportHistory(paths) {
     paths,
     (handle) => {
       const out = [];
-      for (const { offset } of handle.recentChanges(ROW_LIMIT)) {
+      for (const { offset } of handle.recentReplays(ROW_LIMIT)) {
         const rec = readRecordAt(paths.log, offset);
         if (!rec || !isContractRun(rec)) continue;
-        const status = changeStatus(rec);
+        const status = replayStatus(rec);
         if (!status) continue;
-        out.push({ ts: rec.ts, text: `${placesOf(rec)} \xB7 ${rec.id} change \xB7 ${status}` });
+        out.push({ ts: rec.ts, text: `${placesOf(rec)} \xB7 ${rec.id} replay \xB7 ${status}` });
       }
       for (const o of handle.recentOutcomes(ROW_LIMIT)) {
         const runOffset = handle.findOffset(o.runId);
@@ -13585,7 +13753,7 @@ function reportHistory(paths) {
     },
     { readOnly: true }
   );
-  if (!rows.length) return { exit: 0, text: 'sidewise report history \xB7 nothing yet \u2192 run "change" or "outcome" to start one' };
+  if (!rows.length) return { exit: 0, text: 'sidewise report history \xB7 nothing yet \u2192 run "replay" or "outcome" to start one' };
   rows.sort((a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0);
   return { exit: 0, text: [heading("history", rows.length, "event"), ...withCap(rows.map((r) => r.text), rows.length)].join("\n") };
 }
@@ -13661,17 +13829,18 @@ async function runScan(text, ctx) {
       ctx.provider.adapter
     )
   );
+  const where = whereFromItems2(plan.items);
   const run = {
     verb: "scan",
     actor: actorOf(ctx),
     task: ctx.env.SIDEWISE_TASK?.trim() || null,
     goal: request.side.goal,
     depth: request.side.depth ?? null,
-    where: whereFromItems2(plan.items),
+    where,
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root),
+    commit: currentCommitSha(ctx.paths.root, where),
     wise: request.wise,
     ask: { categories: [], layers: request.side.layers },
     over: request.side.over,
@@ -13741,9 +13910,9 @@ function fromRunId(id, flags, paths) {
   const run = findRun(paths, id);
   if (!run) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" is not in the ledger \u2192 check the id, or point --from at a request file`], "template") };
   if (!isContractRun(run)) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" predates the YAML contract \u2192 point --from at a request file instead`], "template") };
-  const changeExpect = run.expect;
+  const replayExpect = run.expect;
   const echoesWhere = run.verb !== "scan" && run.verb !== "drill";
-  const side = run.verb === "change" ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare, ...changeExpect ? { expect: changeExpect } : {} } : {
+  const side = run.verb === "replay" ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare, ...replayExpect ? { expect: replayExpect } : {} } : {
     verb: run.verb,
     goal: run.goal,
     ...run.depth ? { depth: run.depth } : {},
@@ -13894,7 +14063,9 @@ function byPlaceIndexed(place, paths, limit, summary) {
   );
 }
 function byPlace(place, paths, limit, summary) {
-  return place === "." ? byPlaceFullScan(place, paths, limit, summary) : byPlaceIndexed(place, paths, limit, summary);
+  const result = place === "." ? byPlaceFullScan(place, paths, limit, summary) : byPlaceIndexed(place, paths, limit, summary);
+  appendLookup(paths, { goal: place, where: [place], hit: false, reused: null });
+  return result;
 }
 function runAt(paths, handle, id) {
   const offset = handle.findOffset(id);
@@ -13927,7 +14098,7 @@ function detailLines(self, level) {
   return lines;
 }
 function byId(id, paths, level, limit) {
-  return withIndex(
+  const result = withIndex(
     paths,
     (handle) => {
       const self = runAt(paths, handle, id);
@@ -13963,6 +14134,8 @@ function byId(id, paths, level, limit) {
     },
     { readOnly: true }
   );
+  if (result.exit === 0) appendLookup(paths, { goal: id, where: [], hit: false, reused: null });
+  return result;
 }
 function categoryEntry2(name, runsHere) {
   let runs = 0;
@@ -14108,10 +14281,10 @@ var PATTERNS2 = [
     good: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  from: access\n  ask:\n    concerns:\n      source:\n        pass: no\n        1: Is the value concatenated straight into the string?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n    decisions:\n      severity:\n        pass: [none]\n        4:\n          scale: How severe is this?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        5:\n          choice: Where should this go?\n          options: [ship, block]\n"
   },
   {
-    rule: "`change` replays the parent run's own questions \u2014 it never takes `ask:`; write new questions with `class` instead.",
-    why: "Change replays parent's questions; never ask:",
-    verb: "change",
-    in: ["change"],
+    rule: "`replay` re-runs the parent run's own questions \u2014 it never takes `ask:`; write new questions with `class` instead.",
+    why: "Replay re-runs parent's questions; never ask:",
+    verb: "replay",
+    in: ["replay"],
     catchable: true,
     bad: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  expect: [injection]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does it still concatenate the value into the query?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n",
     good: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  expect: [injection]\n"
@@ -14207,7 +14380,7 @@ function reportHelp() {
     "- no options beyond the view name \u2014 hits (default), patterns, history or web; anything else is a stop.",
     "- `hits`: the newest run's own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.",
     "- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.",
-    "- `history`: a merged, newest-first feed of `change` results (fixed/regressed) and recorded outcomes.",
+    "- `history`: a merged, newest-first feed of `replay` results (fixed/regressed) and recorded outcomes.",
     "- `web`: writes one self-contained `.sidewise/viewer.html` (a place x concern consensus map, a heat map, a session summary) and tries to open it in a browser; always prints the file's path, opened or not. The only view that writes anything, and only ever that one file \u2014 never the ledger.",
     "- every view caps its rows and says plainly how many more exist, rather than dropping them silently.",
     ...proseCliPairs(REPORT_PAIRS)
@@ -14270,11 +14443,14 @@ var RULES = [
   { text: `pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between is unsure`, in: ["card", "verdict"] },
   { text: `every question in a category must point the same way as its pass:`, in: ["authoring"] },
   { text: `wise.why is one of ${list2(WHYS)}`, in: ["wise"] },
-  { text: `wise.area is one of ${list2(AREAS)}`, in: ["wise"] },
+  { text: `wise.area is one of ${list2(AREAS)}, single or a list of up to 2`, in: ["wise"] },
   { text: `wise.stage is one of ${list2(STAGES)}`, in: ["wise"] },
   { text: `wise.change is one of ${list2(CHANGES)}`, in: ["wise"] },
   { text: `wise.risk is one of ${list2(RISKS)}`, in: ["wise"] },
-  { text: `decisions: ${DECISIONS_MIN}\u2013${DECISIONS_MAX} categories, scale or choice only, at least one scale and one choice`, in: ["authoring"] }
+  { text: `every closed wise field also accepts "${UNKNOWN_VALUE}"`, in: ["wise"] },
+  { text: `the wise block is capped at ${MAX_WISE_LINES} YAML lines`, in: ["wise"] },
+  { text: `decisions: ${DECISIONS_MIN}\u2013${DECISIONS_MAX} categories, scale or choice only, at least one scale and one choice`, in: ["authoring"] },
+  { text: "questions are numbered 1\u2026N across the whole request, decisions included", in: ["card", "authoring", "class", "scan", "drill", "loop"] }
 ];
 function ruleLines(tag) {
   return RULES.filter((r) => r.in.includes(tag)).map((r) => `- ${r.text}.`);
@@ -14337,11 +14513,11 @@ var PROBE_RULES = [
 var VERDICT_FACTS = [
   "`need:` on a category: `all` (default, every answer clears the bar) \xB7 `most` (>= 2/3 clear, none a clear miss) \xB7 `any` (at least one clears)",
   "the gate passes only when the goal and every category pass; in a sweep, an item passes only when its own categories and every child does too",
-  "`consensus` (STRONG \xB7 SPLIT \xB7 WEAK): whether the yes/no answers agree with each other \u2014 shown on `class`, and `drill` on a one-subject parent; a sweep or `change` response never computes it",
+  "`consensus` (STRONG \xB7 SPLIT \xB7 WEAK): whether the yes/no answers agree with each other \u2014 shown on `class`, and `drill` on a one-subject parent; a sweep or `replay` response never computes it",
   "`escalate: true` on non-STRONG consensus, `depth: thorough`, or a goal that reads as irreversible (delete, deploy, drop, pay, migrate, secret, credential) \u2014 don't act on this alone",
   "a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes \u2014 that's exactly why it lands in `unsure` rather than a weak pass",
   "the answer's shape is guaranteed (a number in range, a level that's really one of yours) \u2014 whether it's the RIGHT number is what consensus, escalate and your own reading are for, not the schema",
-  "`change`'s per-category grade: `fixed` (failed or unsure before, passes now), `still` (failed or unsure before, still doesn't), `regressed` (passed before, not any more \u2014 regressed alone fails the gate even when every `after` category passes)",
+  "`replay`'s per-category grade: `fixed` (failed or unsure before, passes now), `still` (failed or unsure before, still doesn't), `regressed` (passed before, not any more \u2014 regressed alone fails the gate even when every `after` category passes)",
   "`reused: [SW-####]` names prior runs an answer's evidence and question text matched exactly \u2014 free, not a new call",
   "`sidewise report hits` flags a one-subject answer `stale` once the code at its own `where` has changed since \u2014 re-run it rather than trust it",
   "a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) \u2014 read which one you got before treating a stop as `unsure`",
@@ -14360,7 +14536,7 @@ var EXAMPLES = {
     "    injection: {pass: no, 1: Is request text put into a query unvalidated?, ...}",
     "wise: {why: validate, area: auth}"
   ].join("\n"),
-  change: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}",
+  replay: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}",
   scan: [
     "side:",
     "  goal: Handlers don't trust request input",
@@ -14387,9 +14563,9 @@ var EXAMPLES = {
 var SHARP = {
   view: ['a code file (not a request) is a place, not a request \u2014 view <folder>, ".", a tag, or SW-#### all work'],
   class: ["goal wording changes the verdict (that's a feature, not a bug) \u2014 phrase it as the claim you need proven"],
-  change: [
-    'the files must be committed at the ref you name (or use "worktree" for the working tree) \u2014 change runs git in the repo that actually holds them',
-    "change replays the parent's own questions; it never takes ask: (use class for new questions)"
+  replay: [
+    'the files must be committed at the ref you name (or use "worktree" for the working tree) \u2014 replay runs git in the repo that actually holds them',
+    "replay re-runs the parent's own questions; it never takes ask: (use class for new questions)"
   ],
   scan: ["add a scale question to a layer to rank findings by severity, worst first, instead of an unordered map", "scan by file when the file itself is the unit that matters, not a function inside it"],
   drill: ["follow the `next:` line rather than hand-authoring parent/from \u2014 it already names the id and the category or item"],
@@ -14402,7 +14578,7 @@ var SHARP = {
 var PURPOSE = {
   view: "Side x Know: what do we already know here? Free \u2014 it reads the ledger and never calls out.",
   class: "Side x Judge: does the evidence support this one goal? One call, one subject.",
-  change: "Side x Prove: did the change work? It replays a parent run's questions on two states.",
+  replay: "Side x Prove: did the change work? It replays a parent run's questions on two states.",
   scan: "Wise x Know: where in this code should we look? A sweep across code, read by us.",
   drill: "Wise x Judge: why did this one thing fail? It goes down from one item in a parent run.",
   loop: "Wise x Prove: does this idea hold up? A sweep across layers of ideas the agent writes."
@@ -14410,15 +14586,15 @@ var PURPOSE = {
 var WHEN = {
   view: "before any paid call, when entering unfamiliar code, or to find proven questions.",
   class: "a decision on one subject: merge, choose, triage, check a fix.",
-  change: "after a fix, a refactor, a dependency bump, or to compare fix A with fix B.",
+  replay: "after a fix, a refactor, a dependency bump, or to compare fix A with fix B.",
   scan: "a new codebase, a release check, a PR's changed files, or a vague bug with no location yet.",
-  drill: "after a fail or unsure from class, scan, loop or change.",
+  drill: "after a fail or unsure from class, scan, loop or replay.",
   loop: "a design, a plan or a feature request before any code exists."
 };
 var VERB_LINE = {
   view: "free; what's already known, before any paid call",
   class: "one decision on one thing (merge, choose, triage, check a fix)",
-  change: "re-check a run's questions after a fix, across two git refs",
+  replay: "re-check a run's questions after a fix, across two git refs",
   scan: "sweep many files when the problem's location is unknown",
   drill: "go down from one flagged item of an earlier run",
   loop: "check a design or plan before code exists"
@@ -14571,13 +14747,66 @@ function templateCard() {
     ]
   );
 }
+var BLAST_CARD_ORDER = ["person", "system", "container", "component", "code"];
+function wiseCard() {
+  const [why, area, stage, change, risk, problem, uses, blast, touches] = WISE_FIELDS;
+  return [
+    `tool: wise \u2014 optional, free, \u2264${MAX_WISE_LINES} lines. Flat keys; the only nesting is a list.`,
+    "Every field is optional: fill what you know, omit what doesn't apply.",
+    "",
+    "FIELDS",
+    `  why      ${closedValues(why).slice(0, -1).join(" | ")}`,
+    `  area     ${closedValues(area).slice(0, -1).join(" | ")}          (list \u2264${area.maxList}; ${area.note})`,
+    `  stage    ${closedValues(stage).slice(0, -1).join(" | ")}   (${stage.note})`,
+    `  change   ${closedValues(change).slice(0, -1).join(" | ")}   (${change.note})`,
+    `  risk     ${closedValues(risk).slice(0, -1).join(" | ")}         ${risk.note}`,
+    `  problem  ${problem.note}`,
+    `  uses     ${uses.note}`,
+    `  blast    ${BLAST_CARD_ORDER.join(" | ")}   ${blast.note}`,
+    `  touches  ${touches.note}`,
+    `  <other>  any kebab-case key: one line \u2264160 or a list \u22645, recorded as-is`,
+    `  ${UNKNOWN_VALUE}  allowed as a value for any closed field`,
+    "",
+    "ARCHITECTURE: the C4 model (c4model.com). Five levels, each inside the one above:",
+    "",
+    "  system: shop",
+    "  \u2514\u2500\u2500 container: web-app                      an app or data store",
+    "  \u2502   \u251C\u2500\u2500 component: orders-handler           a group of code inside a container",
+    "  \u2502   \u2502   \u2514\u2500\u2500 code: createOrder               your own function (not a built-in)",
+    "  \u2502   \u2514\u2500\u2500 component: orders-dao",
+    "  \u2514\u2500\u2500 container: database",
+    "  person: customer                             outside the system",
+    "  system: payment-service                      an outside service is its own system",
+    "",
+    "WRITE IT FLAT",
+    "  inside  \u2192  parent/child in the name:  component:web-app/orders-handler",
+    "  uses    \u2192  ->  between parts:         a -> b -> c",
+    "  guessed or not built yet  \u2192  end any part with ?:  component:web-app/refunds?  system:email-service?",
+    "",
+    '  chain   :=  part ( " -> " part )*',
+    '  part    :=  level ":" name ( "/" name )* [ "?" ]',
+    `  level   :=  ${CHAIN_LEVELS.join(" | ")}`,
+    "  name    :=  lowercase kebab-case, or a code identifier at the code level",
+    "",
+    "EXAMPLE",
+    "  wise:",
+    "    why: validate",
+    "    problem: request input reaches a raw query in order creation",
+    "    uses:",
+    "      - person:customer -> container:web-app",
+    "      - component:web-app/orders-handler -> component:web-app/orders-dao -> container:database",
+    "    blast: container",
+    "    touches: [Order, amount]"
+  ].join("\n");
+}
 var AGENT_TOPICS = {
   probe: probeCard,
   verdict: verdictCard,
   outcome: outcomeCard,
   budget: budgetCard,
   report: reportCard,
-  template: templateCard
+  template: templateCard,
+  wise: wiseCard
 };
 var agentExtras = () => Object.keys(AGENT_TOPICS);
 var AGENT_EXTRAS = Object.keys(AGENT_TOPICS);
@@ -14607,7 +14836,7 @@ function card() {
     "## Pick your verb",
     "| Grid | Know | Judge | Prove |",
     "|---|---|---|---|",
-    "| Side \u2014 solve it with what's proven   | view (free) | class (1 call) | change (up to 2 calls) |",
+    "| Side \u2014 solve it with what's proven   | view (free) | class (1 call) | replay (up to 2 calls) |",
     "| Wise \u2014 find what's new, and learn it | scan (1 call) | drill (1 call) | loop (1 call/layer) |",
     "",
     ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`),
@@ -14620,7 +14849,7 @@ function card() {
     "Read `goal` (+ any `choice`) first, then the failing category, then follow the `next:` line. A stop always",
     "reads `\u2716 field: problem \u2192 fix` \u2014 the error text names exactly what to change.",
     "",
-    "Go deeper: `sidewise help <verb>` (view, class, change, scan, drill, loop) or `sidewise help <topic>`",
+    "Go deeper: `sidewise help <verb>` (view, class, replay, scan, drill, loop) or `sidewise help <topic>`",
     "(authoring, verdict, wise, reuse).",
     "",
     "## Tools",
@@ -14664,19 +14893,24 @@ function verdict() {
 function wise() {
   return [
     "## wise",
-    "wise: is optional context that never reaches the classifier \u2014 it only shapes what the ledger learns:",
+    "wise: is optional context that never reaches the classifier \u2014 it only shapes what the ledger learns. Every",
+    `field is optional; the block is capped at ${MAX_WISE_LINES} YAML lines:`,
     "",
     "| field | closed values | what you get back |",
     "|---|---|---|",
     `| why    | ${WHYS.join(", ")} | why this run happened, for later pattern-mining |`,
-    `| area   | ${AREAS.join(", ")} | which slice of the system it touched |`,
+    `| area   | ${AREAS.join(", ")} (single, or a list of up to 2) | which slice of the system it touched |`,
     `| stage  | ${STAGES.join(", ")} | where in the workflow it landed |`,
     `| change | ${CHANGES.join(", ")} | what kind of change was under review |`,
     `| risk   | ${RISKS.join(", ")} | how risky the change looked going in |`,
     `| problem | free text, one line, 3\u2013160 chars | what the agent was solving, in its own words |`,
-    `| nodes  | a C4 chain: level:name ( -> level:name)*, "; "-joined | which parts of the system this run touches |`,
+    `| uses   | up to 5 C4 chains: level:name ( -> level:name)* | which parts of the system this run touches |`,
     `| touches | up to 5 short entries | the entities/objects this run is about |`,
     `| blast  | ${BLASTS.join(", ")} | how far a fix's blast radius reaches |`,
+    "",
+    `Any other lower-kebab key (\u2264${MAX_CUSTOM_KEY_LEN} characters) is also accepted: one line or a short list,`,
+    "recorded as-is. Every closed field above also accepts `unknown`. For this project's exact allowed values,",
+    "run `sidewise agent wise` \u2014 it renders the full C4 legend (the `uses` grammar, the chain examples) too.",
     "",
     ...ruleLines("wise"),
     "- every field is optional; the response always echoes back which ones were recorded as `wise: {recorded: [...]}`, or `{recorded: none}`."
@@ -14722,7 +14956,7 @@ function probe() {
     ...BAD_PROBE_EXAMPLE.good.map((g) => `- ${g}`),
     "",
     "See the sidewise-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),",
-    "wise's problem/nodes/touches/blast fields, and one recipe per verb."
+    "wise's problem/uses/touches/blast fields, and one recipe per verb."
   ].join("\n");
 }
 var BUILDERS = { authoring, verdict, wise, reuse, probe };
@@ -14758,11 +14992,11 @@ var PACKAGE_DIR = path20.join(path20.dirname(fileURLToPath2(import.meta.url)), "
 var LINES3 = {
   view: "sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]",
   class: "sidewise class <request-file | -> [--dry-run]",
-  change: "sidewise change <request-file | -> [--dry-run]  \xB7  or: sidewise change --parent SW-#### --compare <before>..<after> [--dry-run]",
+  replay: "sidewise replay <request-file | -> [--dry-run]  \xB7  or: sidewise replay --parent SW-#### --compare <before>..<after> [--dry-run]",
   scan: "sidewise scan <request-file | -> [--dry-run]",
   drill: "sidewise drill <request-file | -> [--dry-run]",
   loop: "sidewise loop <request-file | -> [--dry-run]",
-  template: "sidewise template <view|class|change|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  \xB7  or: --from <request.yaml> [--where <path>]... [--goal <text>]",
+  template: "sidewise template <view|class|replay|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  \xB7  or: --from <request.yaml> [--where <path>]... [--goal <text>]",
   help: `sidewise help [${VERBS.join("|")}|${HELP_TOPICS.join("|")}|${HELP_EXTRAS.join("|")}]`,
   agent: `sidewise agent [${VERBS.join("|")}|${AGENT_EXTRAS.join("|")}]`,
   report: "sidewise report [hits|patterns|history]",
@@ -14866,7 +15100,7 @@ async function dispatch(argv, ctx) {
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith("-") && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, change, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
   }
   if (rest.includes("--help") || rest.includes("-h")) {
     const seeMore = VERBS.includes(command) ? `
@@ -15043,10 +15277,10 @@ async function dispatch(argv, ctx) {
     case "drill":
     case "loop":
       return runSweptVerb(command, rest, paths, ctx);
-    case "change": {
+    case "replay": {
       const twice = givenTwice(rest, ["dry-run", "parent", "compare", "expect"]);
       if (twice) return finish(2, withAgentPointer(twice, command));
-      const { values, positionals } = args("change", {
+      const { values, positionals } = args("replay", {
         args: rest,
         allowPositionals: true,
         options: { "dry-run": { type: "boolean", default: false }, parent: { type: "string" }, compare: { type: "string" }, expect: { type: "string" } }
@@ -15055,9 +15289,9 @@ async function dispatch(argv, ctx) {
       let text;
       if (usingFlags) {
         if (values.parent === void 0 || values.compare === void 0) {
-          return finish(2, withAgentPointer("\u2716 --parent/--compare: give both, or neither \u2192 sidewise change --parent SW-#### --compare <before>..<after>", command));
+          return finish(2, withAgentPointer("\u2716 --parent/--compare: give both, or neither \u2192 sidewise replay --parent SW-#### --compare <before>..<after>", command));
         }
-        positionalCount("change", positionals, 0, 0);
+        positionalCount("replay", positionals, 0, 0);
         const sep = values.compare.indexOf("..");
         if (sep <= 0 || sep >= values.compare.length - 2) {
           return finish(2, withAgentPointer(`\u2716 --compare: "${clip(values.compare, 60)}" is not <before>..<after> \u2192 e.g. --compare main..HEAD`, command));
@@ -15070,12 +15304,12 @@ async function dispatch(argv, ctx) {
           const sample = concernNames.length > 0 ? concernNames.join(",") : "injection,guards";
           return finish(
             2,
-            withAgentPointer(`\u2716 --expect: name the concerns this change should fix \u2192 sidewise change --parent SW-#### --compare <before>..<after> --expect ${sample}`, command)
+            withAgentPointer(`\u2716 --expect: name the concerns this replay should fix \u2192 sidewise replay --parent SW-#### --compare <before>..<after> --expect ${sample}`, command)
           );
         }
         text = (0, import_yaml3.stringify)({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
-        positionalCount("change", positionals, 1, 1);
+        positionalCount("replay", positionals, 1, 1);
         const read2 = readRequest(positionals[0], ctx.stdin);
         if ("stop" in read2) return finish(2, withAgentPointer(read2.stop, command));
         text = read2.text;
@@ -15086,7 +15320,7 @@ async function dispatch(argv, ctx) {
       } catch (e) {
         return finish(providerExit(e), e.message);
       }
-      const r = await runChange(text, { paths, provider, env: ctx.env, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
+      const r = await runReplay(text, { paths, provider, env: ctx.env, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case "outcome": {
