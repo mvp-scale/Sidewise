@@ -40,8 +40,14 @@ const isTag = (k: string): boolean => TAG.test(k) && len(k) <= 20;
 
 class Out {
   readonly stops: Stop[] = [];
+  /** A `wise.*` stop (or the bare `wise` block-cap stop) earns its own deeper pointer, the same way
+   *  validate.ts's cross stops already embed "→ see: sidewise agent probe" directly in their own text (plan 2c
+   *  A5 follow-up F3) — the generic trailing "→ see: sidewise agent <verb>" that stopText (verbs/request.ts)
+   *  appends to the whole response still fires afterward regardless; this is an ADDITIONAL, more specific line
+   *  for wise fields, since the wise legend lives at `sidewise agent wise`, not at the verb's own card. */
   add(field: string, problem: string, fix: string): void {
-    this.stops.push({ cls: 'schema', text: `✖ ${field}: ${problem} → ${fix}` });
+    const wisePointer = field === 'wise' || field.startsWith('wise.') ? ' → see: sidewise agent wise' : '';
+    this.stops.push({ cls: 'schema', text: `✖ ${field}: ${problem} → ${fix}${wisePointer}` });
   }
 }
 
@@ -327,6 +333,12 @@ function checkCustomWiseValue(k: string, v: unknown, out: Out): void {
 export function wiseBlockLineCount(rawText: string | undefined): number | undefined {
   if (!rawText) return undefined;
   const lines = rawText.split(/\r?\n/u);
+  // A real saved file almost always ends with its own trailing newline (every writeFileSync call in this
+  // codebase included) — splitting on "\n" turns that into one phantom empty element after the last real line,
+  // not a blank line the agent actually typed. Drop just that one artifact so a genuine 25-line wise: block
+  // ending the file isn't over-counted to 26 (plan 2c Phase A follow-up F6) — a real blank line the agent typed
+  // INSIDE the block still counts, per the comment above.
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   const start = lines.findIndex((l) => /^wise\s*:/u.test(l));
   if (start === -1) return undefined;
   let count = 1;

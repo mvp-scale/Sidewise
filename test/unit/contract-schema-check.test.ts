@@ -1,5 +1,9 @@
 // The hand-written schema checks: each schema rule, worded as a fix. (Agreement with ajv is Task 5.)
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { readRequestText } from '../../src/contract/read.ts';
 import { checkSchema } from '../../src/contract/schema-check.ts';
 
 const base = (): Record<string, any> => ({
@@ -139,9 +143,9 @@ describe('checkSchema', () => {
     const r = base();
     r.wise = { why: 'explore', area: 'backend', Mood: 'x' };
     expect(texts(r)).toEqual([
-      '✖ wise.Mood: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters',
-      '✖ wise.why: "explore" → use validate, find or debug',
-      '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests, or a list of ≤2',
+      '✖ wise.Mood: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters → see: sidewise agent wise',
+      '✖ wise.why: "explore" → use validate, find or debug → see: sidewise agent wise',
+      '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests, or a list of ≤2 → see: sidewise agent wise',
     ]);
   });
 
@@ -149,9 +153,9 @@ describe('checkSchema', () => {
     const r = base();
     r.wise = { area: 'backend', Mood: 'x', why: 'explore' };
     expect(texts(r)).toEqual([
-      '✖ wise.Mood: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters',
-      '✖ wise.why: "explore" → use validate, find or debug',
-      '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests, or a list of ≤2',
+      '✖ wise.Mood: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters → see: sidewise agent wise',
+      '✖ wise.why: "explore" → use validate, find or debug → see: sidewise agent wise',
+      '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests, or a list of ≤2 → see: sidewise agent wise',
     ]);
   });
 
@@ -161,10 +165,10 @@ describe('checkSchema', () => {
     expect(texts(r)).toEqual([]);
     const bad = base();
     bad.wise = { 'ticket-id': 'x'.repeat(161) };
-    expect(texts(bad)).toEqual([`✖ wise.ticket-id: "${'x'.repeat(38)}… → write one line ≤160 characters, or a list of ≤5`]);
+    expect(texts(bad)).toEqual([`✖ wise.ticket-id: "${'x'.repeat(38)}… → write one line ≤160 characters, or a list of ≤5 → see: sidewise agent wise`]);
     const tooLong = base();
     tooLong.wise = { ['a'.repeat(21)]: 'x' };
-    expect(texts(tooLong)).toEqual([`✖ wise.${'a'.repeat(19)}…: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters`]);
+    expect(texts(tooLong)).toEqual([`✖ wise.${'a'.repeat(19)}…: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters → see: sidewise agent wise`]);
   });
 
   // [C-208] the wise: block is capped at 25 YAML source lines, counted from the raw request text (not the
@@ -172,7 +176,42 @@ describe('checkSchema', () => {
   it('wise: the block is capped at 25 source lines, counted from the raw text [C-208]', () => {
     const wiseLines = (n: number): string => `wise:\n${Array.from({ length: n - 1 }, (_, i) => `  k${i}: x`).join('\n')}`;
     expect(checkSchema(base(), 'class', wiseLines(25))).toEqual([]);
-    expect(checkSchema(base(), 'class', wiseLines(26)).map((s) => s.text)).toEqual(['✖ wise: 26 lines → the wise block is capped at 25 lines']);
+    expect(checkSchema(base(), 'class', wiseLines(26)).map((s) => s.text)).toEqual([
+      '✖ wise: 26 lines → the wise block is capped at 25 lines → see: sidewise agent wise',
+    ]);
+  });
+
+  // Plan 2c Phase A follow-up F6: the test above builds its wise: block as an in-memory joined string, never a
+  // real saved file with a genuine trailing newline at EOF — this one goes through the full
+  // readRequestText -> checkSchema pipeline against an actual file on disk (Plan 2a's CRLF/BOM concern, applied
+  // here to the wise block's own line count).
+  it('wise: the 25-line cap holds through a real file on disk, trailing newline included [C-208]', () => {
+    const sideYaml =
+      'side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Is request text placed directly into the SQL query?\n';
+    const wiseBlock = (n: number): string => ['wise:', ...Array.from({ length: n - 1 }, (_, i) => `  k${i}: x`)].join('\n');
+
+    const dir = mkdtempSync(path.join(tmpdir(), 'sidewise-wise-cap-'));
+    try {
+      const okFile = path.join(dir, 'ok.yaml');
+      writeFileSync(okFile, `${sideYaml}${wiseBlock(25)}\n`);
+      const okRaw = readFileSync(okFile, 'utf8');
+      const okRead = readRequestText(okRaw);
+      expect(okRead.ok).toBe(true);
+      if (okRead.ok) expect(checkSchema(okRead.value, 'class', okRaw)).toEqual([]);
+
+      const overFile = path.join(dir, 'over.yaml');
+      writeFileSync(overFile, `${sideYaml}${wiseBlock(26)}\n`);
+      const overRaw = readFileSync(overFile, 'utf8');
+      const overRead = readRequestText(overRaw);
+      expect(overRead.ok).toBe(true);
+      if (overRead.ok) {
+        expect(checkSchema(overRead.value, 'class', overRaw).map((s) => s.text)).toEqual([
+          '✖ wise: 26 lines → the wise block is capped at 25 lines → see: sidewise agent wise',
+        ]);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   // [C-108] wise.stage is one of design, build, review, pre-merge, post-fix, release, operate
@@ -186,9 +225,9 @@ describe('checkSchema', () => {
     expect(texts(r)).toEqual([]);
     r.wise = { stage: 'staging', change: 'rewrite', risk: 'severe' };
     expect(texts(r)).toEqual([
-      '✖ wise.stage: "staging" → use design, build, review, pre-merge, post-fix, release or operate',
-      '✖ wise.change: "rewrite" → use feature, fix, refactor, dependency or config',
-      '✖ wise.risk: "severe" → use low, medium or high',
+      '✖ wise.stage: "staging" → use design, build, review, pre-merge, post-fix, release or operate → see: sidewise agent wise',
+      '✖ wise.change: "rewrite" → use feature, fix, refactor, dependency or config → see: sidewise agent wise',
+      '✖ wise.risk: "severe" → use low, medium or high → see: sidewise agent wise',
     ]);
   });
 
@@ -202,8 +241,8 @@ describe('checkSchema', () => {
     const r = base();
     r.wise = { problem: 'x', uses: 'a:b', touches: [] };
     expect(texts(r)).toEqual([
-      '✖ wise.problem: is too short → write one line of 3–160 characters: what you\'re solving now',
-      '✖ wise.uses: "a:b" → write level:name, e.g. container:web-app',
+      '✖ wise.problem: is too short → write one line of 3–160 characters: what you\'re solving now → see: sidewise agent wise',
+      '✖ wise.uses: "a:b" → write level:name, e.g. container:web-app → see: sidewise agent wise',
     ]);
 
     const ok = base();
@@ -225,18 +264,18 @@ describe('checkSchema', () => {
 
     const tooMany = base();
     tooMany.wise = { uses: Array.from({ length: 6 }, (_, i) => `code:fn${i}`) };
-    expect(texts(tooMany)).toEqual(['✖ wise.uses: 6 chains → give 1–5']);
+    expect(texts(tooMany)).toEqual(['✖ wise.uses: 6 chains → give 1–5 → see: sidewise agent wise']);
 
     const empty = base();
     empty.wise = { uses: [] };
-    expect(texts(empty)).toEqual(['✖ wise.uses: 0 chains → give 1–5']);
+    expect(texts(empty)).toEqual(['✖ wise.uses: 0 chains → give 1–5 → see: sidewise agent wise']);
 
     const badTouch = base();
     badTouch.wise = { touches: ['a'.repeat(41)] };
-    expect(texts(badTouch)).toEqual([`✖ wise.touches[0]: "${'a'.repeat(38)}… → each entry is 1–40 characters, one line`]);
+    expect(texts(badTouch)).toEqual([`✖ wise.touches[0]: "${'a'.repeat(38)}… → each entry is 1–40 characters, one line → see: sidewise agent wise`]);
 
     const badBlast = base();
     badBlast.wise = { blast: 'process' };
-    expect(texts(badBlast)).toEqual(['✖ wise.blast: "process" → use code, component, container, system or person']);
+    expect(texts(badBlast)).toEqual(['✖ wise.blast: "process" → use code, component, container, system or person → see: sidewise agent wise']);
   });
 });
