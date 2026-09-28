@@ -30,7 +30,7 @@ import type { VerbContext, VerbResult } from './types.ts';
  *  `resolveConfig(ctx.paths, ctx.env).config`; omitted (every pre-existing 4-arg call site, including this
  *  file's own unit tests) keeps the code's own defaults: no extra item cap beyond the depth ceiling, no
  *  question-per-call split, no reuse age/commit limit. */
-export interface SweepLimits {
+interface SweepLimits {
   sweep?: SidewiseConfig['sweep'];
   reuse?: ReuseLimits;
 }
