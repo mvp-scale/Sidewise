@@ -10,6 +10,7 @@ import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.t
 import { m, type Value } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
 import { expandGlob } from '../evidence/glob.ts';
+import { currentCommitSha } from '../evidence/git.ts';
 import { createCodeResolver } from '../evidence/units.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
@@ -27,6 +28,14 @@ const ENTRYPOINT_GLOBS = ['server.js', 'app.js', 'index.js', 'main.js', 'config/
 // The note names at most this many missed paths, then says how many more — a config/** glob can match dozens
 // of files, and spelling out every one works against "help first, be concise." [C-168]
 const MISSED_SHOWN = 3;
+
+/** The `where` a sweep run records (plan 2b: recorded for every verb): every item's own code path, unique,
+ *  sorted, capped at 50 — a sweep's own `where` on the wire is always `[]` (over: names the files instead),
+ *  but the run itself still touched real paths worth showing in `view`/`report`. */
+const WHERE_CAP = 50;
+function whereFromItems(items: readonly { unit?: { path: string } }[]): string[] {
+  return [...new Set(items.flatMap((i) => (i.unit ? [i.unit.path] : [])))].sort().slice(0, WHERE_CAP);
+}
 
 /** Entrypoint/config files that exist in the project but were never one of this scan's own items (at any
  *  layer — unit.path is the same original file path all the way down file -> function -> call). undefined
@@ -109,10 +118,11 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
     task: ctx.env.SIDEWISE_TASK?.trim() || null,
     goal: request.side.goal,
     depth: request.side.depth ?? null,
-    where: [],
+    where: whereFromItems(plan.items),
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
+    commit: currentCommitSha(ctx.paths.root),
     wise: request.wise,
     ask: { categories: [], layers: request.side.layers },
     over: request.side.over!,

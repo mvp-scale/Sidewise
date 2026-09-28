@@ -14,6 +14,7 @@ import { gradeSubject } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer } from '../contract/types.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
+import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers } from '../ledger/reuse.ts';
@@ -125,6 +126,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
+    commit: currentCommitSha(ctx.paths.root),
     wise: request.wise,
     ask: { categories: request.side.categories, layers: [] },
     over: null,

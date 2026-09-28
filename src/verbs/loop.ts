@@ -8,6 +8,7 @@ import { providerIdentity } from '../classifier/select.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
 import { m } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
+import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
@@ -76,6 +77,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
+    commit: currentCommitSha(ctx.paths.root),
     wise: request.wise,
     ask: { categories: [], layers: request.side.layers },
     over: request.side.over!,

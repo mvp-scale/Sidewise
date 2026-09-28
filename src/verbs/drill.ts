@@ -18,6 +18,7 @@ import { firstStringLayer, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer, Category, Request } from '../contract/types.ts';
 import { readCodeEvidence, type ReadCodeEvidenceOptions } from '../evidence/code.ts';
+import { currentCommitSha } from '../evidence/git.ts';
 import { createCodeResolver, readUnit } from '../evidence/units.ts';
 import { findRun, isContractRun, type ItemRecord, type NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
@@ -32,6 +33,15 @@ import type { VerbContext, VerbResult } from './types.ts';
 /** A sweep parent's fail/unsure next: fix the worst item, then re-run this drill — cheap, since sweep.ts
  * reuses every item that didn't change. Never sidewise change: change.ts refuses a sweep parent. */
 const REDRILL_NEXT = 'fix it, then run this drill again (unchanged items are reused, so it is nearly free)';
+
+/** The `where` a sweep drill records (plan 2b: recorded for every verb): every item's own code path, unique,
+ *  sorted, capped at 50 — same rule scan.ts applies to its own sweep, duplicated rather than shared (the two
+ *  verb files own no common module here). An idea item (no `unit`, e.g. drilling a loop item) contributes
+ *  nothing, same as scan's own code-only items. */
+const WHERE_CAP = 50;
+function whereFromItems(items: readonly { unit?: { path: string } }[]): string[] {
+  return [...new Set(items.flatMap((i) => (i.unit ? [i.unit.path] : [])))].sort().slice(0, WHERE_CAP);
+}
 
 /**
  * The one-subject shape (docs/contract.md "drill"): fresh, narrower ask: categories answered straight against
@@ -132,6 +142,7 @@ async function runOneSubjectProof(
     parent: request.side.parent!,
     from: request.side.from!,
     compare: null,
+    commit: currentCommitSha(ctx.paths.root),
     wise: request.wise,
     ask: { categories: request.side.categories, layers: [] },
     over: null,
@@ -279,10 +290,11 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       task: ctx.env.SIDEWISE_TASK?.trim() || null,
       goal: request.side.goal,
       depth: request.side.depth ?? null,
-      where: [],
+      where: whereFromItems(plan.items),
       parent: request.side.parent!,
       from: request.side.from!,
       compare: null,
+      commit: currentCommitSha(ctx.paths.root),
       wise: request.wise,
       ask: { categories: [], layers: request.side.layers },
       over: request.side.over!,

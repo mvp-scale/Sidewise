@@ -2,7 +2,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { hasGit, isGitOption, readGitEvidence } from '../../src/evidence/git.ts';
+import { currentCommitSha, hasGit, isGitOption, readGitEvidence } from '../../src/evidence/git.ts';
 import { gitCommit, gitInit, tempProject } from '../helpers/project.ts';
 
 describe('isGitOption', () => {
@@ -47,5 +47,22 @@ describe('readGitEvidence: an option-shaped ref never reaches git', () => {
     const ref = gitCommit(nested, 'nested commit');
     const r = readGitEvidence(root, ref, 'before', ['nested/src/a.ts']);
     expect(r).toEqual({ ok: true, files: { 'nested/src/a.ts': 'export const x = 1;\n' }, notes: ['reading whole files: line ranges may not match the parent run'] });
+  });
+});
+
+describe('currentCommitSha (plan 2b: the ledger\'s own run.commit field)', () => {
+  it('null when the project is not a git repo, and never calls spawn for a nonexistent one', () => {
+    const { root } = tempProject({});
+    const spawn = vi.fn(() => ({ status: 1, stdout: '' }));
+    expect(currentCommitSha(root, { spawn: spawn as never })).toBeNull();
+    expect(spawn).toHaveBeenCalledWith('git', ['rev-parse', 'HEAD'], expect.objectContaining({ cwd: root }));
+  });
+
+  it('the real HEAD sha in a real repo, skipped when git is absent', (ctx) => {
+    const { root } = tempProject(); // needs a real file to commit, or git rev-parse HEAD prints "HEAD" unresolved
+    if (!hasGit()) return ctx.skip();
+    gitInit(root);
+    const sha = gitCommit(root, 'first');
+    expect(currentCommitSha(root)).toBe(sha);
   });
 });

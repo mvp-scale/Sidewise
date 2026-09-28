@@ -29,6 +29,15 @@ export function hasGit(deps?: { spawn?: Spawn }): boolean {
   return spawn('git', ['--version'], {}).status === 0;
 }
 
+/** The repo's current HEAD commit sha (`git rev-parse HEAD`), or null when `root` isn't a git repo, or git is
+ *  absent — the ledger's own `commit` field (plan 2b). Never a stop: a run without a commit sha still logs. */
+export function currentCommitSha(root: string, deps?: { spawn?: Spawn }): string | null {
+  const spawn = deps?.spawn ?? spawnSync;
+  const result = spawn('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  const out = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+  return result.status === 0 && out ? out : null;
+}
+
 /** The nearest git repo actually containing `dir` (its own `git rev-parse --show-toplevel`), not necessarily
  *  the Sidewise project root — a monorepo package or a vendored project one level down is its own repo.
  *  `undefined` when `dir` isn't inside any repo at all (git itself is the source of truth here, not a

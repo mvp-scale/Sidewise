@@ -119,6 +119,10 @@ export interface ContractRun {
    *  reader must treat a missing value the same as these fields never having been asked about. */
   route?: string | null;
   baseURL?: string | null;
+  /** git HEAD sha at run time, or null (not a repo / git absent) — plan 2b. Optional for the same reason as
+   *  route/baseURL above: an older record simply never had one. The index's own column for this is named
+   *  after the OTel semantic convention `vcs.ref.head.revision` (docs only — no code depends on that name). */
+  commit?: string | null;
 }
 
 /** What a verb hands the ledger: the response is built inside the lock, once the id and the budget are known. */
@@ -156,7 +160,28 @@ export interface FailedRecord {
 
 export type NewFailed = Omit<FailedRecord, 'kind' | 'id' | 'uid' | 'ts'>;
 
-export type LedgerRecord = RunRecord | ContractRun | OutcomeRecord | FailedRecord;
+/**
+ * A free `view` draft check (plan 2b): never a run (no SW-#### id — `id` is its own ulid, same as a failed
+ * record), never counted toward the budget, and never counted as a run anywhere (index.ts's `applyLine` already
+ * only treats `kind === 'run'` as a run; every run-counting/report path is untouched by this kind existing).
+ * Logged so the ledger can see what agents search for, which CONTRACT already claimed happens ("the lookup is
+ * logged") but didn't, until now.
+ */
+export interface LookupRecord {
+  kind: 'lookup';
+  id: string;
+  uid: string;
+  ts: string;
+  goal: string;
+  where: string[];
+  hit: boolean;
+  /** The run id an exact-match answer was reused from, when `hit` is true; null on a miss. */
+  reused: string | null;
+}
+
+export type NewLookup = Omit<LookupRecord, 'kind' | 'id' | 'uid' | 'ts'>;
+
+export type LedgerRecord = RunRecord | ContractRun | OutcomeRecord | FailedRecord | LookupRecord;
 
 export class LedgerError extends Error {
   /** 1: the ledger itself is the problem · 2: the caller asked for something the ledger doesn't hold. */
@@ -186,6 +211,7 @@ export function isRecord(v: unknown): v is LedgerRecord {
   const r = v as Record<string, unknown>;
   if (r.kind === 'outcome') return [r.id, r.of, r.outcome, r.by, r.ts].every(isText);
   if (r.kind === 'failed') return [r.id, r.ts, r.verb, r.actor, r.adapter, r.model, r.reason].every(isText);
+  if (r.kind === 'lookup') return [r.id, r.uid, r.ts, r.goal].every(isText) && Array.isArray(r.where) && r.where.every(isText) && typeof r.hit === 'boolean';
   if (r.kind !== 'run') return false;
   if (r.v === 2) {
     return (
@@ -415,6 +441,17 @@ export function appendFailedLocked(paths: SidewisePaths, failed: NewFailed, now:
 
 export function appendRun(paths: SidewisePaths, run: NewRun, now: number = Date.now()): RunRecord {
   return withLock(paths.lock, () => appendRunLocked(paths, run, now));
+}
+
+/** A free view lookup (see LookupRecord's own comment): takes the lock like every other append (concurrent
+ *  writers must never interleave lines), but assigns no SW-#### id and never touches the budget. */
+export function appendLookup(paths: SidewisePaths, lookup: NewLookup, now: number = Date.now()): LookupRecord {
+  return withLock(paths.lock, () => {
+    const uid = ulid(now);
+    const record: LookupRecord = { kind: 'lookup', id: uid, uid, ts: iso(now), ...redactDeep(lookup) };
+    appendLine(paths, record);
+    return record;
+  });
 }
 
 /**
