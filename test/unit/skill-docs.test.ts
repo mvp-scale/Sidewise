@@ -41,3 +41,23 @@ describe('skill-docs stay in sync', () => {
     expect(body).toContain('Then run `sidewise agent <command>` before writing a request');
   });
 });
+
+describe('the sidewise-probe skill', () => {
+  const raw = readFileSync('skills/sidewise-probe/SKILL.md', 'utf8');
+
+  it('has the expected front matter', () => {
+    expect(raw).toMatch(/^---\nname: sidewise-probe\ndescription: .+\n---\n/);
+  });
+
+  it('never references lab/ (public repo)', () => {
+    expect(raw).not.toMatch(/lab\//);
+  });
+
+  it('covers the concerns/decisions contract and the three-angle model', () => {
+    expect(raw).toMatch(/concerns/);
+    expect(raw).toMatch(/decisions/);
+    expect(raw).toContain('reach');
+    expect(raw).toContain('guard');
+    expect(raw).toContain('sink');
+  });
+});
