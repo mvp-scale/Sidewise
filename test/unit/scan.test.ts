@@ -12,8 +12,42 @@ import { stubProvider, type Stub } from '../helpers/stub-provider.ts';
 const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }) });
 
 const env = { SIDEWISE_ACTOR: 'r' };
-const REQUEST =
-  'side:\n  goal: Handlers don\'t trust request input\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\nwise:\n  why: find\n  area: api\n';
+// A full, contract-valid finest-layer ask (quick: exactly 3 concerns categories x 3 probes, plus decisions
+// with >=1 scale and >=1 choice) — injection keeps probe "1" (the one every test's `yes` callback keys off
+// of, e.g. `q.id.endsWith('bad#1')`); access/leaks/severity/route all default to passing unless a test says
+// otherwise, so they never interfere with the specific injection-only scenarios below.
+const ASK_LINES = [
+  '  ask:',
+  '    function:',
+  '      concerns:',
+  '        injection:',
+  '          pass: no',
+  '          1: Does {function} put request text straight into a query?',
+  '          2: Is the query built by string concatenation instead of a bound parameter?',
+  '          3: Does {function} run the query with db.query on that string?',
+  '        access:',
+  '          pass: no',
+  '          4: Does {function} return a record without checking its owner?',
+  '          5: Is the caller id compared to the record owner id?',
+  '          6: Could {function} be called without any permission check?',
+  '        leaks:',
+  '          pass: no',
+  '          7: Does {function} send back a raw database error?',
+  '          8: Does {function} log the full request body?',
+  '          9: Does the response from {function} include fields nobody asked for?',
+  '      decisions:',
+  '        severity:',
+  '          pass: [none, low]',
+  '          10:',
+  '            scale: How severe is the worst issue in {function}?',
+  '            levels: [none, low, medium, high, critical]',
+  '        route:',
+  '          pass: [ship]',
+  '          11:',
+  '            choice: Where should {function} go?',
+  '            options: [ship, fix, block]',
+].join('\n');
+const REQUEST = `side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n${ASK_LINES}\nwise:\n  why: find\n  area: api\n`;
 const FILES = {
   'src/a.ts': 'export function bad(req) { return db.query(`x ${req.id}`); }\n',
   'src/b.ts': 'export function good(req) { return db.query("x", [req.id]); }\n',
@@ -126,14 +160,15 @@ describe('scan', () => {
     await runScan(REQUEST, { paths, provider, env });
     expect(provider.calls).toHaveLength(1);
 
-    // Same function name, same file, different body: its answer key (keyed on the function's own text) no
-    // longer matches the ledger, so only this one function is asked again.
+    // Same function name, same file, different body: every one of its answer keys (keyed on the function's
+    // own text) no longer matches the ledger, so only this one function is asked again — but ALL its
+    // questions, since the evidence behind every one of them changed together.
     writeFileSync(path.join(root, 'src/a.ts'), 'export function bad(req) { return db.query(`y ${req.id}`); }\n');
 
     const r2 = await runScan(REQUEST, { paths, provider, env });
     expect(provider.calls).toHaveLength(2); // exactly one new call
     const secondCall = provider.calls[1]!;
-    expect(secondCall.questions.map((q) => q.id)).toEqual(['src/a.ts/bad#1']); // only the changed function is asked
+    expect(secondCall.questions.map((q) => q.id)).toEqual(Array.from({ length: 11 }, (_, i) => `src/a.ts/bad#${i + 1}`)); // only the changed function is asked, all 11 of its questions
     expect(Object.keys(secondCall.state.items ?? {})).toEqual(['src/a.ts/bad']); // and it carries only that function
     expect(r2.text).toContain('reused: 1'); // src/b.ts/good, unchanged, is still free
   });
@@ -143,7 +178,7 @@ describe('scan', () => {
     const provider = stubProvider();
     const r = await runScan(REQUEST, { paths, provider, env, dryRun: true });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 2\n  items: 4\n  reused: 2\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    expect(r.text).toBe('plan:\n  calls: 1\n  questions: 22\n  items: 4\n  reused: 2\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
   });
@@ -181,8 +216,7 @@ describe('scan', () => {
 
   it('a glob matching nothing and a missed goal: next says every item was skipped, not a crash [C-071]', async () => {
     const { paths } = tempProject(FILES); // FILES are on disk, but the pattern below matches none of them
-    const NOTHING_MATCHES =
-      'side:\n  goal: Handlers don\'t trust request input\n  depth: quick\n  over:\n    file: src/nope/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\nwise:\n  why: find\n  area: api\n';
+    const NOTHING_MATCHES = REQUEST.replace('file: src/*.ts', 'file: src/nope/*.ts');
     // Nothing to grade at all (zero files matched, so zero functions); the goal still rides its own call and misses.
     const provider = stubProvider({ yes: () => 0.1 });
     const r = await runScan(NOTHING_MATCHES, { paths, provider, env });
