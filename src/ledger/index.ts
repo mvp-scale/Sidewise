@@ -125,6 +125,19 @@ export interface PatternRow {
   outcomes: { held: number; overruled: number; failed: number; open: number };
 }
 
+/** One row of a future `sidewise report families`: a concern `family`, how many categories (across every run)
+ *  carried it, how many distinct runs that touched, and those categories' own pass/fail/unsure split — plan
+ *  2b's "family per category as queryable". Counted per CATEGORY, not per run: a run with two categories of the
+ *  same family (rare, but the schema allows it) counts twice, since each category has its own gate. */
+export interface FamilyRow {
+  family: string;
+  categories: number;
+  runs: number;
+  pass: number;
+  fail: number;
+  unsure: number;
+}
+
 interface ReuseHit {
   runId: string;
   qid: string;
@@ -175,6 +188,11 @@ export interface IndexHandle {
    *  run, with its run/pass/fail/unsure/place/outcome counts. Runs with no fingerprint (a Plan 1 run, or a
    *  contract run with no `ask`) are excluded — there's nothing to group them by. */
   patternCounts(): PatternRow[];
+  /** For a future `sidewise report families`: every concern `family` any category has ever carried, with how
+   *  many categories (and distinct runs) touched it and their pass/fail/unsure split — plan 2b's "family per
+   *  category as queryable" made real, not just stored. Categories with no family set are excluded (nothing to
+   *  group them by, same discipline as patternCounts). */
+  familyCounts(): FamilyRow[];
   /** For `sidewise report history`: every `change`-verb run, newest first, capped at `limit`. */
   recentChanges(limit: number): Candidate[];
   /** For `sidewise report history`: every recorded outcome, newest first, capped at `limit`. */
@@ -343,8 +361,8 @@ interface MemoryState {
   reuseKey: Map<string, Map<string, { runId: string; qid: string }>>;
   candidatesByWho: Map<string, Candidate[]>;
   places: { kind: 'where' | 'tag'; val: string; runId: string }[];
-  /** Mirrors the SQL engine's `categories` table (plan 2b: family/section per category, queryable) — kept for
-   *  parity between the two engines even though nothing reads it back yet (see runCategories's own comment). */
+  /** Mirrors the SQL engine's `categories` table (plan 2b: family/section per category, queryable) — feeds
+   *  familyCounts below (see runCategories's own comment for how both engines fill this identically). */
   categories: { runId: string; name: string; section: string; family: string | null; gate: string | null }[];
   childrenByParent: Map<string, Candidate[]>;
   outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
@@ -474,6 +492,22 @@ function handleFromMemory(state: MemoryState): IndexHandle {
           return { pattern, ...c, places: placesByPattern.get(pattern)?.size ?? 0, outcomes: { ...oc, open: c.runs - oc.held - oc.overruled - oc.failed } };
         })
         .sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
+    },
+    familyCounts: () => {
+      const byFamily = new Map<string, { categories: number; pass: number; fail: number; unsure: number; runs: Set<string> }>();
+      for (const c of state.categories) {
+        if (!c.family) continue;
+        const cur = byFamily.get(c.family) ?? { categories: 0, pass: 0, fail: 0, unsure: 0, runs: new Set<string>() };
+        cur.categories += 1;
+        cur.runs.add(c.runId);
+        if (c.gate === 'pass') cur.pass += 1;
+        else if (c.gate === 'fail') cur.fail += 1;
+        else if (c.gate === 'unsure') cur.unsure += 1;
+        byFamily.set(c.family, cur);
+      }
+      return [...byFamily.entries()]
+        .map(([family, v]) => ({ family, categories: v.categories, runs: v.runs.size, pass: v.pass, fail: v.fail, unsure: v.unsure }))
+        .sort((a, b) => b.categories - a.categories || a.family.localeCompare(b.family));
     },
     recentChanges: (limit) =>
       state.allRuns
@@ -836,6 +870,12 @@ function handleFromSql(db: SqliteDb): IndexHandle {
     `SELECT r.pattern AS pattern, o.outcome AS outcome, COUNT(*) AS n FROM runs r JOIN outcomes o ON o.run_id = r.id ` +
       `WHERE r.pattern IS NOT NULL GROUP BY r.pattern, o.outcome`,
   );
+  const stFamilyCounts = db.prepare(
+    `SELECT family, COUNT(*) AS categories, COUNT(DISTINCT run_id) AS runs, ` +
+      `SUM(CASE WHEN gate = 'pass' THEN 1 ELSE 0 END) AS pass, SUM(CASE WHEN gate = 'fail' THEN 1 ELSE 0 END) AS fail, ` +
+      `SUM(CASE WHEN gate = 'unsure' THEN 1 ELSE 0 END) AS unsure ` +
+      `FROM categories WHERE family IS NOT NULL GROUP BY family`,
+  );
   const stRecentChanges = db.prepare('SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?');
   const stRecentOutcomes = db.prepare('SELECT run_id AS runId, outcome, ts, by FROM outcomes ORDER BY rowid DESC LIMIT ?');
 
@@ -910,6 +950,11 @@ function handleFromSql(db: SqliteDb): IndexHandle {
         })
         .sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
     },
+    familyCounts: () =>
+      stFamilyCounts
+        .all()
+        .map((r) => ({ family: String(r.family), categories: Number(r.categories), runs: Number(r.runs), pass: Number(r.pass), fail: Number(r.fail), unsure: Number(r.unsure) }))
+        .sort((a, b) => b.categories - a.categories || a.family.localeCompare(b.family)),
     recentChanges: (limit) => stRecentChanges.all('change', limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
     recentOutcomes: (limit) =>
       stRecentOutcomes.all(limit).map((r) => ({ runId: String(r.runId), outcome: r.outcome as OutcomeRecord['outcome'], ts: String(r.ts), by: String(r.by) })),

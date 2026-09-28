@@ -274,6 +274,42 @@ describe('the fallback path gives identical results to whatever engine is really
 
     expect(b).toEqual(a);
   });
+
+  it('familyCounts (plan 2b: family/section per category, indexed) agrees between the two engines', () => {
+    const { paths } = tempProject({});
+    appendContractRun(
+      paths,
+      sampleContractRun({
+        ask: {
+          categories: [
+            { name: 'injection', section: 'concerns', family: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] },
+            { name: 'access', section: 'concerns', family: 'access', pass: 'no', need: 'all', tags: [], questions: [{ n: 2, kind: 'yesno', text: 'q2?' }] },
+          ],
+          layers: [],
+        },
+        categories: { injection: 'fail', access: 'pass' },
+      }),
+      Date.now(),
+      'b',
+    ); // SW-0001: two categories, two families
+    appendContractRun(
+      paths,
+      sampleContractRun({
+        ask: { categories: [{ name: 'sql', section: 'concerns', family: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q?' }] }], layers: [] },
+        categories: { sql: 'unsure' },
+      }),
+      Date.now(),
+      'b',
+    ); // SW-0002: a second run in the SAME family as SW-0001's "injection" — proves aggregation across runs
+
+    for (const forceFallback of [false, true]) {
+      __testOnly.forceFallback = forceFallback;
+      expect(withIndex(paths, (h) => h.familyCounts())).toEqual([
+        { family: 'injection', categories: 2, runs: 2, pass: 0, fail: 1, unsure: 1 },
+        { family: 'access', categories: 1, runs: 1, pass: 1, fail: 0, unsure: 0 },
+      ]);
+    }
+  });
 });
 
 describe('node:sqlite genuinely unavailable never silently falls back in production (owner ruling) [C-107]', () => {
