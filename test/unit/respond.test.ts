@@ -163,7 +163,7 @@ describe('dryRunText extraNotes (fix #5b)', () => {
   });
 });
 
-describe('probeWarnings (item F, round 4 fix batch G): up to 3 warn-only "probe:" dry-run notes', () => {
+describe('probeWarnings (item F, round 4 fix batch G) [C-198]: up to 3 warn-only "probe:" dry-run notes', () => {
   it('a clean request: no warnings', () => {
     expect(probeWarnings(side([cat('injection', 'no', [1, 2])]))).toEqual([]);
   });
