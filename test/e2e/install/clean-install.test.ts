@@ -24,8 +24,12 @@ describe('a real npm pack tarball, installed like a consumer would', () => {
     const tarball = path.join(packDir, filename);
 
     const projectDir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-consumer-'));
-    mkdirSync(path.join(projectDir, 'src'), { recursive: true });
+    // Plan 2b's class template now names src/handlers/user.ts as its own worked example where: (a
+    // NodeGoat-neutral path), not src/user.ts — give the project both so `template class | class` (the
+    // quickstart's own first two lines) has real code to read.
+    mkdirSync(path.join(projectDir, 'src', 'handlers'), { recursive: true });
     writeFileSync(path.join(projectDir, 'src', 'user.ts'), USER_TS);
+    writeFileSync(path.join(projectDir, 'src', 'handlers', 'user.ts'), USER_TS);
     writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'sidewise-consumer', version: '0.0.0', private: true }));
 
     const install = spawnSync('npm', ['install', tarball, '--no-audit', '--no-fund', '--prefer-offline'], { cwd: projectDir, encoding: 'utf8' });
