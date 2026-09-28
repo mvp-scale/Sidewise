@@ -6,12 +6,19 @@ import { CHAOS_MODEL, createChaosAdapter, parseSchedule } from './chaos.ts';
 import { createFakeAdapter, FAKE_MODEL } from './fake.ts';
 import type { ClassifierPort } from './port.ts';
 import { createTypesafeAdapter } from './typesafe/adapter.ts';
-import { hasKey, resolveJevConfig, routeLabel, type ProviderRoute, type ResolveStored } from './typesafe/client.ts';
+import { hasKey, resolveJevConfig, routeLabel, type JevFileConfig, type ProviderRoute, type ResolveStored } from './typesafe/client.ts';
 
 type Env = Record<string, string | undefined>;
 
-export function selectProvider(env: Env = process.env, deps: { fetch?: typeof fetch; chaosState?: string; resolveStored?: ResolveStored } = {}): ClassifierPort {
-  const wanted = env.SIDEWISE_PROVIDER?.trim();
+/** plan 2c B1: `SIDEWISE_PROVIDER` still wins outright (env > config > default); `deps.fileConfig?.provider`
+ *  (config.yaml's `provider:` key) is the fallback when no env var names one at all — same precedence as every
+ *  other config-aware field in this codebase. */
+function wantedProvider(env: Env, deps: { fileConfig?: JevFileConfig }): string | undefined {
+  return env.SIDEWISE_PROVIDER?.trim() || deps.fileConfig?.provider;
+}
+
+export function selectProvider(env: Env = process.env, deps: { fetch?: typeof fetch; chaosState?: string; resolveStored?: ResolveStored; fileConfig?: JevFileConfig } = {}): ClassifierPort {
+  const wanted = wantedProvider(env, deps);
   if (wanted === 'fake') return createFakeAdapter();
   if (wanted === 'chaos') {
     const s = parseSchedule(env.SIDEWISE_CHAOS);
@@ -32,8 +39,8 @@ export interface ProviderIdentity {
   baseURL: string | null;
 }
 
-export function providerIdentity(env: Env = process.env, deps: { resolveStored?: ResolveStored } = {}): ProviderIdentity {
-  const wanted = env.SIDEWISE_PROVIDER?.trim();
+export function providerIdentity(env: Env = process.env, deps: { resolveStored?: ResolveStored; fileConfig?: JevFileConfig } = {}): ProviderIdentity {
+  const wanted = wantedProvider(env, deps);
   if (wanted === 'fake') return { adapter: 'fake', model: FAKE_MODEL, route: 'fake', baseURL: null };
   if (wanted === 'chaos') return { adapter: 'chaos', model: CHAOS_MODEL, route: 'chaos', baseURL: null };
   try {

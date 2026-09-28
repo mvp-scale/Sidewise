@@ -6,16 +6,16 @@
  */
 import { registerSecret } from '../../ledger/redact.ts';
 import type { ClassifierAnswer, ClassifierPort } from '../port.ts';
-import { choiceQuestion, createJevClient, hasKey, JevConfigError, noulQuestion, resolveJevConfig, scoreQuestion, type JevQuestion, type JsonValue, type ResolveStored } from './client.ts';
+import { choiceQuestion, createJevClient, hasKey, JevConfigError, noulQuestion, resolveJevConfig, scoreQuestion, type JevFileConfig, type JevQuestion, type JsonValue, type ResolveStored } from './client.ts';
 
 export const NO_TYPESAFE_KEY_MESSAGE =
   '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY or AI_GATEWAY_API_KEY, or SIDEWISE_PROVIDER=fake to try requests';
 
 export function createTypesafeAdapter(
   env: Record<string, string | undefined> = process.env,
-  deps: { fetch?: typeof fetch; resolveStored?: ResolveStored } = {},
+  deps: { fetch?: typeof fetch; resolveStored?: ResolveStored; fileConfig?: JevFileConfig } = {},
 ): ClassifierPort {
-  const config = resolveJevConfig(env, { resolveStored: deps.resolveStored });
+  const config = resolveJevConfig(env, { resolveStored: deps.resolveStored, fileConfig: deps.fileConfig });
   if (!hasKey(config)) throw new JevConfigError(NO_TYPESAFE_KEY_MESSAGE);
   registerSecret(config.apiKey); // defense in depth: a key from the keychain/user file never has env's own shape to pattern-match
   const client = createJevClient(config, deps);

@@ -60,6 +60,23 @@ export interface JevConfig {
   /** What actually goes in the request body's `model` (gateway: `typesafe-ai/jev`). */
   wireModel: string;
   timeoutMs: number;
+  /** Plan 2c B1: overridable via config.yaml (deps.fileConfig); undefined only when no bare `resolveJevConfig`
+   *  call site passes fileConfig at all (every existing caller keeps working). `createJevClient` falls back to
+   *  its own hardcoded defaults (MAX_RETRIES/BASE_BACKOFF_MS) when this is undefined. */
+  retries?: number;
+  backoffMs?: number;
+}
+
+/** The middle layer between env and the hardcoded defaults below (plan 2c B1: env > config > default) — a
+ *  project's `.sidewise/config.yaml`, already resolved by `src/config/load.ts`'s `classifierFileConfig`. Purely
+ *  additive: every existing call site that omits this keeps behaving exactly as before. */
+export interface JevFileConfig {
+  provider?: string;
+  baseURL?: string;
+  model?: string;
+  timeoutMs?: number;
+  retries?: number;
+  backoffMs?: number;
 }
 
 const DIRECT_BASE_URL = 'https://api.typesafe.ai';
@@ -93,9 +110,10 @@ function resolveRoute(env: Env, deps: { resolveStored?: ResolveStored }): { rout
   return { route: 'direct', apiKey: undefined };
 }
 
-function resolveTimeoutMs(env: Env): number {
+function resolveTimeoutMs(env: Env, fileConfig?: JevFileConfig): number {
   const raw = Number(clean(env.JEV_TIMEOUT_MS));
-  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_TIMEOUT_MS;
+  if (Number.isFinite(raw) && raw > 0) return raw;
+  return fileConfig?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 }
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
@@ -105,8 +123,8 @@ const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
  *  http for localhost/127.0.0.1/[::1] (a local dev proxy). Anything else is a config stop in the
  *  "✖ field: problem → fix" style, at exit 2 (a bad override is a usage mistake to fix, not a runtime
  *  provider failure). */
-function resolveBaseURL(env: Env, baseDefault: string): string {
-  const raw = clean(env.SIDEWISE_BASE_URL);
+function resolveBaseURL(env: Env, baseDefault: string, fileConfig?: JevFileConfig): string {
+  const raw = clean(env.SIDEWISE_BASE_URL) ?? fileConfig?.baseURL;
   if (raw === undefined) return baseDefault;
   let url: URL;
   try {
@@ -136,9 +154,15 @@ function resolveBaseURL(env: Env, baseDefault: string): string {
  * init's user credentials file (setup/keystore.ts's resolveStoredKey, which real call sites pass explicitly).
  * Omitting it keeps this call exactly as pure as before: no existing caller starts doing keychain/file I/O
  * just by this feature landing.
+ *
+ * `deps.fileConfig` (plan 2c B1, default: none): a project's `.sidewise/config.yaml`, already resolved to plain
+ * fields by `src/config/load.ts`'s `classifierFileConfig`. Purely additive, same discipline as resolveStored —
+ * every existing call site that omits it keeps reading env-then-hardcoded-default exactly as before. When
+ * given, it's the middle layer: env (JEV_MODEL/SIDEWISE_BASE_URL/JEV_TIMEOUT_MS) still wins over it, and it
+ * still wins over the hardcoded defaults above.
  */
-export function resolveJevConfig(env: Env = process.env, deps: { resolveStored?: ResolveStored } = {}): JevConfig {
-  const model = clean(env.JEV_MODEL) ?? DEFAULT_PINNED_MODEL;
+export function resolveJevConfig(env: Env = process.env, deps: { resolveStored?: ResolveStored; fileConfig?: JevFileConfig } = {}): JevConfig {
+  const model = clean(env.JEV_MODEL) ?? deps.fileConfig?.model ?? DEFAULT_PINNED_MODEL;
   if (isFloatingModel(model)) {
     throw new JevConfigError(
       `JEV_MODEL="${model}" floats. Pin an exact version (e.g. ${DEFAULT_PINNED_MODEL}) so scores are reproducible.`,
@@ -150,10 +174,12 @@ export function resolveJevConfig(env: Env = process.env, deps: { resolveStored?:
     route,
     apiKey,
     ...(keySource ? { keySource } : {}),
-    baseURL: resolveBaseURL(env, baseDefault),
+    baseURL: resolveBaseURL(env, baseDefault, deps.fileConfig),
     model,
     wireModel: route === 'gateway' ? (clean(env.JEV_GATEWAY_MODEL) ?? DEFAULT_GATEWAY_MODEL) : model,
-    timeoutMs: resolveTimeoutMs(env),
+    timeoutMs: resolveTimeoutMs(env, deps.fileConfig),
+    ...(deps.fileConfig?.retries !== undefined ? { retries: deps.fileConfig.retries } : {}),
+    ...(deps.fileConfig?.backoffMs !== undefined ? { backoffMs: deps.fileConfig.backoffMs } : {}),
   };
 }
 

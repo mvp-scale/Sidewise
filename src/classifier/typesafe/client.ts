@@ -37,7 +37,9 @@ interface JevClient {
 
 const NO_KEY_MESSAGE = '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY (direct) or AI_GATEWAY_API_KEY (gateway), or SIDEWISE_PROVIDER=fake to try requests';
 
-/** Retries beyond the first attempt: 2 more tries, 3 attempts total. */
+/** Retries beyond the first attempt: 2 more tries, 3 attempts total — the hardcoded default; plan 2c B1's
+ *  `config.retries`/`config.backoffMs` (config.yaml → JevConfig, see typesafe/config.ts) override either one
+ *  per project, since `config` here already carries them when a caller resolved it with `deps.fileConfig`. */
 const MAX_RETRIES = 2;
 const BASE_BACKOFF_MS = 1000;
 const MAX_BACKOFF_MS = 10_000;
@@ -45,8 +47,8 @@ const defaultSleep = (ms: number): Promise<void> => new Promise((resolve) => set
 
 /** attempt 1 (the first retry) waits ~1s, attempt 2 ~2s — doubling, capped — plus up to 20% jitter so several
  *  callers backing off at once don't all wake in lockstep. */
-function backoffMs(attempt: number): number {
-  const base = Math.min(BASE_BACKOFF_MS * 2 ** (attempt - 1), MAX_BACKOFF_MS);
+function backoffMs(attempt: number, base0: number): number {
+  const base = Math.min(base0 * 2 ** (attempt - 1), MAX_BACKOFF_MS);
   return Math.min(base + Math.random() * base * 0.2, MAX_BACKOFF_MS);
 }
 
@@ -55,6 +57,8 @@ export function createJevClient(config: JevConfig, deps: { fetch?: typeof fetch;
   if (key === undefined) throw new JevConfigError(NO_KEY_MESSAGE);
   const doFetch = deps.fetch ?? globalThis.fetch;
   const sleep = deps.sleep ?? defaultSleep;
+  const maxRetries = config.retries ?? MAX_RETRIES;
+  const base0 = config.backoffMs ?? BASE_BACKOFF_MS;
   return {
     config,
     async ask(request, opts = {}) {
@@ -65,8 +69,8 @@ export function createJevClient(config: JevConfig, deps: { fetch?: typeof fetch;
           const parsed = parseAnswers(body, request.questions);
           return requestId ? { ...parsed, requestId } : parsed;
         } catch (e) {
-          if (!(e instanceof JevApiError) || !e.retryable || attempt > MAX_RETRIES) throw e;
-          const waitMs = e.retryAfterMs !== undefined ? Math.min(e.retryAfterMs, MAX_BACKOFF_MS) : backoffMs(attempt);
+          if (!(e instanceof JevApiError) || !e.retryable || attempt > maxRetries) throw e;
+          const waitMs = e.retryAfterMs !== undefined ? Math.min(e.retryAfterMs, MAX_BACKOFF_MS) : backoffMs(attempt, base0);
           await sleep(waitMs);
         }
       }
