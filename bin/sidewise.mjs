@@ -13206,11 +13206,11 @@ function outcomeCard() {
     ],
     [
       "patterns:",
-      "- why: can't self-certify a run as held",
+      "- why: held needs a second actor; never self-certify",
       "  bad:",
       "    sidewise outcome SW-0002 held --by claude",
       "  good:",
-      "    sidewise outcome SW-0002 overruled --by claude"
+      "    sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>"
     ]
   );
 }
@@ -13332,7 +13332,7 @@ var OUTCOME_PAIRS = [
       "sidewise outcome SW-0002 held --by claude   # claude is the actor that asked SW-0002",
       `\u2192 \u2716 outcome: claude asked SW-0002, so it can't mark it held \u2192 another agent or the owner records "held"`
     ],
-    good: ["sidewise outcome SW-0002 overruled --by claude   # or: held --by a different actor"]
+    good: ["sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>"]
   },
   {
     rule: "`outcome` takes no reason field.",

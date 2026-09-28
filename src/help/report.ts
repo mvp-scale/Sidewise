@@ -37,7 +37,7 @@ const OUTCOME_PAIRS: readonly CliPair[] = [
       'sidewise outcome SW-0002 held --by claude   # claude is the actor that asked SW-0002',
       '→ ✖ outcome: claude asked SW-0002, so it can\'t mark it held → another agent or the owner records "held"',
     ],
-    good: ['sidewise outcome SW-0002 overruled --by claude   # or: held --by a different actor'],
+    good: ['sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>'],
   },
   {
     rule: '`outcome` takes no reason field.',

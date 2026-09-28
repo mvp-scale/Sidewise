@@ -74,11 +74,11 @@ function outcomeCard(): string {
     ],
     [
       'patterns:',
-      "- why: can't self-certify a run as held",
+      '- why: held needs a second actor; never self-certify',
       '  bad:',
       '    sidewise outcome SW-0002 held --by claude',
       '  good:',
-      '    sidewise outcome SW-0002 overruled --by claude',
+      '    sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>',
     ],
   );
 }
