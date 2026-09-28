@@ -8443,7 +8443,7 @@ function readRecordAt(logPath, offset) {
   }
 }
 function emptyMemoryState() {
-  return { runOffset: /* @__PURE__ */ new Map(), blocked: /* @__PURE__ */ new Set(), reuseKey: /* @__PURE__ */ new Map(), candidatesByWho: /* @__PURE__ */ new Map(), places: [], childrenByParent: /* @__PURE__ */ new Map(), outcomes: /* @__PURE__ */ new Map(), allRuns: [], runCount: 0, upto: 0, lineCount: 0 };
+  return { runOffset: /* @__PURE__ */ new Map(), blocked: /* @__PURE__ */ new Set(), reuseKey: /* @__PURE__ */ new Map(), candidatesByWho: /* @__PURE__ */ new Map(), places: [], categories: [], childrenByParent: /* @__PURE__ */ new Map(), outcomes: /* @__PURE__ */ new Map(), allRuns: [], runCount: 0, upto: 0, lineCount: 0 };
 }
 function memorySink(state) {
   return {
@@ -8465,6 +8465,7 @@ function memorySink(state) {
         for (const [qid, key2] of Object.entries(rec.keys)) table.set(key2, { runId: rec.reusedFrom[qid] ?? rec.id, qid });
         for (const w of rec.where) state.places.push({ kind: "where", val: stripLines(w), runId: rec.id });
         for (const p of sweepPlaces(rec)) state.places.push({ ...p, runId: rec.id });
+        for (const c of runCategories(rec)) state.categories.push({ runId: rec.id, name: c.name, section: c.section, family: c.family ?? null, gate: rec.categories[c.name] ?? null });
       } else {
         for (const w of rec.where) state.places.push({ kind: "where", val: w.path, runId: rec.id });
         for (const t of rec.tags) state.places.push({ kind: "tag", val: t, runId: rec.id });
@@ -8553,6 +8554,20 @@ function handleFromMemory(state) {
         return { pattern, ...c, places: placesByPattern.get(pattern)?.size ?? 0, outcomes: { ...oc, open: c.runs - oc.held - oc.overruled - oc.failed } };
       }).sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
     },
+    familyCounts: () => {
+      const byFamily = /* @__PURE__ */ new Map();
+      for (const c of state.categories) {
+        if (!c.family) continue;
+        const cur = byFamily.get(c.family) ?? { categories: 0, pass: 0, fail: 0, unsure: 0, runs: /* @__PURE__ */ new Set() };
+        cur.categories += 1;
+        cur.runs.add(c.runId);
+        if (c.gate === "pass") cur.pass += 1;
+        else if (c.gate === "fail") cur.fail += 1;
+        else if (c.gate === "unsure") cur.unsure += 1;
+        byFamily.set(c.family, cur);
+      }
+      return [...byFamily.entries()].map(([family, v]) => ({ family, categories: v.categories, runs: v.runs.size, pass: v.pass, fail: v.fail, unsure: v.unsure })).sort((a, b) => b.categories - a.categories || a.family.localeCompare(b.family));
+    },
     recentChanges: (limit) => state.allRuns.filter((r) => r.verb === "change").slice(-limit).reverse().map((r) => ({ id: r.id, offset: r.offset })),
     recentOutcomes: (limit) => [...state.outcomes.entries()].slice(-limit).reverse().map(([runId, r]) => ({ runId, outcome: r.outcome, ts: r.ts, by: r.by }))
   };
@@ -8579,7 +8594,7 @@ function buildMemoryHandle(paths) {
   memoryCache = { logPath: paths.log, size, mtimeMs, state };
   return handleFromMemory(state);
 }
-var SCHEMA_VERSION = 4;
+var SCHEMA_VERSION = 5;
 var SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE runs (
@@ -8621,7 +8636,20 @@ CREATE TABLE places (
   PRIMARY KEY (kind, val, run_id)
 );
 CREATE INDEX idx_places_val ON places(kind, val);
+CREATE TABLE categories (
+  run_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  section TEXT NOT NULL,
+  family TEXT,
+  gate TEXT,
+  PRIMARY KEY (run_id, name)
+);
+CREATE INDEX idx_categories_family ON categories(family);
 `;
+function runCategories(rec) {
+  if (!isContractRun(rec)) return [];
+  return rec.ask.categories.length ? rec.ask.categories : rec.ask.layers.flatMap((l) => l.categories);
+}
 var __testOnly = { forceFallback: false, throwOnCandidates: false, forceSqliteMissing: false };
 function isSqliteExperimentalWarning(w) {
   return w.name === "ExperimentalWarning" && /sqlite/iu.test(w.message ?? "");
@@ -8672,6 +8700,7 @@ function prepStatements(db) {
     insertKey: db.prepare("INSERT OR REPLACE INTO answer_keys (adapter, model, key, run_id, qid) VALUES (?, ?, ?, ?, ?)"),
     insertOutcome: db.prepare("INSERT OR REPLACE INTO outcomes (run_id, outcome, uid, ts, by) VALUES (?, ?, ?, ?, ?)"),
     insertPlace: db.prepare("INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)"),
+    insertCategory: db.prepare("INSERT OR REPLACE INTO categories (run_id, name, section, family, gate) VALUES (?, ?, ?, ?, ?)"),
     updateBlocked: db.prepare("UPDATE runs SET blocked = ? WHERE id = ?")
   };
 }
@@ -8690,6 +8719,7 @@ function sqlSink(stmts) {
         for (const [qid, key2] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key2, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run("where", stripLines(w), rec.id);
         for (const p of sweepPlaces(rec)) stmts.insertPlace.run(p.kind, p.val, rec.id);
+        for (const c of runCategories(rec)) stmts.insertCategory.run(rec.id, c.name, c.section, c.family ?? null, rec.categories[c.name] ?? null);
       } else {
         for (const w of rec.where) stmts.insertPlace.run("where", w.path, rec.id);
         for (const t of rec.tags) stmts.insertPlace.run("tag", t, rec.id);
@@ -8747,6 +8777,9 @@ function handleFromSql(db) {
   );
   const stPatternOutcomes = db.prepare(
     `SELECT r.pattern AS pattern, o.outcome AS outcome, COUNT(*) AS n FROM runs r JOIN outcomes o ON o.run_id = r.id WHERE r.pattern IS NOT NULL GROUP BY r.pattern, o.outcome`
+  );
+  const stFamilyCounts = db.prepare(
+    `SELECT family, COUNT(*) AS categories, COUNT(DISTINCT run_id) AS runs, SUM(CASE WHEN gate = 'pass' THEN 1 ELSE 0 END) AS pass, SUM(CASE WHEN gate = 'fail' THEN 1 ELSE 0 END) AS fail, SUM(CASE WHEN gate = 'unsure' THEN 1 ELSE 0 END) AS unsure FROM categories WHERE family IS NOT NULL GROUP BY family`
   );
   const stRecentChanges = db.prepare("SELECT id, offset FROM runs WHERE verb = ? ORDER BY rowid DESC LIMIT ?");
   const stRecentOutcomes = db.prepare("SELECT run_id AS runId, outcome, ts, by FROM outcomes ORDER BY rowid DESC LIMIT ?");
@@ -8816,6 +8849,7 @@ function handleFromSql(db) {
         };
       }).sort((a, b) => b.runs - a.runs || a.pattern.localeCompare(b.pattern));
     },
+    familyCounts: () => stFamilyCounts.all().map((r) => ({ family: String(r.family), categories: Number(r.categories), runs: Number(r.runs), pass: Number(r.pass), fail: Number(r.fail), unsure: Number(r.unsure) })).sort((a, b) => b.categories - a.categories || a.family.localeCompare(b.family)),
     recentChanges: (limit) => stRecentChanges.all("change", limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
     recentOutcomes: (limit) => stRecentOutcomes.all(limit).map((r) => ({ runId: String(r.runId), outcome: r.outcome, ts: String(r.ts), by: String(r.by) }))
   };
@@ -9019,6 +9053,7 @@ function isRecord2(v) {
   const r = v;
   if (r.kind === "outcome") return [r.id, r.of, r.outcome, r.by, r.ts].every(isText);
   if (r.kind === "failed") return [r.id, r.ts, r.verb, r.actor, r.adapter, r.model, r.reason].every(isText);
+  if (r.kind === "lookup") return [r.id, r.uid, r.ts, r.goal].every(isText) && Array.isArray(r.where) && r.where.every(isText) && typeof r.hit === "boolean";
   if (r.kind !== "run") return false;
   if (r.v === 2) {
     return [r.id, r.uid, r.ts, r.verb, r.goal, r.gate, r.adapter, r.model, r.actor, r.response].every(isText) && Array.isArray(r.where) && r.where.every(isText) && isObj(r.answers) && isObj(r.keys) && isObj(r.categories);
@@ -9160,6 +9195,14 @@ function appendFailedLocked(paths, failed, now = Date.now()) {
   const record2 = { kind: "failed", id: uid, uid, ts: iso2(now), ...redactDeep(failed), actor: redactSecrets(failed.actor) };
   appendLine(paths, record2);
   return record2;
+}
+function appendLookup(paths, lookup, now = Date.now()) {
+  return withLock(paths.lock, () => {
+    const uid = ulid(now);
+    const record2 = { kind: "lookup", id: uid, uid, ts: iso2(now), ...redactDeep(lookup) };
+    appendLine(paths, record2);
+    return record2;
+  });
 }
 function appendOutcome(paths, of, outcome, by, now = Date.now()) {
   return withLock(paths.lock, () => {
@@ -10170,22 +10213,31 @@ import { createHash as createHash2 } from "node:crypto";
 // src/contract/types.ts
 var VERBS = ["view", "class", "change", "scan", "drill", "loop"];
 var DEPTHS = ["quick", "standard", "thorough"];
-var DEPTH_COUNT = { quick: 10, standard: 20, thorough: 30 };
+var DEPTH_COUNT = { quick: 9, standard: 18, thorough: 27 };
+var SWEEP_ITEM_CAP = { quick: 10, standard: 20, thorough: 30 };
 var WHYS = ["validate", "find", "debug"];
 var AREAS = ["data", "api", "ui", "auth", "hosting", "build", "tests"];
 var STAGES = ["design", "build", "review", "pre-merge", "post-fix", "release"];
 var CHANGES = ["feature", "fix", "refactor", "dependency", "config"];
 var RISKS = ["low", "medium", "high"];
-var MAX_EXTRAS = 5;
+var DECISIONS_MIN = 2;
+var DECISIONS_MAX = 5;
+var FAMILIES = ["access", "injection", "secrets", "input", "output", "availability", "correctness", "design", "design-risk", "done", "other"];
+var BLASTS = ["code", "component", "container", "system", "person"];
 
 // src/contract/schema-check.ts
 var TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
 var RUN_ID2 = /^SW-\d{4,}$/u;
 var PATH = /^[^\s:]+(:\d+(-\d+)?)?$/u;
 var QNUM = /^[1-9][0-9]*$/u;
-var SIDE_KEYS = ["goal", "depth", "where", "parent", "ask", "over", "from", "compare", "verb"];
-var CATEGORY_KEYS = ["pass", "need", "tags"];
+var SIDE_KEYS = ["goal", "depth", "where", "parent", "ask", "over", "from", "compare", "verb", "expect"];
+var CATEGORY_KEYS = ["pass", "need", "tags", "family"];
+var SECTION_NAMES = ["concerns", "decisions"];
 var NOT_QUESTIONS = /^(yes|no|true|false|on|off|y|n)$/iu;
+var NODE_LEVELS = ["person", "system", "container", "component", "code"];
+var NODE = `(?:${NODE_LEVELS.join("|")}):[A-Za-z0-9._/-]+`;
+var CHAIN = `${NODE}(?: -> ${NODE})*`;
+var NODES_RE = new RegExp(`^${CHAIN}(?:; ${CHAIN})*$`, "u");
 var isObj2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 var len = (s) => [...s].length;
 var show = (v) => clip(typeof v === "string" ? `"${v}"` : JSON.stringify(v) ?? String(v), 40);
@@ -10251,55 +10303,77 @@ function checkCategory(v, field, out) {
       out.add(`${field}.tags`, `${show(t)}`, "give up to 3 tags, lowercase kebab-case, \u2264 20 characters");
     }
   }
+  if ("family" in v && !FAMILIES.includes(v.family)) out.add(`${field}.family`, show(v.family), `use ${list(FAMILIES)}`);
   for (const [k, q] of Object.entries(v)) {
     if (CATEGORY_KEYS.includes(k)) continue;
     if (!QNUM.test(k)) {
-      out.add(`${field}.${clip(k, 20)}`, "not a question number or category key", /^0+$/u.test(k) ? "number questions from 1" : "a category holds pass, need, tags and numbered questions");
+      out.add(`${field}.${clip(k, 20)}`, "not a question number or category key", /^0+$/u.test(k) ? "number questions from 1" : "a category holds pass, need, tags, family and numbered questions");
       continue;
     }
     checkQuestion(q, k, out);
   }
 }
-function checkAsk(ask2, out) {
-  if (!isObj2(ask2)) return out.add("side.ask", "is not a mapping", "write categories under ask:, each with pass: and numbered questions");
-  if (Object.keys(ask2).length === 0) return out.add("side.ask", "is empty", "add a category with pass: and numbered questions");
-  checkTagKeys(ask2, "side.ask", "category or layer", out);
-  for (const [name, v] of Object.entries(ask2)) {
-    const field = `side.ask.${clip(name, 20)}`;
-    if (!isObj2(v)) {
-      out.add(field, "is not a category", "give it pass: and numbered questions");
+function checkCategoriesMap(categories, field, out) {
+  if (!isObj2(categories)) return out.add(field, "is not a mapping", "give each category pass: and numbered questions");
+  if (Object.keys(categories).length === 0) return out.add(field, "is empty", "add a category with pass: and numbered questions");
+  checkTagKeys(categories, field, "category", out);
+  for (const [name, c] of Object.entries(categories)) {
+    const cfield = `${field}.${clip(name, 20)}`;
+    if (!isObj2(c) || !("pass" in c)) out.add(cfield, "is not a category", "give it pass: and numbered questions");
+    else checkCategory(c, cfield, out);
+  }
+}
+function checkSectionsBlock(v, field, out) {
+  for (const k of Object.keys(v)) {
+    if (!SECTION_NAMES.includes(k)) out.add(`${field}.${clip(k, 20)}`, "not concerns or decisions", "use concerns: or decisions:");
+  }
+  if ("concerns" in v) checkCategoriesMap(v.concerns, `${field}.concerns`, out);
+  if ("decisions" in v) checkCategoriesMap(v.decisions, `${field}.decisions`, out);
+}
+function checkAsk(ask2, verb, out) {
+  const templateHint = `sidewise template ${verb ?? "<verb>"}`;
+  if (!isObj2(ask2)) return out.add("side.ask", "is not a mapping", `add concerns: and decisions: (${templateHint})`);
+  if (Object.keys(ask2).length === 0) return out.add("side.ask", "is empty", `add concerns: and decisions: (${templateHint})`);
+  if ("concerns" in ask2 || "decisions" in ask2) {
+    checkSectionsBlock(ask2, "side.ask", out);
+    return;
+  }
+  const looksFlat = Object.values(ask2).some((v) => isObj2(v) && "pass" in v);
+  if (looksFlat) return out.add("side.ask", "put categories under concerns: (yes/no) and decisions: (scale/choice)", templateHint);
+  checkTagKeys(ask2, "side.ask", "layer", out);
+  for (const [layer, v] of Object.entries(ask2)) {
+    const field = `side.ask.${clip(layer, 20)}`;
+    if (layer === "concerns" || layer === "decisions") {
+      out.add(field, '"concerns"/"decisions" are reserved for ask sections', "use a different layer name");
       continue;
     }
-    if ("pass" in v) {
-      checkCategory(v, field, out);
+    if (!isObj2(v) || Object.keys(v).length === 0) {
+      out.add(field, "is empty", "give it concerns: and/or decisions:");
       continue;
     }
-    if (Object.entries(v).some(([k, x]) => QNUM.test(k) && !isObj2(x))) {
-      out.add(field, "has questions but no pass", 'add "pass: yes" or "pass: no"');
-      continue;
-    }
-    if (Object.keys(v).length === 0) {
-      out.add(field, "is empty", "give it pass: and numbered questions");
-      continue;
-    }
-    checkTagKeys(v, field, "category", out);
-    for (const [cname, c] of Object.entries(v)) {
-      const cfield = `${field}.${clip(cname, 20)}`;
-      if (!isObj2(c) || !("pass" in c)) out.add(cfield, "is not a category", "give it pass: and numbered questions");
-      else checkCategory(c, cfield, out);
-    }
+    checkSectionsBlock(v, field, out);
   }
 }
 function checkOverShape(over, out) {
   if (!isObj2(over) || Object.keys(over).length === 0) return out.add("side.over", "is not a mapping of layers", "write over: with a layer name and its items, e.g. part: [a, b]");
   checkTagKeys(over, "side.over", "layer", out);
   for (const [layer, v] of Object.entries(over)) {
+    if (layer === "concerns" || layer === "decisions") out.add(`side.over.${layer}`, '"concerns"/"decisions" are reserved for ask sections', "use a different layer name");
     if (typeof v === "string") continue;
     if (!Array.isArray(v)) out.add(`side.over.${clip(layer, 20)}`, "is not a list or a pattern", "write a list of items, a file pattern, or each");
     else if (v.length < 1 || v.length > 30) out.add(`side.over.${clip(layer, 20)}`, `${v.length} items`, "give 1\u201330 items");
   }
 }
-function checkSide(side, out) {
+function checkTouches(v, out) {
+  if (!Array.isArray(v)) return out.add("wise.touches", "must be a list", "write [a, b]");
+  if (v.length > 5) out.add("wise.touches", `${v.length} entries`, "give up to 5");
+  v.forEach((x, i) => {
+    if (typeof x !== "string" || x.includes("\n") || len(x) < 1 || len(x) > 40) {
+      out.add(`wise.touches[${i}]`, show(x), "each entry is 1\u201340 characters, one line");
+    }
+  });
+}
+function checkSide(side, verb, out) {
   if (!isObj2(side)) return out.add("side", "is not a mapping", "put goal: and the other fields under side:");
   for (const k of Object.keys(side)) {
     if (!SIDE_KEYS.includes(k)) out.add(`side.${clip(k, 20)}`, "not a field", `use ${list(SIDE_KEYS)}`);
@@ -10322,11 +10396,19 @@ function checkSide(side, out) {
     const ok2 = isObj2(c) && typeof c.before === "string" && typeof c.after === "string" && Object.keys(c).every((k) => k === "before" || k === "after");
     if (!ok2) out.add("side.compare", show(c), "write compare: {before: main, after: HEAD}");
   }
+  if ("expect" in side) {
+    const e = side.expect;
+    if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === "string" && isTag(x))) {
+      out.add("side.expect", show(e), "give 1\u20139 concern names, lowercase kebab-case, \u2264 20 characters");
+    } else if (new Set(e).size !== e.length) {
+      out.add("side.expect", "repeated concern name", "make each one different");
+    }
+  }
   if ("verb" in side && !VERBS.includes(side.verb)) out.add("side.verb", show(side.verb), `use ${list(VERBS)}, or leave it out`);
-  if ("ask" in side) checkAsk(side.ask, out);
+  if ("ask" in side) checkAsk(side.ask, verb, out);
   if ("over" in side) checkOverShape(side.over, out);
 }
-var WISE_KEYS = ["why", "area", "stage", "change", "risk", "parent"];
+var WISE_KEYS = ["why", "area", "stage", "change", "risk", "parent", "problem", "nodes", "touches", "blast"];
 function checkWise(wise2, out) {
   if (!isObj2(wise2)) return out.add("wise", "is not a mapping", "write why:, area: or parent: under wise:, or leave wise out");
   for (const k of Object.keys(wise2)) if (!WISE_KEYS.includes(k)) out.add(`wise.${clip(k, 20)}`, "not a field", `use ${list(WISE_KEYS)}`);
@@ -10336,8 +10418,22 @@ function checkWise(wise2, out) {
   if ("change" in wise2 && !CHANGES.includes(wise2.change)) out.add("wise.change", show(wise2.change), `use ${list(CHANGES)}`);
   if ("risk" in wise2 && !RISKS.includes(wise2.risk)) out.add("wise.risk", show(wise2.risk), `use ${list(RISKS)}`);
   if ("parent" in wise2 && !(typeof wise2.parent === "string" && RUN_ID2.test(wise2.parent))) out.add("wise.parent", `${show(wise2.parent)} is not a run id`, "use SW-####");
+  if ("problem" in wise2) {
+    const bad = lineProblem(wise2.problem);
+    if (bad) out.add("wise.problem", bad, "write one line of 3\u2013160 characters: what you're solving now");
+  }
+  if ("nodes" in wise2) {
+    const n = wise2.nodes;
+    if (typeof n !== "string") out.add("wise.nodes", show(n), "write a level:name chain, e.g. container:api -> component:dao");
+    else if (len(n) > MAX_QUESTION_CHARS) out.add("wise.nodes", `is longer than ${MAX_QUESTION_CHARS} characters`, "shorten the chain");
+    else if (!NODES_RE.test(n)) {
+      out.add("wise.nodes", `${show(n)} is not a level:name chain`, `use level:name ( -> level:name)*, joined by "; " (level: ${list(NODE_LEVELS)})`);
+    }
+  }
+  if ("touches" in wise2) checkTouches(wise2.touches, out);
+  if ("blast" in wise2 && !BLASTS.includes(wise2.blast)) out.add("wise.blast", show(wise2.blast), `use ${list(BLASTS)}`);
 }
-function checkSchema(value) {
+function checkSchema(value, verb) {
   const out = new Out();
   if (!isObj2(value)) {
     out.add("request", "is not a mapping", "start with side:");
@@ -10347,7 +10443,7 @@ function checkSchema(value) {
     if (k !== "side" && k !== "wise") out.add(clip(k, 20), "not a block", "the request holds only side: and wise:; put fields under side:");
   }
   if (!("side" in value)) out.add("side", "missing", "start with side: and a goal");
-  else checkSide(value.side, out);
+  else checkSide(value.side, verb, out);
   if ("wise" in value) checkWise(value.wise, out);
   return out.stops;
 }
@@ -10409,6 +10505,7 @@ function mapLayers(over) {
   };
   for (const l of chain) walk2(l, over[l]);
   if (layers.length > MAX_LAYERS) problems.push(`\u2716 side.over: ${layers.length} layers \u2192 at most ${MAX_LAYERS}; split the request`);
+  for (const l of layers) if (l === "concerns" || l === "decisions") problems.push(`\u2716 side.over.${l}: "${l}" is reserved for ask sections \u2192 use a different layer name`);
   return { layers, chain, ancestors, problems: [...new Set(problems)] };
 }
 function firstStringLayer(over) {
@@ -10677,6 +10774,12 @@ function readCodeEvidence(root, where, opts = {}) {
 var FATAL = /fatal: (invalid object name|Path .* does not exist)/u;
 var WHOLE_FILE_NOTE = "reading whole files: line ranges may not match the parent run";
 var isGitOption = (ref) => ref.startsWith("-");
+function currentCommitSha(root, deps) {
+  const spawn = deps?.spawn ?? spawnSync;
+  const result = spawn("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" });
+  const out = typeof result.stdout === "string" ? result.stdout.trim() : "";
+  return result.status === 0 && out ? out : null;
+}
 function gitRootOf(dir, spawn) {
   const result = spawn("git", ["rev-parse", "--show-toplevel"], { cwd: dir, encoding: "utf8" });
   const out = typeof result.stdout === "string" ? result.stdout.trim() : "";
@@ -11042,32 +11145,32 @@ function readRequestText(text) {
 var NEEDS = {
   class: ["depth", "where", "ask"],
   view: ["where"],
-  change: ["parent", "compare"],
+  change: ["parent", "compare", "expect"],
   scan: ["depth", "over", "ask"],
   loop: ["depth", "over", "ask"],
   drill: ["parent", "from", "ask"]
 };
 var NEVER = {
-  class: ["over", "from", "compare", "parent"],
-  view: ["over", "from", "compare", "parent"],
+  class: ["over", "from", "compare", "expect"],
+  view: ["over", "from", "compare", "expect"],
   change: ["ask", "over", "from", "where", "depth"],
-  scan: ["where", "from", "compare", "parent"],
-  loop: ["from", "compare", "parent"],
-  drill: ["compare", "where"]
+  scan: ["where", "from", "compare", "expect"],
+  loop: ["from", "compare", "expect"],
+  drill: ["compare", "where", "expect"]
 };
 var STRINGS = { scan: "scan", drill: "each-only", loop: "none", class: "none", view: "none", change: "none" };
-var RESERVED2 = ["id", "gate", "goal", "consensus", "escalate", "regressed", "failing", "passing", "scanned", "reused", "view", "reuse", "runs", "categories"];
+var RESERVED2 = ["id", "gate", "goal", "consensus", "escalate", "regressed", "expected", "failing", "passing", "scanned", "reused", "view", "reuse", "runs", "categories"];
 var IRREVERSIBLE = /\b(delete|deploy|drop|pay|payment|migrat\w*|secret|credential)s?\b/iu;
 var IRREVERSIBLE_NOTE = "looks irreversible; don't act on this alone";
 function how(field, verb) {
   const sweep = verb === "scan" || verb === "loop" || verb === "drill";
   switch (field) {
     case "depth":
-      return sweep ? 'add "depth: quick" (at most 10 items asked per layer; standard 20, thorough 30)' : 'add "depth: quick" (10 yes/no questions; standard 20, thorough 30)';
+      return sweep ? 'add "depth: quick" (at most 10 items asked per layer; standard 20, thorough 30)' : 'add "depth: quick" (9 yes/no questions across 3 concerns; standard 18, thorough 27)';
     case "where":
       return 'add "where: [path/to/file.ts]"';
     case "ask":
-      return `add ask: with a category, its pass: and numbered questions (sidewise template ${verb})`;
+      return `add ask: with concerns: and decisions: (sidewise template ${verb})`;
     case "parent":
       return 'add "parent: SW-####" (the run this builds on)';
     case "compare":
@@ -11076,11 +11179,13 @@ function how(field, verb) {
       return `add over: with the layers to sweep (sidewise template ${verb})`;
     case "from":
       return 'add "from: <an item id or a category of the parent run>"';
+    case "expect":
+      return `add "expect: [concern-name, ...]" (which of the parent's concerns this change should fix)`;
   }
 }
 function never(field, verb) {
   if (verb === "change" && field === "ask") return "\u2716 side.ask: change replays the parent's questions \u2192 remove ask; for new questions, use class";
-  if (field === "parent") return "\u2716 side.parent: only drill and change build on a parent \u2192 move it to wise.parent (lineage)";
+  if (field === "expect") return "\u2716 side.expect: only change predicts fixed concerns \u2192 remove it";
   if (field === "over") return `\u2716 side.over: ${verb} asks about one subject \u2192 remove over, or use loop or scan to sweep`;
   if (field === "where" && verb === "scan") return "\u2716 side.where: scan reads the files in over \u2192 remove where";
   if (field === "where") return `\u2716 side.where: ${verb} reads the parent run's code \u2192 remove where`;
@@ -11114,10 +11219,17 @@ function toQuestion(n, raw) {
   if ("scale" in o) return { n, kind: "scale", text: o.scale, levels: o.levels };
   return { n, kind: "choice", text: o.choice, options: o.options };
 }
-function toCategory(name, raw) {
+function familyFor(raw, name, section) {
+  if (section !== "concerns") return {};
+  const given = raw.family;
+  if (typeof given === "string" && FAMILIES.includes(given)) return { family: given, familySource: "given" };
+  if (FAMILIES.includes(name)) return { family: name, familySource: "name" };
+  return {};
+}
+function toCategory(name, raw, section) {
   const pass = raw.pass === true ? "yes" : raw.pass === false ? "no" : raw.pass;
   const questions = Object.entries(raw).filter(([k]) => /^[1-9][0-9]*$/u.test(k)).map(([k, q]) => toQuestion(Number(k), q)).sort((a, b) => a.n - b.n);
-  return { name, pass, need: raw.need ?? "all", tags: raw.tags ?? [], questions };
+  return { name, section, ...familyFor(raw, name, section), pass, need: raw.need ?? "all", tags: raw.tags ?? [], questions };
 }
 function checkCategory2(c, field, out) {
   const kinds = new Set(c.questions.map((q) => q.kind));
@@ -11128,7 +11240,12 @@ function checkCategory2(c, field, out) {
     return;
   }
   const kind = [...kinds][0];
-  if (kind === "yesno" && Array.isArray(c.pass)) out.push(cross(`\u2716 ${field}.pass: a list is for scale or choice questions \u2192 use yes or no`));
+  if (c.section === "concerns") {
+    if (kind && kind !== "yesno") out.push(cross(`\u2716 ${field}: a concerns category must be yes/no only \u2192 use decisions: for scale or choice`));
+    if (Array.isArray(c.pass)) out.push(cross(`\u2716 ${field}.pass: a list is for scale or choice questions \u2192 use yes or no`));
+    return;
+  }
+  if (kind === "yesno") out.push(cross(`\u2716 ${field}: a decisions category must be scale or choice \u2192 use concerns: for yes/no`));
   if (kind && kind !== "yesno") {
     if (!Array.isArray(c.pass)) {
       out.push(cross(`\u2716 ${field}.pass: ${kind} questions need the passing ${kind === "scale" ? "levels" : "options"} \u2192 e.g. pass: [none, low]`));
@@ -11143,6 +11260,28 @@ function checkCategory2(c, field, out) {
     }
   }
 }
+function buildCategories(sections, field, out) {
+  const cats = [];
+  for (const section of ["concerns", "decisions"]) {
+    const map = sections[section];
+    if (!isObj2(map)) continue;
+    for (const [name, raw] of Object.entries(map)) {
+      if (!isObj2(raw)) continue;
+      const c = toCategory(name, raw, section);
+      checkCategory2(c, `${field}.${section}.${name}`, out);
+      if (section === "decisions" && "family" in raw) {
+        out.push(cross(`\u2716 ${field}.decisions.${name}.family: family only applies to concerns categories \u2192 remove it`));
+      }
+      cats.push(c);
+    }
+  }
+  const concernNums = cats.filter((c) => c.section === "concerns").flatMap((c) => c.questions.map((q) => q.n));
+  const decisionNums = cats.filter((c) => c.section === "decisions").flatMap((c) => c.questions.map((q) => q.n));
+  if (concernNums.length && decisionNums.length && Math.max(...concernNums) > Math.min(...decisionNums)) {
+    out.push(cross(`\u2716 ${field}: decisions must be numbered after every concern \u2192 renumber decisions last`));
+  }
+  return cats;
+}
 function checkNumbers(categories, out) {
   const seen = /* @__PURE__ */ new Set();
   for (const n of categories.flatMap((c) => c.questions.map((q) => q.n))) {
@@ -11151,11 +11290,39 @@ function checkNumbers(categories, out) {
   }
   const sorted = [...seen].sort((a, b) => a - b);
   if (sorted.some((n, i) => n !== i + 1)) out.push(cross(`\u2716 question numbers: ${clip(sorted.join(" "), 60)} \u2192 number them 1\u2026${sorted.length} with no gaps`));
-  const extras = categories.flatMap((c) => c.questions).filter((q) => q.kind !== "yesno").length;
-  if (extras > MAX_EXTRAS) out.push(cross(`\u2716 side.ask: ${extras} scale/choice questions \u2192 at most ${MAX_EXTRAS}`));
+}
+function contractIssues(categories, depth, field) {
+  const out = [];
+  const concerns = categories.filter((c) => c.section === "concerns");
+  const decisions = categories.filter((c) => c.section === "decisions");
+  for (const c of concerns) {
+    if (c.questions.every((q) => q.kind === "yesno") && c.questions.length !== 3) {
+      out.push({ field: `${field}.concerns.${c.name}`, problem: `${c.questions.length} probe${c.questions.length === 1 ? "" : "s"}`, fix: "give it exactly 3" });
+    }
+  }
+  for (const c of decisions) {
+    if (c.questions.some((q) => q.kind !== "yesno") && c.questions.length !== 1) {
+      out.push({ field: `${field}.decisions.${c.name}`, problem: `${c.questions.length} questions`, fix: "give it exactly 1" });
+    }
+  }
+  if (depth !== void 0) {
+    const want = DEPTH_COUNT[depth] / 3;
+    if (concerns.length !== want) {
+      out.push({ field: `${field}.concerns`, problem: `${concerns.length} categor${concerns.length === 1 ? "y" : "ies"}`, fix: `${depth} needs exactly ${want}` });
+    }
+  }
+  if (decisions.length < DECISIONS_MIN || decisions.length > DECISIONS_MAX) {
+    out.push({ field: `${field}.decisions`, problem: `${decisions.length} categor${decisions.length === 1 ? "y" : "ies"}`, fix: `give ${DECISIONS_MIN}\u2013${DECISIONS_MAX}` });
+  } else {
+    const kinds = new Set(decisions.flatMap((c) => c.questions.map((q) => q.kind)));
+    if (!kinds.has("scale")) out.push({ field: `${field}.decisions`, problem: "no scale question", fix: "add at least one scale: question" });
+    if (!kinds.has("choice")) out.push({ field: `${field}.decisions`, problem: "no choice question", fix: "add at least one choice: question" });
+  }
+  return out;
 }
 function checkCross(raw, verb) {
   const out = [];
+  const notes = [];
   const side = raw.side;
   if (side.verb !== void 0 && side.verb !== verb) out.push(cross(`\u2716 side.verb: says "${side.verb}" but you ran ${verb} \u2192 remove side.verb, or run sidewise ${side.verb}`));
   for (const f of NEEDS[verb]) if (!(f in side)) out.push(cross(`\u2716 side.${f}: ${verb} needs it \u2192 ${how(f, verb)}`));
@@ -11166,42 +11333,41 @@ function checkCross(raw, verb) {
   const categories = [];
   const layers = [];
   if (over === void 0) {
-    for (const [name, v] of Object.entries(ask2)) {
-      if (!("pass" in v)) {
-        out.push(cross(`\u2716 side.ask.${name}: categories go straight under ask for one subject \u2192 give ${name} a pass:, or add over: to sweep`));
-        continue;
-      }
-      const c = toCategory(name, v);
-      checkCategory2(c, `side.ask.${name}`, out);
-      categories.push(c);
+    const categoriesGiven = Object.keys(ask2).length > 0;
+    const cats = buildCategories(ask2, "side.ask", out);
+    categories.push(...cats);
+    for (const c of cats) {
       for (const q of c.questions) {
         const b = blanksIn(q.text)[0];
         if (b !== void 0 && verb !== "drill") out.push(cross(`\u2716 question ${q.n}: {${b}} has nothing to fill it \u2192 blanks are for sweeps (over:); write the name out`));
       }
     }
-    checkNumbers(categories, out);
-    const yesno = categories.flatMap((c) => c.questions).filter((q) => q.kind === "yesno").length;
-    if (verb === "class" && depth) {
-      const want = DEPTH_COUNT[depth];
-      if (yesno < want) out.push(cross(`\u2716 side.depth: ${depth} needs ${want} yes/no questions, got ${yesno} \u2192 add ${want - yesno}`));
-      if (yesno > want) out.push(cross(`\u2716 side.depth: ${depth} needs ${want} yes/no questions, got ${yesno} \u2192 remove ${yesno - want}, or raise the depth`));
+    checkNumbers(cats, out);
+    if (categoriesGiven) {
+      const issues = contractIssues(cats, depth, "side.ask");
+      if (verb === "view") {
+        for (const i of issues) notes.push(`${i.field}: ${i.problem} (${i.fix}); class will stop on this`);
+      } else {
+        for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix}`));
+      }
     }
   } else {
-    for (const p of checkOver(over, STRINGS[verb], DEPTH_COUNT[depth ?? "quick"])) out.push(cross(p));
+    for (const p of checkOver(over, STRINGS[verb], SWEEP_ITEM_CAP[depth ?? "quick"])) out.push(cross(p));
     const map = mapLayers(over);
+    const finest = map.layers.at(-1);
     for (const [name, v] of Object.entries(ask2)) {
-      if ("pass" in v) {
-        out.push(cross(`\u2716 side.ask.${name}: a sweep keys categories by layer \u2192 ask: {<layer>: {${name}: ...}}`));
+      if (name === "concerns" || name === "decisions" || isObj2(v) && "pass" in v) {
+        out.push(cross(`\u2716 side.ask.${name}: a sweep keys categories by layer \u2192 ask: {<layer>: {concerns: ..., decisions: ...}}`));
         continue;
       }
       if (!map.layers.includes(name)) {
         out.push(cross(`\u2716 side.ask.${name}: not a layer in over \u2192 use one of ${map.layers.join(", ")}`));
         continue;
       }
-      const cats = Object.entries(v).map(([cname, c]) => toCategory(cname, c));
+      const sections = v ?? {};
+      const cats = buildCategories(sections, `side.ask.${name}`, out);
       const allowed = [name, ...map.ancestors.get(name) ?? []];
       for (const c of cats) {
-        checkCategory2(c, `side.ask.${name}.${c.name}`, out);
         for (const q of c.questions) {
           for (const b of blanksIn(q.text)) {
             if (!allowed.includes(b) && !(verb === "drill" && !map.layers.includes(b))) {
@@ -11212,13 +11378,23 @@ function checkCross(raw, verb) {
       }
       layers.push({ name, categories: cats });
       categories.push(...cats);
+      if (cats.length > 0) {
+        const isFinest = name === finest;
+        const issues = contractIssues(cats, isFinest ? depth : void 0, `side.ask.${name}`);
+        if (isFinest) {
+          for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix}`));
+        } else if (issues.length) {
+          notes.push(`side.ask.${name} ask is thin (optional layer; counts aren't enforced) \u2014 e.g. ${issues[0].field}: ${issues[0].problem}`);
+        }
+      }
     }
     checkNumbers(categories, out);
     layers.sort((a, b) => map.layers.indexOf(a.name) - map.layers.indexOf(b.name));
   }
-  if (out.length) return { stops: out };
+  if (out.length) return { stops: out, notes };
   return {
     stops: [],
+    notes,
     side: {
       ...side.verb !== void 0 ? { verb: side.verb } : {},
       goal: side.goal,
@@ -11227,6 +11403,7 @@ function checkCross(raw, verb) {
       ...side.parent !== void 0 ? { parent: side.parent } : {},
       ...side.from !== void 0 ? { from: side.from } : {},
       ...side.compare !== void 0 ? { compare: side.compare } : {},
+      ...side.expect !== void 0 ? { expect: side.expect } : {},
       categories: over === void 0 ? categories : [],
       layers,
       ...over !== void 0 ? { over } : {}
@@ -11237,19 +11414,14 @@ function validateRequest(value, verb) {
   const blanks = [];
   findBlanks(value, "", blanks);
   if (blanks.length) return { ok: false, stops: blanks };
-  const schema = checkSchema(value);
+  const schema = checkSchema(value, verb);
   if (schema.length) return { ok: false, stops: schema };
   const raw = value;
-  const { stops, side } = checkCross(raw, verb);
+  const { stops, side, notes: crossNotes } = checkCross(raw, verb);
   if (!side) return { ok: false, stops };
-  const notes = [];
+  const notes = [...crossNotes];
   const risky = IRREVERSIBLE.exec(side.goal);
   if (risky) notes.push(`${IRREVERSIBLE_NOTE} ("${risky[0].toLowerCase()}")`);
-  if (verb === "view" && side.depth) {
-    const yesno = side.categories.flatMap((c) => c.questions).filter((q) => q.kind === "yesno").length;
-    const want = DEPTH_COUNT[side.depth];
-    if (yesno !== want) notes.push(`${side.depth} expects ${want} yes/no questions, got ${yesno}; class will stop on this`);
-  }
   const w = raw.wise;
   return { ok: true, request: { side, wise: w && Object.keys(w).length ? w : null }, notes };
 }
@@ -11331,6 +11503,10 @@ function wiseRecorded(wise2, extra) {
     ...wise2?.stage ? ["stage"] : [],
     ...wise2?.change ? ["change"] : [],
     ...wise2?.risk ? ["risk"] : [],
+    ...wise2?.problem ? ["problem"] : [],
+    ...wise2?.nodes ? ["nodes"] : [],
+    ...wise2?.touches?.length ? ["touches"] : [],
+    ...wise2?.blast ? ["blast"] : [],
     ...extra ?? []
   ];
   return fields.length ? fields : "none";
@@ -11447,6 +11623,11 @@ async function runChange(text, ctx) {
   if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code`], "change") };
   if (parent.items !== null) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} was a sweep \u2192 run the sweep again (unchanged items are reused for free)`], "change") };
   const categories = parent.ask.categories;
+  const concernNames = categories.filter((c) => c.section === "concerns").map((c) => c.name);
+  const badExpect = request.side.expect.find((name) => !concernNames.includes(name));
+  if (badExpect !== void 0) {
+    return { exit: 2, text: stopText([`\u2716 side.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "change") };
+  }
   const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const compare = request.side.compare;
@@ -11500,6 +11681,14 @@ async function runChange(text, ctx) {
       ...c.still.length ? [["still", c.still]] : []
     )
   ]);
+  const gradeByName = new Map(changeGrade.categories.map((c) => [c.name, c]));
+  const expectedFixed = [];
+  const expectedStill = [];
+  for (const name of request.side.expect) {
+    const g = gradeByName.get(name);
+    if (!g || g.before === "pass") continue;
+    (g.after === "pass" ? expectedFixed : expectedStill).push(name);
+  }
   let sawWholeFileNote = false;
   const evidenceNotes = [...before.notes, ...after.notes].filter((n) => {
     if (n !== WHOLE_FILE_NOTE) return true;
@@ -11514,6 +11703,7 @@ async function runChange(text, ctx) {
       ["gate", gate],
       ["goal", m(["gate", goal.gate], ["p", goal.p])],
       ...catEntries,
+      ["expected", m(["fixed", expectedFixed], ["still", expectedStill])],
       ["regressed", regressed],
       ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
     ),
@@ -11557,7 +11747,10 @@ async function runChange(text, ctx) {
     costUsd: costUsd ?? null,
     calls: calls.length,
     route: identity.route,
-    baseURL: identity.baseURL
+    baseURL: identity.baseURL,
+    // change replays the parent's own questions rather than reading the worktree at HEAD, so there's no single
+    // commit this run itself is "at" the way class/scan/loop/drill are — left null on purpose.
+    commit: null
   };
   const rec = calls.length === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
   if (!rec.ok) return rec.result;
@@ -11682,9 +11875,10 @@ async function runClass(text, ctx) {
     goal: request.side.goal,
     depth: request.side.depth ?? null,
     where: request.side.where,
-    parent: null,
+    parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
+    commit: currentCommitSha(ctx.paths.root),
     wise: request.wise,
     ask: { categories: request.side.categories, layers: [] },
     over: null,
@@ -12185,7 +12379,7 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
   const goalKey = answerKey("", goalQ);
   allKeys.push(goalKey);
   const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun });
-  const cap2 = DEPTH_COUNT[request.side.depth ?? "quick"];
+  const cap2 = SWEEP_ITEM_CAP[request.side.depth ?? "quick"];
   const keys = /* @__PURE__ */ new Map();
   const reusedFrom = /* @__PURE__ */ new Map();
   const answers = {};
@@ -12314,6 +12508,10 @@ function itemRecords(items, grades) {
 
 // src/verbs/drill.ts
 var REDRILL_NEXT = "fix it, then run this drill again (unchanged items are reused, so it is nearly free)";
+var WHERE_CAP = 50;
+function whereFromItems(items) {
+  return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP);
+}
 async function runOneSubjectProof(ctx, loaded, request, where, changeParent, evidenceOpts) {
   const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "drill") };
@@ -12382,6 +12580,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, changeParent, evi
     parent: request.side.parent,
     from: request.side.from,
     compare: null,
+    commit: currentCommitSha(ctx.paths.root),
     wise: request.wise,
     ask: { categories: request.side.categories, layers: [] },
     over: null,
@@ -12498,10 +12697,11 @@ async function runDrill(text, ctx) {
       task: ctx.env.SIDEWISE_TASK?.trim() || null,
       goal: request.side.goal,
       depth: request.side.depth ?? null,
-      where: [],
+      where: whereFromItems(plan.items),
       parent: request.side.parent,
       from: request.side.from,
       compare: null,
+      commit: currentCommitSha(ctx.paths.root),
       wise: request.wise,
       ask: { categories: [], layers: request.side.layers },
       over: request.side.over,
@@ -12581,9 +12781,10 @@ async function runLoop(text, ctx) {
     goal: request.side.goal,
     depth: request.side.depth ?? null,
     where: request.side.where,
-    parent: null,
+    parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
+    commit: currentCommitSha(ctx.paths.root),
     wise: request.wise,
     ask: { categories: [], layers: request.side.layers },
     over: request.side.over,
@@ -13372,6 +13573,10 @@ function runReport(view, ctx) {
 // src/verbs/scan.ts
 var ENTRYPOINT_GLOBS = ["server.js", "app.js", "index.js", "main.js", "config/**"];
 var MISSED_SHOWN = 3;
+var WHERE_CAP2 = 50;
+function whereFromItems2(items) {
+  return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP2);
+}
 function unlookedEntrypoints(root, items) {
   const touched = new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []));
   const missed = [...new Set(ENTRYPOINT_GLOBS.flatMap((pattern) => expandGlob(root, pattern).files))].filter((f) => !touched.has(f));
@@ -13433,10 +13638,11 @@ async function runScan(text, ctx) {
     task: ctx.env.SIDEWISE_TASK?.trim() || null,
     goal: request.side.goal,
     depth: request.side.depth ?? null,
-    where: [],
-    parent: null,
+    where: whereFromItems2(plan.items),
+    parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
+    commit: currentCommitSha(ctx.paths.root),
     wise: request.wise,
     ask: { categories: [], layers: request.side.layers },
     over: request.side.over,
@@ -13481,33 +13687,38 @@ function categoryToWire(c) {
   const out = { pass: c.pass };
   if (c.need !== "all") out.need = c.need;
   if (c.tags.length) out.tags = c.tags;
+  if (c.familySource === "given") out.family = c.family;
   for (const q of c.questions) out[String(q.n)] = questionToWire(q);
+  return out;
+}
+function sectionsToWire(categories) {
+  const out = {};
+  const concerns = categories.filter((c) => c.section === "concerns");
+  const decisions = categories.filter((c) => c.section === "decisions");
+  if (concerns.length) out.concerns = Object.fromEntries(concerns.map((c) => [c.name, categoryToWire(c)]));
+  if (decisions.length) out.decisions = Object.fromEntries(decisions.map((c) => [c.name, categoryToWire(c)]));
   return out;
 }
 function askToWire(run) {
   if (run.ask.layers.length) {
-    const out2 = {};
-    for (const layer of run.ask.layers) {
-      const cats = {};
-      for (const c of layer.categories) cats[c.name] = categoryToWire(c);
-      out2[layer.name] = cats;
-    }
-    return out2;
+    const out = {};
+    for (const layer of run.ask.layers) out[layer.name] = sectionsToWire(layer.categories);
+    return out;
   }
-  const out = {};
-  for (const c of run.ask.categories) out[c.name] = categoryToWire(c);
-  return out;
+  return sectionsToWire(run.ask.categories);
 }
 function fromRunId(id, flags, paths) {
   if (!paths) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" needs a project to look up the ledger \u2192 run inside one, or point --from at a request file`], "template") };
   const run = findRun(paths, id);
   if (!run) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" is not in the ledger \u2192 check the id, or point --from at a request file`], "template") };
   if (!isContractRun(run)) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" predates the YAML contract \u2192 point --from at a request file instead`], "template") };
-  const side = run.verb === "change" ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare } : {
+  const changeExpect = run.expect;
+  const echoesWhere = run.verb !== "scan" && run.verb !== "drill";
+  const side = run.verb === "change" ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare, ...changeExpect ? { expect: changeExpect } : {} } : {
     verb: run.verb,
     goal: run.goal,
     ...run.depth ? { depth: run.depth } : {},
-    ...run.where.length ? { where: run.where } : {},
+    ...echoesWhere && run.where.length ? { where: run.where } : {},
     ...run.parent ? { parent: run.parent } : {},
     ...run.from ? { from: run.from } : {},
     ...run.compare ? { compare: run.compare } : {},
@@ -13771,6 +13982,7 @@ function runRequestMode(text, ctx) {
     const keys = questions.map((q) => answerKey(evidenceStr, q));
     const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
     reuse2 = exactReuse(ctx.paths, who, keys);
+    appendLookup(ctx.paths, { goal: request.side.goal, where: request.side.where, hit: reuse2 !== void 0, reused: reuse2 ?? null });
   }
   const next = reuse2 ? `sidewise view ${reuse2}` : "sidewise class";
   const side = m(
@@ -13807,8 +14019,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["class", "authoring"],
     catchable: false,
-    bad: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does validateInput() sanitize the amount field?\n",
-    good: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does validateInput() sanitize the amount field?\n"
+    bad: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does validateInput() sanitize the amount field?\n",
+    good: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does validateInput() sanitize the amount field?\n"
   },
   {
     rule: "With more than one file in `where:`, a question that never names one leaves the classifier guessing which file it means.",
@@ -13816,8 +14028,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["class", "authoring"],
     catchable: false,
-    bad: "side:\n  goal: The payment path is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does it sanitize the amount field before use?\n",
-    good: "side:\n  goal: The payment path is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does `src/pay/validate.ts` sanitize the amount field before use?\n"
+    bad: "side:\n  goal: The payment path is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does it sanitize the amount field before use?\n",
+    good: "side:\n  goal: The payment path is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does `src/pay/validate.ts` sanitize the amount field before use?\n"
   },
   {
     rule: "`{function}` is filled in per item \u2014 asking about something outside it answers from evidence that item never sent.",
@@ -13825,8 +14037,8 @@ var PATTERNS2 = [
     verb: "scan",
     in: ["scan"],
     catchable: false,
-    bad: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does the caller of {function} sanitize its input first?\n",
-    good: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} sanitize its input before use?\n"
+    bad: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does the caller of {function} sanitize its input first?\n          2: Does {function} put request text straight into a query?\n          3: Does {function} run that query with db.query?\n        access:\n          pass: no\n          4: Does {function} return a record without checking its owner?\n          5: Does {function} skip comparing the record owner to the caller?\n          6: Could {function} be called without a permission check?\n        leaks:\n          pass: no\n          7: Does {function} return a raw database error?\n          8: Does {function} log the request body?\n          9: Does {function}'s response include unrequested fields?\n      decisions:\n        severity:\n          pass: [none]\n          10:\n            scale: How severe is the worst issue?\n            levels: [none, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where should this go?\n            options: [ship, block]\n",
+    good: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does {function} sanitize its input before use?\n          2: Does {function} put request text straight into a query?\n          3: Does {function} run that query with db.query?\n        access:\n          pass: no\n          4: Does {function} return a record without checking its owner?\n          5: Does {function} skip comparing the record owner to the caller?\n          6: Could {function} be called without a permission check?\n        leaks:\n          pass: no\n          7: Does {function} return a raw database error?\n          8: Does {function} log the request body?\n          9: Does {function}'s response include unrequested fields?\n      decisions:\n        severity:\n          pass: [none]\n          10:\n            scale: How severe is the worst issue?\n            levels: [none, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where should this go?\n            options: [ship, block]\n"
   },
   {
     rule: "`view` checks reuse for one subject against the code in `where:` \u2014 with none named, it has nothing to check.",
@@ -13834,8 +14046,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["view"],
     catchable: true,
-    bad: "side:\n  goal: This handler is safe to merge\n  ask:\n    injection:\n      pass: no\n      1: Does the handler sanitize the amount field before use?\n",
-    good: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does the handler sanitize the amount field before use?\n"
+    bad: "side:\n  goal: This handler is safe to merge\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler sanitize the amount field before use?\n",
+    good: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler sanitize the amount field before use?\n"
   },
   {
     rule: "`over:` builds a sweep across many items \u2014 `view` checks one subject and rejects `over:` outright.",
@@ -13843,8 +14055,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["view"],
     catchable: true,
-    bad: "side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  over:\n    file: src/pay/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: Does {function} put request text straight into a query?\n",
-    good: "side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    injection:\n      pass: no\n      1: Does the handler put request text straight into a query?\n"
+    bad: "side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  over:\n    file: src/pay/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does {function} put request text straight into a query?\n",
+    good: "side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler put request text straight into a query?\n"
   },
   {
     rule: "`loop` sweeps ideas you write yourself, not files on disk \u2014 a code-glob layer belongs to `scan`, not `loop`.",
@@ -13852,8 +14064,8 @@ var PATTERNS2 = [
     verb: "loop",
     in: ["loop"],
     catchable: true,
-    bad: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    file: src/checkout/*.ts\n  ask:\n    file:\n      done:\n        pass: yes\n        1: Does {file} own one clear responsibility?\n",
-    good: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part: [gateway, payments, ledger]\n  ask:\n    part:\n      done:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n"
+    bad: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    file: src/checkout/*.ts\n  ask:\n    file:\n      concerns:\n        done:\n          pass: yes\n          1: Does {file} own one clear responsibility?\n",
+    good: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part: [gateway, payments, ledger]\n  ask:\n    part:\n      concerns:\n        responsibility:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n          3: Would another part need to change if {part} changed?\n        dependency:\n          pass: no\n          4: Does {part} reach into another part's own data?\n          5: Does {part} depend on another part's release order?\n          6: Would removing another part break {part} silently?\n        testability:\n          pass: yes\n          7: Can {part} be tested without standing up the others?\n          8: Does {part} expose a clear boundary to test against?\n          9: Is {part} small enough to review on its own?\n      decisions:\n        risk:\n          pass: [none]\n          10:\n            scale: How risky is {part}?\n            levels: [none, high]\n        route:\n          pass: [build-now]\n          11:\n            choice: What should happen to {part} next?\n            options: [build-now, rework]\n"
   },
   // Round-4 finding: `agent drill`/`agent change` had no patterns section at all — the two pairs below close
   // that gap, one each, both caught outright by validate.ts's NEEDS/NEVER cross-validator checks. [C-193]
@@ -13863,8 +14075,8 @@ var PATTERNS2 = [
     verb: "drill",
     in: ["drill"],
     catchable: true,
-    bad: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  ask:\n    source:\n      pass: no\n      1: Is the value concatenated straight into the string?\n",
-    good: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  from: access\n  ask:\n    source:\n      pass: no\n      1: Is the value concatenated straight into the string?\n"
+    bad: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  ask:\n    concerns:\n      source:\n        pass: no\n        1: Is the value concatenated straight into the string?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n    decisions:\n      severity:\n        pass: [none]\n        4:\n          scale: How severe is this?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        5:\n          choice: Where should this go?\n          options: [ship, block]\n",
+    good: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  from: access\n  ask:\n    concerns:\n      source:\n        pass: no\n        1: Is the value concatenated straight into the string?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n    decisions:\n      severity:\n        pass: [none]\n        4:\n          scale: How severe is this?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        5:\n          choice: Where should this go?\n          options: [ship, block]\n"
   },
   {
     rule: "`change` replays the parent run's own questions \u2014 it never takes `ask:`; write new questions with `class` instead.",
@@ -13872,8 +14084,8 @@ var PATTERNS2 = [
     verb: "change",
     in: ["change"],
     catchable: true,
-    bad: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  ask:\n    injection:\n      pass: no\n      1: Does it still concatenate the value into the query?\n",
-    good: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n"
+    bad: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  expect: [injection]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does it still concatenate the value into the query?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n",
+    good: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  expect: [injection]\n"
   }
 ];
 var indent = (text, pad) => text.trimEnd().split("\n").map((l) => `${pad}${l}`);
@@ -14010,7 +14222,11 @@ function budgetHelp() {
 var list2 = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}` : xs[0];
 var RULES = [
   {
-    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions (a sweep: at most that many items per layer)`,
+    // Plan 2b resolution: each concerns category's 3 probes plays a distinct role, named by the category's
+    // family (given, or defaulted from the category name — see FAMILIES below); the role table itself (3 named
+    // roles per family) is too wide for one dense-card bullet, so it lives in `sidewise agent probe`/`help
+    // probe` (FAMILY_ROLES below, same file, one source) and the sidewise-probe skill, both pointed at here.
+    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories, each with 3 probes in a distinct role \u2014 family: ${list2(FAMILIES)} (role table: sidewise agent probe) \u2014 a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer`,
     in: ["card", "authoring", "class", "scan", "loop"]
   },
   { text: `where: at most 5 path entries \u2014 this is all the code a run sees`, in: ["card", "authoring", "class", "view"] },
@@ -14029,11 +14245,32 @@ var RULES = [
   { text: `wise.stage is one of ${list2(STAGES)}`, in: ["wise"] },
   { text: `wise.change is one of ${list2(CHANGES)}`, in: ["wise"] },
   { text: `wise.risk is one of ${list2(RISKS)}`, in: ["wise"] },
-  { text: `at most ${MAX_EXTRAS} scale or choice questions per request`, in: ["authoring"] }
+  { text: `decisions: ${DECISIONS_MIN}\u2013${DECISIONS_MAX} categories, scale or choice only, at least one scale and one choice`, in: ["authoring"] }
 ];
 function ruleLines(tag) {
   return RULES.filter((r) => r.in.includes(tag)).map((r) => `- ${r.text}.`);
 }
+var FAMILY_ROLES = [
+  { family: "injection", roles: ["reach", "guard", "sink"] },
+  { family: "access", roles: ["actor", "check", "resource"] },
+  { family: "secrets", roles: ["store", "transport", "exposure"] },
+  { family: "input", roles: ["source", "validate", "reject"] },
+  { family: "output", roles: ["source", "encode", "render"] },
+  { family: "availability", roles: ["trigger", "limit", "recovery"] },
+  { family: "correctness", roles: ["input", "rule", "result"] },
+  { family: "design", roles: ["responsibility", "dependency", "testability"] },
+  { family: "design-risk", roles: ["abuse", "failure", "data"] },
+  { family: "done", roles: ["concrete", "testable", "owned"] }
+];
+var BAD_PROBE_EXAMPLE = {
+  bad: "Is this method secure?",
+  why: "a yes means nothing: no mechanism, no angle, no place",
+  good: [
+    "Is `id` from `req.query` concatenated into the SQL string? (reach)",
+    "Is `id` bound as a parameter instead? (guard)",
+    "Does the query run with `db.query` on that string? (sink)"
+  ]
+};
 var PROBE_RULES = [
   {
     text: "One narrow judgment per question \u2014 break a complex or ill-defined question into separate questions that each evaluate one property.",
@@ -14191,6 +14428,7 @@ function noKeyRunLine(env, deps) {
   return [inPluginContext(env) ? `run: no key (sample answers only) \u2192 ${NO_KEY_PLUGIN_HINT}` : "run: no key \u2192 sidewise init to add one"];
 }
 var PROJECT_SCOPE_RULE = "- where: resolves against the MCP `project` argument or `SIDEWISE_HOME` (CLI), never your session cwd \u2014 pass `project` (or set `SIDEWISE_HOME`) when you started elsewhere.";
+var PROBE_SKILL_RULE = "- before writing or editing any request, read the sidewise-probe skill (or run `sidewise agent probe`): what makes a probe worth asking.";
 function overview(env, deps) {
   return renderCard(
     [
@@ -14199,7 +14437,7 @@ function overview(env, deps) {
       "tools:",
       ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`)
     ],
-    [...ruleLines("card"), PROJECT_SCOPE_RULE],
+    [PROBE_SKILL_RULE, ...ruleLines("card"), PROJECT_SCOPE_RULE],
     [],
     [
       "run: sidewise agent <verb|tool> \u2014 before writing that request",
@@ -14215,7 +14453,14 @@ function verbCard(verb) {
 function probeCard() {
   return renderCard(
     ["tool: probe"],
-    [...PROBE_RULES.map((r) => `- ${r.text}`), ...ruleLines("probe")]
+    [
+      ...PROBE_RULES.map((r) => `- ${r.text}`),
+      ...ruleLines("probe"),
+      ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(" \xB7 ")}`),
+      `- bad: "${BAD_PROBE_EXAMPLE.bad}" \u2014 ${BAD_PROBE_EXAMPLE.why}`,
+      ...BAD_PROBE_EXAMPLE.good.map((g) => `- good: ${g}`),
+      "- see: the sidewise-probe skill for the full model and worked examples"
+    ]
   );
 }
 function verdictCard() {
@@ -14399,6 +14644,10 @@ function wise() {
     `| stage  | ${STAGES.join(", ")} | where in the workflow it landed |`,
     `| change | ${CHANGES.join(", ")} | what kind of change was under review |`,
     `| risk   | ${RISKS.join(", ")} | how risky the change looked going in |`,
+    `| problem | free text, one line, 3\u2013160 chars | what the agent was solving, in its own words |`,
+    `| nodes  | a C4 chain: level:name ( -> level:name)*, "; "-joined | which parts of the system this run touches |`,
+    `| touches | up to 5 short entries | the entities/objects this run is about |`,
+    `| blast  | ${BLASTS.join(", ")} | how far a fix's blast radius reaches |`,
     "",
     ...ruleLines("wise"),
     "- every field is optional; the response always echoes back which ones were recorded as `wise: {recorded: [...]}`, or `{recorded: none}`."
@@ -14432,7 +14681,19 @@ function probe() {
     "",
     'Round 3 smoke testing found this directly: a goal phrased as the vulnerability ("runs request input as code")',
     "read pass/fail backwards, and its probability stayed at p 0.98 before AND after the fix that removed the",
-    "vulnerability \u2014 the wording, not the classifier, was wrong. That's rule 7 above."
+    "vulnerability \u2014 the wording, not the classifier, was wrong. That's rule 7 above.",
+    "",
+    "## Angles: a concern is one path; its ~3 probes are three angles on it",
+    "This part is Sidewise's own model, not TypeSafe's \u2014 pick the family that matches the category's path,",
+    "then write one probe per role:",
+    "",
+    ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(" \xB7 ")}`),
+    "",
+    `A bad probe: "${BAD_PROBE_EXAMPLE.bad}" \u2014 ${BAD_PROBE_EXAMPLE.why}. Rewritten as three angles:`,
+    ...BAD_PROBE_EXAMPLE.good.map((g) => `- ${g}`),
+    "",
+    "See the sidewise-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),",
+    "wise's problem/nodes/touches/blast fields, and one recipe per verb."
   ].join("\n");
 }
 var BUILDERS = { authoring, verdict, wise, reuse, probe };
@@ -14754,12 +15015,12 @@ async function dispatch(argv, ctx) {
     case "loop":
       return runSweptVerb(command, rest, paths, ctx);
     case "change": {
-      const twice = givenTwice(rest, ["dry-run", "parent", "compare"]);
+      const twice = givenTwice(rest, ["dry-run", "parent", "compare", "expect"]);
       if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args("change", {
         args: rest,
         allowPositionals: true,
-        options: { "dry-run": { type: "boolean", default: false }, parent: { type: "string" }, compare: { type: "string" } }
+        options: { "dry-run": { type: "boolean", default: false }, parent: { type: "string" }, compare: { type: "string" }, expect: { type: "string" } }
       });
       const usingFlags = values.parent !== void 0 || values.compare !== void 0;
       let text;
@@ -14774,7 +15035,8 @@ async function dispatch(argv, ctx) {
         }
         const parentRun = findRun(paths, values.parent);
         const goal = parentRun && isContractRun(parentRun) ? parentRun.goal : "The change works";
-        text = (0, import_yaml3.stringify)({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) } } });
+        const expect = values.expect ? values.expect.split(",").map((s) => s.trim()).filter(Boolean) : parentRun && isContractRun(parentRun) ? parentRun.ask.categories.filter((c) => c.section !== "decisions").map((c) => c.name) : [];
+        text = (0, import_yaml3.stringify)({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount("change", positionals, 1, 1);
         const read2 = readRequest(positionals[0], ctx.stdin);
