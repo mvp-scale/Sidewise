@@ -7369,7 +7369,7 @@ var require_dist = __commonJS({
 
 // src/cli.ts
 var import_yaml6 = __toESM(require_dist(), 1);
-import { readFileSync as readFileSync16, statSync as statSync8 } from "node:fs";
+import { readFileSync as readFileSync17, statSync as statSync9 } from "node:fs";
 import os3 from "node:os";
 import path21 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
@@ -11926,6 +11926,26 @@ function resolveRefSha(root, ref, wherePaths, deps) {
 function currentCommitSha(root, wherePaths = [], deps) {
   return resolveRefSha(root, "worktree", wherePaths, deps);
 }
+function repoRootFor(root, wherePaths, deps) {
+  const spawn = deps?.spawn ?? spawnSync;
+  const dir = firstWhereDir(root, wherePaths);
+  return gitRootOf(dir, spawn) ?? (wherePaths.length ? void 0 : root);
+}
+function listFilesAtRef(repoRoot, ref, deps) {
+  if (isGitOption(ref)) return [];
+  const spawn = deps?.spawn ?? spawnSync;
+  const result = spawn("git", ["ls-tree", "-r", "--name-only", ref], { cwd: repoRoot, encoding: "utf8" });
+  if (result.status !== 0 || typeof result.stdout !== "string") return [];
+  return result.stdout.split("\n").filter(Boolean);
+}
+function readFileAtRef(repoRoot, ref, relPath, deps) {
+  if (isGitOption(ref)) return void 0;
+  const spawn = deps?.spawn ?? spawnSync;
+  const result = spawn("git", ["show", `${ref}:${relPath}`], { cwd: repoRoot, encoding: "utf8" });
+  const stderr = typeof result.stderr === "string" ? result.stderr : "";
+  if (result.status !== 0 || FATAL.test(stderr)) return void 0;
+  return typeof result.stdout === "string" ? result.stdout : void 0;
+}
 function keep(shown2, text, total, notes) {
   let body = redact(text);
   if (body.length > EVIDENCE_LIMITS.perFileChars) {
@@ -12006,14 +12026,501 @@ function readGitEvidence(root, ref, field, paths, deps) {
   return { ok: true, files, notes };
 }
 
+// src/evidence/units.ts
+import { readFileSync as readFileSync14, realpathSync as realpathSync5 } from "node:fs";
+import path16 from "node:path";
+
+// src/evidence/glob.ts
+import { readdirSync } from "node:fs";
+import path15 from "node:path";
+var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", ".sidewise", "dist"]);
+var MAX_FILES = 500;
+var escape = (s) => s.replace(/[.+^$()|[\]\\]/gu, "\\$&");
+function globToRegExp(pattern) {
+  let re = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "*") {
+      if (pattern[i + 1] === "*") {
+        const slash = pattern[i + 2] === "/";
+        re += slash ? "(?:[^/]*/)*" : ".*";
+        i += slash ? 2 : 1;
+      } else re += "[^/]*";
+    } else if (c === "?") re += "[^/]";
+    else if (c === "{") {
+      const end = pattern.indexOf("}", i);
+      if (end > i) {
+        re += `(?:${pattern.slice(i + 1, end).split(",").map(escape).join("|")})`;
+        i = end;
+      } else re += "\\{";
+    } else re += escape(c);
+  }
+  return new RegExp(`^${re}$`, "u");
+}
+function staticPrefix(pattern) {
+  const parts = pattern.split("/");
+  const fixed = [];
+  for (const p of parts.slice(0, -1)) {
+    if (/[*?{]/u.test(p)) break;
+    fixed.push(p);
+  }
+  return fixed.join("/");
+}
+function expandGlob(root, pattern) {
+  const clean2 = pattern.replace(/^\.\//u, "");
+  if (path15.isAbsolute(clean2) || clean2.split("/").includes("..")) return { files: [], truncated: false };
+  const re = globToRegExp(clean2);
+  const files = [];
+  let truncated = false;
+  const rootResolved = path15.resolve(root);
+  const walk2 = (rel) => {
+    const dir = path15.resolve(root, rel);
+    if (dir !== rootResolved && !dir.startsWith(rootResolved + path15.sep)) return;
+    let entries;
+    try {
+      entries = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
+      const child = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        if (!SKIP_DIRS.has(e.name)) walk2(child);
+      } else if (e.isFile() && re.test(child)) {
+        if (files.length >= MAX_FILES) {
+          truncated = true;
+          return;
+        }
+        files.push(child);
+      }
+    }
+  };
+  walk2(staticPrefix(clean2));
+  return { files, truncated };
+}
+
+// src/evidence/split.ts
+var KEYWORDS_BEFORE_REGEX = /(?:^|[^\w$])(?:return|typeof|instanceof|case|do|else|in|of|new|delete|void|throw|yield|await)$/u;
+function maskCode(src) {
+  const out = src.split("");
+  const n = src.length;
+  const blank = (a, b) => {
+    for (let k = a; k < b && k < n; k++) if (out[k] !== "\n") out[k] = " ";
+  };
+  const templates = [];
+  let depth = 0;
+  const regexAllowed = (i2) => {
+    let j = i2 - 1;
+    while (j >= 0 && /\s/u.test(out[j])) j--;
+    if (j < 0) return true;
+    const c = out[j];
+    if (/[\w$]/u.test(c)) return KEYWORDS_BEFORE_REGEX.test(out.slice(Math.max(0, j - 12), j + 1).join(""));
+    return !/[)\]]/u.test(c);
+  };
+  const template = (start) => {
+    let j = start;
+    while (j < n) {
+      if (src[j] === "\\") {
+        j += 2;
+        continue;
+      }
+      if (src[j] === "`") {
+        blank(start, j);
+        return j + 1;
+      }
+      if (src[j] === "$" && src[j + 1] === "{") {
+        blank(start, j);
+        depth += 1;
+        templates.push(depth);
+        return j + 2;
+      }
+      j += 1;
+    }
+    blank(start, n);
+    return n;
+  };
+  let i = 0;
+  while (i < n) {
+    const c = src[i];
+    const d = src[i + 1];
+    if (c === "/" && d === "/") {
+      const e = src.indexOf("\n", i);
+      const end = e < 0 ? n : e;
+      blank(i, end);
+      i = end;
+    } else if (c === "/" && d === "*") {
+      const e = src.indexOf("*/", i + 2);
+      const end = e < 0 ? n : e + 2;
+      blank(i, end);
+      i = end;
+    } else if (c === '"' || c === "'") {
+      let j = i + 1;
+      while (j < n && src[j] !== c && src[j] !== "\n") j += src[j] === "\\" ? 2 : 1;
+      blank(i + 1, j);
+      i = j + 1;
+    } else if (c === "`") {
+      i = template(i + 1);
+    } else if (c === "/" && regexAllowed(i)) {
+      let j = i + 1;
+      let inClass = false;
+      while (j < n && src[j] !== "\n") {
+        if (src[j] === "\\") {
+          j += 2;
+          continue;
+        }
+        if (src[j] === "[") inClass = true;
+        else if (src[j] === "]") inClass = false;
+        else if (src[j] === "/" && !inClass) break;
+        j += 1;
+      }
+      blank(i + 1, j);
+      i = j + 1;
+    } else if (c === "{") {
+      depth += 1;
+      i += 1;
+    } else if (c === "}") {
+      if (templates.length && templates[templates.length - 1] === depth) {
+        templates.pop();
+        depth -= 1;
+        i = template(i + 1);
+      } else {
+        depth -= 1;
+        i += 1;
+      }
+    } else {
+      i += 1;
+    }
+  }
+  return out.join("");
+}
+function matching(masked, open) {
+  const pairs = { "{": "}", "(": ")", "[": "]" };
+  const close = pairs[masked[open]];
+  let depth = 0;
+  for (let k = open; k < masked.length; k++) {
+    if (masked[k] === masked[open]) depth += 1;
+    else if (masked[k] === close) {
+      depth -= 1;
+      if (depth === 0) return k;
+    }
+  }
+  return -1;
+}
+function depths(masked) {
+  const d = new Int32Array(masked.length + 1);
+  let depth = 0;
+  for (let k = 0; k < masked.length; k++) {
+    d[k] = depth;
+    if (masked[k] === "{") depth += 1;
+    else if (masked[k] === "}") depth -= 1;
+  }
+  d[masked.length] = depth;
+  return d;
+}
+var lineAt = (src, index) => {
+  let line3 = 1;
+  for (let k = 0; k < index && k < src.length; k++) if (src[k] === "\n") line3 += 1;
+  return line3;
+};
+function bodyEnd(masked, paramsOpen) {
+  const paramsClose = matching(masked, paramsOpen);
+  if (paramsClose < 0) return -1;
+  let k = paramsClose + 1;
+  let depth = 0;
+  while (k < masked.length && !(depth === 0 && (masked[k] === "{" || masked[k] === ";" || masked.startsWith("=>", k)))) {
+    if (masked[k] === "(" || masked[k] === "[") depth += 1;
+    else if (masked[k] === ")" || masked[k] === "]") depth -= 1;
+    k += 1;
+  }
+  if (masked.startsWith("=>", k)) {
+    k += 2;
+    while (k < masked.length && /\s/u.test(masked[k])) k += 1;
+    if (masked[k] !== "{") return expressionEnd(masked, k);
+  }
+  if (masked[k] !== "{") return -1;
+  return matching(masked, k);
+}
+function expressionEnd(masked, from) {
+  let depth = 0;
+  for (let k = from; k < masked.length; k++) {
+    const c = masked[k];
+    if ("([{".includes(c)) depth += 1;
+    else if (")]}".includes(c)) {
+      if (depth === 0) return k - 1;
+      depth -= 1;
+    } else if (depth === 0 && (c === ";" || c === "," || c === "\n")) return k - 1;
+  }
+  return masked.length - 1;
+}
+var DECLARATIONS = [
+  // function name(  · export function · export default async function* name(
+  /(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\(/gu,
+  // const name = async (…) =>  · const name = function(  · const name: T = x =>
+  /(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*(?:async\s+)?(?:function\b[^(]*\(|(?:<[^>]*>)?\s*\(|[A-Za-z_$][\w$]*\s*=>)/gu,
+  // export default function (  (anonymous)
+  /export\s+default\s+(?:async\s+)?function\s*\*?\s*()\(/gu
+];
+var METHOD = /^[ \t]*(?:(?:public|private|protected|static|async|readonly|override|get|set)\s+)*\*?([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\(/gmu;
+var NOT_METHODS = /* @__PURE__ */ new Set(["if", "for", "while", "switch", "catch", "function", "return", "with"]);
+function namedFunctionExprStarts(masked) {
+  const starts = /* @__PURE__ */ new Set();
+  for (const hit of masked.matchAll(DECLARATIONS[1])) {
+    const m2 = /=\s*(?:async\s+)?function\b/u.exec(hit[0]);
+    if (m2) starts.add(hit.index + m2.index + m2[0].lastIndexOf("function"));
+  }
+  return starts;
+}
+function dedupe(units) {
+  const seen = /* @__PURE__ */ new Map();
+  return units.map((u) => {
+    const k = (seen.get(u.name) ?? 0) + 1;
+    seen.set(u.name, k);
+    return k === 1 ? u : { ...u, name: `${u.name}~${k}` };
+  });
+}
+function splitFunctions(src) {
+  const masked = maskCode(src);
+  const depth = depths(masked);
+  const skipStarts = namedFunctionExprStarts(masked);
+  const found = [];
+  const add = (name, at, end) => {
+    if (end > at && !found.some((f) => f.at === at)) found.push({ name, at, end });
+  };
+  for (const re of DECLARATIONS) {
+    for (const hit of masked.matchAll(re)) {
+      const at = hit.index;
+      if (re === DECLARATIONS[0] && skipStarts.has(at)) continue;
+      const params = hit[0].trimEnd().endsWith("(") ? at + hit[0].lastIndexOf("(") : at + hit[0].length;
+      const end = hit[0].trimEnd().endsWith("=>") ? expressionOrBlock(masked, at + hit[0].length) : bodyEnd(masked, params);
+      add(hit[1] || "default", at, end);
+    }
+  }
+  for (const cls of masked.matchAll(/(?:export\s+(?:default\s+)?)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)[^{]*\{/gu)) {
+    if (depth[cls.index] !== 0) continue;
+    const open = cls.index + cls[0].length - 1;
+    const close = matching(masked, open);
+    if (close < 0) continue;
+    const body = masked.slice(open + 1, close);
+    for (const meth of body.matchAll(METHOD)) {
+      const at = open + 1 + meth.index;
+      const name = meth[1];
+      if (NOT_METHODS.has(name) || depth[at + meth[0].length - 1] !== depth[open] + 1) continue;
+      const end = bodyEnd(masked, at + meth[0].length - 1);
+      if (end > 0) found.push({ name: `${cls[1]}.${name}`, at: at + (meth[0].length - meth[0].trimStart().length), end });
+    }
+  }
+  found.sort((a, b) => a.at - b.at);
+  if (!found.length) return [{ name: "(module)", start: 1, end: lineAt(src, src.length), text: src }];
+  return dedupe(
+    found.map((f) => {
+      const lineStart = src.lastIndexOf("\n", f.at) + 1;
+      return { name: f.name, start: lineAt(src, f.at), end: lineAt(src, f.end), text: src.slice(lineStart, f.end + 1) };
+    })
+  );
+}
+function expressionOrBlock(masked, from) {
+  let k = from;
+  while (k < masked.length && /\s/u.test(masked[k])) k += 1;
+  return masked[k] === "{" ? matching(masked, k) : expressionEnd(masked, k);
+}
+var NOT_CALLS = /* @__PURE__ */ new Set(["if", "for", "while", "switch", "catch", "function", "return", "typeof", "super", "import", "await", "new", "yield", "void", "delete", "in", "of", "with"]);
+var isIdentStart = (c) => c !== void 0 && /[A-Za-z_$]/u.test(c);
+var isIdentPart = (c) => c !== void 0 && /[\w$]/u.test(c);
+var isSpace = (c) => c !== void 0 && /\s/u.test(c);
+function identEnd(masked, at) {
+  let k = at + 1;
+  while (isIdentPart(masked[k])) k += 1;
+  return k;
+}
+function skipSpace(masked, at) {
+  let k = at;
+  while (isSpace(masked[k])) k += 1;
+  return k;
+}
+function genericsEnd(masked, at) {
+  if (masked[at] !== "<") return -1;
+  let k = at + 1;
+  while (k < masked.length && !"<>()".includes(masked[k])) k += 1;
+  return masked[k] === ">" ? k + 1 : -1;
+}
+function chainCall(masked, start) {
+  const ends = [identEnd(masked, start)];
+  let k = ends[0];
+  for (; ; ) {
+    const j = skipSpace(masked, k);
+    let dot = -1;
+    if (masked[j] === "?" && masked[j + 1] === ".") dot = j + 2;
+    else if (masked[j] === ".") dot = j + 1;
+    if (dot < 0) break;
+    const afterDot = skipSpace(masked, dot);
+    if (!isIdentStart(masked[afterDot])) break;
+    k = identEnd(masked, afterDot);
+    ends.push(k);
+  }
+  for (let idx = ends.length - 1; idx >= 0; idx--) {
+    const end = ends[idx];
+    let j = skipSpace(masked, end);
+    const afterGenerics = genericsEnd(masked, j);
+    if (afterGenerics >= 0) j = skipSpace(masked, afterGenerics);
+    if (masked[j] === "(") return { nameEnd: end, openParen: j };
+  }
+  return null;
+}
+function splitCalls(fnSrc) {
+  const masked = maskCode(fnSrc);
+  const bodyOpen = masked.indexOf("{");
+  const units = [];
+  const n = masked.length;
+  let i = 0;
+  while (i < n) {
+    if (!isIdentStart(masked[i])) {
+      i += 1;
+      continue;
+    }
+    const prev = i > 0 ? masked[i - 1] : void 0;
+    if (prev !== void 0 && /[\w$.]/u.test(prev)) {
+      i = identEnd(masked, i);
+      continue;
+    }
+    const hit = chainCall(masked, i);
+    if (!hit) {
+      i = identEnd(masked, i);
+      continue;
+    }
+    if (i > bodyOpen) {
+      const name = masked.slice(i, hit.nameEnd).replace(/\s+/gu, "");
+      if (!NOT_CALLS.has(name.split(/\??\./u)[0])) {
+        const close = matching(masked, hit.openParen);
+        const end = close < 0 ? hit.openParen : close;
+        const lineStart = fnSrc.lastIndexOf("\n", i) + 1;
+        const lineEnd = fnSrc.indexOf("\n", end);
+        units.push({ name, start: lineAt(fnSrc, i), end: lineAt(fnSrc, end), text: fnSrc.slice(lineStart, lineEnd < 0 ? fnSrc.length : lineEnd) });
+      }
+    }
+    i = hit.openParen + 1;
+  }
+  return dedupe(units);
+}
+
+// src/evidence/units.ts
+var LINES2 = /^(\d+)-(\d+)$/;
+function lineRange2(lines) {
+  const m2 = LINES2.exec(lines);
+  if (!m2) return void 0;
+  const start = Number(m2[1]);
+  const end = Number(m2[2]);
+  return start >= 1 && start <= end ? { start, end } : void 0;
+}
+function readFiles(root, spec, notes) {
+  const { files, truncated } = expandGlob(root, spec);
+  if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
+  const out = [];
+  for (const rel of files) {
+    const full = path16.join(root, rel);
+    let text;
+    try {
+      if (isOutside(path16.relative(realpathSync5(root), realpathSync5(full)))) throw new Error("outside");
+      text = readFileSync14(full, "utf8");
+    } catch {
+      notes.push(`${rel}: could not read, skipped`);
+      continue;
+    }
+    const lineCount = text ? text.split("\n").length : 1;
+    out.push({ name: rel, text, unit: { path: rel, kind: "file", name: rel, lines: `1-${lineCount}` } });
+  }
+  return out;
+}
+function readFunctions(parent) {
+  const unit = parent.unit;
+  return splitFunctions(parent.text).map((u) => ({
+    name: u.name,
+    text: u.text,
+    unit: { path: unit.path, kind: "function", name: u.name, lines: `${u.start}-${u.end}` }
+  }));
+}
+function readCalls(parent) {
+  const unit = parent.unit;
+  const base = Number(unit.lines.split("-")[0]) - 1;
+  return splitCalls(parent.text).map((u) => ({
+    name: u.name,
+    text: u.text,
+    unit: { path: unit.path, kind: "call", name: u.name, lines: `${u.start + base}-${u.end + base}` }
+  }));
+}
+function createCodeResolver(root, notes) {
+  return (_layer, spec, parent) => {
+    if (parent === null) return readFiles(root, spec, notes);
+    if (parent.unit.kind === "file") return readFunctions(parent);
+    return readCalls(parent);
+  };
+}
+function readFilesAt(root, ref, spec, notes, wherePaths) {
+  const clean2 = spec.replace(/^\.\//u, "");
+  if (path16.isAbsolute(clean2) || clean2.split("/").includes("..")) return [];
+  const repoRoot = repoRootFor(root, wherePaths);
+  if (!repoRoot) {
+    notes.push(`${spec}: not inside a git repo, matched no files`);
+    return [];
+  }
+  const re = globToRegExp(clean2);
+  const matched = [];
+  for (const gitRel of listFilesAtRef(repoRoot, ref)) {
+    const rel = path16.relative(root, path16.resolve(repoRoot, gitRel)).split(path16.sep).join("/");
+    if (isOutside(rel)) continue;
+    if (re.test(rel)) matched.push(rel);
+  }
+  matched.sort();
+  const truncated = matched.length > MAX_FILES;
+  if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
+  const files = truncated ? matched.slice(0, MAX_FILES) : matched;
+  const out = [];
+  for (const rel of files) {
+    const gitRel = path16.relative(repoRoot, path16.resolve(root, rel)).split(path16.sep).join("/");
+    const text = readFileAtRef(repoRoot, ref, gitRel);
+    if (text === void 0) {
+      notes.push(`${rel}: could not read at ${ref}, skipped`);
+      continue;
+    }
+    const lineCount = text ? text.split("\n").length : 1;
+    out.push({ name: rel, text, unit: { path: rel, kind: "file", name: rel, lines: `1-${lineCount}` } });
+  }
+  return out;
+}
+function createCodeResolverAt(root, ref, notes, wherePaths = []) {
+  return (_layer, spec, parent) => {
+    if (parent === null) return readFilesAt(root, ref, spec, notes, wherePaths);
+    if (parent.unit.kind === "file") return readFunctions(parent);
+    return readCalls(parent);
+  };
+}
+function readUnit(root, unit) {
+  const full = path16.resolve(root, unit.path);
+  const rel = path16.relative(root, full);
+  const outside = { ok: false, error: `"${unit.path}" is outside the project` };
+  if (isOutside(rel)) return outside;
+  let text;
+  try {
+    if (isOutside(path16.relative(realpathSync5(root), realpathSync5(full)))) return outside;
+    text = readFileSync14(full, "utf8");
+  } catch {
+    return { ok: false, error: `cannot read "${unit.path}"` };
+  }
+  if (unit.kind === "file") return { ok: true, text };
+  const range = lineRange2(unit.lines);
+  if (!range) return { ok: false, error: `"${unit.path}:${unit.lines}" has a bad line range` };
+  const lines = text.split("\n");
+  if (range.end > lines.length) return { ok: false, error: `"${unit.path}:${unit.lines}" is past the end of the file now` };
+  return { ok: true, text: lines.slice(range.start - 1, range.end).join("\n") };
+}
+
 // src/ledger/reuse.ts
 import { spawnSync as spawnSync2 } from "node:child_process";
-import path15 from "node:path";
+import path17 from "node:path";
 function commitsSince(root, sha, wherePaths) {
   if (!sha) return null;
   try {
     const first = wherePaths[0];
-    const dir = first ? path15.dirname(path15.resolve(root, first.split(":")[0])) : root;
+    const dir = first ? path17.dirname(path17.resolve(root, first.split(":")[0])) : root;
     const top = spawnSync2("git", ["rev-parse", "--show-toplevel"], { cwd: dir, encoding: "utf8" });
     const gitRoot = top.status === 0 ? top.stdout.trim() : "";
     if (!gitRoot) return null;
@@ -12516,798 +13023,6 @@ function sweepEntry(g) {
   return [g.id, m(...catEntries, ...qEntries.map(([n, v]) => [String(n), v]))];
 }
 
-// src/verbs/replay.ts
-function planCall(keyed, reused, state, answers, reusedFrom) {
-  const toAsk = splitReuse(keyed, reused, answers, reusedFrom).map(([q]) => q);
-  return toAsk.length ? { state, questions: toAsk } : null;
-}
-function gradeReplay(categories, answers) {
-  const beforeGrade = gradeSubject(categories, answers, "before:");
-  const afterCatsGrade = gradeSubject(categories, answers, "after:");
-  const g = answers["goal"];
-  const goal = { gate: goalGate(g.p), p: g.p };
-  const beforeMarks = /* @__PURE__ */ new Map();
-  for (const c of beforeGrade.categories) for (const [n, mk] of c.marks) beforeMarks.set(n, mk);
-  const afterMarks = /* @__PURE__ */ new Map();
-  for (const c of afterCatsGrade.categories) for (const [n, mk] of c.marks) afterMarks.set(n, mk);
-  const categoryGrades = categories.map((c, i) => {
-    const beforeCat = beforeGrade.categories[i];
-    const afterCat = afterCatsGrade.categories[i];
-    const fixed = [...beforeCat.marks].filter(([n, mk]) => mk !== "pass" && afterCat.marks.get(n) === "pass").map(([n]) => n);
-    const still = [...beforeCat.marks].filter(([n, mk]) => mk !== "pass" && afterCat.marks.get(n) !== "pass").map(([n]) => n);
-    return { name: c.name, before: beforeCat.gate, after: afterCat.gate, fixed, still };
-  });
-  const regressed = categories.flatMap((c) => c.questions).map((q) => q.n).filter((n) => beforeMarks.get(n) === "pass" && afterMarks.get(n) !== "pass").sort((a, b) => a - b);
-  const gate = regressed.length > 0 ? "fail" : combine([goal.gate, ...afterCatsGrade.categories.map((c) => c.gate)]);
-  return { categories: categoryGrades, goal, regressed, gate };
-}
-async function runReplay(text, ctx) {
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, "replay", wiseFields);
-  if (!loaded.ok) return loaded.result;
-  const { request } = loaded;
-  const parent = findRun(ctx.paths, request.side.parent);
-  if (!parent) return { exit: 2, text: stopText([`\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id`], "replay") };
-  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code`], "replay") };
-  if (parent.items !== null) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} was a sweep \u2192 run the sweep again (unchanged items are reused for free)`], "replay") };
-  const categories = parent.ask.categories;
-  const concernNames = categories.filter((c) => c.section === "concerns").map((c) => c.name);
-  const expect = request.side.expect;
-  const expectList = expect === "none" ? [] : expect;
-  const badExpect = expectList.find((name) => !concernNames.includes(name));
-  if (badExpect !== void 0) {
-    return { exit: 2, text: stopText([`\u2716 side.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "replay") };
-  }
-  const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
-  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const compare = request.side.compare;
-  const before = readGitEvidence(ctx.paths.root, compare.before, "before", paths);
-  const after = readGitEvidence(ctx.paths.root, compare.after, "after", paths);
-  if (!before.ok || !after.ok) {
-    const errors = [...before.ok ? [] : before.errors, ...after.ok ? [] : after.errors];
-    return { exit: 2, text: stopText(errors, "replay") };
-  }
-  const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-  const beforeEvidenceStr = subjectEvidence(before.files);
-  const afterEvidenceStr = subjectEvidence(after.files);
-  const beforeQuestions = subjectQuestions(categories, "before:");
-  const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, "after:")];
-  const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)]);
-  const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)]);
-  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
-  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
-  const answers = {};
-  const reusedFrom = {};
-  const beforeCall = planCall(beforeKeyed, beforeReused, { code: before.files }, answers, reusedFrom);
-  const afterCall = planCall(afterKeyed, afterReused, { goal: redact(request.side.goal), code: after.files }, answers, reusedFrom);
-  const calls = [...beforeCall ? [beforeCall] : [], ...afterCall ? [afterCall] : []];
-  if (ctx.dryRun) {
-    const total = beforeKeyed.length + afterKeyed.length;
-    const askedQuestions = calls.reduce((n, c) => n + c.questions.length, 0);
-    return { exit: 0, text: dryRunText({ calls: calls.length, questions: askedQuestions, reused: total - askedQuestions, route: identity.route, baseURL: identity.baseURL }) };
-  }
-  const pre = preflight(ctx, { needsBudget: calls.length > 0 });
-  if (!pre.ok) return pre.result;
-  let costUsd = 0;
-  let costEstimated = false;
-  let telemetry = [];
-  if (calls.length > 0) {
-    const asked2 = await askAll(ctx, "replay", calls);
-    if (!asked2.ok) return asked2.result;
-    Object.assign(answers, asked2.value.answers);
-    costUsd = asked2.value.costUsd;
-    costEstimated = asked2.value.costEstimated;
-    telemetry = asked2.value.telemetry;
-  }
-  const keys = {};
-  for (const [q, k] of [...beforeKeyed, ...afterKeyed]) keys[q.id] = k;
-  const replayGrade = gradeReplay(categories, answers);
-  const { goal, regressed, gate } = replayGrade;
-  const afterCatsGrade = gradeSubject(categories, answers, "after:");
-  const catEntries = replayGrade.categories.map((c) => {
-    const probeCount = c.fixed.length + c.still.length;
-    return [
-      c.name,
-      m(
-        ["before", c.before],
-        ["after", c.after],
-        ...c.fixed.length ? [["fixed", c.fixed]] : [],
-        ...c.still.length ? [["still", c.still]] : [],
-        ...probeCount > 0 ? [["probes", `${c.fixed.length}/${probeCount} fixed`]] : []
-      )
-    ];
-  });
-  const gradeByName = new Map(replayGrade.categories.map((c) => [c.name, c]));
-  const expectedFixed = [];
-  const expectedStill = [];
-  for (const name of expectList) {
-    const g = gradeByName.get(name);
-    if (!g || g.before === "pass") continue;
-    (g.after === "pass" ? expectedFixed : expectedStill).push(name);
-  }
-  const expectSet = new Set(expectList);
-  const unexpected = concernNames.filter((name) => {
-    const g = gradeByName.get(name);
-    return g !== void 0 && g.before !== g.after && !expectSet.has(name);
-  });
-  let sawWholeFileNote = false;
-  const evidenceNotes = [...before.notes, ...after.notes].filter((n) => {
-    if (n !== WHOLE_FILE_NOTE) return true;
-    if (sawWholeFileNote) return false;
-    sawWholeFileNote = true;
-    return true;
-  });
-  const reusedRunIds = reusedIds(reusedFrom);
-  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
-  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
-  const response = (id, budget) => respondText(
-    m(
-      ["id", id],
-      ["gate", gate],
-      ["goal", m(["gate", goal.gate], ["p", goal.p])],
-      ...catEntries,
-      ["expected", m(["fixed", expectedFixed], ["still", expectedStill])],
-      ...unexpected.length ? [["unexpected", unexpected]] : [],
-      ["regressed", regressed],
-      ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
-    ),
-    wiseRecorded(request.wise, ["parent"]),
-    // A regression alone can fail the gate even when every "after" category passes on its own (C-064) —
-    // outcomeNext's gate-matching search would then find nothing and wrongly blame the goal (GOAL_ONLY_NEXT).
-    // regressed takes priority: name it, per C-065 (revert or drill into it). [C-091]
-    regressed.length ? regressionNext(id, regressed, categories) : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
-    commonNotes(
-      [...loaded.notes, ...evidenceNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
-      `2 states \xB7 ${budget}`,
-      ctx.provider.adapter
-    )
-  );
-  const beforeSha = resolveRefSha(ctx.paths.root, compare.before, parent.where);
-  const afterSha = resolveRefSha(ctx.paths.root, compare.after, parent.where);
-  const run = {
-    verb: "replay",
-    actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
-    depth: null,
-    where: parent.where,
-    parent: request.side.parent,
-    from: null,
-    compare,
-    expect,
-    wise: request.wise,
-    ask: { categories, layers: [] },
-    over: null,
-    items: null,
-    answers,
-    keys,
-    reusedFrom,
-    categories: Object.fromEntries(afterCatsGrade.categories.map((c) => [c.name, c.gate])),
-    gate,
-    goalGate: goal.gate,
-    goalP: goal.p,
-    consensus: null,
-    response,
-    notes: [],
-    adapter: ctx.provider.adapter,
-    model: ctx.provider.model,
-    costUsd: costUsd ?? null,
-    calls: calls.length,
-    route: identity.route,
-    baseURL: identity.baseURL,
-    commit: afterSha,
-    commits: { before: beforeSha, after: afterSha },
-    telemetry
-  };
-  const rec = calls.length === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
-  if (!rec.ok) return rec.result;
-  return { exit: 0, text: rec.value.run.response, run: rec.value.run };
-}
-
-// src/ledger/stale.ts
-var MAX_STALE_NOTES = 3;
-function sameQuestion(older, asking) {
-  if (older.kind !== asking.kind || older.text !== asking.text) return false;
-  if (older.kind === "scale") return JSON.stringify(older.levels) === JSON.stringify(asking.levels);
-  if (older.kind === "choice") return JSON.stringify(older.options) === JSON.stringify(asking.options);
-  return true;
-}
-function staleNotes(paths, where, toAsk) {
-  if (!toAsk.length || !where.length) return [];
-  const places = [...new Set(where.map(stripLines))];
-  return withIndex(
-    paths,
-    (handle) => {
-      const offsets = /* @__PURE__ */ new Set();
-      for (const place of places) for (const c of handle.placeCandidates(place)) offsets.add(c.offset);
-      const notes = [];
-      const seenOrigins = /* @__PURE__ */ new Set();
-      for (const offset of offsets) {
-        if (notes.length >= MAX_STALE_NOTES) break;
-        const rec = readRecordAt(paths.log, offset);
-        if (!rec || !isContractRun(rec) || rec.items !== null) continue;
-        const olderQuestions = rec.ask.categories.flatMap((c) => c.questions);
-        for (const [q, key2] of toAsk) {
-          const match = olderQuestions.find((rq) => sameQuestion(rq, q));
-          if (!match) continue;
-          const oldKey = rec.keys[String(match.n)];
-          if (oldKey === void 0 || oldKey === key2) continue;
-          const origin = rec.reusedFrom[String(match.n)] ?? rec.id;
-          if (seenOrigins.has(origin)) break;
-          seenOrigins.add(origin);
-          const ans = rec.answers[String(match.n)];
-          const p = ans && ans.kind === "yesno" ? ` (p ${ans.p.toFixed(2)})` : "";
-          notes.push(`stale: ${rec.id} answered "${clip(q.text, 50)}" on older code${p}`);
-          break;
-        }
-      }
-      return notes;
-    },
-    { readOnly: true }
-  );
-}
-
-// src/verbs/class.ts
-var CAP_NOTE = "would be blocked: the budget cap is already reached";
-async function runClass(text, ctx) {
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, "class", wiseFields);
-  if (!loaded.ok) return loaded.result;
-  const { request } = loaded;
-  const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
-  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "class") };
-  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-  const evidenceStr = subjectEvidence(evidence.evidence.files);
-  const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
-  const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)]);
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
-  const answers = {};
-  const reusedFrom = {};
-  const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
-  if (ctx.dryRun) {
-    let capNote = [];
-    if (toAsk.length > 0) {
-      const state = peekBudget(ctx.paths);
-      if (state && !checkBudget2(state).ok) capNote = [CAP_NOTE];
-    }
-    return {
-      exit: 0,
-      text: dryRunText(
-        { calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL },
-        [...capNote, ...probeWarnings(request.side)]
-      )
-    };
-  }
-  const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
-  if (!pre.ok) return pre.result;
-  const stale = staleNotes(ctx.paths, request.side.where, toAsk);
-  let costUsd;
-  let costEstimated = false;
-  let calls;
-  let telemetry = [];
-  if (toAsk.length === 0) {
-    costUsd = 0;
-    calls = 0;
-  } else {
-    const call = { state: { goal: redact(request.side.goal), code: evidence.evidence.files }, questions: toAsk.map(([q]) => q) };
-    const asked2 = await askAll(ctx, "class", [call]);
-    if (!asked2.ok) return asked2.result;
-    Object.assign(answers, asked2.value.answers);
-    costUsd = asked2.value.costUsd;
-    costEstimated = asked2.value.costEstimated;
-    telemetry = asked2.value.telemetry;
-    calls = 1;
-  }
-  const keys = {};
-  for (const [q, k] of keyed) keys[q.id] = k;
-  const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
-  const subject = gradeSubject(request.side.categories, answers);
-  const reusedRunIds = reusedIds(reusedFrom);
-  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
-  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
-  const response = (id, budget) => respondText(
-    subjectSide(id, subject.gate, subject, [
-      ["consensus", consensus],
-      ["escalate", escalate],
-      ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
-    ]),
-    wiseRecorded(request.wise),
-    outcomeNext(id, subject.gate, subject.categories, request.side.categories, "act on it"),
-    commonNotes(
-      [...loaded.notes, ...evidence.evidence.notes, ...stale, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
-      budget,
-      ctx.provider.adapter
-    )
-  );
-  const run = {
-    verb: "class",
-    actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
-    depth: request.side.depth ?? null,
-    where: request.side.where,
-    parent: request.side.parent ?? request.wise?.parent ?? null,
-    from: null,
-    compare: null,
-    commit: currentCommitSha(ctx.paths.root, request.side.where),
-    wise: request.wise,
-    ask: { categories: request.side.categories, layers: [] },
-    over: null,
-    items: null,
-    answers,
-    keys,
-    reusedFrom,
-    categories: Object.fromEntries(subject.categories.map((c) => [c.name, c.gate])),
-    gate: subject.gate,
-    goalGate: subject.goal?.gate ?? null,
-    goalP: subject.goal?.p ?? null,
-    consensus,
-    response,
-    notes: [],
-    adapter: ctx.provider.adapter,
-    model: ctx.provider.model,
-    costUsd: costUsd ?? null,
-    calls,
-    route: identity.route,
-    baseURL: identity.baseURL,
-    telemetry
-  };
-  const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
-  if (!rec.ok) return rec.result;
-  return { exit: 0, text: rec.value.run.response, run: rec.value.run };
-}
-
-// src/evidence/units.ts
-import { readFileSync as readFileSync14, realpathSync as realpathSync5 } from "node:fs";
-import path17 from "node:path";
-
-// src/evidence/glob.ts
-import { readdirSync } from "node:fs";
-import path16 from "node:path";
-var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", ".sidewise", "dist"]);
-var MAX_FILES = 500;
-var escape = (s) => s.replace(/[.+^$()|[\]\\]/gu, "\\$&");
-function globToRegExp(pattern) {
-  let re = "";
-  for (let i = 0; i < pattern.length; i++) {
-    const c = pattern[i];
-    if (c === "*") {
-      if (pattern[i + 1] === "*") {
-        const slash = pattern[i + 2] === "/";
-        re += slash ? "(?:[^/]*/)*" : ".*";
-        i += slash ? 2 : 1;
-      } else re += "[^/]*";
-    } else if (c === "?") re += "[^/]";
-    else if (c === "{") {
-      const end = pattern.indexOf("}", i);
-      if (end > i) {
-        re += `(?:${pattern.slice(i + 1, end).split(",").map(escape).join("|")})`;
-        i = end;
-      } else re += "\\{";
-    } else re += escape(c);
-  }
-  return new RegExp(`^${re}$`, "u");
-}
-function staticPrefix(pattern) {
-  const parts = pattern.split("/");
-  const fixed = [];
-  for (const p of parts.slice(0, -1)) {
-    if (/[*?{]/u.test(p)) break;
-    fixed.push(p);
-  }
-  return fixed.join("/");
-}
-function expandGlob(root, pattern) {
-  const clean2 = pattern.replace(/^\.\//u, "");
-  if (path16.isAbsolute(clean2) || clean2.split("/").includes("..")) return { files: [], truncated: false };
-  const re = globToRegExp(clean2);
-  const files = [];
-  let truncated = false;
-  const rootResolved = path16.resolve(root);
-  const walk2 = (rel) => {
-    const dir = path16.resolve(root, rel);
-    if (dir !== rootResolved && !dir.startsWith(rootResolved + path16.sep)) return;
-    let entries;
-    try {
-      entries = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)) {
-      const child = rel ? `${rel}/${e.name}` : e.name;
-      if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name)) walk2(child);
-      } else if (e.isFile() && re.test(child)) {
-        if (files.length >= MAX_FILES) {
-          truncated = true;
-          return;
-        }
-        files.push(child);
-      }
-    }
-  };
-  walk2(staticPrefix(clean2));
-  return { files, truncated };
-}
-
-// src/evidence/split.ts
-var KEYWORDS_BEFORE_REGEX = /(?:^|[^\w$])(?:return|typeof|instanceof|case|do|else|in|of|new|delete|void|throw|yield|await)$/u;
-function maskCode(src) {
-  const out = src.split("");
-  const n = src.length;
-  const blank = (a, b) => {
-    for (let k = a; k < b && k < n; k++) if (out[k] !== "\n") out[k] = " ";
-  };
-  const templates = [];
-  let depth = 0;
-  const regexAllowed = (i2) => {
-    let j = i2 - 1;
-    while (j >= 0 && /\s/u.test(out[j])) j--;
-    if (j < 0) return true;
-    const c = out[j];
-    if (/[\w$]/u.test(c)) return KEYWORDS_BEFORE_REGEX.test(out.slice(Math.max(0, j - 12), j + 1).join(""));
-    return !/[)\]]/u.test(c);
-  };
-  const template = (start) => {
-    let j = start;
-    while (j < n) {
-      if (src[j] === "\\") {
-        j += 2;
-        continue;
-      }
-      if (src[j] === "`") {
-        blank(start, j);
-        return j + 1;
-      }
-      if (src[j] === "$" && src[j + 1] === "{") {
-        blank(start, j);
-        depth += 1;
-        templates.push(depth);
-        return j + 2;
-      }
-      j += 1;
-    }
-    blank(start, n);
-    return n;
-  };
-  let i = 0;
-  while (i < n) {
-    const c = src[i];
-    const d = src[i + 1];
-    if (c === "/" && d === "/") {
-      const e = src.indexOf("\n", i);
-      const end = e < 0 ? n : e;
-      blank(i, end);
-      i = end;
-    } else if (c === "/" && d === "*") {
-      const e = src.indexOf("*/", i + 2);
-      const end = e < 0 ? n : e + 2;
-      blank(i, end);
-      i = end;
-    } else if (c === '"' || c === "'") {
-      let j = i + 1;
-      while (j < n && src[j] !== c && src[j] !== "\n") j += src[j] === "\\" ? 2 : 1;
-      blank(i + 1, j);
-      i = j + 1;
-    } else if (c === "`") {
-      i = template(i + 1);
-    } else if (c === "/" && regexAllowed(i)) {
-      let j = i + 1;
-      let inClass = false;
-      while (j < n && src[j] !== "\n") {
-        if (src[j] === "\\") {
-          j += 2;
-          continue;
-        }
-        if (src[j] === "[") inClass = true;
-        else if (src[j] === "]") inClass = false;
-        else if (src[j] === "/" && !inClass) break;
-        j += 1;
-      }
-      blank(i + 1, j);
-      i = j + 1;
-    } else if (c === "{") {
-      depth += 1;
-      i += 1;
-    } else if (c === "}") {
-      if (templates.length && templates[templates.length - 1] === depth) {
-        templates.pop();
-        depth -= 1;
-        i = template(i + 1);
-      } else {
-        depth -= 1;
-        i += 1;
-      }
-    } else {
-      i += 1;
-    }
-  }
-  return out.join("");
-}
-function matching(masked, open) {
-  const pairs = { "{": "}", "(": ")", "[": "]" };
-  const close = pairs[masked[open]];
-  let depth = 0;
-  for (let k = open; k < masked.length; k++) {
-    if (masked[k] === masked[open]) depth += 1;
-    else if (masked[k] === close) {
-      depth -= 1;
-      if (depth === 0) return k;
-    }
-  }
-  return -1;
-}
-function depths(masked) {
-  const d = new Int32Array(masked.length + 1);
-  let depth = 0;
-  for (let k = 0; k < masked.length; k++) {
-    d[k] = depth;
-    if (masked[k] === "{") depth += 1;
-    else if (masked[k] === "}") depth -= 1;
-  }
-  d[masked.length] = depth;
-  return d;
-}
-var lineAt = (src, index) => {
-  let line3 = 1;
-  for (let k = 0; k < index && k < src.length; k++) if (src[k] === "\n") line3 += 1;
-  return line3;
-};
-function bodyEnd(masked, paramsOpen) {
-  const paramsClose = matching(masked, paramsOpen);
-  if (paramsClose < 0) return -1;
-  let k = paramsClose + 1;
-  let depth = 0;
-  while (k < masked.length && !(depth === 0 && (masked[k] === "{" || masked[k] === ";" || masked.startsWith("=>", k)))) {
-    if (masked[k] === "(" || masked[k] === "[") depth += 1;
-    else if (masked[k] === ")" || masked[k] === "]") depth -= 1;
-    k += 1;
-  }
-  if (masked.startsWith("=>", k)) {
-    k += 2;
-    while (k < masked.length && /\s/u.test(masked[k])) k += 1;
-    if (masked[k] !== "{") return expressionEnd(masked, k);
-  }
-  if (masked[k] !== "{") return -1;
-  return matching(masked, k);
-}
-function expressionEnd(masked, from) {
-  let depth = 0;
-  for (let k = from; k < masked.length; k++) {
-    const c = masked[k];
-    if ("([{".includes(c)) depth += 1;
-    else if (")]}".includes(c)) {
-      if (depth === 0) return k - 1;
-      depth -= 1;
-    } else if (depth === 0 && (c === ";" || c === "," || c === "\n")) return k - 1;
-  }
-  return masked.length - 1;
-}
-var DECLARATIONS = [
-  // function name(  · export function · export default async function* name(
-  /(?:export\s+(?:default\s+)?)?(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\(/gu,
-  // const name = async (…) =>  · const name = function(  · const name: T = x =>
-  /(?:export\s+)?(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*(?::[^=;]+)?=\s*(?:async\s+)?(?:function\b[^(]*\(|(?:<[^>]*>)?\s*\(|[A-Za-z_$][\w$]*\s*=>)/gu,
-  // export default function (  (anonymous)
-  /export\s+default\s+(?:async\s+)?function\s*\*?\s*()\(/gu
-];
-var METHOD = /^[ \t]*(?:(?:public|private|protected|static|async|readonly|override|get|set)\s+)*\*?([A-Za-z_$][\w$]*)\s*(?:<[^>]*>)?\s*\(/gmu;
-var NOT_METHODS = /* @__PURE__ */ new Set(["if", "for", "while", "switch", "catch", "function", "return", "with"]);
-function namedFunctionExprStarts(masked) {
-  const starts = /* @__PURE__ */ new Set();
-  for (const hit of masked.matchAll(DECLARATIONS[1])) {
-    const m2 = /=\s*(?:async\s+)?function\b/u.exec(hit[0]);
-    if (m2) starts.add(hit.index + m2.index + m2[0].lastIndexOf("function"));
-  }
-  return starts;
-}
-function dedupe(units) {
-  const seen = /* @__PURE__ */ new Map();
-  return units.map((u) => {
-    const k = (seen.get(u.name) ?? 0) + 1;
-    seen.set(u.name, k);
-    return k === 1 ? u : { ...u, name: `${u.name}~${k}` };
-  });
-}
-function splitFunctions(src) {
-  const masked = maskCode(src);
-  const depth = depths(masked);
-  const skipStarts = namedFunctionExprStarts(masked);
-  const found = [];
-  const add = (name, at, end) => {
-    if (end > at && !found.some((f) => f.at === at)) found.push({ name, at, end });
-  };
-  for (const re of DECLARATIONS) {
-    for (const hit of masked.matchAll(re)) {
-      const at = hit.index;
-      if (re === DECLARATIONS[0] && skipStarts.has(at)) continue;
-      const params = hit[0].trimEnd().endsWith("(") ? at + hit[0].lastIndexOf("(") : at + hit[0].length;
-      const end = hit[0].trimEnd().endsWith("=>") ? expressionOrBlock(masked, at + hit[0].length) : bodyEnd(masked, params);
-      add(hit[1] || "default", at, end);
-    }
-  }
-  for (const cls of masked.matchAll(/(?:export\s+(?:default\s+)?)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)[^{]*\{/gu)) {
-    if (depth[cls.index] !== 0) continue;
-    const open = cls.index + cls[0].length - 1;
-    const close = matching(masked, open);
-    if (close < 0) continue;
-    const body = masked.slice(open + 1, close);
-    for (const meth of body.matchAll(METHOD)) {
-      const at = open + 1 + meth.index;
-      const name = meth[1];
-      if (NOT_METHODS.has(name) || depth[at + meth[0].length - 1] !== depth[open] + 1) continue;
-      const end = bodyEnd(masked, at + meth[0].length - 1);
-      if (end > 0) found.push({ name: `${cls[1]}.${name}`, at: at + (meth[0].length - meth[0].trimStart().length), end });
-    }
-  }
-  found.sort((a, b) => a.at - b.at);
-  if (!found.length) return [{ name: "(module)", start: 1, end: lineAt(src, src.length), text: src }];
-  return dedupe(
-    found.map((f) => {
-      const lineStart = src.lastIndexOf("\n", f.at) + 1;
-      return { name: f.name, start: lineAt(src, f.at), end: lineAt(src, f.end), text: src.slice(lineStart, f.end + 1) };
-    })
-  );
-}
-function expressionOrBlock(masked, from) {
-  let k = from;
-  while (k < masked.length && /\s/u.test(masked[k])) k += 1;
-  return masked[k] === "{" ? matching(masked, k) : expressionEnd(masked, k);
-}
-var NOT_CALLS = /* @__PURE__ */ new Set(["if", "for", "while", "switch", "catch", "function", "return", "typeof", "super", "import", "await", "new", "yield", "void", "delete", "in", "of", "with"]);
-var isIdentStart = (c) => c !== void 0 && /[A-Za-z_$]/u.test(c);
-var isIdentPart = (c) => c !== void 0 && /[\w$]/u.test(c);
-var isSpace = (c) => c !== void 0 && /\s/u.test(c);
-function identEnd(masked, at) {
-  let k = at + 1;
-  while (isIdentPart(masked[k])) k += 1;
-  return k;
-}
-function skipSpace(masked, at) {
-  let k = at;
-  while (isSpace(masked[k])) k += 1;
-  return k;
-}
-function genericsEnd(masked, at) {
-  if (masked[at] !== "<") return -1;
-  let k = at + 1;
-  while (k < masked.length && !"<>()".includes(masked[k])) k += 1;
-  return masked[k] === ">" ? k + 1 : -1;
-}
-function chainCall(masked, start) {
-  const ends = [identEnd(masked, start)];
-  let k = ends[0];
-  for (; ; ) {
-    const j = skipSpace(masked, k);
-    let dot = -1;
-    if (masked[j] === "?" && masked[j + 1] === ".") dot = j + 2;
-    else if (masked[j] === ".") dot = j + 1;
-    if (dot < 0) break;
-    const afterDot = skipSpace(masked, dot);
-    if (!isIdentStart(masked[afterDot])) break;
-    k = identEnd(masked, afterDot);
-    ends.push(k);
-  }
-  for (let idx = ends.length - 1; idx >= 0; idx--) {
-    const end = ends[idx];
-    let j = skipSpace(masked, end);
-    const afterGenerics = genericsEnd(masked, j);
-    if (afterGenerics >= 0) j = skipSpace(masked, afterGenerics);
-    if (masked[j] === "(") return { nameEnd: end, openParen: j };
-  }
-  return null;
-}
-function splitCalls(fnSrc) {
-  const masked = maskCode(fnSrc);
-  const bodyOpen = masked.indexOf("{");
-  const units = [];
-  const n = masked.length;
-  let i = 0;
-  while (i < n) {
-    if (!isIdentStart(masked[i])) {
-      i += 1;
-      continue;
-    }
-    const prev = i > 0 ? masked[i - 1] : void 0;
-    if (prev !== void 0 && /[\w$.]/u.test(prev)) {
-      i = identEnd(masked, i);
-      continue;
-    }
-    const hit = chainCall(masked, i);
-    if (!hit) {
-      i = identEnd(masked, i);
-      continue;
-    }
-    if (i > bodyOpen) {
-      const name = masked.slice(i, hit.nameEnd).replace(/\s+/gu, "");
-      if (!NOT_CALLS.has(name.split(/\??\./u)[0])) {
-        const close = matching(masked, hit.openParen);
-        const end = close < 0 ? hit.openParen : close;
-        const lineStart = fnSrc.lastIndexOf("\n", i) + 1;
-        const lineEnd = fnSrc.indexOf("\n", end);
-        units.push({ name, start: lineAt(fnSrc, i), end: lineAt(fnSrc, end), text: fnSrc.slice(lineStart, lineEnd < 0 ? fnSrc.length : lineEnd) });
-      }
-    }
-    i = hit.openParen + 1;
-  }
-  return dedupe(units);
-}
-
-// src/evidence/units.ts
-var LINES2 = /^(\d+)-(\d+)$/;
-function lineRange2(lines) {
-  const m2 = LINES2.exec(lines);
-  if (!m2) return void 0;
-  const start = Number(m2[1]);
-  const end = Number(m2[2]);
-  return start >= 1 && start <= end ? { start, end } : void 0;
-}
-function readFiles(root, spec, notes) {
-  const { files, truncated } = expandGlob(root, spec);
-  if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
-  const out = [];
-  for (const rel of files) {
-    const full = path17.join(root, rel);
-    let text;
-    try {
-      if (isOutside(path17.relative(realpathSync5(root), realpathSync5(full)))) throw new Error("outside");
-      text = readFileSync14(full, "utf8");
-    } catch {
-      notes.push(`${rel}: could not read, skipped`);
-      continue;
-    }
-    const lineCount = text ? text.split("\n").length : 1;
-    out.push({ name: rel, text, unit: { path: rel, kind: "file", name: rel, lines: `1-${lineCount}` } });
-  }
-  return out;
-}
-function readFunctions(parent) {
-  const unit = parent.unit;
-  return splitFunctions(parent.text).map((u) => ({
-    name: u.name,
-    text: u.text,
-    unit: { path: unit.path, kind: "function", name: u.name, lines: `${u.start}-${u.end}` }
-  }));
-}
-function readCalls(parent) {
-  const unit = parent.unit;
-  const base = Number(unit.lines.split("-")[0]) - 1;
-  return splitCalls(parent.text).map((u) => ({
-    name: u.name,
-    text: u.text,
-    unit: { path: unit.path, kind: "call", name: u.name, lines: `${u.start + base}-${u.end + base}` }
-  }));
-}
-function createCodeResolver(root, notes) {
-  return (_layer, spec, parent) => {
-    if (parent === null) return readFiles(root, spec, notes);
-    if (parent.unit.kind === "file") return readFunctions(parent);
-    return readCalls(parent);
-  };
-}
-function readUnit(root, unit) {
-  const full = path17.resolve(root, unit.path);
-  const rel = path17.relative(root, full);
-  const outside = { ok: false, error: `"${unit.path}" is outside the project` };
-  if (isOutside(rel)) return outside;
-  let text;
-  try {
-    if (isOutside(path17.relative(realpathSync5(root), realpathSync5(full)))) return outside;
-    text = readFileSync14(full, "utf8");
-  } catch {
-    return { ok: false, error: `cannot read "${unit.path}"` };
-  }
-  if (unit.kind === "file") return { ok: true, text };
-  const range = lineRange2(unit.lines);
-  if (!range) return { ok: false, error: `"${unit.path}:${unit.lines}" has a bad line range` };
-  const lines = text.split("\n");
-  if (range.end > lines.length) return { ok: false, error: `"${unit.path}:${unit.lines}" is past the end of the file now` };
-  return { ok: true, text: lines.slice(range.start - 1, range.end).join("\n") };
-}
-
 // src/verbs/sweep.ts
 function groupByLayer(items) {
   const out = /* @__PURE__ */ new Map();
@@ -13494,11 +13209,600 @@ function itemRecords(items, grades) {
   return out;
 }
 
-// src/verbs/drill.ts
-var REDRILL_NEXT = "fix it, then run this drill again (unchanged items are reused, so it is nearly free)";
+// src/verbs/replay.ts
+function planCall(keyed, reused, state, answers, reusedFrom) {
+  const toAsk = splitReuse(keyed, reused, answers, reusedFrom).map(([q]) => q);
+  return toAsk.length ? { state, questions: toAsk } : null;
+}
+function gradeReplay(categories, answers) {
+  const beforeGrade = gradeSubject(categories, answers, "before:");
+  const afterCatsGrade = gradeSubject(categories, answers, "after:");
+  const g = answers["goal"];
+  const goal = { gate: goalGate(g.p), p: g.p };
+  const beforeMarks = /* @__PURE__ */ new Map();
+  for (const c of beforeGrade.categories) for (const [n, mk] of c.marks) beforeMarks.set(n, mk);
+  const afterMarks = /* @__PURE__ */ new Map();
+  for (const c of afterCatsGrade.categories) for (const [n, mk] of c.marks) afterMarks.set(n, mk);
+  const categoryGrades = categories.map((c, i) => {
+    const beforeCat = beforeGrade.categories[i];
+    const afterCat = afterCatsGrade.categories[i];
+    const fixed = [...beforeCat.marks].filter(([n, mk]) => mk !== "pass" && afterCat.marks.get(n) === "pass").map(([n]) => n);
+    const still = [...beforeCat.marks].filter(([n, mk]) => mk !== "pass" && afterCat.marks.get(n) !== "pass").map(([n]) => n);
+    return { name: c.name, before: beforeCat.gate, after: afterCat.gate, fixed, still };
+  });
+  const regressed = categories.flatMap((c) => c.questions).map((q) => q.n).filter((n) => beforeMarks.get(n) === "pass" && afterMarks.get(n) !== "pass").sort((a, b) => a - b);
+  const gate = regressed.length > 0 ? "fail" : combine([goal.gate, ...afterCatsGrade.categories.map((c) => c.gate)]);
+  return { categories: categoryGrades, goal, regressed, gate };
+}
+async function runReplay(text, ctx) {
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
+  const loaded = loadRequest(text, "replay", wiseFields);
+  if (!loaded.ok) return loaded.result;
+  const { request } = loaded;
+  const parent = findRun(ctx.paths, request.side.parent);
+  if (!parent) return { exit: 2, text: stopText([`\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id`], "replay") };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code`], "replay") };
+  if (parent.items !== null) return runSweepReplay(ctx, request, loaded, parent, cfg);
+  const categories = parent.ask.categories;
+  const concernNames = categories.filter((c) => c.section === "concerns").map((c) => c.name);
+  const expect = request.side.expect;
+  const expectList = expect === "none" ? [] : expect;
+  const badExpect = expectList.find((name) => !concernNames.includes(name));
+  if (badExpect !== void 0) {
+    return { exit: 2, text: stopText([`\u2716 side.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "replay") };
+  }
+  const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
+  const compare = request.side.compare;
+  const before = readGitEvidence(ctx.paths.root, compare.before, "before", paths);
+  const after = readGitEvidence(ctx.paths.root, compare.after, "after", paths);
+  if (!before.ok || !after.ok) {
+    const errors = [...before.ok ? [] : before.errors, ...after.ok ? [] : after.errors];
+    return { exit: 2, text: stopText(errors, "replay") };
+  }
+  const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
+  const beforeEvidenceStr = subjectEvidence(before.files);
+  const afterEvidenceStr = subjectEvidence(after.files);
+  const beforeQuestions = subjectQuestions(categories, "before:");
+  const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, "after:")];
+  const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)]);
+  const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)]);
+  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
+  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
+  const answers = {};
+  const reusedFrom = {};
+  const beforeCall = planCall(beforeKeyed, beforeReused, { code: before.files }, answers, reusedFrom);
+  const afterCall = planCall(afterKeyed, afterReused, { goal: redact(request.side.goal), code: after.files }, answers, reusedFrom);
+  const calls = [...beforeCall ? [beforeCall] : [], ...afterCall ? [afterCall] : []];
+  if (ctx.dryRun) {
+    const total = beforeKeyed.length + afterKeyed.length;
+    const askedQuestions = calls.reduce((n, c) => n + c.questions.length, 0);
+    return { exit: 0, text: dryRunText({ calls: calls.length, questions: askedQuestions, reused: total - askedQuestions, route: identity.route, baseURL: identity.baseURL }) };
+  }
+  const pre = preflight(ctx, { needsBudget: calls.length > 0 });
+  if (!pre.ok) return pre.result;
+  let costUsd = 0;
+  let costEstimated = false;
+  let telemetry = [];
+  if (calls.length > 0) {
+    const asked2 = await askAll(ctx, "replay", calls);
+    if (!asked2.ok) return asked2.result;
+    Object.assign(answers, asked2.value.answers);
+    costUsd = asked2.value.costUsd;
+    costEstimated = asked2.value.costEstimated;
+    telemetry = asked2.value.telemetry;
+  }
+  const keys = {};
+  for (const [q, k] of [...beforeKeyed, ...afterKeyed]) keys[q.id] = k;
+  const replayGrade = gradeReplay(categories, answers);
+  const { goal, regressed, gate } = replayGrade;
+  const afterCatsGrade = gradeSubject(categories, answers, "after:");
+  const catEntries = replayGrade.categories.map((c) => {
+    const probeCount = c.fixed.length + c.still.length;
+    return [
+      c.name,
+      m(
+        ["before", c.before],
+        ["after", c.after],
+        ...c.fixed.length ? [["fixed", c.fixed]] : [],
+        ...c.still.length ? [["still", c.still]] : [],
+        ...probeCount > 0 ? [["probes", `${c.fixed.length}/${probeCount} fixed`]] : []
+      )
+    ];
+  });
+  const gradeByName = new Map(replayGrade.categories.map((c) => [c.name, c]));
+  const expectedFixed = [];
+  const expectedStill = [];
+  for (const name of expectList) {
+    const g = gradeByName.get(name);
+    if (!g || g.before === "pass") continue;
+    (g.after === "pass" ? expectedFixed : expectedStill).push(name);
+  }
+  const expectSet = new Set(expectList);
+  const unexpected = concernNames.filter((name) => {
+    const g = gradeByName.get(name);
+    return g !== void 0 && g.before !== g.after && !expectSet.has(name);
+  });
+  let sawWholeFileNote = false;
+  const evidenceNotes = [...before.notes, ...after.notes].filter((n) => {
+    if (n !== WHOLE_FILE_NOTE) return true;
+    if (sawWholeFileNote) return false;
+    sawWholeFileNote = true;
+    return true;
+  });
+  const reusedRunIds = reusedIds(reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
+  const response = (id, budget) => respondText(
+    m(
+      ["id", id],
+      ["gate", gate],
+      ["goal", m(["gate", goal.gate], ["p", goal.p])],
+      ...catEntries,
+      ["expected", m(["fixed", expectedFixed], ["still", expectedStill])],
+      ...unexpected.length ? [["unexpected", unexpected]] : [],
+      ["regressed", regressed],
+      ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
+    ),
+    wiseRecorded(request.wise, ["parent"]),
+    // A regression alone can fail the gate even when every "after" category passes on its own (C-064) —
+    // outcomeNext's gate-matching search would then find nothing and wrongly blame the goal (GOAL_ONLY_NEXT).
+    // regressed takes priority: name it, per C-065 (revert or drill into it). [C-091]
+    regressed.length ? regressionNext(id, regressed, categories) : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
+    commonNotes(
+      [...loaded.notes, ...evidenceNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      `2 states \xB7 ${budget}`,
+      ctx.provider.adapter
+    )
+  );
+  const beforeSha = resolveRefSha(ctx.paths.root, compare.before, parent.where);
+  const afterSha = resolveRefSha(ctx.paths.root, compare.after, parent.where);
+  const run = {
+    verb: "replay",
+    actor: actorOf(ctx),
+    task: ctx.env.SIDEWISE_TASK?.trim() || null,
+    goal: request.side.goal,
+    depth: null,
+    where: parent.where,
+    parent: request.side.parent,
+    from: null,
+    compare,
+    expect,
+    wise: request.wise,
+    ask: { categories, layers: [] },
+    over: null,
+    items: null,
+    answers,
+    keys,
+    reusedFrom,
+    categories: Object.fromEntries(afterCatsGrade.categories.map((c) => [c.name, c.gate])),
+    gate,
+    goalGate: goal.gate,
+    goalP: goal.p,
+    consensus: null,
+    response,
+    notes: [],
+    adapter: ctx.provider.adapter,
+    model: ctx.provider.model,
+    costUsd: costUsd ?? null,
+    calls: calls.length,
+    route: identity.route,
+    baseURL: identity.baseURL,
+    commit: afterSha,
+    commits: { before: beforeSha, after: afterSha },
+    telemetry
+  };
+  const rec = calls.length === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
+  if (!rec.ok) return rec.result;
+  return { exit: 0, text: rec.value.run.response, run: rec.value.run };
+}
+function itemMarks(ig) {
+  if (!ig || ig.status !== "asked" && ig.status !== "reused") return void 0;
+  const marks = /* @__PURE__ */ new Map();
+  for (const c of ig.own) for (const [n, mk] of c.marks) marks.set(n, mk);
+  return marks;
+}
+function sweepReplayItemGrade(beforeIg, afterIg) {
+  const beforeMarks = itemMarks(beforeIg);
+  const afterMarks = itemMarks(afterIg);
+  if (!beforeMarks && !afterMarks) return void 0;
+  const nums = /* @__PURE__ */ new Set([...beforeMarks?.keys() ?? [], ...afterMarks?.keys() ?? []]);
+  const fixed = [];
+  const still = [];
+  const regressed = [];
+  for (const n of [...nums].sort((a, b) => a - b)) {
+    const b = beforeMarks?.get(n);
+    const a = afterMarks?.get(n);
+    if (b !== void 0 && b !== "pass" && a === "pass") fixed.push(n);
+    else if (b !== void 0 && b !== "pass" && a !== void 0 && a !== "pass") still.push(n);
+    if (b === "pass" && a !== void 0 && a !== "pass") regressed.push(n);
+  }
+  return { before: beforeMarks ? beforeIg.ownGate : "unsure", after: afterMarks ? afterIg.ownGate : "unsure", fixed, still, regressed };
+}
+function gradeSweepReplay(itemIds, beforeGrades, afterGrades) {
+  const out = /* @__PURE__ */ new Map();
+  for (const id of itemIds) {
+    const g = sweepReplayItemGrade(beforeGrades.get(id), afterGrades.get(id));
+    if (g) out.set(id, g);
+  }
+  return out;
+}
 var WHERE_CAP = 50;
 function whereFromItems(items) {
   return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP);
+}
+function sweepResolverAt(root, ref, notes, wherePaths) {
+  return ref === "worktree" ? createCodeResolver(root, notes) : createCodeResolverAt(root, ref, notes, wherePaths);
+}
+async function runSweepReplay(ctx, request, loaded, parent, cfg) {
+  const layers = parent.ask.layers;
+  const over = parent.over ?? {};
+  const chain0 = Object.keys(over)[0];
+  if (chain0 !== void 0 && over[chain0] === "each") {
+    return {
+      exit: 2,
+      text: stopText([`\u2716 side.parent: ${parent.id} is a drill continuation (over: starts with "each") \u2192 replay can't rebuild its root item; run the sweep again instead`], "replay")
+    };
+  }
+  const concernNames = [...new Set(layers.flatMap((l) => l.categories.filter((c) => c.section === "concerns").map((c) => c.name)))];
+  const expect = request.side.expect;
+  const expectList = expect === "none" ? [] : expect;
+  const badExpect = expectList.find((name) => !concernNames.includes(name));
+  if (badExpect !== void 0) {
+    return { exit: 2, text: stopText([`\u2716 side.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "replay") };
+  }
+  const itemPaths = [...new Set(Object.values(parent.items ?? {}).flatMap((it) => it.unit ? [it.unit.path] : []))];
+  const compare = request.side.compare;
+  const needsCode = firstStringLayer(over) !== null;
+  if (needsCode) {
+    const checkRef = (ref, field) => {
+      if (ref === "worktree") return void 0;
+      if (isGitOption(ref)) return `\u2716 side.compare.${field}: "${ref}" looks like an option, not a ref \u2192 use a branch, tag or commit`;
+      return resolveRefSha(ctx.paths.root, ref, itemPaths) === null ? `\u2716 side.compare.${field}: "${ref}" not found by git (or the project isn't a repo there) \u2192 check the ref` : void 0;
+    };
+    const errors = [checkRef(compare.before, "before"), checkRef(compare.after, "after")].filter((e) => e !== void 0);
+    if (errors.length) return { exit: 2, text: stopText(errors, "replay") };
+  }
+  const sweepRequest = { side: { goal: request.side.goal, where: [], categories: [], layers, over }, wise: request.wise };
+  const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
+  const beforeNotes = [];
+  const afterNotes = [];
+  const limits = { sweep: cfg.sweep, reuse: cfg.reuse };
+  const beforeOpts = needsCode ? { resolve: sweepResolverAt(ctx.paths.root, compare.before, beforeNotes, itemPaths) } : {};
+  const afterOpts = needsCode ? { resolve: sweepResolverAt(ctx.paths.root, compare.after, afterNotes, itemPaths) } : {};
+  const beforePlan = planSweep(sweepRequest, who, ctx.paths, ctx.dryRun ?? false, beforeOpts, limits);
+  const afterPlan = planSweep(sweepRequest, who, ctx.paths, ctx.dryRun ?? false, afterOpts, limits);
+  if (ctx.dryRun) {
+    const reusedOf = (plan) => plan.items.length - plan.planned.reduce((n, p) => n + p.itemIds.length + p.skipped.length, 0);
+    return {
+      exit: 0,
+      text: dryRunText(
+        {
+          calls: plannedCallCount(beforePlan) + plannedCallCount(afterPlan),
+          questions: beforePlan.askedQuestions + afterPlan.askedQuestions,
+          items: beforePlan.items.length + afterPlan.items.length,
+          reused: reusedOf(beforePlan) + reusedOf(afterPlan),
+          route: identity.route,
+          baseURL: identity.baseURL
+        },
+        [...beforePlan.splitNotes, ...afterPlan.splitNotes]
+      )
+    };
+  }
+  const pre = preflight(ctx, { needsBudget: planNeedsBudget(beforePlan) || planNeedsBudget(afterPlan) });
+  if (!pre.ok) return pre.result;
+  const beforeSwept = await runSweep(ctx, "replay", beforePlan);
+  if (!beforeSwept.ok) return beforeSwept.result;
+  const afterSwept = await runSweep(ctx, "replay", afterPlan);
+  if (!afterSwept.ok) return afterSwept.result;
+  const combineCost = (a, b) => a === void 0 || b === void 0 ? void 0 : a + b;
+  const costUsd = combineCost(beforeSwept.value.costUsd, afterSwept.value.costUsd);
+  const costEstimated = beforeSwept.value.costEstimated || afterSwept.value.costEstimated;
+  const calls = plannedCallCount(beforePlan) + plannedCallCount(afterPlan);
+  const askedQuestions = beforePlan.askedQuestions + afterPlan.askedQuestions;
+  const categoriesOf = (layer) => layers.find((l) => l.name === layer)?.categories ?? [];
+  const beforeGrades = gradeItems(beforePlan.items, categoriesOf, beforeSwept.value.statusOf, beforeSwept.value.answers);
+  const afterGrades = gradeItems(afterPlan.items, categoriesOf, afterSwept.value.statusOf, afterSwept.value.answers);
+  const itemIds = [];
+  const seenIds = /* @__PURE__ */ new Set();
+  for (const it of [...afterPlan.items, ...beforePlan.items]) {
+    if (seenIds.has(it.id)) continue;
+    seenIds.add(it.id);
+    itemIds.push(it.id);
+  }
+  const itemGrades = gradeSweepReplay(itemIds, beforeGrades, afterGrades);
+  const regressedFlat = [];
+  for (const [id, g] of itemGrades) for (const n of g.regressed) regressedFlat.push(`${id}#${n}`);
+  const categoryAt = (grades, id, name) => grades.get(id)?.own.find((c) => c.name === name);
+  const expectedFixed = [];
+  const expectedStill = [];
+  for (const name of expectList) {
+    let anyNotPassBefore = false;
+    let allFixed = true;
+    for (const id of itemIds) {
+      const b = categoryAt(beforeGrades, id, name);
+      if (!b || b.gate === "pass") continue;
+      anyNotPassBefore = true;
+      const a = categoryAt(afterGrades, id, name);
+      if (!a || a.gate !== "pass") allFixed = false;
+    }
+    if (anyNotPassBefore) (allFixed ? expectedFixed : expectedStill).push(name);
+  }
+  const expectSet = new Set(expectList);
+  const unexpected = concernNames.filter(
+    (name) => !expectSet.has(name) && itemIds.some((id) => {
+      const b = categoryAt(beforeGrades, id, name);
+      const a = categoryAt(afterGrades, id, name);
+      return b && a && b.gate !== a.gate;
+    })
+  );
+  const afterGoalAnswer = afterSwept.value.answers["goal"];
+  const afterGoalGate = goalGate(afterGoalAnswer.p);
+  const gate = regressedFlat.length > 0 ? "fail" : sweepGate(afterGoalGate, afterGrades);
+  const afterGraded = [...afterGrades.values()].filter((g) => g.status === "asked" || g.status === "reused");
+  const passing = afterGraded.filter((g) => g.ownGate === "pass").length;
+  const itemsValue = [];
+  for (const id of itemIds) {
+    const g = itemGrades.get(id);
+    if (!g || g.before === "pass" && g.after === "pass") continue;
+    const probeCount = g.fixed.length + g.still.length;
+    itemsValue.push([
+      id,
+      m(
+        ["before", g.before],
+        ["after", g.after],
+        ...g.fixed.length ? [["fixed", g.fixed]] : [],
+        ...g.still.length ? [["still", g.still]] : [],
+        ...probeCount > 0 ? [["probes", `${g.fixed.length}/${probeCount} fixed`]] : []
+      )
+    ]);
+  }
+  const reusedFromObj = { ...Object.fromEntries(beforePlan.reusedFrom), ...Object.fromEntries(afterPlan.reusedFrom) };
+  const reusedRunIds = reusedIds(reusedFromObj);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  const telemetry = [...beforeSwept.value.telemetry, ...afterSwept.value.telemetry, ...cacheTelemetry(ctx.paths, reusedFromObj)];
+  const response = (id, budget) => respondText(
+    m(
+      ["id", id],
+      ["gate", gate],
+      ["goal", m(["gate", afterGoalGate], ["p", afterGoalAnswer.p])],
+      ["items", m(...itemsValue)],
+      ["passing", passing],
+      ["expected", m(["fixed", expectedFixed], ["still", expectedStill])],
+      ...unexpected.length ? [["unexpected", unexpected]] : [],
+      ["regressed", regressedFlat],
+      ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
+    ),
+    wiseRecorded(request.wise, ["parent"]),
+    regressedFlat.length ? drillNext(id, regressedFlat[0].split("#")[0]) : sweepNext(id, gate, worstFirst(afterGrades.values()), afterGraded, `sidewise outcome ${request.side.parent} held --by <you>`),
+    commonNotes(
+      [
+        ...loaded.notes,
+        ...beforeNotes,
+        ...afterNotes,
+        ...beforePlan.splitNotes,
+        ...afterPlan.splitNotes,
+        ...reusedAges,
+        ...pre.value.created ? [createdNote(pre.value.state)] : [],
+        ...costEstimated ? [COST_ESTIMATED_NOTE] : []
+      ],
+      `2 refs \xB7 ${calls} call${calls === 1 ? "" : "s"} \xB7 ${askedQuestions} question${askedQuestions === 1 ? "" : "s"} \xB7 ${budget}`,
+      ctx.provider.adapter
+    )
+  );
+  const prefixed = (prefix, qid) => `${prefix}:${qid}`;
+  const answers = {};
+  for (const [qid, a] of Object.entries(beforeSwept.value.answers)) answers[prefixed("before", qid)] = a;
+  for (const [qid, a] of Object.entries(afterSwept.value.answers)) answers[prefixed("after", qid)] = a;
+  const keys = {};
+  for (const [qid, k] of beforePlan.keys) keys[prefixed("before", qid)] = k;
+  for (const [qid, k] of afterPlan.keys) keys[prefixed("after", qid)] = k;
+  const reusedFrom = {};
+  for (const [qid, r] of beforePlan.reusedFrom) reusedFrom[prefixed("before", qid)] = r;
+  for (const [qid, r] of afterPlan.reusedFrom) reusedFrom[prefixed("after", qid)] = r;
+  const where = whereFromItems([...afterPlan.items, ...beforePlan.items]);
+  const beforeSha = resolveRefSha(ctx.paths.root, compare.before, itemPaths);
+  const afterSha = resolveRefSha(ctx.paths.root, compare.after, itemPaths);
+  const run = {
+    verb: "replay",
+    actor: actorOf(ctx),
+    task: ctx.env.SIDEWISE_TASK?.trim() || null,
+    goal: request.side.goal,
+    depth: null,
+    where,
+    parent: request.side.parent,
+    from: null,
+    compare,
+    expect,
+    wise: request.wise,
+    ask: { categories: [], layers },
+    over,
+    items: itemRecords(afterPlan.items, afterGrades),
+    answers,
+    keys,
+    reusedFrom,
+    categories: {},
+    gate,
+    goalGate: afterGoalGate,
+    goalP: afterGoalAnswer.p,
+    consensus: null,
+    response,
+    notes: [],
+    adapter: ctx.provider.adapter,
+    model: ctx.provider.model,
+    costUsd: costUsd ?? null,
+    calls,
+    route: identity.route,
+    baseURL: identity.baseURL,
+    commit: afterSha,
+    commits: { before: beforeSha, after: afterSha },
+    telemetry
+  };
+  return recordSweep(ctx, calls, costUsd, run);
+}
+
+// src/ledger/stale.ts
+var MAX_STALE_NOTES = 3;
+function sameQuestion(older, asking) {
+  if (older.kind !== asking.kind || older.text !== asking.text) return false;
+  if (older.kind === "scale") return JSON.stringify(older.levels) === JSON.stringify(asking.levels);
+  if (older.kind === "choice") return JSON.stringify(older.options) === JSON.stringify(asking.options);
+  return true;
+}
+function staleNotes(paths, where, toAsk) {
+  if (!toAsk.length || !where.length) return [];
+  const places = [...new Set(where.map(stripLines))];
+  return withIndex(
+    paths,
+    (handle) => {
+      const offsets = /* @__PURE__ */ new Set();
+      for (const place of places) for (const c of handle.placeCandidates(place)) offsets.add(c.offset);
+      const notes = [];
+      const seenOrigins = /* @__PURE__ */ new Set();
+      for (const offset of offsets) {
+        if (notes.length >= MAX_STALE_NOTES) break;
+        const rec = readRecordAt(paths.log, offset);
+        if (!rec || !isContractRun(rec) || rec.items !== null) continue;
+        const olderQuestions = rec.ask.categories.flatMap((c) => c.questions);
+        for (const [q, key2] of toAsk) {
+          const match = olderQuestions.find((rq) => sameQuestion(rq, q));
+          if (!match) continue;
+          const oldKey = rec.keys[String(match.n)];
+          if (oldKey === void 0 || oldKey === key2) continue;
+          const origin = rec.reusedFrom[String(match.n)] ?? rec.id;
+          if (seenOrigins.has(origin)) break;
+          seenOrigins.add(origin);
+          const ans = rec.answers[String(match.n)];
+          const p = ans && ans.kind === "yesno" ? ` (p ${ans.p.toFixed(2)})` : "";
+          notes.push(`stale: ${rec.id} answered "${clip(q.text, 50)}" on older code${p}`);
+          break;
+        }
+      }
+      return notes;
+    },
+    { readOnly: true }
+  );
+}
+
+// src/verbs/class.ts
+var CAP_NOTE = "would be blocked: the budget cap is already reached";
+async function runClass(text, ctx) {
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
+  const loaded = loadRequest(text, "class", wiseFields);
+  if (!loaded.ok) return loaded.result;
+  const { request } = loaded;
+  const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
+  if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "class") };
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
+  const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
+  const evidenceStr = subjectEvidence(evidence.evidence.files);
+  const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
+  const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)]);
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
+  const answers = {};
+  const reusedFrom = {};
+  const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
+  if (ctx.dryRun) {
+    let capNote = [];
+    if (toAsk.length > 0) {
+      const state = peekBudget(ctx.paths);
+      if (state && !checkBudget2(state).ok) capNote = [CAP_NOTE];
+    }
+    return {
+      exit: 0,
+      text: dryRunText(
+        { calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL },
+        [...capNote, ...probeWarnings(request.side)]
+      )
+    };
+  }
+  const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
+  if (!pre.ok) return pre.result;
+  const stale = staleNotes(ctx.paths, request.side.where, toAsk);
+  let costUsd;
+  let costEstimated = false;
+  let calls;
+  let telemetry = [];
+  if (toAsk.length === 0) {
+    costUsd = 0;
+    calls = 0;
+  } else {
+    const call = { state: { goal: redact(request.side.goal), code: evidence.evidence.files }, questions: toAsk.map(([q]) => q) };
+    const asked2 = await askAll(ctx, "class", [call]);
+    if (!asked2.ok) return asked2.result;
+    Object.assign(answers, asked2.value.answers);
+    costUsd = asked2.value.costUsd;
+    costEstimated = asked2.value.costEstimated;
+    telemetry = asked2.value.telemetry;
+    calls = 1;
+  }
+  const keys = {};
+  for (const [q, k] of keyed) keys[q.id] = k;
+  const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
+  const subject = gradeSubject(request.side.categories, answers);
+  const reusedRunIds = reusedIds(reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
+  const response = (id, budget) => respondText(
+    subjectSide(id, subject.gate, subject, [
+      ["consensus", consensus],
+      ["escalate", escalate],
+      ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
+    ]),
+    wiseRecorded(request.wise),
+    outcomeNext(id, subject.gate, subject.categories, request.side.categories, "act on it"),
+    commonNotes(
+      [...loaded.notes, ...evidence.evidence.notes, ...stale, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      budget,
+      ctx.provider.adapter
+    )
+  );
+  const run = {
+    verb: "class",
+    actor: actorOf(ctx),
+    task: ctx.env.SIDEWISE_TASK?.trim() || null,
+    goal: request.side.goal,
+    depth: request.side.depth ?? null,
+    where: request.side.where,
+    parent: request.side.parent ?? request.wise?.parent ?? null,
+    from: null,
+    compare: null,
+    commit: currentCommitSha(ctx.paths.root, request.side.where),
+    wise: request.wise,
+    ask: { categories: request.side.categories, layers: [] },
+    over: null,
+    items: null,
+    answers,
+    keys,
+    reusedFrom,
+    categories: Object.fromEntries(subject.categories.map((c) => [c.name, c.gate])),
+    gate: subject.gate,
+    goalGate: subject.goal?.gate ?? null,
+    goalP: subject.goal?.p ?? null,
+    consensus,
+    response,
+    notes: [],
+    adapter: ctx.provider.adapter,
+    model: ctx.provider.model,
+    costUsd: costUsd ?? null,
+    calls,
+    route: identity.route,
+    baseURL: identity.baseURL,
+    telemetry
+  };
+  const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
+  if (!rec.ok) return rec.result;
+  return { exit: 0, text: rec.value.run.response, run: rec.value.run };
+}
+
+// src/verbs/drill.ts
+var REDRILL_NEXT = "fix it, then run this drill again (unchanged items are reused, so it is nearly free)";
+var WHERE_CAP2 = 50;
+function whereFromItems2(items) {
+  return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP2);
 }
 async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reuseLimits, evidenceOpts) {
   const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
@@ -13696,7 +14000,7 @@ async function runDrill(text, ctx) {
         ctx.provider.adapter
       )
     );
-    const where = whereFromItems(plan.items);
+    const where = whereFromItems2(plan.items);
     const run = {
       verb: "drill",
       actor: actorOf(ctx),
@@ -13820,6 +14124,456 @@ async function runLoop(text, ctx) {
     telemetry: fullTelemetry
   };
   return recordSweep(ctx, calls, costUsd, run);
+}
+
+// src/ledger/graph.ts
+import { existsSync as existsSync12, readFileSync as readFileSync15, statSync as statSync8 } from "node:fs";
+var GRAPH_SCHEMA_VERSION = "1";
+var GRAPH_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS nodes (
+  id INTEGER PRIMARY KEY,
+  kind TEXT NOT NULL,
+  label TEXT NOT NULL,
+  UNIQUE(kind, label)
+);
+CREATE TABLE IF NOT EXISTS triples (
+  p TEXT NOT NULL,
+  s INTEGER NOT NULL,
+  o INTEGER NOT NULL,
+  run TEXT NOT NULL,
+  provenance TEXT NOT NULL,
+  score REAL,
+  PRIMARY KEY (p, s, o, run)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS idx_triples_pos ON triples(p, o, s);
+`;
+var META_TABLE_SQL = `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`;
+var GraphUnavailableError = class extends Error {
+  constructor() {
+    super("graph: needs node:sqlite (Node \u2265 22.13) \u2192 upgrade Node to build the knowledge graph");
+    this.name = "GraphUnavailableError";
+  }
+};
+function openGraphDb(dbPath) {
+  const Ctor = getSqliteCtor();
+  if (!Ctor) throw new GraphUnavailableError();
+  return new Ctor(dbPath);
+}
+function getMeta2(db, key2) {
+  const row = db.prepare("SELECT value FROM meta WHERE key = ?").get(key2);
+  return row ? String(row.value) : void 0;
+}
+function setMeta2(db, key2, value) {
+  db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)").run(key2, value);
+}
+function normalizeLabel(kind, raw) {
+  let s = raw.trim();
+  if (kind === "place") {
+    s = stripLines(s);
+    if (s.startsWith("./")) s = s.slice(2);
+  }
+  return s;
+}
+function nodeId(db, kind, rawLabel) {
+  const label = normalizeLabel(kind, rawLabel);
+  db.prepare("INSERT OR IGNORE INTO nodes (kind, label) VALUES (?, ?)").run(kind, label);
+  const row = db.prepare("SELECT id FROM nodes WHERE kind = ? AND label = ?").get(kind, label);
+  if (!row) throw new Error(`graph: node upsert failed for ${kind}:${label}`);
+  return Number(row.id);
+}
+function addTriple(db, p, s, o, run, provenance, score) {
+  db.prepare("INSERT OR IGNORE INTO triples (p, s, o, run, provenance, score) VALUES (?, ?, ?, ?, ?, ?)").run(p, s, o, run, provenance, score);
+}
+function runCategories2(rec) {
+  return rec.ask.categories.length ? rec.ask.categories : rec.ask.layers.flatMap((l) => l.categories);
+}
+function runPlaces(rec) {
+  const raw = rec.items ? Object.values(rec.items).flatMap((it) => it.unit ? [it.unit.path] : []) : rec.where;
+  const seen = /* @__PURE__ */ new Set();
+  const out = [];
+  for (const w of raw) {
+    const norm = normalizeLabel("place", w);
+    if (!seen.has(norm)) {
+      seen.add(norm);
+      out.push(norm);
+    }
+  }
+  return out;
+}
+function parseChainPart(part) {
+  const colon = part.indexOf(":");
+  const level = part.slice(0, colon);
+  const raw = part.slice(colon + 1);
+  const name = raw.endsWith("?") ? raw.slice(0, -1) : raw;
+  return { level, name };
+}
+function isLiteral(wiseConfig, key2) {
+  return wiseConfig[key2]?.literal === true;
+}
+function ingestContractRun(db, rec, wiseConfig) {
+  const RUN = rec.id;
+  const runNode = nodeId(db, "run", RUN);
+  const wise2 = rec.wise;
+  if (wise2?.area !== void 0 && !isLiteral(wiseConfig, "area")) {
+    const areas = Array.isArray(wise2.area) ? wise2.area : [wise2.area];
+    for (const a of areas) addTriple(db, "about", runNode, nodeId(db, "area", a), RUN, "extracted", null);
+  }
+  const cats = runCategories2(rec);
+  for (const cat of cats) {
+    const catNode = nodeId(db, "category", cat.name);
+    addTriple(db, "asks", runNode, catNode, RUN, "extracted", null);
+    const gate = rec.categories[cat.name];
+    const score = gate === "pass" ? 1 : gate === "fail" ? 0 : gate === "unsure" ? 0.5 : null;
+    addTriple(db, "judged", runNode, catNode, RUN, "extracted", score);
+    if (cat.family) addTriple(db, "is-a", catNode, nodeId(db, "family", cat.family), RUN, "extracted", null);
+  }
+  if (!rec.items) {
+    const places = runPlaces(rec);
+    for (const cat of cats) {
+      const catNode = nodeId(db, "category", cat.name);
+      for (const placeLabel of places) addTriple(db, "checks", catNode, nodeId(db, "place", placeLabel), RUN, "extracted", null);
+    }
+  } else {
+    for (const layer of rec.ask.layers) {
+      const layerItems = Object.values(rec.items).filter((it) => it.layer === layer.name && it.unit);
+      const placeLabels = [...new Set(layerItems.map((it) => normalizeLabel("place", it.unit.path)))];
+      for (const cat of layer.categories) {
+        const catNode = nodeId(db, "category", cat.name);
+        for (const placeLabel of placeLabels) addTriple(db, "checks", catNode, nodeId(db, "place", placeLabel), RUN, "extracted", null);
+      }
+    }
+  }
+  const placeNodeIds = /* @__PURE__ */ new Set();
+  for (const placeLabel of runPlaces(rec)) {
+    const pid = nodeId(db, "place", placeLabel);
+    placeNodeIds.add(pid);
+    addTriple(db, "at", runNode, pid, RUN, "extracted", null);
+  }
+  if (rec.items) {
+    for (const [id, item] of Object.entries(rec.items)) {
+      const slash = id.lastIndexOf("/");
+      if (slash === -1) continue;
+      const parent = rec.items[id.slice(0, slash)];
+      if (!parent?.unit || !item.unit) continue;
+      const parentLabel = parent.unit.kind === "file" ? parent.unit.path : `${parent.unit.path}::${parent.unit.kind}:${parent.unit.name}`;
+      const childLabel = item.unit.kind === "file" ? item.unit.path : `${item.unit.path}::${item.unit.kind}:${item.unit.name}`;
+      addTriple(db, "contains", nodeId(db, "place", parentLabel), nodeId(db, "place", childLabel), RUN, "extracted", null);
+    }
+  }
+  if (rec.parent) {
+    const pred = rec.verb === "replay" ? "replays" : rec.verb === "drill" ? "narrows" : "builds-on";
+    addTriple(db, pred, runNode, nodeId(db, "run", rec.parent), RUN, "extracted", null);
+  }
+  if (wise2?.blast !== void 0 && !isLiteral(wiseConfig, "blast")) {
+    addTriple(db, "reaches", runNode, nodeId(db, "level", wise2.blast), RUN, "extracted", null);
+  }
+  if (wise2?.touches !== void 0 && !isLiteral(wiseConfig, "touches")) {
+    for (const t of wise2.touches) addTriple(db, "touches", runNode, nodeId(db, "entity", t.toLowerCase().trim()), RUN, "extracted", null);
+  }
+  const compOrCode = /* @__PURE__ */ new Set();
+  if (wise2?.uses !== void 0 && !isLiteral(wiseConfig, "uses")) {
+    for (const chain of wise2.uses) {
+      const parts = chain.split(" -> ").map(parseChainPart);
+      const partNodeIds = parts.map((part) => nodeId(db, part.level, part.name));
+      for (let i = 0; i < partNodeIds.length - 1; i++) addTriple(db, "uses", partNodeIds[i], partNodeIds[i + 1], RUN, "declared", null);
+      parts.forEach((part, i) => {
+        if (part.level === "component" || part.level === "code") compOrCode.add(partNodeIds[i]);
+      });
+      for (const part of parts) {
+        const segs = part.name.split("/");
+        if (segs.length < 2) continue;
+        for (let i = 1; i < segs.length; i++) {
+          const parentLabel = segs.slice(0, i).join("/");
+          const childLabel = segs.slice(0, i + 1).join("/");
+          const childKind = i + 1 === segs.length ? part.level : "container";
+          const childNode = nodeId(db, childKind, childLabel);
+          addTriple(db, "contains", nodeId(db, "container", parentLabel), childNode, RUN, "declared", null);
+          if (childKind === "component" || childKind === "code") compOrCode.add(childNode);
+        }
+      }
+    }
+  }
+  for (const placeId of placeNodeIds) for (const compId of compOrCode) addTriple(db, "contains", placeId, compId, RUN, "inferred", null);
+  const extras = wise2?.extras;
+  if (extras) {
+    const places = runPlaces(rec);
+    for (const [key2, rawValue] of Object.entries(extras)) {
+      const override = wiseConfig[key2];
+      if (!override) continue;
+      const predicate = override.as ?? key2;
+      const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+      for (const v of values) {
+        const valueNode = nodeId(db, "value", v.toLowerCase().trim());
+        addTriple(db, predicate, runNode, valueNode, RUN, "declared", null);
+        if (override.link === "where") {
+          for (const placeLabel of places) addTriple(db, "handled-by", valueNode, nodeId(db, "place", placeLabel), RUN, "declared", null);
+        }
+      }
+    }
+  }
+}
+function ingestOutcome(db, rec) {
+  const runNode = nodeId(db, "run", rec.of);
+  const outcomeNode = nodeId(db, "outcome", rec.outcome);
+  addTriple(db, "resolved-as", runNode, outcomeNode, rec.of, "extracted", null);
+}
+function resetGraphSchema(db) {
+  db.exec("DROP TABLE IF EXISTS nodes; DROP TABLE IF EXISTS triples;");
+  db.exec(GRAPH_SCHEMA_SQL);
+  setMeta2(db, "graph_upto", "0");
+  setMeta2(db, "graph_schema_version", GRAPH_SCHEMA_VERSION);
+}
+function scanCompleteLines(buf, from, to) {
+  const lines = [];
+  let pos = from;
+  for (; ; ) {
+    const nl = buf.indexOf(10, pos);
+    if (nl === -1 || nl >= to) break;
+    lines.push(buf.subarray(pos, nl).toString("utf8"));
+    pos = nl + 1;
+  }
+  return { consumed: pos, lines };
+}
+function needsCatchUp(paths, logSize) {
+  if (!existsSync12(paths.index)) return true;
+  let db;
+  try {
+    db = openGraphDb(paths.index);
+  } catch {
+    return true;
+  }
+  try {
+    db.exec(META_TABLE_SQL);
+    if (getMeta2(db, "graph_schema_version") !== GRAPH_SCHEMA_VERSION) return true;
+    return Number(getMeta2(db, "graph_upto") ?? "0") < logSize;
+  } catch {
+    return true;
+  } finally {
+    db.close();
+  }
+}
+function catchUpGraph(paths, env) {
+  ensureDir(paths);
+  const db = openGraphDb(paths.index);
+  try {
+    db.exec(META_TABLE_SQL);
+    if (getMeta2(db, "graph_schema_version") !== GRAPH_SCHEMA_VERSION) resetGraphSchema(db);
+    const upto = Number(getMeta2(db, "graph_upto") ?? "0");
+    const size = existsSync12(paths.log) ? statSync8(paths.log).size : 0;
+    if (upto >= size) return;
+    const buf = readFileSync15(paths.log);
+    const { consumed, lines } = scanCompleteLines(buf, upto, size);
+    const wiseConfig = resolveConfig(paths, env).config.wise;
+    db.exec("BEGIN");
+    try {
+      for (const raw of lines) {
+        const line3 = raw.trim();
+        if (!line3) continue;
+        let parsed;
+        try {
+          parsed = JSON.parse(line3);
+        } catch {
+          continue;
+        }
+        if (!parsed || typeof parsed !== "object") continue;
+        const rec = normalizeRecordWise(parsed);
+        if (rec.kind === "run" && isContractRun(rec)) ingestContractRun(db, rec, wiseConfig);
+        else if (rec.kind === "outcome") ingestOutcome(db, rec);
+      }
+      setMeta2(db, "graph_upto", String(consumed));
+      db.exec("COMMIT");
+    } catch (e) {
+      db.exec("ROLLBACK");
+      throw e;
+    }
+  } finally {
+    db.close();
+  }
+}
+function refreshGraph(paths, env = process.env) {
+  const logStat = existsSync12(paths.log) ? statSync8(paths.log) : void 0;
+  if (!logStat || logStat.size === 0) return;
+  if (!needsCatchUp(paths, logStat.size)) return;
+  withLock(paths.lock, () => catchUpGraph(paths, env));
+}
+var EMPTY_NEIGHBORHOOD = { nodes: [], edges: [] };
+function graphAround(paths, opts) {
+  if (!existsSync12(paths.index)) return EMPTY_NEIGHBORHOOD;
+  const db = openGraphDb(paths.index);
+  try {
+    const label = normalizeLabel(opts.kind, opts.label);
+    const start = db.prepare("SELECT id FROM nodes WHERE kind = ? AND label = ?").get(opts.kind, label);
+    if (!start) return EMPTY_NEIGHBORHOOD;
+    const depth = Math.min(Math.max(opts.depth ?? 2, 0), 6);
+    const startId = Number(start.id);
+    const visited = /* @__PURE__ */ new Set([startId]);
+    let frontier = [startId];
+    const outStmt = db.prepare("SELECT p, s, o, run, provenance, score FROM triples WHERE s = ?");
+    const inStmt = db.prepare("SELECT p, s, o, run, provenance, score FROM triples WHERE o = ?");
+    const edgeSeen = /* @__PURE__ */ new Set();
+    const edges = [];
+    for (let d = 0; d < depth && frontier.length > 0; d++) {
+      const next = [];
+      for (const id of frontier) {
+        for (const row of [...outStmt.all(id), ...inStmt.all(id)]) {
+          const edge = { p: String(row.p), s: Number(row.s), o: Number(row.o), run: String(row.run), provenance: String(row.provenance), score: row.score === null || row.score === void 0 ? null : Number(row.score) };
+          const key2 = `${edge.p}\0${edge.s}\0${edge.o}\0${edge.run}`;
+          if (!edgeSeen.has(key2)) {
+            edgeSeen.add(key2);
+            edges.push(edge);
+          }
+          const other = edge.s === id ? edge.o : edge.s;
+          if (!visited.has(other)) {
+            visited.add(other);
+            next.push(other);
+          }
+        }
+      }
+      frontier = next;
+    }
+    const ids = [...visited];
+    const nodeRows = ids.length ? db.prepare(`SELECT id, kind, label FROM nodes WHERE id IN (${ids.map(() => "?").join(",")})`).all(...ids) : [];
+    return { nodes: nodeRows.map((r) => ({ id: Number(r.id), kind: String(r.kind), label: String(r.label) })), edges };
+  } catch {
+    return EMPTY_NEIGHBORHOOD;
+  } finally {
+    db.close();
+  }
+}
+function wiseRows(paths, opts = {}) {
+  if (!existsSync12(paths.index)) return [];
+  const db = openGraphDb(paths.index);
+  try {
+    const limit = Math.min(Math.max(opts.limit ?? 100, 1), 1e3);
+    const rows = db.prepare(
+      `SELECT id, verb, ts,
+           json_extract(wise, '$.wise.why') AS why,
+           json_extract(wise, '$.wise.area') AS area,
+           json_extract(wise, '$.wise.stage') AS stage,
+           json_extract(wise, '$.wise.change') AS change,
+           json_extract(wise, '$.wise.risk') AS risk,
+           json_extract(wise, '$.wise.problem') AS problem,
+           json_extract(wise, '$.wise.blast') AS blast
+         FROM runs ORDER BY ts DESC LIMIT ?`
+    ).all(limit);
+    return rows.map((r) => ({
+      id: String(r.id),
+      verb: String(r.verb),
+      ts: String(r.ts),
+      why: r.why === null || r.why === void 0 ? null : String(r.why),
+      area: r.area === null || r.area === void 0 ? null : String(r.area),
+      stage: r.stage === null || r.stage === void 0 ? null : String(r.stage),
+      change: r.change === null || r.change === void 0 ? null : String(r.change),
+      risk: r.risk === null || r.risk === void 0 ? null : String(r.risk),
+      problem: r.problem === null || r.problem === void 0 ? null : String(r.problem),
+      blast: r.blast === null || r.blast === void 0 ? null : String(r.blast)
+    }));
+  } catch {
+    return [];
+  } finally {
+    db.close();
+  }
+}
+function problemCounts(paths, opts = {}) {
+  if (!existsSync12(paths.index)) return [];
+  const db = openGraphDb(paths.index);
+  try {
+    const limit = Math.min(Math.max(opts.limit ?? 20, 1), 500);
+    const rows = db.prepare(
+      `SELECT c.family AS family, p.val AS place,
+           SUM(CASE WHEN c.gate = 'pass' THEN 1 ELSE 0 END) AS pass,
+           SUM(CASE WHEN c.gate = 'fail' THEN 1 ELSE 0 END) AS fail,
+           SUM(CASE WHEN c.gate = 'unsure' THEN 1 ELSE 0 END) AS unsure
+         FROM categories c
+         JOIN places p ON p.run_id = c.run_id AND p.kind = 'where'
+         WHERE c.family IS NOT NULL AND c.gate IS NOT NULL
+         GROUP BY c.family, p.val
+         ORDER BY fail DESC, unsure DESC
+         LIMIT ?`
+    ).all(limit);
+    return rows.map((r) => ({ family: String(r.family), place: String(r.place), pass: Number(r.pass), fail: Number(r.fail), unsure: Number(r.unsure) }));
+  } catch {
+    return [];
+  } finally {
+    db.close();
+  }
+}
+function callStats(paths, opts = {}) {
+  if (!existsSync12(paths.index)) return [];
+  const since = opts.sinceIso ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3).toISOString();
+  const limit = Math.min(Math.max(opts.limit ?? 500, 1), 5e3);
+  let rows;
+  const db = openGraphDb(paths.index);
+  try {
+    rows = db.prepare("SELECT offset, verb, ts FROM runs WHERE ts >= ? ORDER BY ts DESC LIMIT ?").all(since, limit);
+  } catch {
+    return [];
+  } finally {
+    db.close();
+  }
+  const agg = /* @__PURE__ */ new Map();
+  for (const row of rows) {
+    const rec = readRecordAt(paths.log, Number(row.offset));
+    if (!rec || !isContractRun(rec) || !rec.telemetry) continue;
+    const day = String(row.ts).slice(0, 10);
+    for (const t of rec.telemetry) {
+      const model = t.source === "provider" ? t.model : "reused";
+      const key2 = `${day}\0${rec.verb}\0${model}\0${t.source}`;
+      const cur = agg.get(key2) ?? { day, verb: rec.verb, model, source: t.source, calls: 0, tokens: 0, costUsd: 0, savedUsd: 0 };
+      cur.calls += 1;
+      if (t.source === "provider") {
+        cur.tokens += (t.inputTokens ?? 0) + (t.outputTokens ?? 0);
+        cur.costUsd += t.costUsd ?? 0;
+      } else {
+        cur.tokens += t.original.inputTokens ?? 0;
+        cur.savedUsd += t.savedUsd ?? 0;
+      }
+      agg.set(key2, cur);
+    }
+  }
+  return [...agg.values()];
+}
+var MAX_UNDECLARED_KEYS = 50;
+var MAX_VALUES_PER_KEY = 200;
+var MAX_SAMPLES_PER_KEY = 5;
+function undeclaredFieldSamples(paths, opts) {
+  if (!existsSync12(paths.index)) return [];
+  const db = openGraphDb(paths.index);
+  try {
+    const known = new Set(opts.knownKeys);
+    const rows = db.prepare("SELECT wise FROM runs WHERE wise IS NOT NULL").all();
+    const byKey = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      let parsed;
+      try {
+        parsed = JSON.parse(String(row.wise));
+      } catch {
+        continue;
+      }
+      const extras = parsed?.wise?.extras;
+      if (!extras || typeof extras !== "object") continue;
+      for (const [key2, rawValue] of Object.entries(extras)) {
+        if (known.has(key2)) continue;
+        let entry = byKey.get(key2);
+        if (!entry) {
+          if (byKey.size >= MAX_UNDECLARED_KEYS) continue;
+          entry = { count: 0, values: [] };
+          byKey.set(key2, entry);
+        }
+        entry.count += 1;
+        const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+        for (const v of values) {
+          const s = String(v);
+          if (entry.values.length < MAX_VALUES_PER_KEY && !entry.values.includes(s)) entry.values.push(s);
+        }
+      }
+    }
+    return [...byKey.entries()].map(([key2, e]) => ({ key: key2, count: e.count, samples: e.values.slice(0, MAX_SAMPLES_PER_KEY), values: e.values }));
+  } catch {
+    return [];
+  } finally {
+    db.close();
+  }
 }
 
 // src/verbs/report-web.ts
@@ -14473,8 +15227,9 @@ function runReportWeb(ctx) {
 }
 
 // src/verbs/report.ts
-var VIEWS = ["hits", "patterns", "history", "web"];
+var VIEWS = ["hits", "patterns", "history", "web", "graph", "problems", "wise", "calls", "fields"];
 var isView = (s) => VIEWS.includes(s);
+var VIEW_LIST_TEXT = "hits, patterns, history, web, graph, problems, wise, calls or fields";
 var ROW_LIMIT = 30;
 function withCap(lines, total) {
   const shown2 = lines.slice(0, ROW_LIMIT);
@@ -14573,22 +15328,133 @@ function reportHistory(paths) {
   rows.sort((a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0);
   return { exit: 0, text: [heading("history", rows.length, "event"), ...withCap(rows.map((r) => r.text), rows.length)].join("\n") };
 }
-function runReport(view, ctx) {
-  const target = view?.trim() || "hits";
-  if (hasControlChars(target)) return { exit: 2, text: stopText(["\u2716 report: the view name has control characters \u2192 use hits, patterns, history or web"], "report") };
-  if (!isView(target)) return { exit: 2, text: stopText([`\u2716 report: "${clip(target, 40)}" is not a view \u2192 use hits, patterns, history or web`], "report") };
-  if (target === "hits") return reportHits(ctx.paths);
-  if (target === "patterns") return reportPatterns(ctx.paths);
-  if (target === "history") return reportHistory(ctx.paths);
-  return runReportWeb({ paths: ctx.paths, env: ctx.env ?? process.env, runner: ctx.runner ?? realRunner, platform: ctx.platform ?? process.platform });
+function graphUnavailableText(view) {
+  return `sidewise report ${view} \xB7 graph needs node:sqlite (Node \u2265 22.13) \u2192 see "sidewise doctor"`;
+}
+function withGraphView(paths, env, view, fn) {
+  try {
+    refreshGraph(paths, env);
+  } catch (e) {
+    if (e instanceof GraphUnavailableError) return { exit: 0, text: graphUnavailableText(view) };
+    throw e;
+  }
+  return fn();
+}
+function reportProblems(paths, env) {
+  return withGraphView(paths, env, "problems", () => {
+    const rows = problemCounts(paths, { limit: 500 });
+    if (!rows.length) return { exit: 0, text: 'sidewise report problems \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
+    const lines = rows.map((r) => `${r.family} \xD7 ${clip(r.place, 50)} \xB7 fail ${r.fail} unsure ${r.unsure} pass ${r.pass}`);
+    return { exit: 0, text: [heading("problems", rows.length, "row"), ...withCap(lines, rows.length)].join("\n") };
+  });
+}
+function reportWise(paths, env) {
+  return withGraphView(paths, env, "wise", () => {
+    const rows = wiseRows(paths, { limit: 1e3 });
+    if (!rows.length) return { exit: 0, text: 'sidewise report wise \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
+    const lines = rows.map(
+      (r) => `${r.id} ${r.verb} \xB7 why:${r.why ?? "\u2014"} area:${r.area ?? "\u2014"} stage:${r.stage ?? "\u2014"} change:${r.change ?? "\u2014"} risk:${r.risk ?? "\u2014"} blast:${r.blast ?? "\u2014"}` + (r.problem ? ` \xB7 ${clip(r.problem, 60)}` : "")
+    );
+    return { exit: 0, text: [heading("wise", rows.length, "run"), ...withCap(lines, rows.length)].join("\n") };
+  });
+}
+function reportCalls(paths, env) {
+  return withGraphView(paths, env, "calls", () => {
+    const rows = callStats(paths, {});
+    if (!rows.length) return { exit: 0, text: 'sidewise report calls \xB7 no calls in the last 30 days \u2192 "sidewise class <request>" starts one' };
+    rows.sort((a, b) => b.day.localeCompare(a.day) || a.verb.localeCompare(b.verb) || a.model.localeCompare(b.model) || a.source.localeCompare(b.source));
+    const lines = rows.map((r) => `${r.day} \xB7 ${r.verb} \xB7 ${r.model} (${r.source}) \xB7 calls ${r.calls} \xB7 tokens ${r.tokens} \xB7 cost $${r.costUsd.toFixed(4)} \xB7 saved $${r.savedUsd.toFixed(4)}`);
+    return { exit: 0, text: [heading("calls", rows.length, "row"), ...withCap(lines, rows.length)].join("\n") };
+  });
+}
+function reportGraph(paths, env, target) {
+  return withGraphView(paths, env, "graph", () => {
+    const t = target?.trim();
+    if (!t) return { exit: 0, text: "sidewise report graph \xB7 name a target \u2192 sidewise report graph <kind>:<label> (e.g. category:injection)" };
+    const colon = t.indexOf(":");
+    if (colon <= 0 || colon === t.length - 1) {
+      return { exit: 2, text: stopText([`\u2716 report graph: "${clip(t, 40)}" is not kind:label \u2192 e.g. category:injection`], "report") };
+    }
+    const kind = t.slice(0, colon);
+    const label = t.slice(colon + 1);
+    const { nodes, edges } = graphAround(paths, { kind, label, depth: 2 });
+    if (!nodes.length) return { exit: 0, text: `sidewise report graph ${t} \xB7 not found \u2192 run "sidewise class <request>" first, or check the kind:label spelling` };
+    const byId2 = new Map(nodes.map((n) => [n.id, `${n.kind}:${n.label}`]));
+    const lines = edges.map((e) => `${byId2.get(e.s) ?? e.s} --${e.p}--> ${byId2.get(e.o) ?? e.o}`);
+    const headingLine = `sidewise report graph ${t} \xB7 ${edges.length} edge${edges.length === 1 ? "" : "s"} (depth 2, ${nodes.length} node${nodes.length === 1 ? "" : "s"})`;
+    return { exit: 0, text: [headingLine, ...withCap(lines, edges.length)].join("\n") };
+  });
+}
+var CLOSED_MAX_DISTINCT = 8;
+var CLOSED_MIN_RUNS = 5;
+var PATTERN_CANDIDATES = [
+  /^\d+$/u,
+  // numeric — most specific
+  /^\d+\.\d+\.\d+(?:[-+][\w.]+)?$/u,
+  // semver-ish
+  /^[\w.-]+$/u
+  // identifier-like — broadest, tried last
+];
+var isPathLike = (v) => v.includes("/") && /\.[A-Za-z0-9]{1,8}$/u.test(v);
+function classifyField(count, values) {
+  if (!values.length) return void 0;
+  if (values.length <= CLOSED_MAX_DISTINCT && count >= CLOSED_MIN_RUNS) return { kind: "closed", values: [...values] };
+  for (const re of PATTERN_CANDIDATES) {
+    if (values.every((v) => re.test(v))) return { kind: "pattern", pattern: re.source };
+  }
+  if (values.every(isPathLike)) return { kind: "reference" };
+  return void 0;
+}
+function suggestionText(s) {
+  if (!s) return "no suggestion yet \u2014 not enough signal";
+  if (s.kind === "closed") return `closed [${s.values.join(", ")}]`;
+  if (s.kind === "pattern") return `pattern: ${s.pattern}`;
+  return "reference (link: where)";
+}
+function reportFields(paths, env, accept) {
+  const { config } = resolveConfig(paths, env);
+  const knownKeys = [...WISE_KEYS, ...Object.keys(config.wise)];
+  const fields = undeclaredFieldSamples(paths, { knownKeys });
+  if (accept !== void 0) {
+    const field = fields.find((f) => f.key === accept);
+    if (!field) {
+      return { exit: 2, text: stopText([`\u2716 report fields --accept: "${clip(accept, 40)}" is not an undeclared field \u2192 run "sidewise report fields" to see what's available`], "report") };
+    }
+    const suggestion = classifyField(field.count, field.values);
+    if (!suggestion) {
+      return { exit: 2, text: stopText([`\u2716 report fields --accept: "${clip(accept, 40)}" has no suggestion yet \u2192 not enough signal, keep collecting runs`], "report") };
+    }
+    const patch = suggestion.kind === "closed" ? { wise: { [accept]: { values: suggestion.values } } } : suggestion.kind === "pattern" ? { wise: { [accept]: { pattern: suggestion.pattern } } } : { wise: { [accept]: { link: "where" } } };
+    writeConfigOverride(paths, patch);
+    const shown2 = suggestion.kind === "closed" ? `values: [${suggestion.values.join(", ")}]` : suggestion.kind === "pattern" ? `pattern: ${suggestion.pattern}` : "link: where";
+    return { exit: 0, text: `sidewise report fields --accept ${accept} \xB7 wrote wise.${accept} (${shown2}) to .sidewise/config.yaml` };
+  }
+  if (!fields.length) return { exit: 0, text: "sidewise report fields \xB7 no undeclared fields yet \u2192 every wise key so far is a base field or already configured" };
+  const lines = fields.map((f) => `${f.key} (${f.count} run${f.count === 1 ? "" : "s"}) \xB7 samples: ${f.samples.join(", ") || "(no values)"} \xB7 suggest: ${suggestionText(classifyField(f.count, f.values))}`);
+  return { exit: 0, text: [heading("fields", fields.length, "field"), ...withCap(lines, fields.length)].join("\n") };
+}
+function runReport(view, ctx, target, accept) {
+  const requested = view?.trim() || "hits";
+  if (hasControlChars(requested)) return { exit: 2, text: stopText([`\u2716 report: the view name has control characters \u2192 use ${VIEW_LIST_TEXT}`], "report") };
+  if (!isView(requested)) return { exit: 2, text: stopText([`\u2716 report: "${clip(requested, 40)}" is not a view \u2192 use ${VIEW_LIST_TEXT}`], "report") };
+  const env = ctx.env ?? process.env;
+  if (requested === "hits") return reportHits(ctx.paths);
+  if (requested === "patterns") return reportPatterns(ctx.paths);
+  if (requested === "history") return reportHistory(ctx.paths);
+  if (requested === "graph") return reportGraph(ctx.paths, env, target);
+  if (requested === "problems") return reportProblems(ctx.paths, env);
+  if (requested === "wise") return reportWise(ctx.paths, env);
+  if (requested === "calls") return reportCalls(ctx.paths, env);
+  if (requested === "fields") return reportFields(ctx.paths, env, accept);
+  return runReportWeb({ paths: ctx.paths, env, runner: ctx.runner ?? realRunner, platform: ctx.platform ?? process.platform });
 }
 
 // src/verbs/scan.ts
 var ENTRYPOINT_GLOBS = ["server.js", "app.js", "index.js", "main.js", "config/**"];
 var MISSED_SHOWN = 3;
-var WHERE_CAP2 = 50;
-function whereFromItems2(items) {
-  return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP2);
+var WHERE_CAP3 = 50;
+function whereFromItems3(items) {
+  return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP3);
 }
 function unlookedEntrypoints(root, items) {
   const touched = new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []));
@@ -14650,7 +15516,7 @@ async function runScan(text, ctx) {
       ctx.provider.adapter
     )
   );
-  const where = whereFromItems2(plan.items);
+  const where = whereFromItems3(plan.items);
   const run = {
     verb: "scan",
     actor: actorOf(ctx),
@@ -14689,7 +15555,7 @@ async function runScan(text, ctx) {
 
 // src/verbs/template.ts
 var import_yaml5 = __toESM(require_dist(), 1);
-import { readFileSync as readFileSync15 } from "node:fs";
+import { readFileSync as readFileSync16 } from "node:fs";
 import path19 from "node:path";
 import { fileURLToPath } from "node:url";
 var DEFAULT_PACKAGE_DIR = path19.join(path19.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -14753,7 +15619,7 @@ function fromRunId(id, flags, paths) {
 function fromFile(from, flags) {
   let raw;
   try {
-    raw = readFileSync15(from, "utf8");
+    raw = readFileSync16(from, "utf8");
   } catch (e) {
     const code = e.code;
     const shown2 = clip(from, 60);
@@ -14787,7 +15653,7 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
       };
     }
     const file = drillSampleFile(flags.parent, paths);
-    const raw = readFileSync15(path19.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
+    const raw = readFileSync16(path19.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
     const doc = (0, import_yaml5.parseDocument)(raw);
     doc.setIn(["side", "parent"], flags.parent);
     doc.setIn(["side", "from"], flags.from);
@@ -14797,7 +15663,7 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
   if (flags.where !== void 0 || flags.goal !== void 0) {
     return { exit: 2, text: stopText([`\u2716 template: --where/--goal need --from \u2192 sidewise template ${target} --from <request.yaml>`], "template") };
   }
-  return { exit: 0, text: readFileSync15(path19.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
+  return { exit: 0, text: readFileSync16(path19.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
 }
 
 // src/verbs/view.ts
@@ -14919,7 +15785,44 @@ function detailLines(self, level) {
   }
   return lines;
 }
-function byId(id, paths, level, limit) {
+function formatAnswer(a) {
+  if (a.kind === "yesno") return `p ${a.p}`;
+  const [level, p] = Object.entries(a.dist).reduce((best, e) => e[1] > best[1] ? e : best);
+  return `${level} ${p}`;
+}
+function answerLine(r) {
+  const reused = r.reusedFrom ? ` \xB7 reused ${r.reusedFrom}` : "";
+  const key2 = r.key ? ` \xB7 key ${r.key}` : "";
+  return `${r.id} "${clip(r.text, 60)}" \xB7 ${formatAnswer(r.answer)}${reused}${key2}`;
+}
+function questionRows(self) {
+  const rows = [];
+  const add = (id, text) => {
+    const answer = self.answers[id];
+    if (answer) rows.push({ id, text, answer, reusedFrom: self.reusedFrom[id], key: self.keys[id] });
+  };
+  if (self.items) {
+    for (const [itemId, item] of Object.entries(self.items)) {
+      const cats = self.ask.layers.find((l) => l.name === item.layer)?.categories ?? [];
+      for (const q of [...cats.flatMap((c) => c.questions)].sort((a, b) => a.n - b.n)) add(`${itemId}#${q.n}`, fillBlanks(q.text, item.fill));
+    }
+  } else if (self.verb === "replay") {
+    for (const q of subjectQuestions(self.ask.categories, "before:")) add(q.id, q.text);
+    add("goal", self.goal);
+    for (const q of subjectQuestions(self.ask.categories, "after:")) add(q.id, q.text);
+  } else {
+    add("goal", self.goal);
+    for (const q of subjectQuestions(self.ask.categories)) add(q.id, q.text);
+  }
+  return rows;
+}
+function answersLines(self) {
+  if (!isContractRun(self)) return [];
+  const rows = questionRows(self);
+  if (!rows.length) return ["  answers: none recorded"];
+  return [`  answers ${rows.length}:`, ...rows.map((r) => `    ${answerLine(r)}`)];
+}
+function byId(id, paths, level, limit, answers) {
   const result = withIndex(
     paths,
     (handle) => {
@@ -14950,6 +15853,7 @@ function byId(id, paths, level, limit) {
           ...up.map((r) => `\u2191 ${runLine(r, outcomeOf(r))}`),
           `\u25B6 ${runLine(self, outcomeOf(self))}`,
           ...detailLines(self, level),
+          ...answers ? answersLines(self) : [],
           ...down.map((r) => `\u2193 ${runLine(r, outcomeOf(r))}`)
         ].join("\n")
       };
@@ -15024,13 +15928,13 @@ function runRequestMode(text, ctx) {
   );
   return { exit: 0, text: respondText(side, wiseRecorded(null), next, ["free"]) };
 }
-function runView(arg, level, ctx, content, summary = false) {
+function runView(arg, level, ctx, content, summary = false, answers = false) {
   const probe2 = (content ?? arg).trim();
   if (REQUEST_MODE.test(probe2) || probe2.startsWith("{")) return runRequestMode(content ?? arg, ctx);
   const at = RUN_ID.test(arg) ? void 0 : toPlace(arg, ctx.paths.root);
   if (at && "stop" in at) return { exit: 2, text: at.stop };
   const limit = level * 10;
-  return at ? byPlace(at.place, ctx.paths, limit, summary) : byId(arg, ctx.paths, level, limit);
+  return at ? byPlace(at.place, ctx.paths, limit, summary) : byId(arg, ctx.paths, level, limit, answers);
 }
 
 // src/help/patterns.ts
@@ -15154,8 +16058,11 @@ var TOOL_LINE = {
 };
 var REPORT_PAIRS = [
   {
-    rule: "there is no view beyond hits, patterns, history and web \u2014 nothing else to ask it for.",
-    bad: ["sidewise report level2", '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns, history or web'],
+    rule: "there is no view beyond hits, patterns, history, web, graph, problems, wise, calls and fields \u2014 nothing else to ask it for.",
+    bad: [
+      "sidewise report level2",
+      '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns, history, web, graph, problems, wise, calls or fields'
+    ],
     good: ["sidewise report patterns"]
   }
 ];
@@ -15412,7 +16319,8 @@ var SHARP = {
   class: ["goal wording changes the verdict (that's a feature, not a bug) \u2014 phrase it as the claim you need proven"],
   replay: [
     'the files must be committed at the ref you name (or use "worktree" for the working tree) \u2014 replay runs git in the repo that actually holds them',
-    "replay re-runs the parent's own questions; it never takes ask: (use class for new questions)"
+    "replay re-runs the parent's own questions; it never takes ask: (use class for new questions)",
+    `a sweep parent (scan, loop, drill's sweep form) is replayed too: it re-sweeps at both refs and reports fixed/still/regressed per item \u2014 only a drill sweep CONTINUATION (over: starting with "each") is refused`
   ],
   scan: ["add a scale question to a layer to rank findings by severity, worst first, instead of an unordered map", "scan by file when the file itself is the unit that matters, not a function inside it"],
   drill: ["follow the `next:` line rather than hand-authoring parent/from \u2014 it already names the id and the category or item"],
@@ -15573,12 +16481,14 @@ function reportCard() {
     ["tool: report"],
     [
       "- free: never calls a provider, never writes to the ledger",
-      "- views: hits (default), patterns, history, web \u2014 nothing else",
-      "- web writes one file, .sidewise/viewer.html, and tries to open it \u2014 the only view that writes anything"
+      "- views: hits (default), patterns, history, web, graph, problems, wise, calls, fields",
+      "- web writes one file, .sidewise/viewer.html, and tries to open it \u2014 the only view that writes anything",
+      "- graph/problems/wise/calls read the graph tier (its own watermark, refreshed on read, never on a paid call)",
+      "- fields: undeclared wise keys with counts/samples/a suggested type; --accept <field> writes it into config wise:"
     ],
     [
       "patterns:",
-      "- why: no view beyond hits, patterns, history or web exists",
+      "- why: no view beyond hits, patterns, history, web, graph, problems, wise, calls or fields exists",
       "  bad:",
       "    sidewise report level2",
       "  good:",
@@ -15933,11 +16843,11 @@ function readRequest(file, stdinSource, maxBytes = DEFAULT_REQUEST_MAX_BYTES) {
   let bytes;
   try {
     if (file !== "-") {
-      const st = statSync8(file);
+      const st = statSync9(file);
       if (st.isDirectory()) return { stop: `\u2716 request: ${shown2} is a folder \u2192 pass a request file, or - to read stdin` };
       if (st.size > maxBytes) return { stop: tooBig(maxBytes) };
     }
-    bytes = file === "-" ? stdinSource() : readFileSync16(file);
+    bytes = file === "-" ? stdinSource() : readFileSync17(file);
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT") return { stop: `\u2716 request: ${shown2} not found \u2192 check the path, or pass - to read stdin` };
@@ -16136,12 +17046,12 @@ async function dispatch(argv, ctx) {
   if (!paths) return finish(2, withAgentPointer(NO_PROJECT, command));
   switch (command) {
     case "view": {
-      const twice = givenTwice(rest, ["level"]);
+      const twice = givenTwice(rest, ["level", "answers"]);
       if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args("view", {
         args: rest,
         allowPositionals: true,
-        options: { level: { type: "string", default: "1" }, summary: { type: "boolean", default: false } }
+        options: { level: { type: "string", default: "1" }, summary: { type: "boolean", default: false }, answers: { type: "boolean", default: false } }
       });
       positionalCount("view", positionals, 1, 1);
       if (!["1", "2", "3"].includes(values.level)) {
@@ -16153,17 +17063,19 @@ async function dispatch(argv, ctx) {
         content = ctx.stdin().toString("utf8");
       } else {
         try {
-          if (statSync8(arg).isFile()) content = readFileSync16(arg, "utf8");
+          if (statSync9(arg).isFile()) content = readFileSync17(arg, "utf8");
         } catch {
         }
       }
-      const r = runView(arg, Number(values.level), { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary);
+      const r = runView(arg, Number(values.level), { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary, values.answers);
       return finish(r.exit, r.text);
     }
     case "report": {
-      const { positionals } = args("report", { args: rest, allowPositionals: true, options: {} });
-      positionalCount("report", positionals, 0, 1);
-      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform });
+      const twice = givenTwice(rest, ["accept"]);
+      if (twice) return finish(2, withAgentPointer(twice, command));
+      const { values, positionals } = args("report", { args: rest, allowPositionals: true, options: { accept: { type: "string" } } });
+      positionalCount("report", positionals, 0, 2);
+      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform }, positionals[1], values.accept);
       return finish(r.exit, r.text);
     }
     case "class":
@@ -16286,7 +17198,7 @@ function realCtx() {
     pkg: { name: package_default.name, version: package_default.version },
     homeDir: os3.homedir(),
     nodeVersion: process.version,
-    stdin: () => readFileSync16(0),
+    stdin: () => readFileSync17(0),
     get io() {
       return { input: process.stdin, output: process.stdout };
     }
