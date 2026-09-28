@@ -778,7 +778,7 @@ function installSqliteWarningFilter(): void {
  */
 let sqliteCtor: DatabaseSyncCtor | null | undefined;
 
-function getSqliteCtor(): DatabaseSyncCtor | null {
+export function getSqliteCtor(): DatabaseSyncCtor | null {
   if (__testOnly.forceSqliteMissing) return null; // test-only: simulate a genuine Node < 22.13, no cache poisoned
   if (sqliteCtor !== undefined) return sqliteCtor;
   const getBuiltin = (process as unknown as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule;
