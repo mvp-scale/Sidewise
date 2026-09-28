@@ -55,19 +55,21 @@ export function consensusAndEscalate(
 }
 
 /** `wise: {recorded: [...]}` fields, or the string "none" when nothing was recorded. Named in `Wise`'s own
- *  field order (why, area, stage, change, risk, problem, nodes, touches, blast — plan 2b's four knowledge
- *  fields appended last, in that order); `extra` (e.g. replay.ts's `['parent']`) always comes after those. */
+ *  field order (why, area, stage, change, risk, problem, uses, touches, blast — plan 2c's `uses` replaces plan
+ *  2b's `nodes` in the same slot); any custom keys (wise.extras) are appended next, sorted; `extra` (e.g.
+ *  replay.ts's `['parent']`) always comes last. */
 export function wiseRecorded(wise: Wise | null, extra?: readonly string[]): Value {
   const fields = [
     ...(wise?.why ? ['why'] : []),
-    ...(wise?.area ? ['area'] : []),
+    ...(wise?.area && (!Array.isArray(wise.area) || wise.area.length) ? ['area'] : []),
     ...(wise?.stage ? ['stage'] : []),
     ...(wise?.change ? ['change'] : []),
     ...(wise?.risk ? ['risk'] : []),
     ...(wise?.problem ? ['problem'] : []),
-    ...(wise?.nodes ? ['nodes'] : []),
+    ...(wise?.uses?.length ? ['uses'] : []),
     ...(wise?.touches?.length ? ['touches'] : []),
     ...(wise?.blast ? ['blast'] : []),
+    ...(wise?.extras ? Object.keys(wise.extras).sort() : []),
     ...(extra ?? []),
   ];
   return fields.length ? fields : 'none';

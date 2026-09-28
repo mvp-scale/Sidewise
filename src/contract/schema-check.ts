@@ -6,7 +6,20 @@
  * split as before plan 2b: this file is shape only.
  */
 import { clip } from '../util/text.ts';
-import { AREAS, BLASTS, CHANGES, DEPTHS, FAMILIES, RISKS, STAGES, VERBS, WHYS, type Stop, type Verb } from './types.ts';
+import { DEPTHS, FAMILIES, VERBS, type Stop, type Verb } from './types.ts';
+import {
+  CHAIN_RE,
+  closedValues,
+  isCustomKey,
+  MAX_CUSTOM_KEY_LEN,
+  MAX_FREETEXT_LEN,
+  MAX_TOUCH_LEN,
+  MAX_WISE_LINES,
+  WISE_FIELDS,
+  WISE_KEYS,
+  WISE_PARENT_KEY,
+  type WiseField,
+} from './wise-fields.ts';
 
 const TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
 const RUN_ID = /^SW-\d{4,}$/u;
@@ -16,11 +29,6 @@ const SIDE_KEYS = ['goal', 'depth', 'where', 'parent', 'ask', 'over', 'from', 'c
 const CATEGORY_KEYS = ['pass', 'need', 'tags', 'family'];
 const SECTION_NAMES = ['concerns', 'decisions'];
 const NOT_QUESTIONS = /^(yes|no|true|false|on|off|y|n)$/iu;
-/** A node in wise.nodes: level:name, level ∈ person|system|container|component|code, name is path/id-shaped. */
-const NODE_LEVELS = ['person', 'system', 'container', 'component', 'code'];
-const NODE = `(?:${NODE_LEVELS.join('|')}):[A-Za-z0-9._/-]+`;
-const CHAIN = `${NODE}(?: -> ${NODE})*`;
-const NODES_RE = new RegExp(`^${CHAIN}(?:; ${CHAIN})*$`, 'u');
 
 type Obj = Record<string, unknown>;
 export const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -177,10 +185,57 @@ function checkTouches(v: unknown, out: Out): void {
   if (!Array.isArray(v)) return out.add('wise.touches', 'must be a list', 'write [a, b]');
   if (v.length > 5) out.add('wise.touches', `${v.length} entries`, 'give up to 5');
   v.forEach((x, i) => {
-    if (typeof x !== 'string' || x.includes('\n') || len(x) < 1 || len(x) > 40) {
-      out.add(`wise.touches[${i}]`, show(x), 'each entry is 1–40 characters, one line');
+    if (typeof x !== 'string' || x.includes('\n') || len(x) < 1 || len(x) > MAX_TOUCH_LEN) {
+      out.add(`wise.touches[${i}]`, show(x), `each entry is 1–${MAX_TOUCH_LEN} characters, one line`);
     }
   });
+}
+
+/** wise.uses: a single chain string, or a list of up to 5 (plan 2c: "a single string is accepted as a 1-item
+ *  list"). Each entry must match the C4 chain grammar (wise-fields.ts's CHAIN_RE). Returns the parsed chains
+ *  (as given, normalized to a list) for validate.ts's own orphan-code-part note check, or undefined on any stop. */
+function checkUses(v: unknown, out: Out): string[] | undefined {
+  const list = typeof v === 'string' ? [v] : v;
+  if (!Array.isArray(list)) return void out.add('wise.uses', show(v), 'write a level:name chain, e.g. container:api -> component:dao');
+  if (list.length < 1 || list.length > 5) {
+    out.add('wise.uses', `${list.length} chains`, 'give 1–5');
+    return undefined;
+  }
+  let ok = true;
+  list.forEach((x, i) => {
+    const field = typeof v === 'string' ? 'wise.uses' : `wise.uses[${i}]`;
+    if (typeof x !== 'string') {
+      out.add(field, show(x), 'write level:name, e.g. container:web-app');
+      ok = false;
+    } else if (len(x) > MAX_FREETEXT_LEN) {
+      out.add(field, `is longer than ${MAX_FREETEXT_LEN} characters`, 'shorten the chain');
+      ok = false;
+    } else if (!CHAIN_RE.test(x)) {
+      out.add(field, show(x), 'write level:name, e.g. container:web-app');
+      ok = false;
+    }
+  });
+  return ok ? (list as string[]) : undefined;
+}
+
+/** why/stage/change/risk/blast: value must be in the field's own enum, or the literal "unknown" (plan 2c: valid
+ *  in every closed field). */
+function checkClosedSingle(field: WiseField, v: unknown, out: Out): void {
+  const allowed = closedValues(field);
+  if (!(allowed as readonly unknown[]).includes(v)) out.add(`wise.${field.key}`, show(v), `use ${list(field.values!)}`);
+}
+
+/** area: a single value, or a list of up to `maxList` (plan 2c: single or list ≤2), each one of AREAS or
+ *  "unknown". */
+function checkClosedList(field: WiseField, v: unknown, out: Out): void {
+  const allowed = closedValues(field);
+  if (Array.isArray(v) && (v.length < 1 || v.length > (field.maxList ?? Infinity))) {
+    out.add(`wise.${field.key}`, show(v), `one value or a list of ≤${field.maxList}: [${field.values!.slice(0, field.maxList).join(', ')}]`);
+    return;
+  }
+  const entries = Array.isArray(v) ? v : [v];
+  const bad = entries.find((x) => !(allowed as readonly unknown[]).includes(x));
+  if (bad !== undefined) out.add(`wise.${field.key}`, show(v), `use ${list(field.values!)}, or a list of ≤${field.maxList}`);
 }
 
 function checkSide(side: unknown, verb: Verb | undefined, out: Out): void {
@@ -208,8 +263,10 @@ function checkSide(side: unknown, verb: Verb | undefined, out: Out): void {
   }
   if ('expect' in side) {
     const e = side.expect;
-    if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === 'string' && isTag(x))) {
-      out.add('side.expect', show(e), 'give 1–9 concern names, lowercase kebab-case, ≤ 20 characters');
+    if (e === 'none') {
+      // plan 2c N4: "none" predicts no flips at all — any flip is reported as unexpected:.
+    } else if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === 'string' && isTag(x))) {
+      out.add('side.expect', show(e), 'give 1–9 concern names, lowercase kebab-case, ≤ 20 characters, or the word "none"');
     } else if (new Set(e).size !== e.length) {
       out.add('side.expect', 'repeated concern name', 'make each one different');
     }
@@ -219,37 +276,94 @@ function checkSide(side: unknown, verb: Verb | undefined, out: Out): void {
   if ('over' in side) checkOverShape(side.over, out);
 }
 
-const WISE_KEYS = ['why', 'area', 'stage', 'change', 'risk', 'parent', 'problem', 'nodes', 'touches', 'blast'];
-
-function checkWise(wise: unknown, out: Out): void {
-  if (!isObj(wise)) return out.add('wise', 'is not a mapping', 'write why:, area: or parent: under wise:, or leave wise out');
-  for (const k of Object.keys(wise)) if (!WISE_KEYS.includes(k)) out.add(`wise.${clip(k, 20)}`, 'not a field', `use ${list(WISE_KEYS)}`);
-  if ('why' in wise && !(WHYS as readonly unknown[]).includes(wise.why)) out.add('wise.why', show(wise.why), `use ${list(WHYS)}`);
-  if ('area' in wise && !(AREAS as readonly unknown[]).includes(wise.area)) out.add('wise.area', show(wise.area), `use ${list(AREAS)}`);
-  if ('stage' in wise && !(STAGES as readonly unknown[]).includes(wise.stage)) out.add('wise.stage', show(wise.stage), `use ${list(STAGES)}`);
-  if ('change' in wise && !(CHANGES as readonly unknown[]).includes(wise.change)) out.add('wise.change', show(wise.change), `use ${list(CHANGES)}`);
-  if ('risk' in wise && !(RISKS as readonly unknown[]).includes(wise.risk)) out.add('wise.risk', show(wise.risk), `use ${list(RISKS)}`);
-  if ('parent' in wise && !(typeof wise.parent === 'string' && RUN_ID.test(wise.parent))) out.add('wise.parent', `${show(wise.parent)} is not a run id`, 'use SW-####');
-  if ('problem' in wise) {
-    const bad = lineProblem(wise.problem);
-    if (bad) out.add('wise.problem', bad, "write one line of 3–160 characters: what you're solving now");
-  }
-  if ('nodes' in wise) {
-    const n = wise.nodes;
-    if (typeof n !== 'string') out.add('wise.nodes', show(n), 'write a level:name chain, e.g. container:api -> component:dao');
-    else if (len(n) > MAX_QUESTION_CHARS) out.add('wise.nodes', `is longer than ${MAX_QUESTION_CHARS} characters`, 'shorten the chain');
-    else if (!NODES_RE.test(n)) {
-      out.add('wise.nodes', `${show(n)} is not a level:name chain`, `use level:name ( -> level:name)*, joined by "; " (level: ${list(NODE_LEVELS)})`);
+/** Every catalog field, dispatched by kind — the single place that decides which checker a field's value goes
+ *  through, generated from wise-fields.ts's WISE_FIELDS table (plan 2c A4: "schema check, validator, card and
+ *  stops are generated" from one module). `parent` isn't in WISE_FIELDS (it's an alias of side.parent, a run id,
+ *  not a catalog value) and keeps its own check below, same as before. */
+function checkWiseField(field: WiseField, v: unknown, out: Out): void {
+  switch (field.kind) {
+    case 'closed-single':
+      checkClosedSingle(field, v, out);
+      return;
+    case 'closed-list':
+      checkClosedList(field, v, out);
+      return;
+    case 'freetext': {
+      const bad = lineProblem(v);
+      if (bad) out.add(`wise.${field.key}`, bad, "write one line of 3–160 characters: what you're solving now");
+      return;
     }
+    case 'chain-list':
+      checkUses(v, out);
+      return;
+    case 'freetext-list':
+      checkTouches(v, out);
+      return;
   }
-  if ('touches' in wise) checkTouches(wise.touches, out);
-  if ('blast' in wise && !(BLASTS as readonly unknown[]).includes(wise.blast)) out.add('wise.blast', show(wise.blast), `use ${list(BLASTS)}`);
+}
+
+/** Any wise key beyond the catalog and `parent`: accepted when it's a valid lower-kebab key (≤20 chars) whose
+ *  value is one line ≤160, or a list of ≤5 such lines — recorded as-is, no further checking (plan 2c A4's
+ *  "custom keys"). A malformed key (not kebab-case, too long, uppercase) still gets the old "not a field" stop. */
+/** A key that isn't in the catalog and isn't shaped like a valid custom key (not lower-kebab, or over the
+ *  length cap) — the old "not a field" stop. */
+function checkUnknownWiseKey(k: string, out: Out): void {
+  out.add(`wise.${clip(k, 20)}`, 'not a field', `use ${list(WISE_KEYS)}, or a lower-kebab key ≤${MAX_CUSTOM_KEY_LEN} characters`);
+}
+
+/** A validly-shaped custom key's own value: one line ≤160, or a list of ≤5 such lines, recorded as-is. */
+function checkCustomWiseValue(k: string, v: unknown, out: Out): void {
+  if (Array.isArray(v) && (v.length < 1 || v.length > 5)) return out.add(`wise.${k}`, `${v.length} entries`, 'give 1–5');
+  const entries = Array.isArray(v) ? v : [v];
+  const bad = entries.find((x) => typeof x !== 'string' || x.includes('\n') || len(x) > MAX_FREETEXT_LEN);
+  if (bad !== undefined) out.add(`wise.${k}`, show(bad), `write one line ≤${MAX_FREETEXT_LEN} characters, or a list of ≤5`);
+}
+
+/** The `wise:` block's own source-line count (raw YAML text, since a parsed value has already lost the
+ *  formatting the cap is measured against — plan 2c A4: "count the source lines of the block"). Counted as: the
+ *  top-level `wise:` line itself, plus every following line up to (not including) the next column-0 key or EOF —
+ *  blank lines inside the block count too (an agent padding the block with blank lines still uses up its cap).
+ *  `undefined` when the request has no top-level `wise:` line at all (nothing to cap). */
+export function wiseBlockLineCount(rawText: string | undefined): number | undefined {
+  if (!rawText) return undefined;
+  const lines = rawText.split(/\r?\n/u);
+  const start = lines.findIndex((l) => /^wise\s*:/u.test(l));
+  if (start === -1) return undefined;
+  let count = 1;
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i]!;
+    if (line.trim() !== '' && !/^\s/u.test(line)) break; // next column-0 key
+    count++;
+  }
+  return count;
+}
+
+function checkWise(wise: unknown, out: Out, rawText?: string): void {
+  if (!isObj(wise)) return out.add('wise', 'is not a mapping', 'write why:, area: or parent: under wise:, or leave wise out');
+  const byKey = new Map(WISE_FIELDS.map((f) => [f.key, f]));
+  const isKnown = (k: string): boolean => k === WISE_PARENT_KEY || byKey.has(k);
+  // Pass 1: every genuinely unrecognized key (old behavior: these stops come first, regardless of where the
+  // key sits in the object — same discipline as the old blanket "for k of keys" pass this replaces).
+  for (const k of Object.keys(wise)) if (!isKnown(k) && !isCustomKey(k)) checkUnknownWiseKey(k, out);
+  // Pass 2: every catalog field present, in the table's own order (not object insertion order) — stable output.
+  for (const f of WISE_FIELDS) if (f.key in wise) checkWiseField(f, wise[f.key], out);
+  if (WISE_PARENT_KEY in wise && !(typeof wise[WISE_PARENT_KEY] === 'string' && RUN_ID.test(wise[WISE_PARENT_KEY] as string))) {
+    out.add(`wise.${WISE_PARENT_KEY}`, `${show(wise[WISE_PARENT_KEY])} is not a run id`, 'use SW-####');
+  }
+  // Pass 3: every validly-shaped custom key's own value.
+  for (const [k, v] of Object.entries(wise)) if (!isKnown(k) && isCustomKey(k)) checkCustomWiseValue(k, v, out);
+  const lineCount = wiseBlockLineCount(rawText);
+  if (lineCount !== undefined && lineCount > MAX_WISE_LINES) {
+    out.add('wise', `${lineCount} lines`, `the wise block is capped at ${MAX_WISE_LINES} lines`);
+  }
 }
 
 /** Every schema violation in a parsed request, as schema-class stops. Empty when the schema accepts it.
  *  `verb` is used only to word the flat-ask/empty-ask fix text ("sidewise template <verb>"); every other check
- *  here is verb-agnostic, matching the published schema (which has no concept of verb either). */
-export function checkSchema(value: unknown, verb?: Verb): Stop[] {
+ *  here is verb-agnostic, matching the published schema (which has no concept of verb either). `rawText`: the
+ *  original request text, threaded through only so checkWise can count the wise: block's own SOURCE lines
+ *  (plan 2c A4's ≤25-line cap) — a parsed value has already lost the formatting that cap is measured against. */
+export function checkSchema(value: unknown, verb?: Verb, rawText?: string): Stop[] {
   const out = new Out();
   if (!isObj(value)) {
     out.add('request', 'is not a mapping', 'start with side:');
@@ -260,6 +374,6 @@ export function checkSchema(value: unknown, verb?: Verb): Stop[] {
   }
   if (!('side' in value)) out.add('side', 'missing', 'start with side: and a goal');
   else checkSide(value.side, verb, out);
-  if ('wise' in value) checkWise(value.wise, out);
+  if ('wise' in value) checkWise(value.wise, out, rawText);
   return out.stops;
 }

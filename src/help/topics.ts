@@ -8,6 +8,7 @@
  * character cap). [C-194] [C-196]
  */
 import { AREAS, BLASTS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
+import { MAX_CUSTOM_KEY_LEN, MAX_WISE_LINES } from '../contract/wise-fields.ts';
 import { proseLines } from './patterns.ts';
 import { BAD_PROBE_EXAMPLE, FAMILY_ROLES, PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
 
@@ -44,19 +45,24 @@ function verdict(): string {
 function wise(): string {
   return [
     '## wise',
-    'wise: is optional context that never reaches the classifier — it only shapes what the ledger learns:',
+    'wise: is optional context that never reaches the classifier — it only shapes what the ledger learns. Every',
+    `field is optional; the block is capped at ${MAX_WISE_LINES} YAML lines:`,
     '',
     '| field | closed values | what you get back |',
     '|---|---|---|',
     `| why    | ${WHYS.join(', ')} | why this run happened, for later pattern-mining |`,
-    `| area   | ${AREAS.join(', ')} | which slice of the system it touched |`,
+    `| area   | ${AREAS.join(', ')} (single, or a list of up to 2) | which slice of the system it touched |`,
     `| stage  | ${STAGES.join(', ')} | where in the workflow it landed |`,
     `| change | ${CHANGES.join(', ')} | what kind of change was under review |`,
     `| risk   | ${RISKS.join(', ')} | how risky the change looked going in |`,
     `| problem | free text, one line, 3–160 chars | what the agent was solving, in its own words |`,
-    `| nodes  | a C4 chain: level:name ( -> level:name)*, "; "-joined | which parts of the system this run touches |`,
+    `| uses   | up to 5 C4 chains: level:name ( -> level:name)* | which parts of the system this run touches |`,
     `| touches | up to 5 short entries | the entities/objects this run is about |`,
     `| blast  | ${BLASTS.join(', ')} | how far a fix's blast radius reaches |`,
+    '',
+    `Any other lower-kebab key (≤${MAX_CUSTOM_KEY_LEN} characters) is also accepted: one line or a short list,`,
+    'recorded as-is. Every closed field above also accepts `unknown`. For this project\'s exact allowed values,',
+    'run `sidewise agent wise` — it renders the full C4 legend (the `uses` grammar, the chain examples) too.',
     '',
     ...ruleLines('wise'),
     '- every field is optional; the response always echoes back which ones were recorded as `wise: {recorded: [...]}`, or `{recorded: none}`.',
@@ -104,7 +110,7 @@ function probe(): string {
     ...BAD_PROBE_EXAMPLE.good.map((g) => `- ${g}`),
     '',
     'See the sidewise-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),',
-    'wise\'s problem/nodes/touches/blast fields, and one recipe per verb.',
+    'wise\'s problem/uses/touches/blast fields, and one recipe per verb.',
   ].join('\n');
 }
 

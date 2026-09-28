@@ -136,13 +136,20 @@
           "description": "replay: two git refs"
         },
         "expect": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 9,
-          "items": {
-            "$ref": "#/$defs/tag"
-          },
-          "description": "replay, required: which of the parent's concerns this replay should turn to pass"
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 9,
+              "items": {
+                "$ref": "#/$defs/tag"
+              }
+            },
+            {
+              "const": "none"
+            }
+          ],
+          "description": "replay, required: which of the parent's concerns this replay should turn to pass, or \"none\" to predict no flips at all"
         },
         "verb": {
           "enum": [
@@ -329,18 +336,23 @@
           "enum": [
             "validate",
             "find",
-            "debug"
+            "debug",
+            "unknown"
           ]
         },
         "area": {
-          "enum": [
-            "data",
-            "api",
-            "ui",
-            "auth",
-            "hosting",
-            "build",
-            "tests"
+          "oneOf": [
+            {
+              "$ref": "#/$defs/wiseArea"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "items": {
+                "$ref": "#/$defs/wiseArea"
+              }
+            }
           ]
         },
         "stage": {
@@ -350,7 +362,9 @@
             "review",
             "pre-merge",
             "post-fix",
-            "release"
+            "release",
+            "operate",
+            "unknown"
           ]
         },
         "change": {
@@ -359,14 +373,16 @@
             "fix",
             "refactor",
             "dependency",
-            "config"
+            "config",
+            "unknown"
           ]
         },
         "risk": {
           "enum": [
             "low",
             "medium",
-            "high"
+            "high",
+            "unknown"
           ]
         },
         "parent": {
@@ -376,11 +392,21 @@
           "$ref": "#/$defs/line",
           "description": "one line: what the agent is solving right now"
         },
-        "nodes": {
-          "type": "string",
-          "maxLength": 160,
-          "pattern": "^(?:person|system|container|component|code):[A-Za-z0-9._/-]+(?: -> (?:person|system|container|component|code):[A-Za-z0-9._/-]+)*(?:; (?:person|system|container|component|code):[A-Za-z0-9._/-]+(?: -> (?:person|system|container|component|code):[A-Za-z0-9._/-]+)*)*$",
-          "description": "a C4 chain: level:name ( -> level:name)*, chains joined by '; '"
+        "uses": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/wiseChain"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {
+                "$ref": "#/$defs/wiseChain"
+              }
+            }
+          ],
+          "description": "one C4 chain, or a list of up to 5: level:name ( -> level:name)*"
         },
         "touches": {
           "type": "array",
@@ -398,10 +424,51 @@
             "component",
             "container",
             "system",
-            "person"
+            "person",
+            "unknown"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^(?=.{1,20}$)(?!(?:why|area|stage|change|risk|parent|problem|uses|touches|blast)$)[a-z][a-z0-9]*(-[a-z0-9]+)*$": {
+          "description": "any other lower-kebab key (≤20 characters): one line ≤160, or a list of ≤5 such lines, recorded as-is",
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 160,
+              "pattern": "^[^\\n]*$"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[^\\n]*$"
+              }
+            }
           ]
         }
       }
+    },
+    "wiseArea": {
+      "enum": [
+        "data",
+        "api",
+        "ui",
+        "auth",
+        "hosting",
+        "build",
+        "tests",
+        "unknown"
+      ]
+    },
+    "wiseChain": {
+      "type": "string",
+      "maxLength": 160,
+      "pattern": "^(?:person|system|container|component|code):[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\\??(?: -> (?:person|system|container|component|code):[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\\??)*$",
+      "description": "a C4 chain: level:name ( -> level:name)*, level in person|system|container|component|code"
     }
   }
 }

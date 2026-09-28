@@ -18,7 +18,7 @@ export type Why = (typeof WHYS)[number];
 export type Area = (typeof AREAS)[number];
 
 /** The wise catalog: three more optional, closed fields alongside why/area. */
-export const STAGES = ['design', 'build', 'review', 'pre-merge', 'post-fix', 'release'] as const;
+export const STAGES = ['design', 'build', 'review', 'pre-merge', 'post-fix', 'release', 'operate'] as const;
 export const CHANGES = ['feature', 'fix', 'refactor', 'dependency', 'config'] as const;
 export const RISKS = ['low', 'medium', 'high'] as const;
 export type Stage = (typeof STAGES)[number];
@@ -78,8 +78,10 @@ export interface Side {
   parent?: string;
   from?: string;
   compare?: { before: string; after: string };
-  /** replay only: which of the parent's concerns this replay should turn to pass. */
-  expect?: string[];
+  /** replay only: which of the parent's concerns this replay should turn to pass, or the literal "none" to
+   *  predict no flips at all (plan 2c N4) — any category that flips anyway is listed in the response's
+   *  `unexpected:`. */
+  expect?: string[] | 'none';
   /** One subject: the categories straight under ask (concerns first, then decisions). Empty in a sweep. */
   categories: Category[];
   /** A sweep: the asked layers, in over's layer order. Empty for one subject. */
@@ -90,18 +92,23 @@ export interface Side {
 
 export interface Wise {
   why?: Why;
-  area?: Area;
+  /** Single value, or a list of up to 2 (plan 2c: "omit for whole-system questions: uses carries the map"). */
+  area?: Area | Area[];
   stage?: Stage;
   change?: Change;
   risk?: Risk;
   parent?: string;
   /** One line: what the agent is solving right now. */
   problem?: string;
-  /** A C4 chain: "level:name( -> level:name)*", chains joined by "; ". */
-  nodes?: string;
+  /** Up to 5 C4 chains: "level:name( -> level:name)*" (wise-fields.ts's CHAIN_RE). Replaces plan 2b's single
+   *  `nodes` string (removed, nothing published): a reader of an OLD ledger record that still has `wise.nodes`
+   *  must keep treating it as a 1-item `uses` (plan 2c A4) — see wise-fields.ts's normalizeWise. */
+  uses?: string[];
   /** Entities/objects the run touches, up to 5. */
   touches?: string[];
   blast?: Blast;
+  /** Any other lower-kebab key (≤20 chars): one line ≤160, or a list of ≤5 such lines, recorded as-is. */
+  extras?: Record<string, string | string[]>;
 }
 
 export interface Request {

@@ -27,7 +27,7 @@ export function stopText(stops: readonly string[], verb: AgentTarget): string {
 export function loadRequest(text: string, verb: Verb): { ok: true; request: Request; notes: string[] } | { ok: false; result: VerbResult } {
   const read = readRequestText(text);
   if (!read.ok) return { ok: false, result: { exit: 2, text: stopText(read.stops, verb) } };
-  const v = validateRequest(read.value, verb);
+  const v = validateRequest(read.value, verb, text);
   if (!v.ok) return { ok: false, result: { exit: 2, text: stopText(v.stops.map((s) => s.text), verb) } };
   return { ok: true, request: v.request, notes: v.notes };
 }

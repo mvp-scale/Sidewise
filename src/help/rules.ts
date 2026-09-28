@@ -6,6 +6,7 @@
  */
 import { MAX_QUESTION_CHARS } from '../contract/schema-check.ts';
 import { AREAS, CHANGES, DECISIONS_MAX, DECISIONS_MIN, DEPTH_COUNT, FAMILIES, RISKS, STAGES, SWEEP_ITEM_CAP, WHYS } from '../contract/types.ts';
+import { MAX_WISE_LINES, UNKNOWN_VALUE } from '../contract/wise-fields.ts';
 
 /** Oxford-ish "a, b or c" — matches schema-check.ts's own `list()` wording in stop text. */
 const list = (xs: readonly string[]): string => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}` : xs[0]!);
@@ -37,11 +38,14 @@ export const RULES: readonly Rule[] = [
   { text: `pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between is unsure`, in: ['card', 'verdict'] },
   { text: `every question in a category must point the same way as its pass:`, in: ['authoring'] },
   { text: `wise.why is one of ${list(WHYS)}`, in: ['wise'] },
-  { text: `wise.area is one of ${list(AREAS)}`, in: ['wise'] },
+  { text: `wise.area is one of ${list(AREAS)}, single or a list of up to 2`, in: ['wise'] },
   { text: `wise.stage is one of ${list(STAGES)}`, in: ['wise'] },
   { text: `wise.change is one of ${list(CHANGES)}`, in: ['wise'] },
   { text: `wise.risk is one of ${list(RISKS)}`, in: ['wise'] },
+  { text: `every closed wise field also accepts "${UNKNOWN_VALUE}"`, in: ['wise'] },
+  { text: `the wise block is capped at ${MAX_WISE_LINES} YAML lines`, in: ['wise'] },
   { text: `decisions: ${DECISIONS_MIN}–${DECISIONS_MAX} categories, scale or choice only, at least one scale and one choice`, in: ['authoring'] },
+  { text: 'questions are numbered 1…N across the whole request, decisions included', in: ['card', 'authoring', 'class', 'scan', 'drill', 'loop'] },
 ];
 
 /** Every rule text tagged for a given card/verb/topic, one per line, "- <text>." */

@@ -81,7 +81,7 @@ function how(field: Field, verb: Verb): string {
     case 'from':
       return 'add "from: <an item id or a category of the parent run>"';
     case 'expect':
-      return 'add "expect: [concern-name, ...]" (which of the parent\'s concerns this replay should fix)';
+      return 'add "expect: [concern-name, ...]" (which of the parent\'s concerns this replay should fix), or "expect: none" to predict no flips';
   }
 }
 
@@ -292,7 +292,7 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
       if (verb === 'view') {
         for (const i of issues) notes.push(`${i.field}: ${i.problem} (${i.fix}); class will stop on this`);
       } else {
-        for (const i of issues) out.push(cross(`✖ ${i.field}: ${i.problem} → ${i.fix}`));
+        for (const i of issues) out.push(cross(`✖ ${i.field}: ${i.problem} → ${i.fix} → see: sidewise agent probe`));
       }
     }
   } else {
@@ -329,7 +329,7 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
         const isFinest = name === finest;
         const issues = contractIssues(cats, isFinest ? depth : undefined, `side.ask.${name}`);
         if (isFinest) {
-          for (const i of issues) out.push(cross(`✖ ${i.field}: ${i.problem} → ${i.fix}`));
+          for (const i of issues) out.push(cross(`✖ ${i.field}: ${i.problem} → ${i.fix} → see: sidewise agent probe`));
         } else if (issues.length) {
           notes.push(`side.ask.${name} ask is thin (optional layer; counts aren't enforced) — e.g. ${issues[0]!.field}: ${issues[0]!.problem}`);
         }
@@ -350,7 +350,7 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
       ...(side.parent !== undefined ? { parent: side.parent as string } : {}),
       ...(side.from !== undefined ? { from: side.from as string } : {}),
       ...(side.compare !== undefined ? { compare: side.compare as { before: string; after: string } } : {}),
-      ...(side.expect !== undefined ? { expect: side.expect as string[] } : {}),
+      ...(side.expect !== undefined ? { expect: side.expect as string[] | 'none' } : {}),
       categories: over === undefined ? categories : [],
       layers,
       ...(over !== undefined ? { over } : {}),
@@ -358,11 +358,14 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
   };
 }
 
-export function validateRequest(value: unknown, verb: Verb): Validated {
+/** `rawText`: the original request text (before YAML parsing), passed through only so checkSchema's wise:
+ *  line-cap check (plan 2c A4) can count the block's own source lines — everything else here works on the
+ *  already-parsed `value`. */
+export function validateRequest(value: unknown, verb: Verb, rawText?: string): Validated {
   const blanks: Stop[] = [];
   findBlanks(value, '', blanks);
   if (blanks.length) return { ok: false, stops: blanks };
-  const schema = checkSchema(value, verb);
+  const schema = checkSchema(value, verb, rawText);
   if (schema.length) return { ok: false, stops: schema };
   const raw = value as Record<string, unknown>;
   const { stops, side, notes: crossNotes } = checkCross(raw, verb);

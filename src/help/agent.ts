@@ -55,6 +55,7 @@ import { terseLines } from './patterns.ts';
 import { TOOL_LINE } from './report.ts';
 import { BAD_PROBE_EXAMPLE, FAMILY_ROLES, PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
 import { SHARP, VERB_LINE } from './verbs.ts';
+import { CHAIN_LEVELS, MAX_WISE_LINES, UNKNOWN_VALUE, WISE_FIELDS, closedValues, type WiseField } from '../contract/wise-fields.ts';
 
 const isVerb = (s: string): s is Verb => (VERBS as readonly string[]).includes(s);
 
@@ -235,7 +236,74 @@ function templateCard(): string {
   );
 }
 
-/** Non-verb targets `agent` recognizes, beyond the six verbs above. */
+/** `sidewise agent wise`'s legend card (plan 2c A5) — deliberately NOT built through `renderCard`: it has its
+ *  own fixed shape (FIELDS/ARCHITECTURE/WRITE IT FLAT/EXAMPLE, no `rules:`/`patterns:`/`run:`), spelled out
+ *  verbatim by the plan, so it's exempt from the "every card follows the same key order" invariant
+ *  (test/unit/agent.test.ts's NON_VERBS list deliberately leaves `wise` out for this reason). The FIELDS block's
+ *  values and notes come from `wise-fields.ts`'s WISE_FIELDS table (not retyped here); a unit test cross-checks
+ *  every table entry still appears in this text, so the two can't silently drift apart. Phase B makes this
+ *  config-aware (the table gains overrides); today it's the built-in defaults only. */
+/** blast's own values (types.ts's BLASTS) are ordered narrowest-first (validation only cares about set
+ *  membership) — the card shows them widest-first (person, the biggest blast radius, first) since that's the
+ *  order a reader scans the C4 levels in. Card-display order only; validation still goes through closedValues. */
+const BLAST_CARD_ORDER = ['person', 'system', 'container', 'component', 'code'];
+
+function wiseCard(): string {
+  const [why, area, stage, change, risk, problem, uses, blast, touches] = WISE_FIELDS as unknown as [
+    WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField,
+  ];
+  return [
+    `tool: wise — optional, free, ≤${MAX_WISE_LINES} lines. Flat keys; the only nesting is a list.`,
+    "Every field is optional: fill what you know, omit what doesn't apply.",
+    '',
+    'FIELDS',
+    `  why      ${closedValues(why).slice(0, -1).join(' | ')}`,
+    `  area     ${closedValues(area).slice(0, -1).join(' | ')}          (list ≤${area.maxList}; ${area.note})`,
+    `  stage    ${closedValues(stage).slice(0, -1).join(' | ')}   (${stage.note})`,
+    `  change   ${closedValues(change).slice(0, -1).join(' | ')}   (${change.note})`,
+    `  risk     ${closedValues(risk).slice(0, -1).join(' | ')}         ${risk.note}`,
+    `  problem  ${problem.note}`,
+    `  uses     ${uses.note}`,
+    `  blast    ${BLAST_CARD_ORDER.join(' | ')}   ${blast.note}`,
+    `  touches  ${touches.note}`,
+    `  <other>  any kebab-case key: one line ≤160 or a list ≤5, recorded as-is`,
+    `  ${UNKNOWN_VALUE}  allowed as a value for any closed field`,
+    '',
+    'ARCHITECTURE: the C4 model (c4model.com). Five levels, each inside the one above:',
+    '',
+    '  system: shop',
+    '  └── container: web-app                      an app or data store',
+    '  │   ├── component: orders-handler           a group of code inside a container',
+    '  │   │   └── code: createOrder               your own function (not a built-in)',
+    '  │   └── component: orders-dao',
+    '  └── container: database',
+    '  person: customer                             outside the system',
+    '  system: payment-service                      an outside service is its own system',
+    '',
+    'WRITE IT FLAT',
+    '  inside  →  parent/child in the name:  component:web-app/orders-handler',
+    '  uses    →  ->  between parts:         a -> b -> c',
+    '  guessed or not built yet  →  end any part with ?:  component:web-app/refunds?  system:email-service?',
+    '',
+    '  chain   :=  part ( " -> " part )*',
+    '  part    :=  level ":" name ( "/" name )* [ "?" ]',
+    `  level   :=  ${CHAIN_LEVELS.join(' | ')}`,
+    '  name    :=  lowercase kebab-case, or a code identifier at the code level',
+    '',
+    'EXAMPLE',
+    '  wise:',
+    '    why: validate',
+    '    problem: request input reaches a raw query in order creation',
+    '    uses:',
+    '      - person:customer -> container:web-app',
+    '      - component:web-app/orders-handler -> component:web-app/orders-dao -> container:database',
+    '    blast: container',
+    '    touches: [Order, amount]',
+  ].join('\n');
+}
+
+/** Non-verb targets `agent` recognizes, beyond the six verbs above. `wise` (plan 2c) is deliberately not a
+ *  `renderCard`-shaped tool card — see wiseCard's own comment. */
 const AGENT_TOPICS: Record<string, () => string> = {
   probe: probeCard,
   verdict: verdictCard,
@@ -243,6 +311,7 @@ const AGENT_TOPICS: Record<string, () => string> = {
   budget: budgetCard,
   report: reportCard,
   template: templateCard,
+  wise: wiseCard,
 };
 const agentExtras = (): string[] => Object.keys(AGENT_TOPICS);
 /** Re-exported for the CLI's own usage line, the same way help/index.ts's HELP_EXTRAS already is. */
