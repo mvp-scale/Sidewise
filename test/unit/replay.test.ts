@@ -1,4 +1,4 @@
-// change: replays a one-subject parent's questions on two states; fixed/still/regressed, a legacy or sweep parent stops.
+// replay: re-runs a one-subject parent's questions on two states; fixed/still/regressed, a legacy or sweep parent stops.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -7,7 +7,7 @@ import { EVIDENCE_LIMITS } from '../../src/evidence/code.ts';
 import { hasGit } from '../../src/evidence/git.ts';
 import { appendContractRun, appendRun, isContractRun, readLedger } from '../../src/ledger/log.ts';
 import { setBudget } from '../../src/budget/budget.ts';
-import { runChange } from '../../src/verbs/change.ts';
+import { runReplay } from '../../src/verbs/replay.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runDrill } from '../../src/verbs/drill.ts';
 import { runScan } from '../../src/verbs/scan.ts';
@@ -22,7 +22,7 @@ const env = { SIDEWISE_ACTOR: 'r' };
 const T = Date.parse('2026-09-26T12:00:00Z');
 
 /** A full, valid quick-depth ask (plan 2b: 3 concerns categories x 3 probes + 2 decisions), for class requests
- *  that change.ts's own tests build a parent from — change never cares about the exact question text, only
+ *  that replay.ts's own tests build a parent from — replay never cares about the exact question text, only
  *  that "injection" (the category most of these tests check) is real and its questions are numbered 1-3. */
 const QUICK_ASK =
   '  ask:\n    concerns:\n      injection:\n        pass: no\n        1: q1?\n        2: q2?\n        3: q3?\n      access:\n        pass: no\n        4: q4?\n        5: q5?\n        6: q6?\n      leaks:\n        pass: no\n        7: q7?\n        8: q8?\n        9: q9?\n    decisions:\n      severity:\n        pass: [none, low]\n        10:\n          scale: How bad?\n          levels: [none, low, high]\n      route:\n        pass: [ship]\n        11:\n          choice: Where to?\n          options: [ship, block]\n';
@@ -47,7 +47,7 @@ function markerProvider(): ClassifierPort {
   };
 }
 
-describe('change', () => {
+describe('replay', () => {
   it('a class parent that has since been fixed on the worktree: fixed, no regression [C-060]', async () => {
     const { paths, root } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`SELECT * FROM t WHERE id = ${x}`); }\n' });
     const classText = `side:\n  goal: fix sql injection\n  depth: quick\n  where: [src/a.ts]\n${QUICK_ASK}`;
@@ -55,25 +55,25 @@ describe('change', () => {
     writeFileSync(path.join(root, 'src/a.ts'), 'export function f(x) { return db.query("SELECT * FROM t WHERE id = ?", [x]); }\n');
     const changeText = 'side:\n  goal: The fix works\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n';
     // (before === after === worktree here only to exercise the plumbing without a real git repo; git-evidence.test.ts covers refs.)
-    const r = await runChange(changeText, { paths, provider: stubProvider({ yes: () => 0.05 }), env });
+    const r = await runReplay(changeText, { paths, provider: stubProvider({ yes: () => 0.05 }), env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('injection: {before: pass, after: pass}');
     expect(r.text).toContain('regressed: []');
     expect(r.text).toContain('reading whole files: line ranges may not match the parent run');
-    const [run] = readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'change');
-    expect(run).toMatchObject({ verb: 'change', parent: 'SW-0001' });
+    const [run] = readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'replay');
+    expect(run).toMatchObject({ verb: 'replay', parent: 'SW-0001' });
   });
 
   it('a sweep parent stops, naming the fix [C-063]', async () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ items: {} }), T, 'b'); // SW-0001: items !== null, a sweep
-    const r = await runChange('side:\n  goal: check the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+    const r = await runReplay('side:\n  goal: check the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
       paths,
       provider: stubProvider(),
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0001 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent change');
+    expect(r.text).toBe('✖ side.parent: SW-0001 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent replay');
   });
 
   // Round 3 smoke test root cause (STOPS.md #1, .sidewise/QUESTION-DETAIL.md #3): the confirming run was
@@ -81,10 +81,10 @@ describe('change', () => {
   // added to an already-scoped file item, not scan's own chained file+function sweep (which would also carry
   // a file-layer item alongside it). Because the handler was defined as `this.x = () => {}` inside a
   // constructor, that layer found exactly ONE item — yet `parent.items !== null` still made it sweep-shaped,
-  // and change refuses it regardless of how many items the sweep actually found. Reproduced end to end here
+  // and replay refuses it regardless of how many items the sweep actually found. Reproduced end to end here
   // through a real scan (SW-0001, one file item) then a real drill (SW-0002, exactly one function item) —
   // not a hand-built ledger record — with the item count asserted directly off the ledger, not inferred.
-  it('a drill sweep with exactly one item is still a sweep parent, and change still refuses it', async () => {
+  it('a drill sweep with exactly one item is still a sweep parent, and replay still refuses it', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function onlyFn(req) { return db.query(`x ${req.id}`); }\n' });
     const scanReq =
       'side:\n  goal: check handlers\n  depth: quick\n  over:\n    file: src/a.ts\n  ask:\n    file:\n      concerns:\n        injection:\n          pass: no\n          1: is {file} unsafe?\n          2: q2?\n          3: q3?\n        access:\n          pass: no\n          4: q4?\n          5: q5?\n          6: q6?\n        leaks:\n          pass: no\n          7: q7?\n          8: q8?\n          9: q9?\n      decisions:\n        severity:\n          pass: [none, low]\n          10:\n            scale: How bad?\n            levels: [none, low, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where to?\n            options: [ship, block]\n';
@@ -96,47 +96,47 @@ describe('change', () => {
     const sw2 = readLedger(paths).find((x) => x.id === 'SW-0002');
     expect(sw2 && isContractRun(sw2) ? Object.keys(sw2.items ?? {}) : null).toEqual(['src/a.ts/onlyFn']); // items !== null, length 1
 
-    const r = await runChange('side:\n  goal: verify the fix\n  parent: SW-0002\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+    const r = await runReplay('side:\n  goal: verify the fix\n  parent: SW-0002\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
       paths,
       provider: stubProvider(),
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0002 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent change');
+    expect(r.text).toBe('✖ side.parent: SW-0002 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent replay');
   });
 
   it('a legacy (Plan 1) parent stops', async () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun()); // SW-0001: a Plan 1 run, no v: 2
-    const r = await runChange('side:\n  goal: check the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+    const r = await runReplay('side:\n  goal: check the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
       paths,
       provider: stubProvider(),
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0001 predates the YAML contract → run class again on this code\n→ see: sidewise agent change');
+    expect(r.text).toBe('✖ side.parent: SW-0001 predates the YAML contract → run class again on this code\n→ see: sidewise agent replay');
   });
 
   it('a parent not in the ledger stops, naming the id', async () => {
     const { paths } = tempProject({});
-    const r = await runChange('side:\n  goal: check the fix\n  parent: SW-0042\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+    const r = await runReplay('side:\n  goal: check the fix\n  parent: SW-0042\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
       paths,
       provider: stubProvider(),
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0042 is not in the ledger → check the id\n→ see: sidewise agent change');
+    expect(r.text).toBe('✖ side.parent: SW-0042 is not in the ledger → check the id\n→ see: sidewise agent replay');
   });
 
   it("expect: must name one of the parent's actual concerns (plan 2b)", async () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
     await runClass(`side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n${QUICK_ASK}`, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
-    const r = await runChange(
+    const r = await runReplay(
       'side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [not-a-real-concern]\n',
       { paths, provider: stubProvider(), env },
     );
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.expect: "not-a-real-concern" is not a concern of SW-0001 → use one of injection, access, leaks\n→ see: sidewise agent change');
+    expect(r.text).toBe('✖ side.expect: "not-a-real-concern" is not a concern of SW-0001 → use one of injection, access, leaks\n→ see: sidewise agent replay');
   });
 
   it('expected: grades the prediction against fixed/still, leaving an already-passing concern out of both', async () => {
@@ -165,7 +165,7 @@ describe('change', () => {
     const provider = stubProvider({
       yes: (q) => (q.id === 'goal' ? 0.9 : q.id === 'after:1' ? 0.05 : q.id === 'before:2' || q.id === 'after:2' ? 0.05 : 0.9),
     });
-    const r = await runChange(
+    const r = await runReplay(
       'side:\n  goal: verify the predicted fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection, access, leaks]\n',
       { paths, provider, env },
     );
@@ -202,7 +202,7 @@ describe('change', () => {
 
     // Grading is driven entirely by question id here (not file content): question 2 regresses on "after".
     const provider = stubProvider({ yes: (q) => (q.id === 'after:2' ? 0.95 : 0.05) });
-    const r = await runChange('side:\n  goal: verify no regressions\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+    const r = await runReplay('side:\n  goal: verify no regressions\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
       paths,
       provider,
       env,
@@ -243,10 +243,10 @@ describe('change', () => {
 
     // goal passes; question 1 passes both before and after; only question 2 regresses. With need: any, the
     // "after" category grades pass on its own (question 1 alone clears it) and so would combine() alone — only
-    // the regressed-length override (change.ts) can be forcing gate: fail here, which is what this test pins.
+    // the regressed-length override (replay.ts) can be forcing gate: fail here, which is what this test pins.
     // The fake/stub provider pins these answers so the regression-only case is forced deterministically.
     const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : q.id === 'after:2' ? 0.95 : 0.05) });
-    const r = await runChange('side:\n  goal: verify no regressions\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+    const r = await runReplay('side:\n  goal: verify no regressions\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
       paths,
       provider,
       env,
@@ -299,7 +299,7 @@ describe('change', () => {
     writeFileSync(path.join(root, 'src/a.ts'), 'export function f(x) {\n  return db.query("SELECT * FROM t WHERE id = ?", [x]); // STILL_BAD NEW_BUG\n}\n');
     const afterRef = gitCommit(root, 'partial fix, new bug');
 
-    const r = await runChange(`side:\n  goal: verify the partial fix\n  parent: SW-0001\n  compare: {before: ${beforeRef}, after: ${afterRef}}\n  expect: [injection]\n`, {
+    const r = await runReplay(`side:\n  goal: verify the partial fix\n  parent: SW-0001\n  compare: {before: ${beforeRef}, after: ${afterRef}}\n  expect: [injection]\n`, {
       paths,
       provider: markerProvider(),
       env,
@@ -315,7 +315,7 @@ describe('change', () => {
   // 3): `✖ side.compare.before: "HEAD~1" not found by git` because the Sidewise project root wasn't the git
   // repo that actually held the target file (a nested checkout one level down, e.g. stage/NodeGoat). C-147
   // and git.ts's gitRootOf() claim this is fixed; git-evidence.test.ts proves it at the readGitEvidence level.
-  // This confirms it end to end through runChange itself, on a Sidewise root that is NOT a git repo at all —
+  // This confirms it end to end through runReplay itself, on a Sidewise root that is NOT a git repo at all —
   // the exact round-2 layout, not just readGitEvidence in isolation.
   it('proves a fix through a nested repo one level below a non-git Sidewise root (round 2 regression) [C-147]', async (ctx) => {
     if (!hasGit()) return ctx.skip();
@@ -332,7 +332,7 @@ describe('change', () => {
     writeFileSync(path.join(nested, 'app', 'a.ts'), 'export function f(x) { return db.query("SELECT * FROM t WHERE id = ?", [x]); }\n');
     const afterRef = gitCommit(nested, 'fixed');
 
-    const r = await runChange(`side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: ${beforeRef}, after: ${afterRef}}\n  expect: [injection]\n`, {
+    const r = await runReplay(`side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: ${beforeRef}, after: ${afterRef}}\n  expect: [injection]\n`, {
       paths,
       provider: stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : 0.05) }),
       env,
@@ -351,7 +351,7 @@ describe('change', () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // SW-0001
     const provider = stubProvider({ yes: () => 0.05 });
-    const r = await runChange('side:\n  goal: check note dedupe\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
+    const r = await runReplay('side:\n  goal: check note dedupe\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text.match(/reading whole files/g)).toHaveLength(1);
   });
@@ -370,7 +370,7 @@ describe('change', () => {
     });
     appendContractRun(paths, parent, T, 'b'); // SW-0001
     const provider = stubProvider({ yes: () => 0.05 });
-    const r = await runChange('side:\n  goal: check file dedupe\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
+    const r = await runReplay('side:\n  goal: check file dedupe\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
     expect(r.exit).toBe(0);
     // Unduped, the 3 ranges on a.ts alone would spend the whole 60,000-char total budget, leaving nothing for b.ts.
     expect(r.text).not.toContain('evidence limit reached');
@@ -383,7 +383,7 @@ describe('change', () => {
     const rev = gitCommit(root, 'init'); // whatever git init's own default branch is named, HEAD/the sha always resolve
     appendContractRun(paths, sampleContractRun(), T, 'b'); // SW-0001: 1 question
     const provider = stubProvider();
-    const r = await runChange(`side:\n  goal: dry run check\n  parent: SW-0001\n  compare: {before: ${rev}, after: HEAD}\n  expect: [injection]\n`, {
+    const r = await runReplay(`side:\n  goal: dry run check\n  parent: SW-0001\n  compare: {before: ${rev}, after: HEAD}\n  expect: [injection]\n`, {
       paths,
       provider,
       env,
@@ -392,7 +392,7 @@ describe('change', () => {
     expect(r.exit).toBe(0);
     expect(r.text).toBe('plan:\n  calls: 2\n  questions: 3\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
-    expect(readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'change')).toEqual([]);
+    expect(readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'replay')).toEqual([]);
   });
 
   // Fix #13/#5: --dry-run used to return before ever reading a ref, so a typo'd or nonexistent ref looked
@@ -405,7 +405,7 @@ describe('change', () => {
     gitCommit(root, 'init');
     appendContractRun(paths, sampleContractRun(), T, 'b'); // SW-0001
     const provider = stubProvider();
-    const r = await runChange('side:\n  goal: dry run check\n  parent: SW-0001\n  compare: {before: not-a-real-ref-xyz, after: HEAD}\n  expect: [injection]\n', {
+    const r = await runReplay('side:\n  goal: dry run check\n  parent: SW-0001\n  compare: {before: not-a-real-ref-xyz, after: HEAD}\n  expect: [injection]\n', {
       paths,
       provider,
       env,
@@ -420,12 +420,12 @@ describe('change', () => {
   const classReq = `side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n${QUICK_ASK}`;
   const changeReq = 'side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n';
 
-  it('a fully-reused change is never blocked by an already-reached cap, and names the runs it reused [C-152]', async () => {
+  it('a fully-reused replay is never blocked by an already-reached cap, and names the runs it reused [C-152]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
     await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001, 1 run
-    await runChange(changeReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0002, 1 run
+    await runReplay(changeReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0002, 1 run
     setBudget(paths, { capRuns: 2 }); // exactly used up by the two runs above
-    const r = await runChange(changeReq, { paths, provider: stubProvider(), env }); // fully reused: no call needed
+    const r = await runReplay(changeReq, { paths, provider: stubProvider(), env }); // fully reused: no call needed
     expect(r.exit).toBe(0);
     expect(r.text).toContain('reused: [');
   });
@@ -433,7 +433,7 @@ describe('change', () => {
   it('notes when the cost was estimated from tokens (fix #4), same as class.ts', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
     await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
-    const r = await runChange(changeReq, { paths, provider: withEstimatedCost(stubProvider({ yes: () => 0.9 })), env });
+    const r = await runReplay(changeReq, { paths, provider: withEstimatedCost(stubProvider({ yes: () => 0.9 })), env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
@@ -451,7 +451,7 @@ describe('change', () => {
     appendContractRun(paths, parent, T, 'b'); // SW-0001
     // goal clears the bar (0.9 ≥ 0.70); the "no" category clears it too (1 - 0.05 = 0.95), before and after alike.
     const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : 0.05) });
-    const r = await runChange('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
+    const r = await runReplay('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('gate: pass');
     expect(r.text).toContain('regressed: []');
@@ -470,7 +470,7 @@ describe('change', () => {
     });
     appendContractRun(paths, parent, T, 'b'); // SW-0001
     const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : 0.05), adapter: 'fake' });
-    const r = await runChange('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
+    const r = await runReplay('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
   });
@@ -487,7 +487,7 @@ describe('change', () => {
     });
     appendContractRun(paths, parent, T, 'b'); // SW-0001, seeded directly — no preflight call, so budget.json doesn't exist yet
     const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.9 : 0.05) });
-    const r = await runChange('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
+    const r = await runReplay('side:\n  goal: verify the fix holds\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
   });

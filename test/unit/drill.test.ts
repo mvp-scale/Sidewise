@@ -91,9 +91,9 @@ describe('drill: parent and from resolution', () => {
     expect(r.text).toContain('gate: fail');
     expect(r.text).toContain('injection: {gate: fail, 1: 0.95, 2: 0.95, 3: 0.95}');
     expect(r.text).toContain('consensus:');
-    // change --parent points at THIS drill (SW-0002, items: null), not the sweep it was drilled from
-    // (SW-0001, items !== null — change refuses a sweep parent outright).
-    expect(r.text).toContain('next: fix it, then sidewise change --parent SW-0002 --compare <before>..<after>');
+    // replay --parent points at THIS drill (SW-0002, items: null), not the sweep it was drilled from
+    // (SW-0001, items !== null — replay refuses a sweep parent outright).
+    expect(r.text).toContain('next: fix it, then sidewise replay --parent SW-0002 --compare <before>..<after>');
   });
 
   // C-171: a sweep item's own whole-file range is Sidewise's own choice (scan's file-layer item), not a
@@ -164,9 +164,9 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     expect(r.text).toContain('src/a.ts/findUser/db.query: {injection: fail, 1: 0.96, 2: 0.96, 3: 0.96}');
     expect(r.text).toContain('passing: 0');
     // Controller ruling (task-21-brief): a sweep parent's fail/unsure next fixes-and-reruns the drill (cheap,
-    // reuse-aware), never sidewise change — change.ts refuses a sweep parent (Decision 2).
+    // reuse-aware), never sidewise replay — replay.ts refuses a sweep parent (Decision 2).
     expect(r.text).toContain('next: fix it, then run this drill again');
-    expect(r.text).not.toContain('sidewise change');
+    expect(r.text).not.toContain('sidewise replay');
     const [run] = readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'drill');
     expect(run).toMatchObject({ parent: 'SW-0001', from: 'src/a.ts/findUser' });
   });
@@ -318,8 +318,8 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     expect(r.exit).toBe(0);
     expect(r.text).toContain('source: {gate: fail, 1: 0.95, 2: 0.95, 3: 0.95}');
     expect(r.text).toContain('consensus:');
-    // Controller ruling: a one-subject parent's fail/unsure next keeps fix-then-change.
-    expect(r.text).toContain('next: fix it, then sidewise change --parent SW-0001 --compare <before>..<after>');
+    // Controller ruling: a one-subject parent's fail/unsure next keeps fix-then-replay.
+    expect(r.text).toContain('next: fix it, then sidewise replay --parent SW-0001 --compare <before>..<after>');
 
     // [C-079] the narrower "source" category drill invented becomes part of the record at this place: it
     // rides drill's own run (where: parent.where), so view's per-category history now carries it too — view

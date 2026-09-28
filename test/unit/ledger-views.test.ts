@@ -1,5 +1,5 @@
 // Phase B's index additions (ledger/index.ts): patternFingerprint, and the four IndexHandle methods
-// `sidewise report` is built on — distinctPlaces, patternCounts, recentChanges, recentOutcomes. Same discipline
+// `sidewise report` is built on — distinctPlaces, patternCounts, recentReplays, recentOutcomes. Same discipline
 // as ledger-index.test.ts: every read is checked on both engines (real SQLite and the in-memory fallback), via
 // the same `__testOnly.forceFallback` toggle.
 import { afterEach, describe, expect, it } from 'vitest';
@@ -72,15 +72,15 @@ describe('report views', () => {
     }
   });
 
-  it('recentChanges lists only change-verb runs, newest first, on both engines', () => {
+  it('recentReplays lists only replay-verb runs, newest first, on both engines', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({}), Date.now(), 'b'); // SW-0001: class
-    appendContractRun(paths, sampleContractRun({ verb: 'change', parent: 'SW-0001' }), Date.now(), 'b'); // SW-0002: change
+    appendContractRun(paths, sampleContractRun({ verb: 'replay', parent: 'SW-0001' }), Date.now(), 'b'); // SW-0002: replay
     appendContractRun(paths, sampleContractRun({}), Date.now(), 'b'); // SW-0003: class again
-    appendContractRun(paths, sampleContractRun({ verb: 'change', parent: 'SW-0001' }), Date.now(), 'b'); // SW-0004: change
+    appendContractRun(paths, sampleContractRun({ verb: 'replay', parent: 'SW-0001' }), Date.now(), 'b'); // SW-0004: replay
     for (const forceFallback of ENGINES) {
       __testOnly.forceFallback = forceFallback;
-      const rows = withIndex(paths, (h) => h.recentChanges(10), { readOnly: true });
+      const rows = withIndex(paths, (h) => h.recentReplays(10), { readOnly: true });
       expect(rows.map((r) => r.id)).toEqual(['SW-0004', 'SW-0002']);
     }
   });

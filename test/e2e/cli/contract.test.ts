@@ -13,7 +13,7 @@ function ledgerAgreesWithBudget(root: string): void {
 }
 
 describe('the contract, end to end, through the built CLI', () => {
-  it('view → class → outcome → change → scan → template drill → drill → loop, one project [C-051] [C-057] [C-061] [C-068] [C-069] [C-075] [C-081]', () => {
+  it('view → class → outcome → replay → scan → template drill → drill → loop, one project [C-051] [C-057] [C-061] [C-068] [C-069] [C-075] [C-081]', () => {
     const { root } = tempProject();
     writeFileSync(path.join(root, 'class.yaml'), readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8'));
 
@@ -23,9 +23,9 @@ describe('the contract, end to end, through the built CLI', () => {
     expect(sidewise(root, ['class', 'class.yaml']).status).toBe(0);
     expect(sidewise(root, ['outcome', 'SW-0001', 'held', '--by', 'owner']).status).toBe(0);
 
-    const change = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection']);
-    expect(change.status).toBe(0);
-    expect(change.stdout).toContain('wise: {recorded: [parent]}');
+    const replay = sidewise(root, ['replay', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection']);
+    expect(replay.status).toBe(0);
+    expect(replay.stdout).toContain('wise: {recorded: [parent]}');
 
     // function is the finest layer, depth: quick: 3 concerns categories x 3 probes + decisions.
     writeFileSync(

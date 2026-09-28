@@ -34,7 +34,7 @@ describe('readGitEvidence: an option-shaped ref never reaches git', () => {
     expect(r.ok).toBe(false);
   });
 
-  // Fix #13: change can't see a nested repo — readGitEvidence always ran git at the Sidewise root, so a file
+  // Fix #13: replay can't see a nested repo — readGitEvidence always ran git at the Sidewise root, so a file
   // whose own repo lives one level down (a monorepo package, a vendored project) was always "not found by
   // git", even on a real, committed ref. Runs git in the file's OWN nearest repo instead. [C-147]
   it('reads a file whose own git repo is nested one level below the Sidewise root', (ctx) => {

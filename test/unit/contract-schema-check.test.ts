@@ -58,7 +58,7 @@ describe('checkSchema', () => {
     expect(texts(c)).toEqual(['✖ side.compare: {"before":"main"} → write compare: {before: main, after: HEAD}']);
     const v = base();
     v.side.verb = 'judge';
-    expect(texts(v)).toEqual(['✖ side.verb: "judge" → use view, class, change, scan, drill or loop, or leave it out']);
+    expect(texts(v)).toEqual(['✖ side.verb: "judge" → use view, class, replay, scan, drill or loop, or leave it out']);
     const e = base();
     e.side.expect = [];
     expect(texts(e)).toEqual(['✖ side.expect: [] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters']);

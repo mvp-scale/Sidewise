@@ -40,11 +40,11 @@ describe('runAgent', () => {
     expect(runAgent('loop').text).toContain('patterns:');
   });
 
-  // Round-4 finding: `agent drill`/`agent change` used to render an empty `rules:` section with no `patterns:`
+  // Round-4 finding: `agent drill`/`agent replay` used to render an empty `rules:` section with no `patterns:`
   // at all — the two highest-stakes verbs had no in-band teaching surface. Both now carry SHARP's own gotcha
   // prose in `rules:` (verbs.ts) and at least one good/bad pair each (patterns.ts).
-  it('[C-192] agent drill/change now carry SHARP rules and a patterns section', () => {
-    for (const verb of ['drill', 'change'] as const) {
+  it('[C-192] agent drill/replay now carry SHARP rules and a patterns section', () => {
+    for (const verb of ['drill', 'replay'] as const) {
       const text = runAgent(verb).text;
       expect(text).toContain('patterns:');
       for (const s of SHARP[verb]) expect(text).toContain(s);
@@ -54,7 +54,7 @@ describe('runAgent', () => {
     }
   });
 
-  it('[C-192] every verb card carries its own SHARP bullets, not just drill/change', () => {
+  it('[C-192] every verb card carries its own SHARP bullets, not just drill/replay', () => {
     for (const verb of VERBS) {
       const text = runAgent(verb).text;
       for (const s of SHARP[verb]) expect(text, `"${s}" missing from agent ${verb}`).toContain(s);

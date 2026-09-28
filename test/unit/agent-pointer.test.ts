@@ -1,5 +1,5 @@
 // item B (round 4 fix batch G) [C-197]: a request/evidence stop already ends with "→ see: sidewise agent <verb>"
-// (C-153, via verbs/request.ts's stopText, shared by class/scan/drill/loop/change/view). This file checks the
+// (C-153, via verbs/request.ts's stopText, shared by class/scan/drill/loop/replay/view). This file checks the
 // remaining stops — a verb or tool's OWN validation logic, outside that shared path — land the same pointer,
 // naming the right target. Structured as a flat table of {label, target, text} so a captain-owned cli.ts row
 // (UsageStop, NO_PROJECT, outcome/budget argument checks) or a crew-3-owned template.ts row can be appended

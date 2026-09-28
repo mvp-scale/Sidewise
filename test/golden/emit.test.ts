@@ -82,7 +82,7 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it('change [C-018]', () => {
+  it('replay [C-018]', () => {
     const doc = m(
       [
         'side',
@@ -120,7 +120,7 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it('change: a regression alone fails the gate; next: names it, not the goal [C-091]', () => {
+  it('replay: a regression alone fails the gate; next: names it, not the goal [C-091]', () => {
     const doc = m(
       [
         'side',
@@ -246,7 +246,7 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it("change: expected: grades expect:'s prediction, right after the per-category lines, before regressed: (plan 2b)", () => {
+  it("replay: expected: grades expect:'s prediction, right after the per-category lines, before regressed: (plan 2b)", () => {
     const doc = m(
       [
         'side',

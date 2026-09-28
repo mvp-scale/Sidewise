@@ -131,34 +131,34 @@ describe('flags', () => {
   });
 });
 
-describe('change: bad flag combinations', () => {
+describe('replay: bad flag combinations', () => {
   let root: string;
   beforeAll(() => {
     root = projectWithRun(); // SW-0001, a valid --parent target
   });
 
   it('--parent without --compare, and --compare without --parent', () => {
-    const stop = '✖ --parent/--compare: give both, or neither → sidewise change --parent SW-#### --compare <before>..<after>';
-    expect(expectCleanStop(unchanged(root, ['change', '--parent', 'SW-0001']), 2)).toBe(stop);
-    expect(expectCleanStop(unchanged(root, ['change', '--compare', 'main..HEAD']), 2)).toBe(stop);
+    const stop = '✖ --parent/--compare: give both, or neither → sidewise replay --parent SW-#### --compare <before>..<after>';
+    expect(expectCleanStop(unchanged(root, ['replay', '--parent', 'SW-0001']), 2)).toBe(stop);
+    expect(expectCleanStop(unchanged(root, ['replay', '--compare', 'main..HEAD']), 2)).toBe(stop);
   });
 
   it('--compare not shaped like <before>..<after>: nothing before it, nothing after it, or no ".." at all', () => {
     for (const bad of ['a..', '..b', 'ab']) {
-      expect(expectCleanStop(unchanged(root, ['change', '--parent', 'SW-0001', '--compare', bad]), 2)).toBe(
+      expect(expectCleanStop(unchanged(root, ['replay', '--parent', 'SW-0001', '--compare', bad]), 2)).toBe(
         `✖ --compare: "${bad}" is not <before>..<after> → e.g. --compare main..HEAD`,
       );
     }
   });
 
   it('--expect is required in the flag form too — it never defaults to the parent\'s own concerns', () => {
-    expect(expectCleanStop(unchanged(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree']), 2)).toBe(
-      '✖ --expect: name the concerns this change should fix → sidewise change --parent SW-#### --compare <before>..<after> --expect injection,access,leaks',
+    expect(expectCleanStop(unchanged(root, ['replay', '--parent', 'SW-0001', '--compare', 'worktree..worktree']), 2)).toBe(
+      '✖ --expect: name the concerns this replay should fix → sidewise replay --parent SW-#### --compare <before>..<after> --expect injection,access,leaks',
     );
   });
 
   // A valid <before>..<after> shape (e.g. "worktree..worktree") passing the CLI's own check and reaching
-  // runChange is exercised end to end in cli.test.ts's "change: the flag form..." test (--dry-run and a real run).
+  // runReplay is exercised end to end in cli.test.ts's "replay: the flag form..." test (--dry-run and a real run).
 });
 
 describe('outcome', () => {

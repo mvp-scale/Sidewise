@@ -38,8 +38,8 @@ describe('runHelp', () => {
     expect(runHelp('drill').text).toContain('next:');
   });
 
-  it('[C-115] help change: needs the files committed at the ref', () => {
-    expect(runHelp('change').text.toLowerCase()).toContain('committed');
+  it('[C-115] help replay: needs the files committed at the ref', () => {
+    expect(runHelp('replay').text.toLowerCase()).toContain('committed');
   });
 
   it('[C-115] help scan: a scale ranks findings, and scan by file', () => {
@@ -139,9 +139,9 @@ describe('runHelp', () => {
     expect(runHelp().text).not.toContain('There is no CLI on PATH');
   });
 
-  it('[R10] the card says change can take up to 2 calls, not "~1 call"', () => {
-    expect(runHelp().text).toContain('change (up to 2 calls)');
-    expect(runHelp().text).not.toContain('change (~1 call)');
+  it('[R10] the card says replay can take up to 2 calls, not "~1 call"', () => {
+    expect(runHelp().text).toContain('replay (up to 2 calls)');
+    expect(runHelp().text).not.toContain('replay (~1 call)');
   });
 
   it('[R10] help report does not open by claiming report is a Side x Know grid cell', () => {

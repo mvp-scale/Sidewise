@@ -17,7 +17,7 @@ export function tempProject(files: Record<string, string> = { 'src/user.ts': USE
   return { root, paths: pathsFor(root) };
 }
 
-/** git init, with a throwaway local identity so `gitCommit` works even with no global git config. For change's git-ref tests; callers skip when `hasGit()` is false. */
+/** git init, with a throwaway local identity so `gitCommit` works even with no global git config. For replay's git-ref tests; callers skip when `hasGit()` is false. */
 export function gitInit(root: string): void {
   spawnSync('git', ['init', '-q'], { cwd: root, stdio: 'ignore' });
   spawnSync('git', ['config', 'user.email', 'sidewise-test@example.com'], { cwd: root, stdio: 'ignore' });

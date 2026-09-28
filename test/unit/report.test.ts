@@ -112,15 +112,15 @@ describe('runReport', () => {
     }
   });
 
-  it('[C-165] history: no events yet says so plainly, else merges change results and outcomes newest first', () => {
+  it('[C-165] history: no events yet says so plainly, else merges replay results and outcomes newest first', () => {
     const { paths } = tempProject({});
-    expect(runReport('history', { paths }).text).toBe('sidewise report history · nothing yet → run "change" or "outcome" to start one');
+    expect(runReport('history', { paths }).text).toBe('sidewise report history · nothing yet → run "replay" or "outcome" to start one');
     const oneQuestion = { name: 'guards', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'q1?' }] };
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { guards: 'fail' } }), Date.now(), 'b'); // SW-0001
     appendContractRun(
       paths,
       sampleContractRun({
-        verb: 'change',
+        verb: 'replay',
         parent: 'SW-0001',
         where: ['src/a.ts'],
         ask: { categories: [oneQuestion], layers: [] },
@@ -132,9 +132,9 @@ describe('runReport', () => {
       'b',
     ); // SW-0002: fixed
     appendOutcome(paths, 'SW-0001', 'overruled', 'owner');
-    // A second parent whose OWN stored gate is stale/misleading relative to this change's real before/after —
+    // A second parent whose OWN stored gate is stale/misleading relative to this replay's real before/after —
     // exactly the SW-0006 shape the reviewer found: internally regressed, but a parent-vs-after comparison
-    // would call it "fixed" since parent.categories.guards ('unsure') isn't 'pass' while the change's own
+    // would call it "fixed" since parent.categories.guards ('unsure') isn't 'pass' while the replay's own
     // stored after-gate is 'pass'.
     const threeQuestions = {
       name: 'guards',
@@ -152,7 +152,7 @@ describe('runReport', () => {
     appendContractRun(
       paths,
       sampleContractRun({
-        verb: 'change',
+        verb: 'replay',
         parent: 'SW-0003',
         where: ['src/b.ts'],
         ask: { categories: [threeQuestions], layers: [] },
@@ -177,8 +177,8 @@ describe('runReport', () => {
       __testOnly.forceFallback = forceFallback;
       const r = runReport('history', { paths });
       expect(r.exit).toBe(0);
-      expect(r.text).toContain('src/a.ts · SW-0002 change · fixed');
-      expect(r.text).toContain('src/b.ts · SW-0004 change · regressed');
+      expect(r.text).toContain('src/a.ts · SW-0002 replay · fixed');
+      expect(r.text).toContain('src/b.ts · SW-0004 replay · regressed');
       expect(r.text).toContain('src/a.ts · SW-0001 · overruled by owner');
     }
   });

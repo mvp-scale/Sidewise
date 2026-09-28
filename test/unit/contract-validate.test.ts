@@ -119,22 +119,22 @@ describe('validateRequest', () => {
     ]);
 
     expect(
-      stopsOf({ side: { goal: 'The fix works', parent: 'SW-0042', compare: { before: 'main', after: 'HEAD' }, expect: ['a'], ask: fullAsk(1) } }, 'change'),
-    ).toEqual(["✖ side.ask: change replays the parent's questions → remove ask; for new questions, use class"]);
+      stopsOf({ side: { goal: 'The fix works', parent: 'SW-0042', compare: { before: 'main', after: 'HEAD' }, expect: ['a'], ask: fullAsk(1) } }, 'replay'),
+    ).toEqual(["✖ side.ask: replay re-runs the parent's questions → remove ask; for new questions, use class"]);
 
-    // plan 2b: side.parent is now allowed on every verb, as lineage (not just drill/change).
+    // plan 2b: side.parent is now allowed on every verb, as lineage (not just drill/replay).
     const v = validateRequest(req({ parent: 'SW-0001' }), 'class');
     if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
     expect(v.request.side.parent).toBe('SW-0001');
   });
 
-  it('change needs expect: too; every other verb refuses it', () => {
-    expect(stopsOf({ side: { goal: 'The fix works', parent: 'SW-0042', compare: { before: 'main', after: 'HEAD' } } }, 'change')).toContainEqual(
-      expect.stringContaining('✖ side.expect: change needs it'),
+  it('replay needs expect: too; every other verb refuses it', () => {
+    expect(stopsOf({ side: { goal: 'The fix works', parent: 'SW-0042', compare: { before: 'main', after: 'HEAD' } } }, 'replay')).toContainEqual(
+      expect.stringContaining('✖ side.expect: replay needs it'),
     );
     const withExpect = req({});
     (withExpect.side as Obj).expect = ['a'];
-    expect(stopsOf(withExpect, 'class')).toContainEqual('✖ side.expect: only change predicts fixed concerns → remove it');
+    expect(stopsOf(withExpect, 'class')).toContainEqual('✖ side.expect: only replay predicts fixed concerns → remove it');
   });
 
   it('wise is entirely optional: omitting it validates, and request.wise is null (nothing recorded for it) [C-005]', () => {
@@ -226,7 +226,7 @@ describe('validateRequest', () => {
     expect(stopsOf(noScale, 'class')).toEqual(['✖ side.ask.decisions: no scale question → add at least one scale: question']);
   });
 
-  it('a category may not use a word the answer uses (including "expected", change\'s new grade key)', () => {
+  it('a category may not use a word the answer uses (including "expected", replay\'s new grade key)', () => {
     const ask = fullAsk(1);
     (ask.concerns as Obj).gate = (ask.concerns as Obj).c1;
     delete (ask.concerns as Obj).c1;
@@ -338,8 +338,8 @@ describe('validateRequest', () => {
     expect(drill.request.side.layers.map((l) => l.name)).toEqual(['call']);
   });
 
-  it('the contract change fixture validates, with expect: normalized onto side', () => {
-    const v = validateRequest(parse(readFileSync('test/fixtures/requests/valid/change.yaml', 'utf8')), 'change');
+  it('the contract replay fixture validates, with expect: normalized onto side', () => {
+    const v = validateRequest(parse(readFileSync('test/fixtures/requests/valid/replay.yaml', 'utf8')), 'replay');
     if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
     expect(v.request.side.expect).toEqual(['injection']);
   });

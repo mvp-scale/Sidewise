@@ -58,7 +58,7 @@ describe('gradeSubject (the contract class example)', () => {
     expect([...g.categories[3]!.values]).toEqual([[7, 0.55], [8, 0.2]]);
   });
 
-  it('with a prefix, and without a goal (change\'s "before")', () => {
+  it('with a prefix, and without a goal (replay\'s "before")', () => {
     const g = gradeSubject([cat('a', 'yes', [1])], { 'before:1': yes(0.9) }, 'before:');
     expect(g).toMatchObject({ gate: 'pass', categories: [{ name: 'a', gate: 'pass' }] });
     expect(g.goal).toBeUndefined();

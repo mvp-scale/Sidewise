@@ -40,7 +40,7 @@ describe('loadSamples', () => {
 
   it('plan1 and prose exist only for class and view; every verb gets both json styles', () => {
     const samples = loadSamples();
-    for (const verb of ['change', 'scan', 'drill', 'loop']) {
+    for (const verb of ['replay', 'scan', 'drill', 'loop']) {
       expect(samples.filter((s) => s.verb === verb).map((s) => s.format).sort()).toEqual(['json', 'jsonPretty', 'yaml']);
     }
     for (const verb of ['class', 'view']) {

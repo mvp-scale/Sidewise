@@ -66,21 +66,21 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(drilled.status).toBe(0);
   });
 
-  it('change: the flag form and the file form both work; --dry-run spends nothing [C-066]', () => {
+  it('replay: the flag form and the file form both work; --dry-run spends nothing [C-066]', () => {
     const root = project();
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
-    const dry = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection', '--dry-run']);
+    const dry = sidewise(root, ['replay', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection', '--dry-run']);
     expect(dry.status).toBe(0);
     expect(dry.stdout).toMatch(/^plan:\n {2}calls: \d+\n {2}questions: \d+\n {2}reused: \d+\n {2}route: \w+\nnotes: \["dry run: no call, no spend"\]\n$/);
     expect(sidewise(root, ['budget']).stdout).toContain('1 of 500 runs'); // only the class run counted; the dry run spent nothing
-    const real = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection']);
+    const real = sidewise(root, ['replay', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection']);
     expect(real.status).toBe(0);
     expect(real.stdout).toContain('wise: {recorded: [parent]}');
     // [C-066] the flag form's goal is the parent's own goal (src/cli.ts), not the "The change works"
     // placeholder — read straight off the ledger, since the response itself never echoes the goal text.
     const lines = readFileSync(path.join(root, '.sidewise', 'log.jsonl'), 'utf8').trimEnd().split('\n').map((l) => JSON.parse(l));
-    const changeRun = lines.find((l) => l.kind === 'run' && l.verb === 'change');
-    expect(changeRun.goal).toBe('This login handler is safe to merge');
+    const replayRun = lines.find((l) => l.kind === 'run' && l.verb === 'replay');
+    expect(replayRun.goal).toBe('This login handler is safe to merge');
   });
 
   it('view: request mode reuses a class run\'s answers by exact match; place mode still works', () => {
@@ -143,7 +143,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(sidewise(root, ['judge'])).toMatchObject({
       status: 2,
       stdout: '',
-      stderr: '✖ args: "judge" is not a command → use view, class, change, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)\n',
+      stderr: '✖ args: "judge" is not a command → use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)\n',
     });
     expect(sidewise(root, ['view'])).toMatchObject({
       status: 2,
@@ -186,7 +186,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     const overview = sidewise('/', ['agent'], { home: false });
     expect(overview.status).toBe(0);
     expect(overview.stdout).toContain('verbs (pick by goal):');
-    for (const verb of ['view', 'class', 'change', 'scan', 'drill', 'loop']) expect(overview.stdout).toContain(`- ${verb}: `);
+    for (const verb of ['view', 'class', 'replay', 'scan', 'drill', 'loop']) expect(overview.stdout).toContain(`- ${verb}: `);
 
     const classCard = sidewise('/', ['agent', 'class'], { home: false });
     expect(classCard.status).toBe(0);

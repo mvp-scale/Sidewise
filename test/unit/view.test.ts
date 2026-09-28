@@ -3,7 +3,7 @@ import { describe, expect, it, afterEach } from 'vitest';
 import { createFakeAdapter } from '../../src/classifier/fake.ts';
 import { __testOnly } from '../../src/ledger/index.ts';
 import { appendContractRun, appendOutcome, appendRun, readLedger } from '../../src/ledger/log.ts';
-import { runChange } from '../../src/verbs/change.ts';
+import { runReplay } from '../../src/verbs/replay.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runView } from '../../src/verbs/view.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
@@ -20,7 +20,7 @@ const at = (day: number) => Date.parse(`2026-09-${String(day).padStart(2, '0')}T
 /** A full, contract-valid quick-depth one-subject ask: 3 concerns categories x 3 probes + decisions (>=1 scale,
  *  >=1 choice). `name` stays the first category so the tests below can still target it by name — view matches
  *  a category by name alone (view.ts's categoryEntry), so a view draft naming the same category doesn't need
- *  to repeat this full shape; only the class/change runs that actually get graded do. */
+ *  to repeat this full shape; only the class/replay runs that actually get graded do. */
 const fullClassAsk = (name: string): string =>
   `  ask:\n    concerns:\n      ${name}:\n        pass: no\n        1: q1?\n        2: q2?\n        3: q3?\n      c1:\n        pass: yes\n        4: q4?\n        5: q5?\n        6: q6?\n      c2:\n        pass: yes\n        7: q7?\n        8: q8?\n        9: q9?\n    decisions:\n      severity:\n        pass: [none]\n        10:\n          scale: how bad?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        11:\n          choice: where to?\n          options: [ship, block]\n`;
 
@@ -189,7 +189,7 @@ describe('view: request mode', () => {
     const { paths } = tempProject({ 'src/user.ts': 'x'.repeat(5) });
     const text = `side:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n${fullClassAsk('injection')}`;
     await runClass(text, { paths, provider: stubProvider({ yes: () => 0.9 }), env: {} }); // SW-0001: injection fails
-    await runChange('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+    await runReplay('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
       paths,
       provider: stubProvider({ yes: () => 0.05 }),
       env: {},
@@ -197,7 +197,7 @@ describe('view: request mode', () => {
     appendOutcome(paths, 'SW-0001', 'held', 'owner'); // the yardstick's prediction is confirmed: a "hit"
     const r = runView(text, 1, { paths, env: {} });
     // The record is still just runs/pass/fail/last, unranked — recording the hit changed nothing about it
-    // (SW-0001 fails "before", SW-0002 the change's "after" gate passes; nothing above this counts the hit).
+    // (SW-0001 fails "before", SW-0002 the replay's "after" gate passes; nothing above this counts the hit).
     expect(r.text).toContain('injection: {runs: 2, pass: 1, fail: 1, last: SW-0002}');
     expect(r.text).not.toContain('best');
     expect(r.text).not.toContain('hit');
@@ -207,7 +207,7 @@ describe('view: request mode', () => {
 
 // S1: runRequestMode's place lookup now goes through the index (handle.placeCandidates) instead of a full
 // readLedger scan. The expected text below was captured from the UNCHANGED implementation against this exact
-// synthetic ledger (seed 'view-req-1', 300 runs — a mix of class/scan/change/loop/view verbs, legacy and
+// synthetic ledger (seed 'view-req-1', 300 runs — a mix of class/scan/replay/loop/view verbs, legacy and
 // contract shapes, and outcome lines) before the index-backed rewrite, so a match here proves the rewrite is
 // byte-identical, not just "close." `src/nowhere/ghost.ts` is a real file on disk that no run's `where` ever
 // touches — the "place with no runs" case, folded into the same multi-place request.
@@ -294,7 +294,7 @@ describe('view <id>: the lineage walk via the index matches the old full-ledger 
             '↓ SW-0004 2026-09-01 scan standard unsure "tests in auth is safe" · open',
             '↓ SW-0084 2026-09-01 loop standard unsure "deps in docs is safe" · open',
             '↓ SW-0018 2026-09-01 view standard unsure "sql in infra is safe" · held',
-            '↓ SW-0059 2026-09-01 change thorough pass "secrets in docs is safe" · open',
+            '↓ SW-0059 2026-09-01 replay thorough pass "secrets in docs is safe" · open',
             '↓ SW-0116 2026-09-01 class standard pass "secrets in api is safe" · open',
             '↓ SW-0024 2026-09-01 loop thorough pass "sql in db is safe" · held',
             '↓ SW-0182 2026-09-01 view thorough pass "sql in docs is safe" · open',

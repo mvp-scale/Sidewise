@@ -1,7 +1,7 @@
 // Item H (batch G), controller-verified bug: doctor/agent already look past env into the OS keychain / user
 // file (setup/keystore.ts's resolveStoredKey), but cli.ts's own selectProvider calls (class/scan/drill/loop and
-// change) never passed that lookup along, and providerIdentity (the route/adapter shown in --dry-run and stored
-// on the ledger run) took only `env` at all, in every verb (class/change/loop/scan/drill/view) — so a key found
+// replay) never passed that lookup along, and providerIdentity (the route/adapter shown in --dry-run and stored
+// on the ledger run) took only `env` at all, in every verb (class/replay/loop/scan/drill/view) — so a key found
 // only in the keychain or ~/.config/sidewise/env silently behaved as "no key" everywhere but `doctor`/`agent`:
 // `doctor` reported `key: yes`, but a real run fell back to the fake provider, unlabelled as such in --dry-run's
 // `route:` line. Fixed by threading one `resolveStoredFor(ctx)` helper into every `selectProvider`/

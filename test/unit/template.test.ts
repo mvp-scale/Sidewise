@@ -7,7 +7,7 @@ import { VERBS, type Verb } from '../../src/contract/types.ts';
 import { validateRequest } from '../../src/contract/validate.ts';
 import { appendRun } from '../../src/ledger/log.ts';
 import { runTemplate } from '../../src/verbs/template.ts';
-import { runChange } from '../../src/verbs/change.ts';
+import { runReplay } from '../../src/verbs/replay.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runScan } from '../../src/verbs/scan.ts';
 import { tempProject } from '../helpers/project.ts';
@@ -45,7 +45,7 @@ describe('runTemplate', () => {
   it('an unknown verb: a clean stop', () => {
     expect(runTemplate('nope')).toEqual({
       exit: 2,
-      text: '✖ template: "nope" is not a verb → one of view, class, change, scan, drill, loop\n→ see: sidewise agent template',
+      text: '✖ template: "nope" is not a verb → one of view, class, replay, scan, drill, loop\n→ see: sidewise agent template',
     });
   });
 
@@ -157,13 +157,13 @@ describe('runTemplate', () => {
       expect(v && v.ok).toBe(true);
     });
 
-    it('a change run: only goal/parent/compare — the parent\'s where/ask it stores for grading is never printed, since a real change request never carries them (validate.ts NEVER: ask/over/from/where/depth)', async () => {
+    it('a replay run: only goal/parent/compare — the parent\'s where/ask it stores for grading is never printed, since a real replay request never carries them (validate.ts NEVER: ask/over/from/where/depth)', async () => {
       const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`SELECT * FROM t WHERE id = ${x}`); }\n' });
       const classText = `side:\n  goal: fix sql injection\n  depth: quick\n  where: [src/a.ts]\n${ASK_ONE_SUBJECT}`;
       await runClass(classText, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
-      const changeText = 'side:\n  goal: The fix works\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n';
-      await runChange(changeText, { paths, provider: stubProvider({ yes: () => 0.05 }), env }); // SW-0002
-      const r = runTemplate('change', { from: 'SW-0002' }, paths);
+      const replayText = 'side:\n  goal: The fix works\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n';
+      await runReplay(replayText, { paths, provider: stubProvider({ yes: () => 0.05 }), env }); // SW-0002
+      const r = runTemplate('replay', { from: 'SW-0002' }, paths);
       expect(r.exit).toBe(0);
       expect(r.text).toContain('goal: The fix works');
       expect(r.text).toContain('parent: SW-0001');
@@ -174,10 +174,10 @@ describe('runTemplate', () => {
       expect(r.text).not.toMatch(/\bover:/);
       const parsed = readRequestText(r.text);
       expect(parsed.ok).toBe(true);
-      const v = parsed.ok && validateRequest(parsed.value, 'change');
-      // expect: is required for change (plan 2b) but change.ts doesn't store it on ContractRun yet as this
-      // test was written (that lands with change.ts's own expect: feature) — fromRunId already reads it
-      // defensively, so once change.ts starts writing it this flips to a plain `expect(v && v.ok).toBe(true)`
+      const v = parsed.ok && validateRequest(parsed.value, 'replay');
+      // expect: is required for replay (plan 2b) but replay.ts doesn't store it on ContractRun yet as this
+      // test was written (that lands with replay.ts's own expect: feature) — fromRunId already reads it
+      // defensively, so once replay.ts starts writing it this flips to a plain `expect(v && v.ok).toBe(true)`
       // with no further change here; until then, this proves the rebuild is faithful everywhere else.
       if (v && !v.ok) expect(v.stops.every((s) => s.text.includes('side.expect'))).toBe(true);
       else expect(v && v.ok).toBe(true);
@@ -285,7 +285,7 @@ describe('runTemplate', () => {
   const ENVELOPE: Record<Verb, { required: readonly string[]; optional: readonly string[] }> = {
     class: { required: ['goal', 'depth', 'where', 'ask'], optional: ['verb'] },
     view: { required: ['goal', 'where'], optional: ['depth', 'ask', 'verb'] },
-    change: { required: ['goal', 'parent', 'compare', 'expect'], optional: ['verb'] },
+    replay: { required: ['goal', 'parent', 'compare', 'expect'], optional: ['verb'] },
     scan: { required: ['goal', 'depth', 'over', 'ask'], optional: ['verb'] },
     loop: { required: ['goal', 'depth', 'over', 'ask'], optional: ['where', 'verb'] },
     drill: { required: ['goal', 'parent', 'from', 'ask'], optional: ['depth', 'over', 'verb'] },

@@ -35,7 +35,7 @@ describe('schema agreement (TS checks ⇔ JSON Schema)', () => {
 
   it("the corpus holds the three agents' requests and the contract examples", () => {
     expect(docs.filter((d) => d.file.startsWith('agents/'))).toHaveLength(18);
-    expect(docs.filter((d) => d.file.startsWith('valid/')).map((d) => path.basename(d.file)).sort()).toEqual(['change.yaml', 'class.yaml', 'drill.yaml', 'loop.yaml', 'scan.yaml', 'view.yaml']);
+    expect(docs.filter((d) => d.file.startsWith('valid/')).map((d) => path.basename(d.file)).sort()).toEqual(['class.yaml', 'drill.yaml', 'loop.yaml', 'replay.yaml', 'scan.yaml', 'view.yaml']);
   });
 
   // agents/** predates plan 2b's ask sections (concerns:/decisions:) — real transcripts from an earlier round,
