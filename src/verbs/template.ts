@@ -16,9 +16,11 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseDocument } from 'yaml';
+import { parseDocument, stringify } from 'yaml';
+import type { Category, Question } from '../contract/types.ts';
 import { VERBS, type Verb } from '../contract/types.ts';
-import { findRun, isContractRun } from '../ledger/log.ts';
+import { findRun, isContractRun, type ContractRun } from '../ledger/log.ts';
+import { RUN_ID } from '../ledger/ids.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { clip } from '../util/text.ts';
 import type { VerbResult } from './types.ts';
@@ -49,6 +51,80 @@ function drillSampleFile(parent: string, paths: SidewisePaths | undefined): stri
   const run = paths && findRun(paths, parent);
   if (run && isContractRun(run) && run.items === null) return 'drill-subject.yaml';
   return 'drill.yaml';
+}
+
+/** The wire shape a question was parsed FROM (contract/validate.ts's toQuestion), rebuilt from the stored,
+ *  already-parsed `Question` — the inverse of that same function. */
+function questionToWire(q: Question): unknown {
+  if (q.kind === 'yesno') return q.text;
+  if (q.kind === 'scale') return { scale: q.text, levels: q.levels };
+  return { choice: q.text, options: q.options };
+}
+
+/** The wire shape a category was parsed FROM (contract/validate.ts's toCategory), rebuilt from the stored
+ *  `Category` — `need`/`tags` are only written back when they carry non-default content, matching how an agent
+ *  would actually have typed the request (need: all and an empty tags: are never required on the wire). */
+function categoryToWire(c: Category): Record<string, unknown> {
+  const out: Record<string, unknown> = { pass: c.pass };
+  if (c.need !== 'all') out.need = c.need;
+  if (c.tags.length) out.tags = c.tags;
+  for (const q of c.questions) out[String(q.n)] = questionToWire(q);
+  return out;
+}
+
+/** side.ask, rebuilt from the run's stored `ask.categories` (one subject) or `ask.layers` (a sweep) — never
+ *  both: a contract run is one shape or the other (validate.ts's checkCross builds it the same way). */
+function askToWire(run: ContractRun): Record<string, unknown> {
+  if (run.ask.layers.length) {
+    const out: Record<string, unknown> = {};
+    for (const layer of run.ask.layers) {
+      const cats: Record<string, unknown> = {};
+      for (const c of layer.categories) cats[c.name] = categoryToWire(c);
+      out[layer.name] = cats;
+    }
+    return out;
+  }
+  const out: Record<string, unknown> = {};
+  for (const c of run.ask.categories) out[c.name] = categoryToWire(c);
+  return out;
+}
+
+/** --from SW-####: the exact request a logged run was actually sent with, rebuilt from what the ledger kept —
+ *  goal/depth/where/parent/from/compare/over/ask/wise. This is a faithful rebuild of the NORMALIZED request
+ *  (what validateRequest produced), not necessarily byte-identical to whatever YAML the agent originally typed
+ *  (e.g. `pass: true` on the wire vs the stored `pass: 'yes'` both mean the same thing, and comments never
+ *  survive) — it validates and replays identically either way, which is what makes a request reusable at all.
+ *  Read-only and free, like every other template path: never validated here either. */
+function fromRunId(id: string, flags: TemplateFlags, paths: SidewisePaths | undefined): VerbResult {
+  if (!paths) return { exit: 2, text: `✖ template: --from "${id}" needs a project to look up the ledger → run inside one, or point --from at a request file` };
+  const run = findRun(paths, id);
+  if (!run) return { exit: 2, text: `✖ template: --from "${id}" is not in the ledger → check the id, or point --from at a request file` };
+  if (!isContractRun(run)) return { exit: 2, text: `✖ template: --from "${id}" predates the YAML contract → point --from at a request file instead` };
+
+  // `change` is the one verb where the stored fields aren't a faithful copy of the original request: a change
+  // run stores its PARENT's `where`/`ask.categories` too (change.ts), so it can grade before/after answers
+  // against the same categories — but a real change request never carries `where`/`ask`/`depth`/`over` at all
+  // (contract/validate.ts's NEVER list forbids every one of them for change). Every other verb stores exactly
+  // `request.side.*` on its own run (scan.ts/loop.ts/drill.ts/class.ts all copy their own request's fields
+  // straight across), so the generic rebuild below is faithful for them.
+  const side: Record<string, unknown> =
+    run.verb === 'change'
+      ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare }
+      : {
+          verb: run.verb,
+          goal: run.goal,
+          ...(run.depth ? { depth: run.depth } : {}),
+          ...(run.where.length ? { where: run.where } : {}),
+          ...(run.parent ? { parent: run.parent } : {}),
+          ...(run.from ? { from: run.from } : {}),
+          ...(run.compare ? { compare: run.compare } : {}),
+          ...(run.over ? { over: run.over } : {}),
+          ask: askToWire(run),
+        };
+  const doc = parseDocument(stringify({ side, ...(run.wise ? { wise: run.wise } : {}) }));
+  if (flags.goal !== undefined) doc.setIn(['side', 'goal'], flags.goal);
+  if (flags.where !== undefined) doc.setIn(['side', 'where'], flags.where);
+  return { exit: 0, text: doc.toString() };
 }
 
 /** --from names a request file, not an item/category — read it, and overlay --where/--goal if given.
@@ -93,7 +169,7 @@ export function runTemplate(target: string, flags: TemplateFlags = {}, paths?: S
     return { exit: 0, text: doc.toString() };
   }
 
-  if (flags.from !== undefined) return fromFile(flags.from, flags);
+  if (flags.from !== undefined) return RUN_ID.test(flags.from) ? fromRunId(flags.from, flags, paths) : fromFile(flags.from, flags);
 
   if (flags.where !== undefined || flags.goal !== undefined) {
     return { exit: 2, text: `✖ template: --where/--goal need --from → sidewise template ${target} --from <request.yaml>` };

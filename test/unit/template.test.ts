@@ -5,10 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { readRequestText } from '../../src/contract/read.ts';
 import { VERBS, type Verb } from '../../src/contract/types.ts';
 import { validateRequest } from '../../src/contract/validate.ts';
+import { appendRun } from '../../src/ledger/log.ts';
 import { runTemplate } from '../../src/verbs/template.ts';
+import { runChange } from '../../src/verbs/change.ts';
 import { runClass } from '../../src/verbs/class.ts';
 import { runScan } from '../../src/verbs/scan.ts';
 import { tempProject } from '../helpers/project.ts';
+import { sampleRun } from '../helpers/runs.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
 
 const env = { SIDEWISE_ACTOR: 'r' };
@@ -100,6 +103,107 @@ describe('runTemplate', () => {
       const r = runTemplate('drill', { parent: 'SW-9999', from: 'access' }, paths);
       expect(r.exit).toBe(0);
       expect(r.text).toContain('over:');
+    });
+  });
+
+  // Round 4 owner finding: an MCP-driven agent sends every request over stdin, so `.sidewise/requests/` stays
+  // empty — asked to reproduce its own past request, it can only rebuild from memory (not authoritative).
+  // `--from SW-####` (checked before the file-path branch: the shape is narrow and unambiguous) prints that
+  // run's own request straight from the ledger instead — read-only, free, no spend, same as every other
+  // template path. [C-201] [C-202]
+  describe('--from SW-#### (prints a logged run\'s own request from the ledger)', () => {
+    it('a class run: goal/depth/where/ask rebuilt, validates as class', async () => {
+      const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(req.id); }\n' });
+      const classText =
+        'side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n      need: any\n      tags: [sql]\n' +
+        Array.from({ length: 10 }, (_, i) => `      ${i + 1}: is question ${i + 1} true?\n`).join('');
+      await runClass(classText, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+      const r = runTemplate('class', { from: 'SW-0001' }, paths);
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('goal: check this code');
+      expect(r.text).toContain('depth: quick');
+      expect(r.text).toContain('src/a.ts');
+      expect(r.text).toContain('need: any');
+      expect(r.text).toContain('sql');
+      expect(r.text).toContain('is question 1 true?');
+      const parsed = readRequestText(r.text);
+      expect(parsed.ok).toBe(true);
+      const v = parsed.ok && validateRequest(parsed.value, 'class');
+      expect(v && v.ok).toBe(true);
+    });
+
+    it('a scan run (a sweep): over:/layered ask: rebuilt, validates as scan', async () => {
+      const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(req.id); }\n' });
+      const scanReq =
+        'side:\n  goal: handlers stay safe\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n  ask:\n    function:\n      injection:\n        pass: no\n        1: is it unsafe?\n';
+      await runScan(scanReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+      const r = runTemplate('scan', { from: 'SW-0001' }, paths);
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('over:');
+      expect(r.text).toContain('function: each');
+      expect(r.text).toContain('is it unsafe?');
+      const parsed = readRequestText(r.text);
+      expect(parsed.ok).toBe(true);
+      const v = parsed.ok && validateRequest(parsed.value, 'scan');
+      expect(v && v.ok).toBe(true);
+    });
+
+    it('a change run: only goal/parent/compare — the parent\'s where/ask it stores for grading is never printed, since a real change request never carries them (validate.ts NEVER: ask/over/from/where/depth)', async () => {
+      const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`SELECT * FROM t WHERE id = ${x}`); }\n' });
+      const classText =
+        'side:\n  goal: fix sql injection\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n' +
+        Array.from({ length: 10 }, (_, i) => `      ${i + 1}: q${i + 1}?\n`).join('');
+      await runClass(classText, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+      const changeText = 'side:\n  goal: The fix works\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n';
+      await runChange(changeText, { paths, provider: stubProvider({ yes: () => 0.05 }), env }); // SW-0002
+      const r = runTemplate('change', { from: 'SW-0002' }, paths);
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('goal: The fix works');
+      expect(r.text).toContain('parent: SW-0001');
+      expect(r.text).toContain('compare:');
+      expect(r.text).not.toContain('ask:');
+      expect(r.text).not.toMatch(/\bwhere:/);
+      expect(r.text).not.toMatch(/\bdepth:/);
+      expect(r.text).not.toMatch(/\bover:/);
+      const parsed = readRequestText(r.text);
+      expect(parsed.ok).toBe(true);
+      const v = parsed.ok && validateRequest(parsed.value, 'change');
+      expect(v && v.ok).toBe(true);
+    });
+
+    it('--where/--goal still overlay on top of a ledger-fetched request, same as file-based --from', async () => {
+      const { paths } = tempProject({ 'src/a.ts': 'x', 'src/b.ts': 'y' });
+      const classText =
+        'side:\n  goal: old goal\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n' +
+        Array.from({ length: 10 }, (_, i) => `      ${i + 1}: q${i + 1}?\n`).join('');
+      await runClass(classText, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+      const r = runTemplate('class', { from: 'SW-0001', goal: 'new goal', where: ['src/b.ts'] }, paths);
+      expect(r.exit).toBe(0);
+      expect(r.text).toContain('goal: new goal');
+      expect(r.text).toContain('src/b.ts');
+      expect(r.text).not.toContain('old goal');
+    });
+
+    it('an unknown id: a clean stop, no crash', () => {
+      const { paths } = tempProject({});
+      const r = runTemplate('class', { from: 'SW-9999' }, paths);
+      expect(r.exit).toBe(2);
+      expect(r.text).toContain('SW-9999');
+      expect(r.text).toContain('not in the ledger');
+    });
+
+    it('a legacy (Plan 1, pre-contract) run: a clean stop pointing at a request file instead', () => {
+      const { paths } = tempProject({});
+      appendRun(paths, sampleRun()); // SW-0001, no v:2 — isContractRun is false
+      const r = runTemplate('class', { from: 'SW-0001' }, paths);
+      expect(r.exit).toBe(2);
+      expect(r.text).toContain('predates the YAML contract');
+    });
+
+    it('no project reachable: a clean stop rather than a crash (a run-id lookup has nothing to search)', () => {
+      const r = runTemplate('class', { from: 'SW-0001' }, undefined);
+      expect(r.exit).toBe(2);
+      expect(r.text).toContain('needs a project');
     });
   });
 
