@@ -12661,7 +12661,7 @@ function collectEdges(runs) {
           if (gate === void 0) continue;
           const ns = cat.questions.map((q) => q.n);
           const p = meanP(rec.answers, ns, `${itemKey}#`);
-          edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext: questionFingerprint(cat) });
+          edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext: questionFingerprint(cat), ts: rec.ts });
         }
       }
     } else {
@@ -12673,7 +12673,7 @@ function collectEdges(runs) {
         const ns = cat.questions.map((q) => q.n);
         const p = meanP(rec.answers, ns, "");
         const qtext = questionFingerprint(cat);
-        for (const place of places) edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext });
+        for (const place of places) edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext, ts: rec.ts });
       }
     }
   }
@@ -12696,29 +12696,50 @@ function buildOutcomes(runs, outcomes) {
   }
   return counts;
 }
-function buildArcs(runs) {
+function formatUsd(n) {
+  if (!n) return "$0.00";
+  if (n >= 0.01) return `$${n.toFixed(2)}`;
+  let s = n.toPrecision(2);
+  if (s.includes("e")) s = n.toFixed(6);
+  return `$${s}`;
+}
+function mergePathAliases(places) {
+  const sorted = [...new Set(places)].sort((a, b) => a.length - b.length);
+  const canonicalOf = /* @__PURE__ */ new Map();
+  for (let i = 0; i < sorted.length; i++) {
+    const short = sorted[i];
+    if (canonicalOf.has(short)) continue;
+    for (let j = i + 1; j < sorted.length; j++) {
+      const long = sorted[j];
+      if (!canonicalOf.has(long) && long.endsWith(`/${short}`)) canonicalOf.set(long, short);
+    }
+  }
+  return { canonicalOf, merged: canonicalOf.size };
+}
+function buildArcs(pcMap) {
   const fixes = [];
   const regressions = [];
-  for (const r of runs) {
-    if (r.verb !== "change" || !r.answers["goal"]) continue;
-    let graded;
-    try {
-      graded = gradeChange(r.ask.categories, r.answers);
-    } catch {
-      continue;
-    }
-    const place = placeSummary(r);
-    if (graded.regressed.length) regressions.push({ id: r.id, place });
-    else if (graded.categories.some((c) => c.before !== "pass" && c.after === "pass")) fixes.push({ id: r.id, place });
+  for (const [key2, hits] of pcMap) {
+    if (hits.length < 2) continue;
+    const [place, concern] = key2.split("\0");
+    const byTs = [...hits].sort((a, b) => a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0);
+    const first = byTs[0];
+    const last = byTs[byTs.length - 1];
+    if (first.gate === "fail" && last.gate === "pass") fixes.push({ place, concern, fromId: first.runId, toId: last.runId, ts: last.ts });
+    else if (first.gate === "pass" && last.gate === "fail") regressions.push({ place, concern, fromId: first.runId, toId: last.runId, ts: last.ts });
   }
-  return { fixes, regressions };
+  const byNewest = (a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0;
+  const strip = ({ place, concern, fromId, toId }) => ({ place, concern, fromId, toId });
+  return { fixes: fixes.sort(byNewest).map(strip), regressions: regressions.sort(byNewest).map(strip) };
 }
 function buildWindow(records) {
   const runs = records.filter(isContractRun);
   const legacyRuns = records.filter(isRun);
   const outcomes = records.filter((r) => r.kind === "outcome");
   const failed = records.filter((r) => r.kind === "failed");
-  const { edges, runTags } = collectEdges(runs);
+  const { edges: rawEdges, runTags } = collectEdges(runs);
+  const { canonicalOf, merged: pathsMerged } = mergePathAliases(rawEdges.map((e) => e.place));
+  const edges = canonicalOf.size ? rawEdges.map((e) => canonicalOf.has(e.place) ? { ...e, place: canonicalOf.get(e.place) } : e) : rawEdges;
   const placeConcerns = /* @__PURE__ */ new Map();
   const placeRuns = /* @__PURE__ */ new Map();
   const placeTags = /* @__PURE__ */ new Map();
@@ -12809,8 +12830,9 @@ function buildWindow(records) {
       });
     }
   }
-  const { fixes, regressions } = buildArcs(runs);
-  const findings = runs.filter((r) => r.gate === "fail").sort((a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0).slice(0, LIST_CAP).map((r) => ({ id: r.id, place: placeSummary(r), goal: r.goal, ts: r.ts }));
+  const { fixes, regressions } = buildArcs(pcMap);
+  const canonicalPlace = (p) => canonicalOf.get(p) ?? p;
+  const findings = runs.filter((r) => r.gate === "fail").sort((a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0).slice(0, LIST_CAP).map((r) => ({ id: r.id, place: placeSummary(r).split(", ").map(canonicalPlace).join(", "), goal: r.goal, ts: r.ts }));
   const actors = /* @__PURE__ */ new Set();
   for (const r of runs) actors.add(r.actor);
   for (const r of legacyRuns) actors.add(r.actor);
@@ -12843,7 +12865,8 @@ function buildWindow(records) {
     fixes: fixes.slice(0, LIST_CAP),
     regressions: regressions.slice(0, LIST_CAP),
     findings,
-    outcomes: buildOutcomes(runs, outcomes)
+    outcomes: buildOutcomes(runs, outcomes),
+    pathsMerged
   };
   return { layers, concerns, heatmap: { places, concerns: concernNames, cells }, story };
 }
@@ -13005,6 +13028,7 @@ var BODY = `
       <div class="stat-row"><span class="k">Spend</span><span id="story-spend"></span></div>
       <div class="stat-row"><span class="k">Actors</span><span id="story-actors"></span></div>
       <div class="stat-row"><span class="k">Range</span><span id="story-range"></span></div>
+      <div class="stat-row"><span class="k">Paths merged</span><span id="story-merged"></span></div>
     </div>
     <div class="story-section">
       <span class="label">Fixes held</span>
@@ -13133,15 +13157,21 @@ var CLIENT_JS = `
     items.forEach(function (it) { host.appendChild(el('li', null, fmt(it))); });
   }
 
+  // The exact same formatUsd implementation tested in report-web.test.ts, embedded verbatim \u2014 never a second,
+  // hand-copied one that could drift from it.
+  ${formatUsd.toString()}
+
   function renderStory() {
     var s = currentWindow().story;
     setText('story-runs', String(s.runs));
     setText('story-calls', String(s.paidCalls));
-    setText('story-spend', '$' + s.spendUsd.toFixed(2));
+    setText('story-spend', formatUsd(s.spendUsd));
     setText('story-actors', s.actors.length ? s.actors.join(', ') : 'none');
     setText('story-range', (s.dateFrom ? s.dateFrom.slice(0, 10) : '\u2014') + ' \u2192 ' + (s.dateTo ? s.dateTo.slice(0, 10) : '\u2014'));
-    renderList('story-fixes', s.fixes, function (f) { return f.id + ' \xB7 ' + f.place; }, 'none yet');
-    renderList('story-regressions', s.regressions, function (f) { return f.id + ' \xB7 ' + f.place; }, 'none');
+    setText('story-merged', String(s.pathsMerged));
+    var arcText = function (f) { return f.place + ' \xB7 ' + f.concern + ' \xB7 ' + f.fromId + ' \u2192 ' + f.toId; };
+    renderList('story-fixes', s.fixes, arcText, 'none yet');
+    renderList('story-regressions', s.regressions, arcText, 'none');
     renderList('story-findings', s.findings, function (f) { return f.id + ' \xB7 ' + f.place + ' \xB7 ' + f.goal; }, 'none');
     setText('story-outcomes', 'held ' + s.outcomes.held + ' \xB7 overruled ' + s.outcomes.overruled + ' \xB7 failed ' + s.outcomes.failed + ' \xB7 open ' + s.outcomes.open);
   }
