@@ -10,7 +10,7 @@ import { AREAS, BLASTS, CHANGES, RISKS, STAGES, WHYS, type Area, type Blast, typ
 /** `unknown` is always a legal value for a closed field, alongside its own enum (plan 2c: "fill what you know"). */
 export const UNKNOWN_VALUE = 'unknown';
 
-export type WiseFieldKind = 'closed-single' | 'closed-list' | 'freetext' | 'chain-list' | 'freetext-list';
+type WiseFieldKind = 'closed-single' | 'closed-list' | 'freetext' | 'chain-list' | 'freetext-list';
 
 export interface WiseField {
   key: string;
@@ -41,8 +41,6 @@ export const WISE_FIELDS: readonly WiseField[] = [
  *  a run id, not a value with a card note in the FIELDS table; unknown is a value, not a field). */
 export const WISE_PARENT_KEY = 'parent';
 
-/** The exact closed keys checkWise/checkSchema validate against an enum — WISE_FIELDS keys that carry `values`. */
-export const CLOSED_WISE_FIELDS = WISE_FIELDS.filter((f) => f.values !== undefined);
 export const WISE_KEYS: readonly string[] = [...WISE_FIELDS.map((f) => f.key), WISE_PARENT_KEY];
 
 /** The C4 chain grammar (plan 2c A4): chain := part (" -> " part)*, part := level:name("/"name)*["?"].
@@ -61,7 +59,7 @@ export const MAX_TOUCH_LEN = 40;
 
 /** A valid custom (non-catalog) wise key: any lower-kebab key ≤20 chars. Same shape as a category/layer tag
  *  (schema-check.ts's own TAG), but wise-fields.ts owns its own copy so the wise table stays self-contained. */
-export const CUSTOM_KEY_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/u;
+const CUSTOM_KEY_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/u;
 export const isCustomKey = (k: string): boolean => CUSTOM_KEY_RE.test(k) && k.length <= MAX_CUSTOM_KEY_LEN;
 
 /** Every allowed value for a closed field, including "unknown" — used both to validate and to render the card's
