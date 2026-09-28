@@ -36,8 +36,8 @@ interface CliPair {
 
 const REPORT_PAIRS: readonly CliPair[] = [
   {
-    rule: 'there is no view beyond hits, patterns and history — nothing else to ask it for.',
-    bad: ['sidewise report level2', '→ ✖ report: "level2" is not a view → use hits, patterns or history'],
+    rule: 'there is no view beyond hits, patterns, history and web — nothing else to ask it for.',
+    bad: ['sidewise report level2', '→ ✖ report: "level2" is not a view → use hits, patterns, history or web'],
     good: ['sidewise report patterns'],
   },
 ];
@@ -90,13 +90,15 @@ export function reportHelp(): string {
     'sidewise report            # same as: sidewise report hits',
     'sidewise report patterns',
     'sidewise report history',
+    'sidewise report web        # writes .sidewise/viewer.html and tries to open it',
     '',
     'Sharp rules:',
     '- free: never calls a provider, never writes to the ledger, and works even with no on-disk index.',
-    '- no options beyond the view name — hits (default), patterns or history; anything else is a stop.',
+    '- no options beyond the view name — hits (default), patterns, history or web; anything else is a stop.',
     '- `hits`: the newest run\'s own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.',
     '- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.',
     '- `history`: a merged, newest-first feed of `change` results (fixed/regressed) and recorded outcomes.',
+    '- `web`: writes one self-contained `.sidewise/viewer.html` (a place x concern consensus map, a heat map, a session summary) and tries to open it in a browser; always prints the file\'s path, opened or not. The only view that writes anything, and only ever that one file — never the ledger.',
     '- every view caps its rows and says plainly how many more exist, rather than dropping them silently.',
     ...proseCliPairs(REPORT_PAIRS),
   ].join('\n');

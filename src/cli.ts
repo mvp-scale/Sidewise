@@ -461,7 +461,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     case 'report': {
       const { positionals } = args('report', { args: rest, allowPositionals: true, options: {} });
       positionalCount('report', positionals, 0, 1);
-      const r = runReport(positionals[0], { paths });
+      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform });
       return finish(r.exit, r.text);
     }
     case 'class':

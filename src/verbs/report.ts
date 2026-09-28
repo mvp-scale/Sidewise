@@ -1,8 +1,10 @@
 /**
- * `sidewise report [hits|patterns|history]`: the one way knowledge leaves the
+ * `sidewise report [hits|patterns|history|web]`: the one way knowledge leaves the
  * ledger besides a run's own response — free, read-only, never calls a provider, no options beyond the view
- * name (`hits` default). Every read goes through `withIndex(..., {readOnly:true})`, exactly like `view.ts`, so
- * it works unchanged on the linear-fallback path too (no on-disk index, or Node < 22.13's own test hook).
+ * name (`hits` default). hits/patterns/history read through `withIndex(..., {readOnly:true})`, exactly like
+ * `view.ts`, so they work unchanged on the linear-fallback path too (no on-disk index, or Node < 22.13's own
+ * test hook); `web` (report-web.ts) reads the whole ledger directly instead (it needs every run, not a capped
+ * index-backed view) and is the one view that writes something — a self-contained `.sidewise/viewer.html`.
  *   hits     — the newest run's own gate per place x category, worst first, flagging a one-subject answer
  *              whose code has since changed (re-derived live, on the bounded set of rows actually shown —
  *              never a full-ledger scan; see isStale below).
@@ -10,22 +12,31 @@
  *              pass/fail/unsure split, places touched, and outcomes.
  *   history  — a merged, newest-first feed of `change` results (fixed/regressed, derived from the change run's
  *              own before/after answers — never a new ledger write) and recorded outcomes.
+ *   web      — a place x concern consensus map, a heat map and a session summary, as one static HTML file
+ *              (report-web.ts), opened in a browser when one is available.
  */
 import { answerKey, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import { readRecordAt, stripLines, sweepPlaces, withIndex, type PatternRow } from '../ledger/index.ts';
 import { isContractRun, isRun, type ContractRun, type LedgerRecord } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
+import { realRunner, type Runner } from '../setup/runner.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { gradeChange } from './change.ts';
+import { runReportWeb, type ReportWebContext } from './report-web.ts';
 import { stopText } from './request.ts';
 import type { VerbResult } from './types.ts';
 
 export interface ReportContext {
   paths: SidewisePaths;
+  /** Only 'web' needs these; every other view ignores them. Optional so every existing call site (a pure read)
+   *  stays unchanged — defaulted to the real process env/runner/platform when 'web' actually needs them. */
+  env?: Record<string, string | undefined>;
+  runner?: Runner;
+  platform?: NodeJS.Platform;
 }
 
-const VIEWS = ['hits', 'patterns', 'history'] as const;
+const VIEWS = ['hits', 'patterns', 'history', 'web'] as const;
 type ReportView = (typeof VIEWS)[number];
 const isView = (s: string): s is ReportView => (VIEWS as readonly string[]).includes(s);
 
@@ -168,9 +179,10 @@ function reportHistory(paths: SidewisePaths): VerbResult {
 
 export function runReport(view: string | undefined, ctx: ReportContext): VerbResult {
   const target = view?.trim() || 'hits';
-  if (hasControlChars(target)) return { exit: 2, text: stopText(['✖ report: the view name has control characters → use hits, patterns or history'], 'report') };
-  if (!isView(target)) return { exit: 2, text: stopText([`✖ report: "${clip(target, 40)}" is not a view → use hits, patterns or history`], 'report') };
+  if (hasControlChars(target)) return { exit: 2, text: stopText(['✖ report: the view name has control characters → use hits, patterns, history or web'], 'report') };
+  if (!isView(target)) return { exit: 2, text: stopText([`✖ report: "${clip(target, 40)}" is not a view → use hits, patterns, history or web`], 'report') };
   if (target === 'hits') return reportHits(ctx.paths);
   if (target === 'patterns') return reportPatterns(ctx.paths);
-  return reportHistory(ctx.paths);
+  if (target === 'history') return reportHistory(ctx.paths);
+  return runReportWeb({ paths: ctx.paths, env: ctx.env ?? process.env, runner: ctx.runner ?? realRunner, platform: ctx.platform ?? process.platform } satisfies ReportWebContext);
 }

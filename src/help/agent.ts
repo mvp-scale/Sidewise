@@ -187,10 +187,14 @@ function budgetCard(): string {
 function reportCard(): string {
   return renderCard(
     ['tool: report'],
-    ['- free: never calls a provider, never writes to the ledger', '- views: hits (default), patterns, history — nothing else'],
+    [
+      '- free: never calls a provider, never writes to the ledger',
+      '- views: hits (default), patterns, history, web — nothing else',
+      '- web writes one file, .sidewise/viewer.html, and tries to open it — the only view that writes anything',
+    ],
     [
       'patterns:',
-      '- why: no view beyond hits, patterns or history exists',
+      '- why: no view beyond hits, patterns, history or web exists',
       '  bad:',
       '    sidewise report level2',
       '  good:',

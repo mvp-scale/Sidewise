@@ -649,7 +649,18 @@ change that moved nothing gets no row), with every recorded outcome. Neither is 
 derived, read-side, from records the commands already wrote. [C-165]
 Every view caps its rows and says plainly how many more exist (`… N more not shown`) rather than dropping them
 silently, the same idiom `view` already uses — `report` takes no option to raise it. [C-166]
-An unrecognized view name is a clean stop naming the three real ones. [C-167]
+An unrecognized view name is a clean stop naming the four real ones. [C-167]
+`sidewise report web` writes one self-contained, read-only viewer, `.sidewise/viewer.html`, holding the
+ledger's own place x concern consensus (STRONG when independent runs agree on a gate, CONFLICT when they don't,
+SINGLE for one run alone — with a same-checklist flag on a CONFLICT, since a reused category name can carry a
+different question set across runs), a files x concerns heat map, and a session summary (runs, paid calls,
+spend, distinct actors, the date range, fixes that held, regressions, the latest findings, and outcomes). Every
+value reaches the page as JSON inside a `<script type="application/json">` block, escaped against `<`, `>`,
+`&`, U+2028 and U+2029, and every piece of that data is written to the page with `textContent`/`className`/
+`title` — never `innerHTML` — so a question or a goal containing `</script>` can't break out of it. It never
+calls a provider and never writes to the ledger itself (it reads the whole log directly, never the id index);
+it tries to open the file in the user's browser (`xdg-open`, `open`, or `cmd /c start`, depending on the OS) and
+always prints the file's path either way, whether or not that succeeds. [C-204]
 
 ---
 
