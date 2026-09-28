@@ -9603,6 +9603,10 @@ function removePluginCacheDir(homeDir = os2.homedir()) {
   rmSync5(dir, { recursive: true, force: true });
   return true;
 }
+function inPluginContext(env) {
+  return Boolean(env.CLAUDE_PLUGIN_ROOT?.trim());
+}
+var NO_KEY_PLUGIN_HINT = '/plugin \u2192 Sidewise \u2192 Configure \u2192 press Enter on "TypeSafe API key", paste, Enter, Save configuration';
 
 // src/verbs/doctor.ts
 function identityFor(env, config) {
@@ -9624,8 +9628,11 @@ function actorLine(env) {
   const set = env.SIDEWISE_ACTOR?.trim();
   return set || "agent (default) \u2192 set SIDEWISE_ACTOR to change";
 }
+function noKeyHint(env) {
+  return inPluginContext(env) ? `none (sample answers only) \u2192 ${NO_KEY_PLUGIN_HINT}` : 'no  \u2192 run "sidewise init" to add one';
+}
 function keyLine(env, config, deps) {
-  if (!config.apiKey) return { value: 'no  \u2192 run "sidewise init" to add one' };
+  if (!config.apiKey) return { value: noKeyHint(env) };
   if (config.keySource === "keychain") {
     return { value: "yes \xB7 from OS keychain (encrypted, per user)" };
   }
@@ -13371,7 +13378,17 @@ function renderCard(id, rules, patterns = [], run = []) {
   return [...id, "rules:", ...rules, ...patterns, ...run].join("\n");
 }
 var AGENT_TOOLS = ["report", "outcome", "budget", "template"];
-function overview() {
+function noKeyRunLine(env, deps) {
+  let config;
+  try {
+    config = resolveJevConfig(env, deps);
+  } catch {
+    return [];
+  }
+  if (hasKey(config)) return [];
+  return [inPluginContext(env) ? `run: no key (sample answers only) \u2192 ${NO_KEY_PLUGIN_HINT}` : "run: no key \u2192 sidewise init to add one"];
+}
+function overview(env, deps) {
   return renderCard(
     [
       "verbs (pick by goal):",
@@ -13381,7 +13398,11 @@ function overview() {
     ],
     ruleLines("card"),
     [],
-    ["run: sidewise agent <verb|tool> \u2014 before writing that request", "run: sidewise agent probe \u2014 before writing questions: how to phrase one"]
+    [
+      "run: sidewise agent <verb|tool> \u2014 before writing that request",
+      "run: sidewise agent probe \u2014 before writing questions: how to phrase one",
+      ...noKeyRunLine(env, deps)
+    ]
   );
 }
 function verbCard(verb) {
@@ -13474,8 +13495,8 @@ var AGENT_TOPICS = {
 };
 var agentExtras = () => Object.keys(AGENT_TOPICS);
 var AGENT_EXTRAS = Object.keys(AGENT_TOPICS);
-function runAgent(target) {
-  if (target === void 0 || target === "") return { exit: 0, text: overview() };
+function runAgent(target, env = {}, deps = {}) {
+  if (target === void 0 || target === "") return { exit: 0, text: overview(env, deps) };
   if (hasControlChars(target)) return { exit: 2, text: "\u2716 agent: the target has control characters \u2192 use a verb name" };
   if (isVerb(target)) return { exit: 0, text: verbCard(target) };
   if (Object.hasOwn(AGENT_TOPICS, target)) return { exit: 0, text: AGENT_TOPICS[target]() };
@@ -13776,7 +13797,7 @@ async function dispatch(argv, ctx) {
   if (command === "agent") {
     const { positionals } = args("agent", { args: rest, allowPositionals: true, options: {} });
     positionalCount("agent", positionals, 0, 1);
-    const r = runAgent(positionals[0]);
+    const r = runAgent(positionals[0], ctx.env, { resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env) });
     return finish(r.exit, r.text);
   }
   if (command === "doctor") {
