@@ -356,6 +356,14 @@ any level above 1 is a documented no-op for it, never a stop. [C-123]
 path), from the latest run that touched it, worst gate first — the free onboarding briefing, without
 hand-assembling it from several `view` calls. Ignored for a run id or a request draft, where "one line per
 place" doesn't apply. [C-124]
+`view <SW-####> --answers` adds, on top of the lineage and any `--level` detail already shown, one line per
+question that run actually asked: its id, its text, its checked answer (`p <n>` for yes/no; the winning
+level/option and its share for scale/choice), `reused <SW-####>` when that question's answer came from a
+prior run, and its answer key (`translate.ts`'s `answerKey` — what makes it reusable). A sweep's questions are
+its items' own (`<item id>#<n>`, filled in), not the request's — `ask.categories` is always empty for one
+(C-120). Ignored for a place/tag or a request draft, the same restriction `--summary` has in reverse (C-124);
+a legacy (Plan 1) run has none of this stored, so it's a silent no-op, the same idiom `--level` above 1
+already uses (C-123). [C-215]
 
 ---
 

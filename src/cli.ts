@@ -463,12 +463,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (!paths) return finish(2, withAgentPointer(NO_PROJECT, command));
   switch (command) {
     case 'view': {
-      const twice = givenTwice(rest, ['level']);
+      const twice = givenTwice(rest, ['level', 'answers']);
       if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args('view', {
         args: rest,
         allowPositionals: true,
-        options: { level: { type: 'string', default: '1' }, summary: { type: 'boolean', default: false } },
+        options: { level: { type: 'string', default: '1' }, summary: { type: 'boolean', default: false }, answers: { type: 'boolean', default: false } },
       });
       positionalCount('view', positionals, 1, 1);
       if (!['1', '2', '3'].includes(values.level)) {
@@ -488,7 +488,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
           // not a file: treat arg itself as the place/id
         }
       }
-      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary);
+      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary, values.answers);
       return finish(r.exit, r.text);
     }
     case 'report': {

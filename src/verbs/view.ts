@@ -4,7 +4,9 @@
  * runs, per-category record, and `reuse` when the exact question set was asked before); otherwise the raw
  * string is a place (a folder or tag, showing the newest 10/20/30 runs with outcome counts) or a run id
  * (showing its lineage up and down). Rehearsal-adapter runs (fake, chaos) are labelled and counted apart.
- * The hot cache replaces the linear reads without changing the output.
+ * The hot cache replaces the linear reads without changing the output. `--answers` (plan 2c C1) adds, for a
+ * run id only, one line per question that run actually asked: its text, its checked answer, whether it was
+ * reused (and from which run id), and its answer key.
  */
 import path from 'node:path';
 import { providerIdentity } from '../classifier/select.ts';
@@ -12,10 +14,11 @@ import { isRehearsal } from '../classifier/port.ts';
 import type { ResolveStored } from '../classifier/typesafe/client.ts';
 import { resolveConfig } from '../config/load.ts';
 import { m, type Value } from '../contract/emit.ts';
+import { fillBlanks } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
-import type { Gate } from '../contract/types.ts';
+import type { Answer, Gate } from '../contract/types.ts';
 import { RUN_ID } from '../ledger/ids.ts';
 import { readRecordAt, stripLines, sweepPlaces, withIndex, type IndexHandle } from '../ledger/index.ts';
 import { appendLookup, findRun, isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
@@ -222,11 +225,71 @@ function detailLines(self: AnyRun, level: Level): string[] {
   return lines;
 }
 
+/** One dist-shaped answer's winning entry (same "highest share wins" pick as contract/grade.ts's own gate
+ *  logic) — the display picks the same winner the grade already trusts, never a different one. */
+function formatAnswer(a: Answer): string {
+  if (a.kind === 'yesno') return `p ${a.p}`;
+  const [level, p] = Object.entries(a.dist).reduce((best, e) => (e[1] > best[1] ? e : best));
+  return `${level} ${p}`;
+}
+
+/** One `--answers` row: rendered as `<id> "<text>" · <answer>[ · reused <id>][ · key <hex>]` — `reused`/`key`
+ *  only when the run actually has one (every question does carry a key, but `reusedFrom` only has entries for
+ *  the ones actually reused; the guard is defensive, not expected to ever omit `key` in practice). */
+function answerLine(r: { id: string; text: string; answer: Answer; reusedFrom?: string; key?: string }): string {
+  const reused = r.reusedFrom ? ` · reused ${r.reusedFrom}` : '';
+  const key = r.key ? ` · key ${r.key}` : '';
+  return `${r.id} "${clip(r.text, 60)}" · ${formatAnswer(r.answer)}${reused}${key}`;
+}
+
+/** Every question a contract run actually asked, in the order it asked them: one subject is goal then "1".."N"
+ *  (translate.ts's own subjectQuestions/goalQuestion — reused here rather than re-deriving ids by hand); replay
+ *  is before:1..N, goal (the after goal, C-056's own "after" state), then after:1..N, matching replay.ts's own
+ *  construction exactly; a sweep has no request-level questions at all (`ask.categories` is always [] for one —
+ *  C-120) — its questions live per item, `<item id>#<n>`, filled from that item's own `fill` map (contract/
+ *  layers.ts's fillBlanks, the same substitution itemQuestions uses when a sweep actually asks). A question with
+ *  no `self.answers` entry (shouldn't happen for anything this run's own ask claims) is skipped rather than
+ *  shown with a made-up answer. */
+function questionRows(self: ContractRun): { id: string; text: string; answer: Answer; reusedFrom?: string; key?: string }[] {
+  const rows: { id: string; text: string; answer: Answer; reusedFrom?: string; key?: string }[] = [];
+  const add = (id: string, text: string): void => {
+    const answer = self.answers[id];
+    if (answer) rows.push({ id, text, answer, reusedFrom: self.reusedFrom[id], key: self.keys[id] });
+  };
+  if (self.items) {
+    for (const [itemId, item] of Object.entries(self.items)) {
+      const cats = self.ask.layers.find((l) => l.name === item.layer)?.categories ?? [];
+      for (const q of [...cats.flatMap((c) => c.questions)].sort((a, b) => a.n - b.n)) add(`${itemId}#${q.n}`, fillBlanks(q.text, item.fill));
+    }
+  } else if (self.verb === 'replay') {
+    for (const q of subjectQuestions(self.ask.categories, 'before:')) add(q.id, q.text);
+    add('goal', self.goal);
+    for (const q of subjectQuestions(self.ask.categories, 'after:')) add(q.id, q.text);
+  } else {
+    add('goal', self.goal);
+    for (const q of subjectQuestions(self.ask.categories)) add(q.id, q.text);
+  }
+  return rows;
+}
+
+/** `--answers` [C-215]: one line per question this run actually asked, on top of whatever `--level` already
+ *  shows — only meaningful for a run id (byId's own caller decides whether to call this at all; place/tag and
+ *  request-draft modes never do, same as `--summary` is ignored for those, C-124). A legacy (Plan 1) run has
+ *  none of this stored, so it's a silent no-op, the same idiom `--level` above 1 already uses for one (C-123)
+ *  — never a stop. A contract run that, for whatever reason, has no rows to show says so plainly instead of
+ *  printing nothing, so an empty block always reads as "checked, found none" rather than "forgot to render". */
+function answersLines(self: AnyRun): string[] {
+  if (!isContractRun(self)) return [];
+  const rows = questionRows(self);
+  if (!rows.length) return ['  answers: none recorded'];
+  return [`  answers ${rows.length}:`, ...rows.map((r) => `    ${answerLine(r)}`)];
+}
+
 /** B4 (plan 2c): a run-id view is logged too, on a HIT only (same discipline as request mode: a validation
  *  failure — here, `id` not in the ledger — never writes a lookup, mirroring loadRequest's own early return
  *  before runRequestMode's appendLookup call). Called after withIndex returns (never nested inside its
  *  callback): appendLookup takes its own lock, and this avoids any question of lock re-entrancy across the two. */
-function byId(id: string, paths: SidewisePaths, level: Level, limit: number): VerbResult {
+function byId(id: string, paths: SidewisePaths, level: Level, limit: number, answers: boolean): VerbResult {
   const result = withIndex<VerbResult>(
     paths,
     (handle) => {
@@ -257,6 +320,7 @@ function byId(id: string, paths: SidewisePaths, level: Level, limit: number): Ve
           ...up.map((r) => `↑ ${runLine(r, outcomeOf(r))}`),
           `▶ ${runLine(self, outcomeOf(self))}`,
           ...detailLines(self, level),
+          ...(answers ? answersLines(self) : []),
           ...down.map((r) => `↓ ${runLine(r, outcomeOf(r))}`),
         ].join('\n'),
       };
@@ -371,13 +435,15 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
  * garbled request just because cli.ts happened to read the file's bytes first. Omitting `content` (every
  * existing caller that already has the text in hand, e.g. a request string read from stdin) keeps checking
  * `arg` itself for request mode, unchanged. `summary` (`--summary`) only applies to place mode — a
- * run id or a request draft ignores it, since "one line per place" makes no sense for either. */
-export function runView(arg: string, level: Level, ctx: ViewContext, content?: string, summary = false): VerbResult {
+ * run id or a request draft ignores it, since "one line per place" makes no sense for either. `answers`
+ * (`--answers`, plan 2c C1) only applies to a run id — place/tag and request-draft modes ignore it, the
+ * same restriction as `summary`'s, just reversed. */
+export function runView(arg: string, level: Level, ctx: ViewContext, content?: string, summary = false, answers = false): VerbResult {
   const probe = (content ?? arg).trim();
   if (REQUEST_MODE.test(probe) || probe.startsWith('{')) return runRequestMode(content ?? arg, ctx);
 
   const at = RUN_ID.test(arg) ? undefined : toPlace(arg, ctx.paths.root);
   if (at && 'stop' in at) return { exit: 2, text: at.stop };
   const limit = level * 10;
-  return at ? byPlace(at.place, ctx.paths, limit, summary) : byId(arg, ctx.paths, level, limit);
+  return at ? byPlace(at.place, ctx.paths, limit, summary) : byId(arg, ctx.paths, level, limit, answers);
 }
