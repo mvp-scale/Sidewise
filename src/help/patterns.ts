@@ -94,6 +94,26 @@ export const PATTERNS: readonly Pattern[] = [
     bad: 'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    file: src/checkout/*.ts\n  ask:\n    file:\n      done:\n        pass: yes\n        1: Does {file} own one clear responsibility?\n',
     good: 'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part: [gateway, payments, ledger]\n  ask:\n    part:\n      done:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n',
   },
+  // Round-4 finding: `agent drill`/`agent change` had no patterns section at all — the two pairs below close
+  // that gap, one each, both caught outright by validate.ts's NEEDS/NEVER cross-validator checks. [C-193]
+  {
+    rule: "`drill` needs `from:` — the item or category of the parent run to go down into — without it there's nothing to drill from.",
+    why: 'Drill needs from: which item or category',
+    verb: 'drill',
+    in: ['drill'],
+    catchable: true,
+    bad: 'side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  ask:\n    source:\n      pass: no\n      1: Is the value concatenated straight into the string?\n',
+    good: 'side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  from: access\n  ask:\n    source:\n      pass: no\n      1: Is the value concatenated straight into the string?\n',
+  },
+  {
+    rule: '`change` replays the parent run\'s own questions — it never takes `ask:`; write new questions with `class` instead.',
+    why: "Change replays parent's questions; never ask:",
+    verb: 'change',
+    in: ['change'],
+    catchable: true,
+    bad: 'side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  ask:\n    injection:\n      pass: no\n      1: Does it still concatenate the value into the query?\n',
+    good: 'side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n',
+  },
 ];
 
 const indent = (text: string, pad: string): string[] => text.trimEnd().split('\n').map((l) => `${pad}${l}`);

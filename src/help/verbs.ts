@@ -45,7 +45,11 @@ const EXAMPLES: Record<Verb, string> = {
   ].join('\n'),
 };
 
-const SHARP: Record<Verb, string[]> = {
+/** Exported so `agent.ts`'s `verbCard()` can splice these into the same `rules:` list as `ruleLines(verb)` —
+ *  one shared source for both views, never a second copy (round-4 finding: `agent drill`/`agent change`
+ *  rendered an empty `rules:` section since neither verb had any RULES/patterns.ts entries of its own; this
+ *  prose already existed here, just unreachable from `agent`). [C-192] */
+export const SHARP: Record<Verb, string[]> = {
   view: ['a code file (not a request) is a place, not a request — view <folder>, ".", a tag, or SW-#### all work'],
   class: ['goal wording changes the verdict (that\'s a feature, not a bug) — phrase it as the claim you need proven'],
   change: [

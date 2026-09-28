@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { VERBS } from '../../src/contract/types.ts';
 import { AGENT_TOOLS, runAgent } from '../../src/help/agent.ts';
 import { runHelp } from '../../src/help/index.ts';
+import { PATTERNS } from '../../src/help/patterns.ts';
 import { TOOL_LINE } from '../../src/help/report.ts';
 import { PROBE_RULES, RULES } from '../../src/help/rules.ts';
-import { VERB_LINE } from '../../src/help/verbs.ts';
+import { SHARP, VERB_LINE } from '../../src/help/verbs.ts';
 
 describe('runAgent', () => {
   it('with no target: the verb list plus the universal rules, no prose', () => {
@@ -38,8 +39,25 @@ describe('runAgent', () => {
     expect(runAgent('loop').text).toContain('patterns:');
   });
 
-  it('agent drill/change carry no patterns section (none tagged for them)', () => {
-    for (const verb of ['drill', 'change'] as const) expect(runAgent(verb).text).not.toContain('patterns:');
+  // Round-4 finding: `agent drill`/`agent change` used to render an empty `rules:` section with no `patterns:`
+  // at all — the two highest-stakes verbs had no in-band teaching surface. Both now carry SHARP's own gotcha
+  // prose in `rules:` (verbs.ts) and at least one good/bad pair each (patterns.ts).
+  it('[C-192] agent drill/change now carry SHARP rules and a patterns section', () => {
+    for (const verb of ['drill', 'change'] as const) {
+      const text = runAgent(verb).text;
+      expect(text).toContain('patterns:');
+      for (const s of SHARP[verb]) expect(text).toContain(s);
+      const owned = PATTERNS.filter((p) => p.in.includes(verb));
+      expect(owned.length).toBeGreaterThan(0);
+      for (const p of owned) expect(text).toContain(p.why);
+    }
+  });
+
+  it('[C-192] every verb card carries its own SHARP bullets, not just drill/change', () => {
+    for (const verb of VERBS) {
+      const text = runAgent(verb).text;
+      for (const s of SHARP[verb]) expect(text, `"${s}" missing from agent ${verb}`).toContain(s);
+    }
   });
 
   it('an unknown target: a clean stop naming every verb', () => {

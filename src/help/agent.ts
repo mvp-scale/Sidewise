@@ -35,6 +35,11 @@
  * next to `help`; the MCP tool answers it the same way it answers `help`, since both are just another
  * `args[0]` in the same dispatch — and the tool's own description (src/mcp/protocol.ts) now tells a cold agent
  * to call this first, before anything else.
+ *
+ * Every verb card also splices verbs.ts's `SHARP[verb]` bullets into its `rules:` list, alongside
+ * `ruleLines(verb)` (round-4 finding: `agent drill`/`agent change` rendered an empty `rules:` section since
+ * neither RULES nor patterns.ts had anything tagged for either verb, even though `help <verb>` already had
+ * real prose for both — SHARP was just unreachable from here).
  */
 import { hasKey, resolveJevConfig, type ResolveStored } from '../classifier/typesafe/client.ts';
 import { VERBS, type Verb } from '../contract/types.ts';
@@ -44,7 +49,7 @@ import { clip, hasControlChars } from '../util/text.ts';
 import { terseLines } from './patterns.ts';
 import { TOOL_LINE } from './report.ts';
 import { PROBE_RULES, ruleLines } from './rules.ts';
-import { VERB_LINE } from './verbs.ts';
+import { SHARP, VERB_LINE } from './verbs.ts';
 
 const isVerb = (s: string): s is Verb => (VERBS as readonly string[]).includes(s);
 
@@ -97,8 +102,13 @@ function overview(env: Record<string, string | undefined>, deps: { resolveStored
   );
 }
 
+/** SHARP[verb] first (verbs.ts's own gotcha prose, e.g. drill's "follow next:" and change's "never ask:") then
+ *  ruleLines(verb) — one shared `rules:` list, never a second copy; every verb gets SHARP now, not just
+ *  drill/change (round-4 finding: `agent drill`/`agent change` rendered an empty `rules:` section because
+ *  neither RULES nor patterns.ts had anything tagged for them, even though this prose already existed in
+ *  verbs.ts's SHARP, just unreachable from `agent`). [C-192] */
 function verbCard(verb: Verb): string {
-  return renderCard([`verb: ${verb}`], ruleLines(verb), terseLines(verb));
+  return renderCard([`verb: ${verb}`], [...SHARP[verb].map((s) => `- ${s}.`), ...ruleLines(verb)], terseLines(verb));
 }
 
 function probeCard(): string {

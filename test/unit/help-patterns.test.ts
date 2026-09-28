@@ -24,6 +24,16 @@ function parse(text: string, verb: Verb): Validated {
 }
 
 describe('help/patterns.ts: good/bad pairs shared by help and agent', () => {
+  // Round-4 finding: `agent drill`/`agent change` rendered an empty patterns: section — the two highest-stakes
+  // verbs (isolate a finding, prove a fix) had no in-band teaching surface at all.
+  it('[C-193] drill and change each have at least one good/bad pair, and it is catchable', () => {
+    for (const verb of ['drill', 'change'] as const) {
+      const owned = PATTERNS.filter((p) => p.verb === verb);
+      expect(owned.length).toBeGreaterThan(0);
+      for (const p of owned) expect(p.catchable).toBe(true);
+    }
+  });
+
   it('[C-184] the oversized-file why no longer claims files get cut (a whole file is refused, not truncated)', () => {
     const p = PATTERNS.find((x) => x.rule.startsWith('A file this size'))!;
     expect(p.why).toBe('Big whole files refused — name the range');
