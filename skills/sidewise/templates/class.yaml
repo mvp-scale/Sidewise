@@ -3,49 +3,54 @@
 side:
   goal: This login handler is safe to merge   # required — phrase as the exact claim to prove — wording changes the verdict
   # verb: class                               # optional — must match the command you run, or the request is sent back
-  depth: quick                                # required — quick=10, standard=20, thorough=30 yes/no questions (scale/choice don't count)
-  where: [src/user.ts:1-3]                    # required — up to 5 path[:start-end] entries — this is ALL the code it sees
+  depth: quick                                # required — quick=9, standard=18, thorough=27 yes/no questions across 3/6/9 concerns categories (decisions don't count)
+  where: [src/handlers/user.ts:1-40]          # required — up to 5 path[:start-end] entries — this is ALL the code it sees
                                                # a whole file over ~20,000 chars won't send — name the range instead
                                                # a question about code NOT in where: has nothing to answer from — add it here
                                                # with more than one file, name the one you mean in the question (in `backticks`)
-  ask:                                        # required
-    injection:
-      pass: no                                # every question in this category must answer "no" when things are fine
-      1: Is request text placed directly into the SQL query?
-      2: Could a caller change what the query does?
-      10: Would a standard security scanner flag this code?
-    guards:
-      pass: yes                               # here, "yes" is the fine answer — don't mix polarity within one category
-      need: most                              # optional (default all) — all: every answer clears · most: >= 2/3, none a clear miss · any: at least one
-      tags: [sql, backend]                    # optional — up to 3 short tags on this category, kept for later pattern-mining
-      3: Is the id checked to be a number before use?
-      6: Is the caller compared to the record owner?
-      9: Does the query select only needed columns?
-    access:
-      pass: no
-      4: Could one user read another user's record?
-      5: Can any caller read any record without a permission check?
-    leaks:
-      pass: no
-      7: Does the error sent back reveal the query?
-      8: Does the code log an email address?
-    severity:                                 # scale/choice questions don't count toward the depth total (at most 5 across the request)
-      pass: [none, low]
-      11:
-        scale: How severe is the worst issue?
-        levels: [none, low, medium, high, critical]
-    route:
-      pass: [ship]
-      12:
-        choice: Where should this go?
-        options: [ship, fix, block]
-    # scope:                                    # optional, recommended (TypeSafe best practice) — the visible-scope probe
-    #   pass: yes
-    #   13: Can this be answered from the code shown?
+  ask:                                        # required — two sections: concerns (yes/no) and decisions (scale/choice)
+    concerns:                                 # exactly 3k categories for the depth above (quick: 3), each with exactly 3 probes — three angles on one path (sidewise agent probe)
+      injection:
+        pass: no                              # every question in this category must answer "no" when things are fine
+        need: most                            # optional (default all) — all: every answer clears · most: >= 2/3, none a clear miss · any: at least one
+        tags: [sql, backend]                  # optional — up to 3 short tags on this category, kept for later pattern-mining
+        1: Is the user id taken from `req.query` without validation?                       # reach
+        2: Is the id concatenated into the SQL string instead of bound as a parameter?     # guard (note the polarity: "yes" here is bad)
+        3: Does the query run with `db.query` on that concatenated string?                 # sink
+      access:
+        pass: no
+        4: Is the session's own user id used to look up the record, not one from the request?   # actor
+        5: Is the record's owner compared against the caller before it's returned?              # check
+        6: Could any caller read another user's record by changing the id alone?                # resource
+      leaks:
+        pass: no
+        7: Does a failed query send the raw database error back to the caller?
+        8: Is the error message written to a response body verbatim?
+        9: Does the response include fields the caller never asked for?
+    decisions:                                # 2-5 categories; at least one scale and one choice; don't count toward depth
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst issue found?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should this go?
+          options: [ship, fix, block]
+      # scope:                                 # optional, recommended (TypeSafe best practice) — the visible-scope probe
+      #   pass: [enough]
+      #   12:
+      #     choice: Can this be answered from the code shown?
+      #     options: [enough, partial, missing]
 wise:                                         # optional block; every field inside it is optional too
   why: validate                               # optional — validate | find | debug
-  area: data                                  # optional — data | api | ui | auth | hosting | build | tests
+  area: auth                                  # optional — data | api | ui | auth | hosting | build | tests
   # stage: build                              # optional — design | build | review | pre-merge | post-fix | release
   # change: fix                               # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
-  # parent: SW-0001                           # optional — a related run, for lineage only (not drill/change's structural parent)
+  # parent: SW-0001                           # optional — a related run, for lineage (side.parent is accepted on every verb too)
+  # problem: The user id from the request reaches a SQL query unchecked      # optional — one line, your own words: what you're solving now
+  # nodes: container:api -> component:user-handler -> container:db          # optional — a C4 chain: level:name ( -> level:name)*, "; "-joined for more than one
+  # touches: [userId, findUser]               # optional — up to 5 entities/objects this run is about
+  # blast: component                          # optional — code | component | container | system | person

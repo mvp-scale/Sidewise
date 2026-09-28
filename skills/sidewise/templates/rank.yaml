@@ -1,4 +1,4 @@
-# rank pattern (scan-shaped): add a scale question to a layer to rank findings by severity (level x
+# rank pattern (scan-shaped): add a scale question to the finest layer to rank findings by severity (level x
 # probability), worst first, instead of getting back an unordered map. No new verb or option; just run scan.
 side:
   goal: Which of these handlers leaks the most on error
@@ -7,14 +7,33 @@ side:
     file: src/handlers/*.ts         # scan by file when a whole file is the unit that matters, not a function inside it
   ask:
     file:
-      leaks:
-        pass: no
-        1: Does {file} return a raw error message to the caller?
-      severity:                     # the scale that does the ranking — add one to any layer you want ordered
-        pass: [none, low]
-        2:
-          scale: How severe would a leak here be?
-          levels: [none, low, medium, high, critical]
+      concerns:
+        leaks:
+          pass: no
+          1: Does {file} return a raw error message to the caller?
+          2: Does {file} log request bodies at error level?
+          3: Does {file} include a stack trace in the response?
+        handling:
+          pass: yes
+          4: Does {file} catch every error path it can throw?
+          5: Does {file} return a generic message to the caller on error?
+          6: Does {file} log enough detail internally to debug the failure?
+        surface:
+          pass: no
+          7: Does {file} expose more than one route that can trigger the same leak?
+          8: Does {file} skip the shared error handler other files use?
+          9: Would fixing {file} alone close the leak?
+      decisions:
+        severity:                     # the scale that does the ranking — add one to any layer you want ordered
+          pass: [none, low]
+          10:
+            scale: How severe would a leak here be?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [ship]
+          11:
+            choice: Where should {file} go?
+            options: [ship, fix, block]
 wise:
   why: find
   area: api

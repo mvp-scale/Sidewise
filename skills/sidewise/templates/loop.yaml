@@ -2,7 +2,7 @@
 side:
   goal: The checkout redesign is sound        # required
   # verb: loop                                # optional — must match the command you run, or the request is sent back
-  depth: quick                                # required — at most 10 items asked per layer
+  depth: quick                                # required — sets the concerns count on the finest layer (story) below; also caps items per layer (10/20/30)
   where: [src/checkout/]                      # optional — context only (folder that will hold this); loop reads no files
   over:                                       # required
     part:                           # part and story are SIBLINGS here, both under over: — not one nested in the other
@@ -11,19 +11,41 @@ side:
       - name: payments
         story: [refunds, retries, partial capture]
       - ledger
-  ask:                                        # required
-    part:
-      boundaries:
-        pass: yes
-        1: Does {part} own one clear responsibility?
-        2: Can {part} be deployed without the others?
-    story:                          # every story question is asked of EVERY story — phrase it so that holds
-      done:
-        pass: yes
-        3: Is "{story}" testable against {part} as written?
-      risk:
-        pass: no
-        4: Does "{story}" need data {part} doesn't own?
+  ask:                                        # required — one concerns:/decisions: pair per layer; only the finest layer (story) needs the full 3k + decisions
+    part:                          # part is not the finest layer: thin on purpose, counts aren't enforced here (a note if thin)
+      concerns:
+        boundaries:
+          pass: yes
+          1: Does {part} own one clear responsibility?
+          2: Can {part} be deployed without the others?
+    story:                          # every story question is asked of EVERY story — phrase it so that holds; story is the finest layer
+      concerns:
+        done:
+          pass: yes
+          3: Is "{story}" testable against {part} as written?
+          4: Does "{story}" have a named owner?
+          5: Is "{story}" small enough to ship on its own?
+        risk:
+          pass: no
+          6: Does "{story}" need data {part} doesn't own?
+          7: Does "{story}" depend on another part's release order?
+          8: Could "{story}" fail silently in production?
+        fit:
+          pass: yes
+          9: Does "{story}" match how {part} is meant to be used?
+          10: Would "{story}" survive {part} being replaced later?
+          11: Is "{story}" covered by an existing test today?
+      decisions:
+        risk-level:
+          pass: [none, low]
+          12:
+            scale: How risky is "{story}"?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [build-now]
+          13:
+            choice: What should happen to "{story}" next?
+            options: [build-now, rework, redesign]
                                                # loop never takes from:, compare: or parent: — it has no parent run to build on
 wise:                                         # optional block; every field inside it is optional too
   why: validate                               # optional — validate | find | debug
@@ -32,3 +54,7 @@ wise:                                         # optional block; every field insi
   # change: feature                           # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0001                           # optional — a related run, for lineage
+  # problem: Stress-testing the checkout split into gateway/payments/ledger before writing any code   # optional
+  # nodes: system:checkout -> container:gateway; system:checkout -> container:payments    # optional — chains joined by "; "
+  # touches: [gateway, payments, ledger]       # optional — up to 5 entities/objects this run is about
+  # blast: system                             # optional — code | component | container | system | person

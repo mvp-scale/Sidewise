@@ -64,30 +64,39 @@ function questionToWire(q: Question): unknown {
 
 /** The wire shape a category was parsed FROM (contract/validate.ts's toCategory), rebuilt from the stored
  *  `Category` — `need`/`tags` are only written back when they carry non-default content, matching how an agent
- *  would actually have typed the request (need: all and an empty tags: are never required on the wire). */
+ *  would actually have typed the request (need: all and an empty tags: are never required on the wire).
+ *  `family` is written back only when it was GIVEN explicitly (familySource: 'given') — a name-defaulted
+ *  family (familySource: 'name') is never required on the wire either, same discipline as need/tags. */
 function categoryToWire(c: Category): Record<string, unknown> {
   const out: Record<string, unknown> = { pass: c.pass };
   if (c.need !== 'all') out.need = c.need;
   if (c.tags.length) out.tags = c.tags;
+  if (c.familySource === 'given') out.family = c.family;
   for (const q of c.questions) out[String(q.n)] = questionToWire(q);
   return out;
 }
 
+/** Categories split back into their concerns:/decisions: sections (plan 2b) — the two halves of one ask block,
+ *  concerns first (the order toCategory/validate.ts's own numbering rule requires anyway). */
+function sectionsToWire(categories: readonly Category[]): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const concerns = categories.filter((c) => c.section === 'concerns');
+  const decisions = categories.filter((c) => c.section === 'decisions');
+  if (concerns.length) out.concerns = Object.fromEntries(concerns.map((c) => [c.name, categoryToWire(c)]));
+  if (decisions.length) out.decisions = Object.fromEntries(decisions.map((c) => [c.name, categoryToWire(c)]));
+  return out;
+}
+
 /** side.ask, rebuilt from the run's stored `ask.categories` (one subject) or `ask.layers` (a sweep) — never
- *  both: a contract run is one shape or the other (validate.ts's checkCross builds it the same way). */
+ *  both: a contract run is one shape or the other (validate.ts's checkCross builds it the same way). Each
+ *  side is itself sectionsToWire's {concerns:, decisions:} pair — a sweep keys that pair by layer. */
 function askToWire(run: ContractRun): Record<string, unknown> {
   if (run.ask.layers.length) {
     const out: Record<string, unknown> = {};
-    for (const layer of run.ask.layers) {
-      const cats: Record<string, unknown> = {};
-      for (const c of layer.categories) cats[c.name] = categoryToWire(c);
-      out[layer.name] = cats;
-    }
+    for (const layer of run.ask.layers) out[layer.name] = sectionsToWire(layer.categories);
     return out;
   }
-  const out: Record<string, unknown> = {};
-  for (const c of run.ask.categories) out[c.name] = categoryToWire(c);
-  return out;
+  return sectionsToWire(run.ask.categories);
 }
 
 /** --from SW-####: the exact request a logged run was actually sent with, rebuilt from what the ledger kept —
@@ -105,17 +114,24 @@ function fromRunId(id: string, flags: TemplateFlags, paths: SidewisePaths | unde
   // `change` is the one verb where the stored fields aren't a faithful copy of the original request: a change
   // run stores its PARENT's `where`/`ask.categories` too (change.ts), so it can grade before/after answers
   // against the same categories — but a real change request never carries `where`/`ask`/`depth`/`over` at all
-  // (contract/validate.ts's NEVER list forbids every one of them for change). Every other verb stores exactly
-  // `request.side.*` on its own run (scan.ts/loop.ts/drill.ts/class.ts all copy their own request's fields
-  // straight across), so the generic rebuild below is faithful for them.
+  // (contract/validate.ts's NEVER list forbids every one of them for change). scan and drill are the other two
+  // exceptions: their own `where` is recorded for `sidewise view`'s own place lookups (derived from over's item
+  // paths, or copied from the parent) rather than typed by the agent — a real scan/drill request never carries
+  // `where:` either (NEVER forbids it for both), so it's dropped here too. Every other verb (class, loop, view)
+  // stores exactly `request.side.*` on its own run, so the generic rebuild below is faithful for them.
+  // expect: (plan 2b) isn't on every ContractRun shape yet as this file was written — read it defensively so
+  // this rebuild starts including it the moment change.ts's own NewContractRun starts writing it, with no
+  // further change needed here.
+  const changeExpect = (run as unknown as { expect?: string[] }).expect;
+  const echoesWhere = run.verb !== 'scan' && run.verb !== 'drill';
   const side: Record<string, unknown> =
     run.verb === 'change'
-      ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare }
+      ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare, ...(changeExpect ? { expect: changeExpect } : {}) }
       : {
           verb: run.verb,
           goal: run.goal,
           ...(run.depth ? { depth: run.depth } : {}),
-          ...(run.where.length ? { where: run.where } : {}),
+          ...(echoesWhere && run.where.length ? { where: run.where } : {}),
           ...(run.parent ? { parent: run.parent } : {}),
           ...(run.from ? { from: run.from } : {}),
           ...(run.compare ? { compare: run.compare } : {}),

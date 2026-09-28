@@ -2,28 +2,36 @@
 # just pass/fail. No new verb or option; just run class.
 side:
   goal: Which fix should ship for the injection bug
-  depth: quick                      # exactly 10 yes/no for quick; the choice below doesn't count toward it
+  depth: quick                      # exactly 3 concerns categories x 3 probes for quick; decisions don't count toward it
   where: [src/handlers/user.ts:1-40]
   ask:
-    safety:
-      pass: yes
-      1: Does the parameterized-query fix remove the injection?
-      2: Does it handle every call site, not just the reported one?
-      3: Does it keep the existing tests passing?
-      4: Is the fix free of a new injection point of its own?
-      5: Does it avoid changing the handler's public shape?
-      6: Is the fix small enough to review in one sitting?
-    quality:
-      pass: yes
-      7: Is the query still readable after the fix?
-      8: Does it avoid a new dependency?
-      9: Does it match the codebase's existing query style?
-      10: Is there a test that would have caught the original bug?
-    route:
-      pass: [parameterize]          # the option(s) that count as the passing answer, from the list below
-      11:
-        choice: Which fix should ship?
-        options: [parameterize, escape, rewrite, block-merge]
+    concerns:
+      safety:
+        pass: yes
+        1: Does the parameterized-query fix remove the injection?
+        2: Does it handle every call site, not just the reported one?
+        3: Is the fix free of a new injection point of its own?
+      quality:
+        pass: yes
+        4: Is the query still readable after the fix?
+        5: Does it avoid a new dependency?
+        6: Does it match the codebase's existing query style?
+      tests:
+        pass: yes
+        7: Does it keep the existing tests passing?
+        8: Is there a test that would have caught the original bug?
+        9: Is the fix small enough to review in one sitting?
+    decisions:
+      confidence:
+        pass: [high]
+        10:
+          scale: How confident is this fix, overall?
+          levels: [low, medium, high]
+      route:
+        pass: [parameterize]          # the option(s) that count as the passing answer, from the list below
+        11:
+          choice: Which fix should ship?
+          options: [parameterize, escape, rewrite, block-merge]
 wise:
   why: validate
   area: data

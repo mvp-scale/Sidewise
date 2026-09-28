@@ -1,22 +1,38 @@
-# proof pattern (class-shaped): the tightest shape for one narrow claim — one category, need: all (the
-# default), every question phrased so "yes" is the fine answer. No new verb or option; just run class.
+# proof pattern (class-shaped): the tightest shape for one narrow claim — every question phrased so "yes" is
+# the fine answer, need: all (the default) on every category. The contract still needs exactly 3 concerns
+# categories at quick depth; keep the other two just as narrow as the first, not padding.
 side:
   goal: The refund handler cannot double-charge a card
-  depth: quick                      # exactly 10 yes/no for quick; add a second category only if the claim needs it
+  depth: quick
   where: [src/billing/refund.ts:1-60]
   ask:
-    proof:
-      pass: yes                     # every one of these must clear >= 0.70, or the claim doesn't hold
-      1: Is the charge id checked against a set of already-processed ids before charging?
-      2: Is that check done inside the same transaction as the charge?
-      3: Does a retry reuse the original charge id instead of minting a new one?
-      4: Is the idempotency key derived from the order, not the request time?
-      5: Does the code lock the order row before charging?
-      6: Is the lock held until the charge completes or fails?
-      7: Does a failed charge roll back any partial state?
-      8: Is there a unique constraint on (order_id, charge_id) at the database level?
-      9: Does the webhook handler for a duplicate event no-op?
-      10: Would a duplicate request return the original result instead of charging again?
+    concerns:
+      dedupe:
+        pass: yes                     # every one of these must clear >= 0.70, or the claim doesn't hold
+        1: Is the charge id checked against a set of already-processed ids before charging?
+        2: Does a retry reuse the original charge id instead of minting a new one?
+        3: Is there a unique constraint on (order_id, charge_id) at the database level?
+      locking:
+        pass: yes
+        4: Does the code lock the order row before charging?
+        5: Is the lock held until the charge completes or fails?
+        6: Is that check done inside the same transaction as the charge?
+      recovery:
+        pass: yes
+        7: Does a failed charge roll back any partial state?
+        8: Does the webhook handler for a duplicate event no-op?
+        9: Would a duplicate request return the original result instead of charging again?
+    decisions:
+      confidence:
+        pass: [high]
+        10:
+          scale: How confident is this proof, overall?
+          levels: [low, medium, high]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should this go?
+          options: [ship, fix, block]
 wise:
   why: validate
   area: data

@@ -5,15 +5,38 @@ side:
   # verb: drill                               # optional — must match the command you run, or the request is sent back
   parent: SW-0060                             # required — the sweep run this drills into
   from: src/handlers/user.ts/findUser         # required — an item id the parent flagged (names joined by /), not a category
-  depth: quick                                # optional — at most 10 items asked per layer (standard 20, thorough 30)
+  depth: quick                                # optional — at most 10 items asked per layer (standard 20, thorough 30); also sets the concerns count on the finest layer below
   over:                                       # optional — only when the parent was a sweep; a one-subject parent has none (see drill-subject.yaml)
     call: each                                # the NEXT layer down from the item named above
-  ask:                                        # required
+  ask:                                        # required — the parent's 3 angles become 3 new concerns here, each attacked from 3 angles of its own
     call:
-      injection:
-        pass: no
-        1: Does {call} pass request text into SQL?
-        2: Is {call}'s argument built by string concatenation?
+      concerns:
+        reach:
+          pass: no
+          1: Does {call} pass request text into SQL?
+          2: Is {call}'s argument built by string concatenation?
+          3: Is {call} reachable from an unauthenticated route?
+        guard:
+          pass: yes
+          4: Is {call}'s argument parsed to a number before use?
+          5: Is {call}'s argument bound as a parameter instead of concatenated?
+          6: Is {call}'s argument validated against an allow-list?
+        sink:
+          pass: no
+          7: Does {call} hit `db.query` directly?
+          8: Does {call} run inside a transaction with no timeout?
+          9: Does {call}'s result get returned to the caller unfiltered?
+      decisions:
+        severity:
+          pass: [none, low]
+          10:
+            scale: How severe is {call}'s worst issue?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [ship]
+          11:
+            choice: What should happen to {call} next?
+            options: [ship, fix, block]
                                                # drill never takes compare: or where: — it inherits the parent's own code
 wise:                                         # optional block; every field inside it is optional too
   why: debug                                  # optional — validate | find | debug
@@ -22,3 +45,7 @@ wise:                                         # optional block; every field insi
   # change: fix                               # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0060                           # optional — a related run, for lineage (distinct from side.parent above)
+  # problem: Narrowing scan's injection flag on findUser down to the exact call that's unsafe   # optional
+  # nodes: component:user-handler -> code:findUser -> container:db        # optional — a C4 chain: level:name ( -> level:name)*
+  # touches: [findUser]                       # optional — up to 5 entities/objects this run is about
+  # blast: code                               # optional — code | component | container | system | person

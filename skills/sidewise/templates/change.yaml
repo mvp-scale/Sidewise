@@ -4,11 +4,16 @@ side:
   # verb: change                              # optional — must match the command you run, or the request is sent back
   parent: SW-0042                             # required — the run whose questions get replayed
   compare: {before: main, after: HEAD}        # required — two refs, or "worktree" for the working tree; files must be committed
+  expect: [injection]                         # required — which of the parent's concerns this change should turn to pass; the answer grades the prediction too
                                                # change never takes ask:, over:, from:, where: or depth: — it replays the parent's own questions
 wise:                                         # optional block; every field inside it is optional too
   why: validate                               # optional — validate | find | debug
-  area: data                                  # optional — data | api | ui | auth | hosting | build | tests
-  # stage: build                              # optional — design | build | review | pre-merge | post-fix | release
+  area: auth                                  # optional — data | api | ui | auth | hosting | build | tests
+  # stage: post-fix                           # optional — design | build | review | pre-merge | post-fix | release
   # change: fix                               # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0001                           # optional — a related run, for lineage (distinct from side.parent above)
+  # problem: Removing the SQL injection in findUser flagged by SW-0042        # optional — one line, your own words
+  # nodes: container:api -> component:user-handler -> container:db           # optional — a C4 chain: level:name ( -> level:name)*
+  # touches: [userId, findUser]               # optional — up to 5 entities/objects this run is about
+  # blast: component                          # optional — code | component | container | system | person

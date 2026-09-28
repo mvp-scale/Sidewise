@@ -1,20 +1,25 @@
 # view <this file>: free — checks the ledger for a prior run of the exact same questions on this code, no call.
 # where is the only field view needs; depth/ask are optional here since a partial draft (view before class is
-# ready to spend) is exactly what view is for.
+# ready to spend) is exactly what view is for — the section/count rules below become notes, not stops.
 side:
   goal: This login handler is safe to merge   # required — one line: what you want to be true
   # verb: view                                # optional — must match the command you run, or the request is sent back
-  depth: quick                                # optional — if given, must match the yes/no count below, or class will stop on it later
-  where: [src/user.ts:1-3]                    # required — up to 5 path[:start-end] entries
-  ask:                                        # optional — a partial draft (even zero categories) is fine for view
-    injection:
-      pass: no
-      1: Is request text placed directly into the SQL query?
-      2: Could a caller change what the query does?
+  depth: quick                                # optional — if given, checked against ask: below (a note here; class would stop on it)
+  where: [src/handlers/user.ts:1-40]          # required — up to 5 path[:start-end] entries
+  ask:                                        # optional — a partial draft (even zero categories, or fewer than the full 3k) is fine for view
+    concerns:
+      injection:
+        pass: no
+        1: Is the user id taken from `req.query` without validation?
+        2: Is the id concatenated into the SQL string instead of bound as a parameter?
 wise:                                         # optional block; every field inside it is optional too
   why: validate                               # optional — validate | find | debug
-  area: data                                  # optional — data | api | ui | auth | hosting | build | tests
+  area: auth                                  # optional — data | api | ui | auth | hosting | build | tests
   # stage: build                              # optional — design | build | review | pre-merge | post-fix | release
   # change: fix                               # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
   # parent: SW-0001                           # optional — a related run, for lineage
+  # problem: Checking whether the injection fix from SW-0040 is already proven here   # optional — one line, your own words
+  # nodes: container:api -> component:user-handler             # optional — a C4 chain: level:name ( -> level:name)*
+  # touches: [userId]                         # optional — up to 5 entities/objects this run is about
+  # blast: component                          # optional — code | component | container | system | person

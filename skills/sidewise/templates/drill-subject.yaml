@@ -1,14 +1,38 @@
 # drill --parent <one-subject-run> --from <category>: this parent asked about one subject, not a sweep, so
-# from: names one of its categories and ask: sends brand-new, narrower questions. No "over" here.
+# from: names one of its categories and ask: sends brand-new, narrower questions — the parent's 3 angles
+# (its category's 3 probes) become 3 new concerns here, each attacked from 3 angles of its own. No "over" here.
 side:
   goal: Find exactly where request text reaches the query
   parent: SW-0051
   from: access                     # a category from the parent run, not an item — no "over" here
   ask:
-    source:
-      pass: no
-      1: Is the value concatenated straight into the string?
-      2: Does it skip a parameterized query?
+    concerns:
+      reach:
+        pass: no
+        1: Is the value taken from `req.query` without validation?
+        2: Is it concatenated straight into the query string?
+        3: Does it skip a parameterized query on the way in?
+      guard:
+        pass: yes
+        4: Is the value parsed to a number before use?
+        5: Is it bound as a parameter instead of concatenated?
+        6: Is it checked against the caller's own session id?
+      sink:
+        pass: no
+        7: Does the query run with `db.query` on that string?
+        8: Is the query built inside a loop, once per row?
+        9: Does the result get returned to the caller unfiltered?
+    decisions:
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst issue?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: What should happen next?
+          options: [ship, fix, block]
 wise:
   why: debug
   area: data
