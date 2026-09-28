@@ -1,6 +1,7 @@
 // plan 2c B1: .sidewise/config.yaml → the effective config (defaults < config.yaml < env), validation stops,
 // and the sidewise config command's printed output.
 import { describe, expect, it } from 'vitest';
+import { parse } from 'yaml';
 import { DEFAULT_CONFIG } from '../../src/config/defaults.ts';
 import { resolveConfig } from '../../src/config/load.ts';
 import { validateConfig } from '../../src/config/validate.ts';
@@ -118,6 +119,47 @@ describe('sidewise config command', () => {
     expect(r.exit).toBe(0);
     expect(r.text).toContain('project: none');
     expect(r.text).toContain('# default');
+  });
+
+  // plan 2c B, item 3: sidewise config's output must be valid, copyable YAML — not the old "5  # default" quoted
+  // string it used to print, which emit.ts's own scalar() double-quoted (a " #" inside a plain string disqualifies
+  // it), so pasting it into config.yaml produced garbage. Every commented default/example line must, on its own,
+  // uncomment into a valid config.yaml fragment.
+  it('the whole document parses as YAML', () => {
+    const text = formatConfig(resolveConfig(undefined, {}), 'none');
+    const parsed = parse(text) as { config: Record<string, unknown>; notes: string[] };
+    expect(parsed.config.project).toBe('none');
+    expect(parsed.config.budget).toBeNull(); // every budget field is commented out at all-defaults
+    expect(parsed.notes.length).toBeGreaterThan(0);
+  });
+
+  it('uncommenting every default/example line together yields one valid config (no stops)', () => {
+    const text = formatConfig(resolveConfig(undefined, {}), 'none');
+    const body = text
+      .split('\n')
+      .slice(1, -1) // drop the leading "config:" and the trailing blank line
+      .filter((l) => !l.trimStart().startsWith('project:') && l !== 'notes:' && !l.startsWith('  - '))
+      .map((l) => l.replace(/^(\s*)#\s?/, '$1')) // uncomment every commented line; live lines are untouched
+      .map((l) => l.slice(2)) // dedent one level (these were all nested one level under "config:")
+      .join('\n');
+    const raw = parse(body) as Record<string, unknown>;
+    const { stops } = validateConfig(raw);
+    expect(stops).toEqual([]);
+    // spot-check a few of the reconstructed values actually round-trip as the real defaults/examples shown.
+    expect((raw.budget as { usd: number }).usd).toBe(DEFAULT_CONFIG.budget.usd);
+    expect(raw.provider).toBe('typesafe');
+    expect((raw.pricing as Record<string, { inputPerMTok: number }>)['jev-1.13.0']!.inputPerMTok).toBe(DEFAULT_CONFIG.pricing['jev-1.13.0']!.inputPerMTok);
+  });
+
+  it('an overridden field prints as a live line with its source; an untouched sibling stays commented', () => {
+    const { paths } = tempProject({ '.sidewise/config.yaml': 'budget:\n  usd: 10\nprovider: typesafe\n' });
+    const text = formatConfig(resolveConfig(paths, {}), 'proj');
+    expect(text).toContain('    usd: 10  # from config.yaml');
+    expect(text).toContain('  provider: typesafe  # from config.yaml');
+    expect(text).toContain('    # runs: 500  # default'); // sibling budget field, untouched, still commented
+    const parsed = parse(text) as { config: { budget: { usd: number }; provider: string } };
+    expect(parsed.config.budget.usd).toBe(10);
+    expect(parsed.config.provider).toBe('typesafe');
   });
 
   it('a broken config.yaml shows its stops, then the rest of the effective table underneath, exit 2', () => {
