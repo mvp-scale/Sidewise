@@ -169,7 +169,7 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     const root = project();
     const bare = sidewise(root, []);
     expect(bare.status).toBe(2);
-    expect(bare.stderr).toMatch(/^new here\? → sidewise init\nusage:\n {2}sidewise view/);
+    expect(bare.stderr).toMatch(/^Agents: run "sidewise agent" first\nnew here\? → sidewise init\n[^\n]+\n(- \w+: [^\n]+\n){6}usage:\n {2}sidewise view/);
     for (const flag of ['--help', '-h']) {
       const help = sidewise(root, [flag]);
       expect(help).toMatchObject({ status: 0, stderr: '' });
