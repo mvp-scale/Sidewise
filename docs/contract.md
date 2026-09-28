@@ -162,6 +162,9 @@ A yes/no question is text ending in `?`. [C-021]
 confidently the wrong way. [C-029]
 `need: any`: the category passes when at least one answer clears the bar. [C-030]
 The goal passes at ≥ 0.70. [C-031]
+A sweep's goal answer key includes every asked item's own evidence text (sorted and concatenated), not just the
+goal text — so a code change anywhere in the sweep invalidates a cached goal answer, even though the goal
+question itself didn't change. [C-214]
 The gate passes only when the goal and every category pass; in a sweep, an item passes only when its own
 categories and all of its children pass. [C-032]
 Consensus is one of STRONG, SPLIT or WEAK: whether the yes/no answers agree with each other, separate from

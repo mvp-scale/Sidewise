@@ -167,18 +167,22 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   const afterCatsGrade = gradeSubject(categories, answers, 'after:');
 
   // B3: each category line names how many of its own probes fixed (question numbers that missed/were mid
-  // before and clear now) out of the category's own question count — e.g. `probes: 2/3 fixed`.
-  const questionCountByName = new Map(categories.map((c) => [c.name, c.questions.length]));
-  const catEntries: Array<[string, Value]> = replayGrade.categories.map((c) => [
-    c.name,
-    m(
-      ['before', c.before],
-      ['after', c.after],
-      ...(c.fixed.length ? [['fixed', c.fixed] as [string, Value]] : []),
-      ...(c.still.length ? [['still', c.still] as [string, Value]] : []),
-      ['probes', `${c.fixed.length}/${questionCountByName.get(c.name) ?? c.fixed.length + c.still.length} fixed`],
-    ),
-  ]);
+  // before and clear now) out of the count of questions that were NOT passing before (fixed.length +
+  // still.length) — e.g. `probes: 2/3 fixed`. A category every one of whose questions already passed before
+  // has nothing to probe, so the field is omitted entirely rather than printed as `probes: 0/N fixed`.
+  const catEntries: Array<[string, Value]> = replayGrade.categories.map((c) => {
+    const probeCount = c.fixed.length + c.still.length;
+    return [
+      c.name,
+      m(
+        ['before', c.before],
+        ['after', c.after],
+        ...(c.fixed.length ? [['fixed', c.fixed] as [string, Value]] : []),
+        ...(c.still.length ? [['still', c.still] as [string, Value]] : []),
+        ...(probeCount > 0 ? [['probes', `${c.fixed.length}/${probeCount} fixed`] as [string, Value]] : []),
+      ),
+    ];
+  });
 
   // The agent's own prediction, graded against what actually happened: a concern named in expect: is "fixed"
   // when it missed/was mid before and clears now, "still" when it missed/was mid before and still doesn't

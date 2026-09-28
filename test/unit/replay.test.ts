@@ -57,7 +57,8 @@ describe('replay', () => {
     // (before === after === worktree here only to exercise the plumbing without a real git repo; git-evidence.test.ts covers refs.)
     const r = await runReplay(changeText, { paths, provider: stubProvider({ yes: () => 0.05 }), env });
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('injection: {before: pass, after: pass, probes: 0/3 fixed}');
+    expect(r.text).toContain('injection: {before: pass, after: pass}');
+    expect(r.text).not.toContain('probes:');
     expect(r.text).toContain('regressed: []');
     expect(r.text).toContain('reading whole files: line ranges may not match the parent run');
     const [run] = readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'replay');
@@ -211,7 +212,7 @@ describe('replay', () => {
     expect(r.exit).toBe(0);
     expect(r.text).toContain('gate: fail');
     expect(r.text).toContain('regressed: [2]');
-    expect(r.text).toContain('injection: {before: pass, after: fail, probes: 0/2 fixed}');
+    expect(r.text).toContain('injection: {before: pass, after: fail}');
   });
 
   it('the top gate fails from a regression alone, even though the "after" category still passes on its own (need: any) [C-091]', async () => {
@@ -253,7 +254,7 @@ describe('replay', () => {
     });
 
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('injection: {before: pass, after: pass, probes: 0/2 fixed}'); // the "after" category is clean on its own
+    expect(r.text).toContain('injection: {before: pass, after: pass}'); // the "after" category is clean on its own
     expect(r.text).toContain('regressed: [2]');
     expect(r.text).toContain('gate: fail'); // ...yet the top gate still fails, from the regression alone
     // outcomeNext's own "which category matches the overall gate?" search finds nothing here (injection itself
@@ -306,12 +307,12 @@ describe('replay', () => {
     });
 
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('injection: {before: fail, after: fail, fixed: [1], still: [2], probes: 1/3 fixed}');
+    expect(r.text).toContain('injection: {before: fail, after: fail, fixed: [1], still: [2], probes: 1/2 fixed}');
     expect(r.text).toContain('regressed: [3]');
     expect(r.text).toContain('gate: fail');
   });
 
-  it('expect: none predicts no flips at all; a flip that happens anyway is listed as unexpected: [N4] [C-210] [C-212] [C-213]', async (ctx) => {
+  it('expect: none predicts no flips at all; a flip that happens anyway is listed as unexpected: [N4] [C-210] [C-213]', async (ctx) => {
     if (!hasGit()) return ctx.skip();
     const { paths, root } = tempProject({ 'src/a.ts': 'export function f(x) {\n  return db.query(`SELECT * FROM t WHERE id = ${x}`); // VULN\n}\n' });
     gitInit(root);
