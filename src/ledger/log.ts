@@ -16,7 +16,7 @@ import { formatRunId, ulid } from './ids.ts';
 // A deliberate two-way import with index.ts: log.ts calls withIndex/readRecordAt (only inside function bodies,
 // never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the same way. Safe in
 // ESM as long as neither side touches the other's exports before both modules finish loading, which holds here.
-import { readRecordAt, withIndex } from './index.ts';
+import { normalizeRecordWise, readRecordAt, withIndex } from './index.ts';
 import { onStore, withLock } from './lock.ts';
 import { ensureDir, type SidewisePaths } from './paths.ts';
 import { redact, redactDeep, redactSecrets } from './redact.ts';
@@ -269,7 +269,7 @@ export function readLedger(paths: SidewisePaths, opts: { partialTail?: boolean }
       if (inProgress) return;
       throw new LedgerError(`✖ ledger: line ${i + 1} of ${shown} is not a ledger record → fix or remove that line`);
     }
-    records.push(value);
+    records.push(normalizeRecordWise(value));
   });
   return records;
 }

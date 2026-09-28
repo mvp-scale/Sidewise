@@ -245,6 +245,17 @@ describe('findRun recovers from a stale or bad index without crashing', () => {
   });
 });
 
+// plan 2c F1: a record written before plan 2c may still carry the old `wise.nodes` (a single chain string)
+// instead of `uses` — readRecordAt (report.ts's and view.ts's own per-record reader, and findRun which uses it)
+// must read it back as a 1-item `uses` list.
+it('readRecordAt reads an old wise.nodes record as a 1-item uses list', () => {
+  const { paths } = tempProject({});
+  const withNodes = sampleContractRun({ wise: { nodes: 'container:web-app' } } as unknown as Parameters<typeof sampleContractRun>[0]);
+  const saved = appendContractRun(paths, withNodes, Date.parse('2026-09-25T12:00:00Z'), 'b');
+  const run = findRun(paths, saved.id);
+  expect(run && isContractRun(run) ? run.wise : undefined).toEqual({ uses: ['container:web-app'] });
+});
+
 describe('the fallback path gives identical results to whatever engine is really available', () => {
   it('lookupAnswers, exactReuse, nextRunNumber and findRun agree with forceFallback on and off [C-089]', () => {
     const { paths } = tempProject({});

@@ -50,6 +50,7 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
 import type { Category, Gate, Verb } from '../contract/types.ts';
+import { normalizeWise } from '../contract/wise-fields.ts';
 import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
 import { withLock } from './lock.ts';
 import { ensureDir, type SidewisePaths } from './paths.ts';
@@ -213,6 +214,20 @@ interface Sink {
 
 const CHUNK_BYTES = 1 << 20; // 1 MiB: bounds memory during a scan regardless of log.jsonl's size.
 
+/** plan 2c F1: a ledger record written before plan 2c may still carry `wise.nodes` (a single chain string) instead
+ *  of `wise.uses` — every raw-JSON parse site in the ledger (this file's own `parseLedgerLine`/`readRecordAt`, and
+ *  log.ts's `readLedger`) runs a freshly-parsed record through here so every reader (report, view, report patterns/
+ *  history) sees `uses` uniformly, without each of them having to check for the old shape. Guarded: most records
+ *  carry `wise: null`, which `normalizeWise` would throw on if called directly on it. Exported so log.ts's own
+ *  parse site can reuse it rather than duplicating the guard. */
+export function normalizeRecordWise<T>(value: T): T {
+  const w = (value as { wise?: unknown }).wise;
+  if (w && typeof w === 'object' && !Array.isArray(w)) {
+    (value as { wise?: unknown }).wise = normalizeWise(w as { uses?: string[]; nodes?: string });
+  }
+  return value;
+}
+
 function parseLedgerLine(raw: string, lineNo: number, shown: string): LedgerRecord {
   let value: unknown;
   try {
@@ -223,7 +238,7 @@ function parseLedgerLine(raw: string, lineNo: number, shown: string): LedgerReco
   if (!isRecord(value)) {
     throw new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not a ledger record → fix or remove that line`);
   }
-  return value;
+  return normalizeRecordWise(value);
 }
 
 /** Applies one line to `sink`, and reports whether it was a 'run' line — scanRange tracks `runsSeen` from this,
@@ -340,7 +355,7 @@ export function readRecordAt(logPath: string, offset: number): LedgerRecord | un
       const complete = nl !== -1 ? buf.toString('utf8', 0, nl) : offset + got >= size ? buf.toString('utf8', 0, got) : null;
       if (complete !== null) {
         try {
-          return JSON.parse(complete) as LedgerRecord;
+          return normalizeRecordWise(JSON.parse(complete) as LedgerRecord);
         } catch {
           return undefined; // garbled at this offset: stale, not a crash
         }

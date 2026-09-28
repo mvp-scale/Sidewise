@@ -5,11 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { formatRunId, ulid } from '../../src/ledger/ids.ts';
 import { LockError, StoreError, withLock } from '../../src/ledger/lock.ts';
-import { appendOutcome, appendRun, isRun, latestOutcome, readLedger } from '../../src/ledger/log.ts';
+import { appendContractRun, appendOutcome, appendRun, isContractRun, isRun, latestOutcome, readLedger, type NewContractRun } from '../../src/ledger/log.ts';
 import { findRoot } from '../../src/ledger/paths.ts';
 import { redact, redactDeep } from '../../src/ledger/redact.ts';
 import { tempProject } from '../helpers/project.ts';
-import { sampleRun } from '../helpers/runs.ts';
+import { sampleContractRun, sampleRun } from '../helpers/runs.ts';
 
 const WORKER = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'append-worker.ts');
 // Secret-shaped strings are built at runtime so the repo's pre-commit leak check never sees a literal one.
@@ -213,6 +213,17 @@ describe('log', () => {
     appendRun(paths, sampleRun());
     appendFileSync(paths.log, '{"kind":"run","id":"SW-00');
     expect(() => readLedger(paths)).toThrow(/line 2 of \.sidewise\/log\.jsonl is not valid JSON → fix or remove that line/);
+  });
+
+  // plan 2c F1: a record written before plan 2c may still carry the old `wise.nodes` (a single chain string)
+  // instead of `uses` — readLedger (report-web.ts's and view.ts's byPlaceFullScan's own reader) must read it
+  // back as a 1-item `uses` list, not leave the old shape for every caller to check for itself.
+  it('reads an old wise.nodes record as a 1-item uses list', () => {
+    const { paths } = tempProject({});
+    const withNodes = sampleContractRun({ wise: { nodes: 'container:web-app' } } as unknown as Partial<NewContractRun>);
+    appendContractRun(paths, withNodes, Date.parse('2026-09-25T12:00:00Z'), 'b');
+    const [run] = readLedger(paths).filter(isContractRun);
+    expect(run!.wise).toEqual({ uses: ['container:web-app'] });
   });
 
   it('records outcomes; the asker cannot mark its own run held', () => {
