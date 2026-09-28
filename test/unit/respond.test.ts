@@ -209,6 +209,20 @@ describe('probeWarnings (item F, round 4 fix batch G) [C-198]: up to 3 warn-only
     expect(probeWarnings(side([oneQuestion('Does `src/handler.ts` sanitize the field?')], []))).toEqual([]);
   });
 
+  it('a backticked code identifier (not a file path) is never flagged, even without a matching where:', () => {
+    expect(probeWarnings(side([oneQuestion('Does `req.query.id` get validated before use?')], ['src/handler.ts']))).toEqual([]);
+    expect(probeWarnings(side([oneQuestion('Is `db.query` called with a parameterized string?')], ['src/handler.ts']))).toEqual([]);
+  });
+
+  it('a backticked file path not in where: is still flagged', () => {
+    expect(probeWarnings(side([oneQuestion('Does `src/other.ts` sanitize the field?')], ['src/handler.ts']))).toEqual([
+      'probe: "src/other.ts" is named in a question but not in where: — it has nothing to answer from',
+    ]);
+    expect(probeWarnings(side([oneQuestion('Does `config.json` hold the secret?')], ['src/handler.ts']))).toEqual([
+      'probe: "config.json" is named in a question but not in where: — it has nothing to answer from',
+    ]);
+  });
+
   it('a sweep layer\'s own questions are checked too, not just flat categories', () => {
     const swept: Side = { goal: 'x', where: [], categories: [], layers: [{ name: 'file', categories: [oneQuestion('Does it validate and also normalize input?')] }] };
     expect(probeWarnings(swept)).toEqual(['probe: "Does it validate and also normalize input?" reads as two questions joined into one — split it']);

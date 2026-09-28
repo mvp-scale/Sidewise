@@ -164,6 +164,23 @@ export function dryRunText(
 
 const MAX_PROBE_WARNINGS = 3;
 
+/** Extensions the file-path backtick check treats as "looks like a real file" — enough to tell `src/other.ts`
+ *  or `config.json` (a path with nothing to answer from) apart from a backticked code identifier like
+ *  `db.query` or `req.query.id` (the sidewise-probe skill tells agents to backtick both kinds). */
+const PATH_EXTENSIONS = new Set([
+  'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'rs', 'java', 'rb', 'php', 'cs', 'json', 'yaml', 'yml', 'html', 'sql', 'md', 'sh', 'env',
+]);
+
+/** A backticked token is worth checking against `where:` only when it looks like a file path: it has a `/`,
+ *  or its last dotted segment is a known file extension. A bare code identifier (`db.query`, `req.query.id`)
+ *  has a dot but no recognized extension, so it's left alone. */
+function looksLikeFilePath(text: string): boolean {
+  if (text.includes('/')) return true;
+  const dot = text.lastIndexOf('.');
+  if (dot <= 0 || dot === text.length - 1) return false;
+  return PATH_EXTENSIONS.has(text.slice(dot + 1).toLowerCase());
+}
+
 /** Every yes/no/scale/choice question across a request's own shape: flat categories for one subject, or every
  *  layer's categories for a sweep — never both at once (`Side.categories` is empty in a sweep, `Side.layers` is
  *  empty for one subject). */
@@ -187,7 +204,7 @@ export function probeWarnings(side: Side): string[] {
     if (side.where.length > 0) {
       for (const m of q.text.matchAll(/`([^`]+)`/g)) {
         const named = m[1]!;
-        if (!side.where.includes(named) && !side.where.some((w) => w.startsWith(`${named}:`))) {
+        if (looksLikeFilePath(named) && !side.where.includes(named) && !side.where.some((w) => w.startsWith(`${named}:`))) {
           warnings.push(`probe: "${clip(named, 60)}" is named in a question but not in where: — it has nothing to answer from`);
         }
       }
