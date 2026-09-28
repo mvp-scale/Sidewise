@@ -97,6 +97,13 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
   if (parent.items !== null) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} was a sweep → run the sweep again (unchanged items are reused for free)`], 'change') };
 
   const categories = parent.ask.categories;
+  // expect: names which of the parent's concerns this change should turn to pass (plan 2b) — every entry must
+  // be a real concern of the parent; decisions categories don't count (they're never "fixed").
+  const concernNames = categories.filter((c) => c.section === 'concerns').map((c) => c.name);
+  const badExpect = request.side.expect!.find((name) => !concernNames.includes(name));
+  if (badExpect !== undefined) {
+    return { exit: 2, text: stopText([`✖ side.expect: "${badExpect}" is not a concern of ${parent.id} → use one of ${concernNames.join(', ')}`], 'change') };
+  }
   // Two ranges on one file (parent.where can hold both) must read and charge it once, not once per range.
   const paths = [...new Set(parent.where.map((w) => w.split(':')[0]!))];
 
@@ -166,6 +173,19 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     ),
   ]);
 
+  // The agent's own prediction, graded against what actually happened: a concern named in expect: is "fixed"
+  // when it missed/was mid before and clears now, "still" when it missed/was mid before and still doesn't
+  // clear. A concern that already passed before predicts nothing meaningful either way, so it's left out of
+  // both lists (plan 2b: "grading the prediction against the expected concerns").
+  const gradeByName = new Map(changeGrade.categories.map((c) => [c.name, c]));
+  const expectedFixed: string[] = [];
+  const expectedStill: string[] = [];
+  for (const name of request.side.expect!) {
+    const g = gradeByName.get(name);
+    if (!g || g.before === 'pass') continue;
+    (g.after === 'pass' ? expectedFixed : expectedStill).push(name);
+  }
+
   // Both states can add WHOLE_FILE_NOTE (once per call, per git.ts); shown once here, since it's one fact about the run.
   let sawWholeFileNote = false;
   const evidenceNotes = [...before.notes, ...after.notes].filter((n) => {
@@ -184,6 +204,7 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
         ['gate', gate],
         ['goal', m(['gate', goal.gate], ['p', goal.p])],
         ...catEntries,
+        ['expected', m(['fixed', expectedFixed], ['still', expectedStill])],
         ['regressed', regressed],
         ...(reusedRunIds.length ? [['reused', reusedRunIds] as [string, Value]] : []),
       ),
@@ -231,6 +252,9 @@ export async function runChange(text: string, ctx: VerbContext): Promise<VerbRes
     calls: calls.length,
     route: identity.route,
     baseURL: identity.baseURL,
+    // change replays the parent's own questions rather than reading the worktree at HEAD, so there's no single
+    // commit this run itself is "at" the way class/scan/loop/drill are — left null on purpose.
+    commit: null,
   };
 
   const rec = calls.length === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
