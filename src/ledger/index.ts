@@ -39,6 +39,12 @@
  *   outcomes(run_id PK, outcome, ts, by): latest outcome per run.
  *   places(kind, val, run_id): one row per `where` entry (kind 'where') or legacy tag (kind 'tag'), literal
  *     values only (no prefix expansion at write time — `placeCandidates` below does a LIKE-prefix read instead).
+ *   families(run_id, family): one row per distinct concern `family` a run's own categories carry (plan 2b) —
+ *     a normalized table, not a JSON blob, so `sidewise report` can `GROUP BY family` with a plain indexed
+ *     query. The `wise` column's own JSON blob already carries problem/nodes/touches/blast for free (it
+ *     serializes the run's whole `Wise` object verbatim, and that type gained those fields in plan 2b too) —
+ *     no schema change needed for those; `family` is the one genuinely new thing to index, since it lives on
+ *     each `Category`, not on `wise`.
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
@@ -336,6 +342,9 @@ interface MemoryState {
   reuseKey: Map<string, Map<string, { runId: string; qid: string }>>;
   candidatesByWho: Map<string, Candidate[]>;
   places: { kind: 'where' | 'tag'; val: string; runId: string }[];
+  /** Mirrors the SQL engine's `categories` table (plan 2b: family/section per category, queryable) — kept for
+   *  parity between the two engines even though nothing reads it back yet (see runCategories's own comment). */
+  categories: { runId: string; name: string; section: string; family: string | null; gate: string | null }[];
   childrenByParent: Map<string, Candidate[]>;
   outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
   /** Every run, oldest first, regardless of adapter/model — `recentChanges`/`patternCounts` need a global view
@@ -347,7 +356,7 @@ interface MemoryState {
 }
 
 function emptyMemoryState(): MemoryState {
-  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], childrenByParent: new Map(), outcomes: new Map(), allRuns: [], runCount: 0, upto: 0, lineCount: 0 };
+  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], categories: [], childrenByParent: new Map(), outcomes: new Map(), allRuns: [], runCount: 0, upto: 0, lineCount: 0 };
 }
 
 function memorySink(state: MemoryState): Sink {
@@ -370,6 +379,7 @@ function memorySink(state: MemoryState): Sink {
         for (const [qid, key] of Object.entries(rec.keys)) table.set(key, { runId: rec.reusedFrom[qid] ?? rec.id, qid });
         for (const w of rec.where) state.places.push({ kind: 'where', val: stripLines(w), runId: rec.id });
         for (const p of sweepPlaces(rec)) state.places.push({ ...p, runId: rec.id });
+        for (const c of runCategories(rec)) state.categories.push({ runId: rec.id, name: c.name, section: c.section, family: c.family ?? null, gate: rec.categories[c.name] ?? null });
       } else {
         for (const w of rec.where) state.places.push({ kind: 'where', val: w.path, runId: rec.id });
         for (const t of rec.tags) state.places.push({ kind: 'tag', val: t, runId: rec.id });
@@ -517,6 +527,12 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // SQLite engine.
 // ---------------------------------------------------------------------------------------------------------------
 
+// Bumped to 5 (from 4) here: a new `categories` table carries each contract run's own category shapes
+// (name, section, family, its own gate) — plan 2b's "family per category as queryable" — populated the same
+// way `places`/`answer_keys` are, from the same one-subject `ask.categories` or sweep `ask.layers[].categories`
+// (never both). The new wise fields (problem/nodes/touches/blast) need no schema change at all: `wiseJson`
+// already serializes the whole `wise` object into `runs.wise` verbatim, so they're already queryable via
+// json_extract on that column, same as why/area/stage were before them.
 // Bumped to 4 (from 3) here: runs gained a `pattern` column (+ its own index, and one on `verb`) for
 // `sidewise report patterns`/`history` (patternCounts/recentChanges) — see patternFingerprint's own comment.
 // Bumped to 3 (from 2) here: runs gained a `parent` column (+ its own index) so view's "down" lineage walk
@@ -525,7 +541,7 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // needs the original outcome record's uid back). A stale on-disk index built under an older version self-heals
 // via the existing schema-version-mismatch rebuild trigger — no migration needed, just a rebuild, which is
 // exactly what self-healing is for.
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 const SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -568,7 +584,24 @@ CREATE TABLE places (
   PRIMARY KEY (kind, val, run_id)
 );
 CREATE INDEX idx_places_val ON places(kind, val);
+CREATE TABLE categories (
+  run_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  section TEXT NOT NULL,
+  family TEXT,
+  gate TEXT,
+  PRIMARY KEY (run_id, name)
+);
+CREATE INDEX idx_categories_family ON categories(family);
 `;
+
+/** Every category a contract run's own ask carries: one-subject (`ask.categories`) or a sweep's own layers
+ *  (`ask.layers[].categories`), never both (validate.ts's checkCross builds it the same way) — feeds the
+ *  `categories` table (family/section per category, plan 2b), populated identically by both engines below. */
+function runCategories(rec: RunRecord | ContractRun): Category[] {
+  if (!isContractRun(rec)) return [];
+  return rec.ask.categories.length ? rec.ask.categories : rec.ask.layers.flatMap((l) => l.categories);
+}
 
 // Minimal surface used from node:sqlite (see node-sqlite.d.ts): kept as a structural type so the fallback path
 // never has to import the module eagerly, and a test can hand in a fake for fault injection.
@@ -683,6 +716,7 @@ interface SqlStatements {
   insertKey: SqliteStatement;
   insertOutcome: SqliteStatement;
   insertPlace: SqliteStatement;
+  insertCategory: SqliteStatement;
   updateBlocked: SqliteStatement;
 }
 
@@ -692,6 +726,7 @@ function prepStatements(db: SqliteDb): SqlStatements {
     insertKey: db.prepare('INSERT OR REPLACE INTO answer_keys (adapter, model, key, run_id, qid) VALUES (?, ?, ?, ?, ?)'),
     insertOutcome: db.prepare('INSERT OR REPLACE INTO outcomes (run_id, outcome, uid, ts, by) VALUES (?, ?, ?, ?, ?)'),
     insertPlace: db.prepare('INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)'),
+    insertCategory: db.prepare('INSERT OR REPLACE INTO categories (run_id, name, section, family, gate) VALUES (?, ?, ?, ?, ?)'),
     updateBlocked: db.prepare('UPDATE runs SET blocked = ? WHERE id = ?'),
   };
 }
@@ -714,6 +749,7 @@ function sqlSink(stmts: SqlStatements): Sink {
         for (const [qid, key] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run('where', stripLines(w), rec.id);
         for (const p of sweepPlaces(rec)) stmts.insertPlace.run(p.kind, p.val, rec.id);
+        for (const c of runCategories(rec)) stmts.insertCategory.run(rec.id, c.name, c.section, c.family ?? null, rec.categories[c.name] ?? null);
       } else {
         for (const w of rec.where) stmts.insertPlace.run('where', w.path, rec.id);
         for (const t of rec.tags) stmts.insertPlace.run('tag', t, rec.id);
