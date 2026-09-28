@@ -6,18 +6,21 @@ side:
   parent: SW-0051
   from: access                     # a category from the parent run, not an item — no "over" here
   ask:
-    concerns:
-      reach:
+    concerns:                                   # reach/guard/sink are injection's own 3 roles (sidewise agent probe) — named
+      reach:                                    # by role here, not by family, so family: is given explicitly on each
+        family: injection
         pass: no
         1: Is the value taken from `req.query` without validation?
         2: Is it concatenated straight into the query string?
         3: Does it skip a parameterized query on the way in?
       guard:
+        family: injection
         pass: yes
         4: Is the value parsed to a number before use?
         5: Is it bound as a parameter instead of concatenated?
         6: Is it checked against the caller's own session id?
       sink:
+        family: injection
         pass: no
         7: Does the query run with `db.query` on that string?
         8: Is the query built inside a loop, once per row?

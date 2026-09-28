@@ -10,18 +10,21 @@ side:
     call: each                                # the NEXT layer down from the item named above
   ask:                                        # required — the parent's 3 angles become 3 new concerns here, each attacked from 3 angles of its own
     call:
-      concerns:
-        reach:
+      concerns:                                 # reach/guard/sink are injection's own 3 roles (sidewise agent probe) — named
+        reach:                                  # by role here, not by family, so family: is given explicitly on each
+          family: injection
           pass: no
           1: Does {call} pass request text into SQL?
           2: Is {call}'s argument built by string concatenation?
           3: Is {call} reachable from an unauthenticated route?
         guard:
+          family: injection
           pass: yes
           4: Is {call}'s argument parsed to a number before use?
           5: Is {call}'s argument bound as a parameter instead of concatenated?
           6: Is {call}'s argument validated against an allow-list?
         sink:
+          family: injection
           pass: no
           7: Does {call} hit `db.query` directly?
           8: Does {call} run inside a transaction with no timeout?

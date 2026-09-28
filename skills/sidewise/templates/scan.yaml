@@ -21,10 +21,11 @@ side:
           5: Does {function} skip comparing the record's owner to the caller?
           6: Could {function} return another user's record by changing the id alone?
         leaks:
+          family: output                        # output's own roles (sidewise agent probe): source, encode, render
           pass: no
-          7: Does {function} return a raw database error to the caller?
-          8: Does {function} log the full request body?
-          9: Does {function}'s response include fields the caller never asked for?
+          7: Does {function} return a raw database error to the caller?              # source
+          8: Does {function} log the full request body?                             # encode (no redaction before it's written out)
+          9: Does {function}'s response include fields the caller never asked for?   # render
       decisions:                              # 2-5 categories; at least one scale and one choice
         severity:
           pass: [none, low]

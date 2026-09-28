@@ -7,10 +7,11 @@ side:
   ask:
     concerns:
       safety:
+        family: correctness                     # correctness's own roles (sidewise agent probe): input, rule, result
         pass: yes
-        1: Does the parameterized-query fix remove the injection?
-        2: Does it handle every call site, not just the reported one?
-        3: Is the fix free of a new injection point of its own?
+        1: Does the parameterized-query fix remove the injection?           # result
+        2: Does it handle every call site, not just the reported one?       # rule (the fix's own completeness rule)
+        3: Is the fix free of a new injection point of its own?             # input (the fix's own new inputs)
       quality:
         pass: yes
         4: Is the query still readable after the fix?
