@@ -36,8 +36,11 @@ interface CliPair {
 
 const REPORT_PAIRS: readonly CliPair[] = [
   {
-    rule: 'there is no view beyond hits, patterns, history and web — nothing else to ask it for.',
-    bad: ['sidewise report level2', '→ ✖ report: "level2" is not a view → use hits, patterns, history or web'],
+    rule: 'there is no view beyond hits, patterns, history, web, graph, problems, wise, calls and fields — nothing else to ask it for.',
+    bad: [
+      'sidewise report level2',
+      '→ ✖ report: "level2" is not a view → use hits, patterns, history, web, graph, problems, wise, calls or fields',
+    ],
     good: ['sidewise report patterns'],
   },
 ];

@@ -219,12 +219,14 @@ function reportCard(): string {
     ['tool: report'],
     [
       '- free: never calls a provider, never writes to the ledger',
-      '- views: hits (default), patterns, history, web — nothing else',
+      '- views: hits (default), patterns, history, web, graph, problems, wise, calls, fields',
       '- web writes one file, .sidewise/viewer.html, and tries to open it — the only view that writes anything',
+      '- graph/problems/wise/calls read the graph tier (its own watermark, refreshed on read, never on a paid call)',
+      '- fields: undeclared wise keys with counts/samples/a suggested type; --accept <field> writes it into config wise:',
     ],
     [
       'patterns:',
-      '- why: no view beyond hits, patterns, history or web exists',
+      '- why: no view beyond hits, patterns, history, web, graph, problems, wise, calls or fields exists',
       '  bad:',
       '    sidewise report level2',
       '  good:',
