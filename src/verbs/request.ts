@@ -2,6 +2,7 @@
 import { readRequestText } from '../contract/read.ts';
 import type { Request, Verb } from '../contract/types.ts';
 import { validateRequest } from '../contract/validate.ts';
+import type { WiseField } from '../contract/wise-fields.ts';
 import type { VerbResult } from './types.ts';
 
 const MAX_STOPS = 5;
@@ -24,10 +25,13 @@ export function stopText(stops: readonly string[], verb: AgentTarget): string {
   return [...lines, `→ see: sidewise agent ${verb}`].join('\n');
 }
 
-export function loadRequest(text: string, verb: Verb): { ok: true; request: Request; notes: string[] } | { ok: false; result: VerbResult } {
+/** `wiseFields` (plan 2c B1): the caller's effective (project `.sidewise/config.yaml` `wise:`-aware) field
+ *  table — build it once via `effectiveWiseFields(resolveConfig(paths, env).config.wise)` and pass it in;
+ *  omitted, this validates against the built-in table only (the pre-B1 behavior every existing caller keeps). */
+export function loadRequest(text: string, verb: Verb, wiseFields?: readonly WiseField[]): { ok: true; request: Request; notes: string[] } | { ok: false; result: VerbResult } {
   const read = readRequestText(text);
   if (!read.ok) return { ok: false, result: { exit: 2, text: stopText(read.stops, verb) } };
-  const v = validateRequest(read.value, verb, text);
+  const v = validateRequest(read.value, verb, text, wiseFields);
   if (!v.ok) return { ok: false, result: { exit: 2, text: stopText(v.stops.map((s) => s.text), verb) } };
   return { ok: true, request: v.request, notes: v.notes };
 }

@@ -6,9 +6,11 @@
  * and the response carries an extra scanned: {layer: count, ...} line.
  */
 import { providerIdentity } from '../classifier/select.ts';
+import { resolveConfig } from '../config/load.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
 import { m, type Value } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
+import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { expandGlob } from '../evidence/glob.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import { createCodeResolver } from '../evidence/units.ts';
@@ -50,7 +52,9 @@ function unlookedEntrypoints(root: string, items: readonly { unit?: { path: stri
 }
 
 export async function runScan(text: string, ctx: VerbContext): Promise<VerbResult> {
-  const loaded = loadRequest(text, 'scan');
+  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
+  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const loaded = loadRequest(text, 'scan', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const notes: string[] = [];

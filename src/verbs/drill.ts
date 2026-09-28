@@ -12,11 +12,13 @@
  * (unchanged items are reused, so it is nearly free), since replay refuses a sweep parent outright.
  */
 import { providerIdentity } from '../classifier/select.ts';
+import { resolveConfig } from '../config/load.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { goalGate, gradeItems, gradeSubject, sweepGate, worstFirst } from '../contract/grade.ts';
 import { firstStringLayer, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer, Category, Request } from '../contract/types.ts';
+import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { readCodeEvidence, type ReadCodeEvidenceOptions } from '../evidence/code.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import { createCodeResolver, readUnit } from '../evidence/units.ts';
@@ -174,7 +176,9 @@ async function runOneSubjectProof(
 }
 
 export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResult> {
-  const loaded = loadRequest(text, 'drill');
+  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
+  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const loaded = loadRequest(text, 'drill', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 

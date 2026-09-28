@@ -5,9 +5,11 @@
  * scan/drill's worst-first) and responds.
  */
 import { providerIdentity } from '../classifier/select.ts';
+import { resolveConfig } from '../config/load.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
 import { m } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
+import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
@@ -17,7 +19,9 @@ import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDr
 import type { VerbContext, VerbResult } from './types.ts';
 
 export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResult> {
-  const loaded = loadRequest(text, 'loop');
+  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
+  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const loaded = loadRequest(text, 'loop', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 

@@ -6,9 +6,11 @@
  * gate even when every "after" category passes.
  */
 import { providerIdentity } from '../classifier/select.ts';
+import { resolveConfig } from '../config/load.ts';
 import { combine, gradeSubject, goalGate, type Mark } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions, type AskedQuestion } from '../contract/translate.ts';
 import type { Answer, Category, Gate } from '../contract/types.ts';
+import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { readGitEvidence, resolveRefSha, WHOLE_FILE_NOTE } from '../evidence/git.ts';
 import { findRun, isContractRun, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
@@ -84,7 +86,9 @@ export function gradeReplay(categories: readonly Category[], answers: Record<str
 }
 
 export async function runReplay(text: string, ctx: VerbContext): Promise<VerbResult> {
-  const loaded = loadRequest(text, 'replay');
+  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
+  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const loaded = loadRequest(text, 'replay', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 

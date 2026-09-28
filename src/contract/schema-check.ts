@@ -284,9 +284,19 @@ function checkSide(side: unknown, verb: Verb | undefined, out: Out): void {
 
 /** Every catalog field, dispatched by kind — the single place that decides which checker a field's value goes
  *  through, generated from wise-fields.ts's WISE_FIELDS table (plan 2c A4: "schema check, validator, card and
- *  stops are generated" from one module). `parent` isn't in WISE_FIELDS (it's an alias of side.parent, a run id,
- *  not a catalog value) and keeps its own check below, same as before. */
+ *  stops are generated" from one module) or a project's own effective (config-overridden) table (plan 2c B1).
+ *  `parent` isn't in WISE_FIELDS (it's an alias of side.parent, a run id, not a catalog value) and keeps its own
+ *  check below, same as before. A `literal: true` override (plan 2c B1's `wise.<field>.literal`) skips every
+ *  kind-based check below and falls back to the same "one line ≤160, or a list of ≤5, recorded as-is" treatment
+ *  a custom (non-catalog) key already gets — the field keeps its catalog `key`/enum for the card's own
+ *  documentation, but a project that set `literal` has said it doesn't want that enum enforced. A `pattern`
+ *  override (freetext fields only) is an ADDITIONAL check on top of the normal length/line checks, never a
+ *  replacement for them. */
 function checkWiseField(field: WiseField, v: unknown, out: Out): void {
+  if (field.literal) {
+    checkCustomWiseValue(field.key, v, out);
+    return;
+  }
   switch (field.kind) {
     case 'closed-single':
       checkClosedSingle(field, v, out);
@@ -296,7 +306,19 @@ function checkWiseField(field: WiseField, v: unknown, out: Out): void {
       return;
     case 'freetext': {
       const bad = lineProblem(v);
-      if (bad) out.add(`wise.${field.key}`, bad, "write one line of 3–160 characters: what you're solving now");
+      if (bad) {
+        out.add(`wise.${field.key}`, bad, "write one line of 3–160 characters: what you're solving now");
+        return;
+      }
+      if (field.pattern !== undefined && typeof v === 'string') {
+        let matches: boolean;
+        try {
+          matches = new RegExp(field.pattern, 'u').test(v);
+        } catch {
+          matches = true; // a broken pattern in the project's own config must never block every request — fail open
+        }
+        if (!matches) out.add(`wise.${field.key}`, show(v), `must match the project's pattern for this field: ${field.pattern}`);
+      }
       return;
     }
     case 'chain-list':
@@ -310,11 +332,11 @@ function checkWiseField(field: WiseField, v: unknown, out: Out): void {
 
 /** Any wise key beyond the catalog and `parent`: accepted when it's a valid lower-kebab key (≤20 chars) whose
  *  value is one line ≤160, or a list of ≤5 such lines — recorded as-is, no further checking (plan 2c A4's
- *  "custom keys"). A malformed key (not kebab-case, too long, uppercase) still gets the old "not a field" stop. */
-/** A key that isn't in the catalog and isn't shaped like a valid custom key (not lower-kebab, or over the
- *  length cap) — the old "not a field" stop. */
-function checkUnknownWiseKey(k: string, out: Out): void {
-  out.add(`wise.${clip(k, 20)}`, 'not a field', `use ${list(WISE_KEYS)}, or a lower-kebab key ≤${MAX_CUSTOM_KEY_LEN} characters`);
+ *  "custom keys"). A malformed key (not kebab-case, too long, uppercase) still gets the old "not a field" stop.
+ *  `keys` (plan 2c B1): the effective key list to suggest, including any project alias — defaults to the
+ *  built-in WISE_KEYS for a caller with no effective table of its own. */
+function checkUnknownWiseKey(k: string, out: Out, keys: readonly string[] = WISE_KEYS): void {
+  out.add(`wise.${clip(k, 20)}`, 'not a field', `use ${list(keys)}, or a lower-kebab key ≤${MAX_CUSTOM_KEY_LEN} characters`);
 }
 
 /** A validly-shaped custom key's own value: one line ≤160, or a list of ≤5 such lines, recorded as-is. */
@@ -350,15 +372,31 @@ export function wiseBlockLineCount(rawText: string | undefined): number | undefi
   return count;
 }
 
-function checkWise(wise: unknown, out: Out, rawText?: string): void {
+/** `wiseFields` (plan 2c B1): the project's effective (config-overridden) table, or WISE_FIELDS by default. A
+ *  field with a project `as:` alias (`field.alias`) accepts EITHER its built-in `key` or the alias in the
+ *  request — an alias adds a name, it never takes the original away — but not both at once (ambiguous: which
+ *  one wins?), which is its own stop. */
+function checkWise(wise: unknown, out: Out, rawText?: string, wiseFields: readonly WiseField[] = WISE_FIELDS): void {
   if (!isObj(wise)) return out.add('wise', 'is not a mapping', 'write why:, area: or parent: under wise:, or leave wise out');
-  const byKey = new Map(WISE_FIELDS.map((f) => [f.key, f]));
-  const isKnown = (k: string): boolean => k === WISE_PARENT_KEY || byKey.has(k);
+  const byKey = new Map(wiseFields.map((f) => [f.key, f]));
+  const byAlias = new Map(wiseFields.filter((f): f is WiseField & { alias: string } => f.alias !== undefined).map((f) => [f.alias, f]));
+  const isKnown = (k: string): boolean => k === WISE_PARENT_KEY || byKey.has(k) || byAlias.has(k);
+  const effectiveKeys = [...wiseFields.flatMap((f) => (f.alias !== undefined ? [f.key, f.alias] : [f.key])), WISE_PARENT_KEY];
   // Pass 1: every genuinely unrecognized key (old behavior: these stops come first, regardless of where the
   // key sits in the object — same discipline as the old blanket "for k of keys" pass this replaces).
-  for (const k of Object.keys(wise)) if (!isKnown(k) && !isCustomKey(k)) checkUnknownWiseKey(k, out);
+  for (const k of Object.keys(wise)) if (!isKnown(k) && !isCustomKey(k)) checkUnknownWiseKey(k, out, effectiveKeys);
   // Pass 2: every catalog field present, in the table's own order (not object insertion order) — stable output.
-  for (const f of WISE_FIELDS) if (f.key in wise) checkWiseField(f, wise[f.key], out);
+  for (const f of wiseFields) {
+    const hasKey = f.key in wise;
+    const hasAlias = f.alias !== undefined && f.alias in wise;
+    if (hasKey && hasAlias) {
+      out.add(`wise.${f.alias}`, `given alongside its own alias wise.${f.key}`, `use one of wise.${f.key} or wise.${f.alias}, not both`);
+    } else if (hasKey) {
+      checkWiseField(f, wise[f.key], out);
+    } else if (hasAlias) {
+      checkWiseField(f, wise[f.alias!], out);
+    }
+  }
   if (WISE_PARENT_KEY in wise && !(typeof wise[WISE_PARENT_KEY] === 'string' && RUN_ID.test(wise[WISE_PARENT_KEY] as string))) {
     out.add(`wise.${WISE_PARENT_KEY}`, `${show(wise[WISE_PARENT_KEY])} is not a run id`, 'use SW-####');
   }
@@ -375,7 +413,10 @@ function checkWise(wise: unknown, out: Out, rawText?: string): void {
  *  here is verb-agnostic, matching the published schema (which has no concept of verb either). `rawText`: the
  *  original request text, threaded through only so checkWise can count the wise: block's own SOURCE lines
  *  (plan 2c A4's ≤25-line cap) — a parsed value has already lost the formatting that cap is measured against. */
-export function checkSchema(value: unknown, verb?: Verb, rawText?: string): Stop[] {
+/** `wiseFields` (plan 2c B1): the caller's effective wise table (built-in WISE_FIELDS, merged with any project
+ *  `.sidewise/config.yaml` `wise:` overrides via `effectiveWiseFields`) — defaults to the built-in table so
+ *  every existing caller with no project/config keeps today's exact behavior. */
+export function checkSchema(value: unknown, verb?: Verb, rawText?: string, wiseFields: readonly WiseField[] = WISE_FIELDS): Stop[] {
   const out = new Out();
   if (!isObj(value)) {
     out.add('request', 'is not a mapping', 'start with side:');
@@ -386,6 +427,6 @@ export function checkSchema(value: unknown, verb?: Verb, rawText?: string): Stop
   }
   if (!('side' in value)) out.add('side', 'missing', 'start with side: and a goal');
   else checkSide(value.side, verb, out);
-  if ('wise' in value) checkWise(value.wise, out, rawText);
+  if ('wise' in value) checkWise(value.wise, out, rawText, wiseFields);
   return out.stops;
 }

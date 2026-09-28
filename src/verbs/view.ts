@@ -13,6 +13,7 @@ import type { ResolveStored } from '../classifier/typesafe/client.ts';
 import { resolveConfig } from '../config/load.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
+import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import type { Gate } from '../contract/types.ts';
 import { RUN_ID } from '../ledger/ids.ts';
@@ -310,7 +311,9 @@ function runsForPlaces(paths: SidewisePaths, places: readonly string[]): Contrac
 
 /** Request mode: the contract's own view shape. loadRequest and readCodeEvidence stop it exactly as class does. */
 function runRequestMode(text: string, ctx: ViewContext): VerbResult {
-  const loaded = loadRequest(text, 'view');
+  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
+  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const loaded = loadRequest(text, 'view', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 

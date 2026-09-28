@@ -2,9 +2,13 @@
  * The wise v2 field table (plan 2c A4): the single source every wise-block consumer is generated from — the
  * schema check (schema-check.ts's checkWise), the cross-validator (validate.ts), the `sidewise agent wise`
  * legend card (help/agent.ts), and `sidewise help wise` (help/topics.ts). One table, one place to add a field
- * or change a note, so none of those four views can quietly drift from each other. Phase B makes this
- * config-aware (`.sidewise/config.yaml`'s `wise: {...}` overrides); today it's the built-in defaults only.
+ * or change a note, so none of those four views can quietly drift from each other. Plan 2c B1 makes this
+ * config-aware: `effectiveWiseFields` below merges a project's `.sidewise/config.yaml` `wise: {...}` overrides
+ * on top of WISE_FIELDS; every consumer that has a project now threads the EFFECTIVE table through instead of
+ * importing WISE_FIELDS directly (a caller with no project, or one that omits the parameter, still gets exactly
+ * today's built-in behavior — see each function's own optional `wiseFields` parameter).
  */
+import type { WiseFieldOverride } from '../config/defaults.ts';
 import { AREAS, BLASTS, CHANGES, RISKS, STAGES, WHYS, type Area, type Blast, type Change, type Risk, type Stage, type Why } from './types.ts';
 
 /** `unknown` is always a legal value for a closed field, alongside its own enum (plan 2c: "fill what you know"). */
@@ -21,6 +25,21 @@ export interface WiseField {
   maxList?: number;
   /** The one-line doc note shown after the field in the card (e.g. area's "omit for whole-system questions..."). */
   note?: string;
+  /** plan 2c B1 config override (`wise.<key>.as`): an additional name a request may use for this field instead
+   *  of (or alongside) its built-in `key` — both names validate identically and both are accepted in a request;
+   *  only ever set by `effectiveWiseFields`, never in the built-in WISE_FIELDS table. */
+  alias?: string;
+  /** plan 2c B1 config override (`wise.<key>.pattern`): a regex source a freetext-kind field's value(s) must
+   *  additionally match, on top of the normal length/line checks. Ignored for closed/chain-list fields. */
+  pattern?: string;
+  /** plan 2c B1 config override (`wise.<key>.link`): Phase C graph-index metadata (a `handled-by` edge to a
+   *  `where` path) — carried through so it round-trips, but not consumed by schema validation or the card body
+   *  beyond a passthrough note; no graph exists yet to link to. */
+  link?: string;
+  /** plan 2c B1 config override (`wise.<key>.literal`): when true, this built-in field is recorded as-is with
+   *  no shape checking at all (the same "no further checking" treatment a custom wise key already gets), even
+   *  though it keeps its catalog `key`/enum for the card's own documentation purposes. */
+  literal?: boolean;
 }
 
 /** Order matters: this is the order the card's FIELDS block, and respond.ts's wiseRecorded, both render in. */
@@ -42,6 +61,44 @@ export const WISE_FIELDS: readonly WiseField[] = [
 export const WISE_PARENT_KEY = 'parent';
 
 export const WISE_KEYS: readonly string[] = [...WISE_FIELDS.map((f) => f.key), WISE_PARENT_KEY];
+
+/**
+ * Merges a project's `.sidewise/config.yaml` `wise: {...}` overrides onto the built-in WISE_FIELDS table (plan
+ * 2c B1). No overrides (the common case: `{}` or `undefined`) returns WISE_FIELDS itself, unchanged — every
+ * consumer's own optional `wiseFields` parameter defaults to `WISE_FIELDS` too, so a caller with no project
+ * config sees exactly today's built-in behavior either way.
+ *
+ * Merge rules, per override field:
+ *   values  — REPLACES the field's enum outright (closedValues still always adds `unknown` on top).
+ *   note    — REPLACES the card's one-line note.
+ *   as      — sets `alias`: an ADDITIONAL name a request may use for this field; the original `key` still
+ *             works too (an alias adds a name, it doesn't take one away) — see schema-check.ts's checkWise for
+ *             how both are accepted and validated identically.
+ *   pattern — carried through as-is (schema-check.ts applies it to freetext-kind fields).
+ *   link    — carried through as-is; no validation or graph meaning yet (Phase C).
+ *   literal — carried through as-is; schema-check.ts skips this field's normal shape checks when set.
+ *
+ * The 5 C4 chain levels (CHAIN_LEVELS) and the `uses` chain grammar (CHAIN_RE) are never touched here — B1 is
+ * explicit that they're not overridable — and `parent`/`unknown` (WISE_PARENT_KEY/UNKNOWN_VALUE) are fixed
+ * vocabulary, never subject to a `wise.<field>` override (there is no catalog field named `parent` or `unknown`
+ * to look up in `overrides` in the first place).
+ */
+export function effectiveWiseFields(overrides: Record<string, WiseFieldOverride> | undefined): readonly WiseField[] {
+  if (!overrides || Object.keys(overrides).length === 0) return WISE_FIELDS;
+  return WISE_FIELDS.map((f) => {
+    const o = overrides[f.key];
+    if (!o) return f;
+    return {
+      ...f,
+      ...(o.values !== undefined ? { values: o.values } : {}),
+      ...(o.note !== undefined ? { note: o.note } : {}),
+      ...(o.as !== undefined ? { alias: o.as } : {}),
+      ...(o.pattern !== undefined ? { pattern: o.pattern } : {}),
+      ...(o.link !== undefined ? { link: o.link } : {}),
+      ...(o.literal !== undefined ? { literal: o.literal } : {}),
+    };
+  });
+}
 
 /** The C4 chain grammar (plan 2c A4): chain := part (" -> " part)*, part := level:name("/"name)*["?"].
  *  `?` may end ANY part (card v2.1: "end any part with ?", not just the code level). */

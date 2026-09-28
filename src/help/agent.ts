@@ -47,7 +47,10 @@
  * not in `help`'s card, since an agent is the one that actually passes `project`/sets `SIDEWISE_HOME`.
  */
 import { hasKey, resolveJevConfig, type ResolveStored } from '../classifier/typesafe/client.ts';
-import { VERBS, type Verb } from '../contract/types.ts';
+import { resolveConfig } from '../config/load.ts';
+import { BLASTS, VERBS, type Verb } from '../contract/types.ts';
+import { CHAIN_LEVELS, effectiveWiseFields, MAX_WISE_LINES, UNKNOWN_VALUE, WISE_FIELDS, closedValues, type WiseField } from '../contract/wise-fields.ts';
+import type { SidewisePaths } from '../ledger/paths.ts';
 import { inPluginContext, NO_KEY_PLUGIN_HINT } from '../setup/plugin.ts';
 import type { VerbResult } from '../verbs/types.ts';
 import { clip, hasControlChars } from '../util/text.ts';
@@ -55,7 +58,6 @@ import { terseLines } from './patterns.ts';
 import { TOOL_LINE } from './report.ts';
 import { BAD_PROBE_EXAMPLE, FAMILY_ROLES, PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
 import { SHARP, VERB_LINE } from './verbs.ts';
-import { CHAIN_LEVELS, MAX_WISE_LINES, UNKNOWN_VALUE, WISE_FIELDS, closedValues, type WiseField } from '../contract/wise-fields.ts';
 
 const isVerb = (s: string): s is Verb => (VERBS as readonly string[]).includes(s);
 
@@ -280,24 +282,37 @@ function configCard(): string {
  *  order a reader scans the C4 levels in. Card-display order only; validation still goes through closedValues. */
 const BLAST_CARD_ORDER = ['person', 'system', 'container', 'component', 'code'];
 
-function wiseCard(): string {
-  const [why, area, stage, change, risk, problem, uses, blast, touches] = WISE_FIELDS as unknown as [
+/** A field's note, plus its project alias (`wise.<field>.as`, plan 2c B1) when it has one — an alias ADDS a
+ *  name (the original key still works too, per wise-fields.ts's effectiveWiseFields), so the card says so
+ *  rather than silently relabeling the field and hiding the original. */
+function noteWithAlias(field: WiseField): string {
+  return field.alias ? `${field.note ?? ''}${field.note ? ' ' : ''}(also: wise.${field.alias})` : (field.note ?? '');
+}
+
+/** `wiseFields` (plan 2c B1, F2): the caller's effective (project-config-aware) table — defaults to the
+ *  built-in WISE_FIELDS, the exact card `sidewise agent wise` always printed before config overrides existed.
+ *  Values/notes come straight from whichever table is given; `blast`'s card-display order (below) falls back to
+ *  the built-in widest-first BLAST_CARD_ORDER only when its values are still the built-in default — an override
+ *  is shown in its own given order instead. */
+function wiseCard(wiseFields: readonly WiseField[] = WISE_FIELDS): string {
+  const [why, area, stage, change, risk, problem, uses, blast, touches] = wiseFields as unknown as [
     WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField,
   ];
+  const blastValues = blast.values === BLASTS ? BLAST_CARD_ORDER : closedValues(blast).slice(0, -1);
   return [
     `tool: wise — optional, free, ≤${MAX_WISE_LINES} lines. Flat keys; the only nesting is a list.`,
     "Every field is optional: fill what you know, omit what doesn't apply.",
     '',
     'FIELDS',
-    `  why      ${closedValues(why).slice(0, -1).join(' | ')}`,
-    `  area     ${closedValues(area).slice(0, -1).join(' | ')}          (list ≤${area.maxList}; ${area.note})`,
-    `  stage    ${closedValues(stage).slice(0, -1).join(' | ')}   (${stage.note})`,
-    `  change   ${closedValues(change).slice(0, -1).join(' | ')}   (${change.note})`,
-    `  risk     ${closedValues(risk).slice(0, -1).join(' | ')}         ${risk.note}`,
-    `  problem  ${problem.note}`,
-    `  uses     ${uses.note}`,
-    `  blast    ${BLAST_CARD_ORDER.join(' | ')}   ${blast.note}`,
-    `  touches  ${touches.note}`,
+    `  why      ${closedValues(why).slice(0, -1).join(' | ')}${why.alias ? `  (also: wise.${why.alias})` : ''}`,
+    `  area     ${closedValues(area).slice(0, -1).join(' | ')}          (list ≤${area.maxList}; ${noteWithAlias(area)})`,
+    `  stage    ${closedValues(stage).slice(0, -1).join(' | ')}   (${noteWithAlias(stage)})`,
+    `  change   ${closedValues(change).slice(0, -1).join(' | ')}   (${noteWithAlias(change)})`,
+    `  risk     ${closedValues(risk).slice(0, -1).join(' | ')}         ${noteWithAlias(risk)}`,
+    `  problem  ${noteWithAlias(problem)}`,
+    `  uses     ${noteWithAlias(uses)}`,
+    `  blast    ${blastValues.join(' | ')}   ${noteWithAlias(blast)}`,
+    `  touches  ${noteWithAlias(touches)}`,
     `  <other>  any kebab-case key: one line ≤160 or a list ≤5, recorded as-is`,
     `  ${UNKNOWN_VALUE}  allowed as a value for any closed field`,
     '',
@@ -353,15 +368,19 @@ export const AGENT_EXTRAS: readonly string[] = Object.keys(AGENT_TOPICS);
 
 /** `env`/`deps` default to an empty environment (no key, not inside the plugin) so every existing caller that
  *  doesn't care about the no-key hint — every verb/tool card is unaffected by either — keeps working
- *  unchanged; cli.ts's real wiring passes `ctx.env` and the same `resolveStored` doctor uses. */
+ *  unchanged; cli.ts's real wiring passes `ctx.env` and the same `resolveStored` doctor uses. `deps.paths`
+ *  (plan 2c B1, additive): when given, `sidewise agent wise` reads that project's own `.sidewise/config.yaml`
+ *  `wise:` overrides and generates the card from the EFFECTIVE table instead of the built-in one; omitted
+ *  (every existing caller/test), the card stays exactly the built-in one it always was. */
 export function runAgent(
   target?: string,
   env: Record<string, string | undefined> = {},
-  deps: { resolveStored?: ResolveStored } = {},
+  deps: { resolveStored?: ResolveStored; paths?: SidewisePaths } = {},
 ): VerbResult {
   if (target === undefined || target === '') return { exit: 0, text: overview(env, deps) };
   if (hasControlChars(target)) return { exit: 2, text: '✖ agent: the target has control characters → use a verb name' };
   if (isVerb(target)) return { exit: 0, text: verbCard(target) };
+  if (target === 'wise' && deps.paths) return { exit: 0, text: wiseCard(effectiveWiseFields(resolveConfig(deps.paths, env).config.wise)) };
   if (Object.hasOwn(AGENT_TOPICS, target)) return { exit: 0, text: AGENT_TOPICS[target]!() };
   return { exit: 2, text: `✖ agent: "${clip(target, 40)}" is not a verb → one of ${VERBS.join(', ')}, or ${agentExtras().map((t) => `"${t}"`).join(', ')}` };
 }

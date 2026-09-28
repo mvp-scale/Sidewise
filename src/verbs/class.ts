@@ -9,10 +9,12 @@
  */
 import { providerIdentity } from '../classifier/select.ts';
 import { checkBudget, peekBudget } from '../budget/budget.ts';
+import { resolveConfig } from '../config/load.ts';
 import type { Value } from '../contract/emit.ts';
 import { gradeSubject } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import type { Answer } from '../contract/types.ts';
+import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun, TelemetryEntry } from '../ledger/log.ts';
@@ -27,7 +29,9 @@ import type { VerbContext, VerbResult } from './types.ts';
 const CAP_NOTE = 'would be blocked: the budget cap is already reached';
 
 export async function runClass(text: string, ctx: VerbContext): Promise<VerbResult> {
-  const loaded = loadRequest(text, 'class');
+  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
+  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const loaded = loadRequest(text, 'class', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 

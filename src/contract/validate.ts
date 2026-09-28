@@ -11,6 +11,7 @@
 import { clip } from '../util/text.ts';
 import { blanksIn, checkOver, mapLayers, type StringRule } from './layers.ts';
 import { checkSchema, isObj } from './schema-check.ts';
+import type { WiseField } from './wise-fields.ts';
 import {
   DECISIONS_MAX,
   DECISIONS_MIN,
@@ -360,12 +361,13 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
 
 /** `rawText`: the original request text (before YAML parsing), passed through only so checkSchema's wise:
  *  line-cap check (plan 2c A4) can count the block's own source lines — everything else here works on the
- *  already-parsed `value`. */
-export function validateRequest(value: unknown, verb: Verb, rawText?: string): Validated {
+ *  already-parsed `value`. `wiseFields` (plan 2c B1): the caller's effective (project-config-aware) wise table,
+ *  passed straight through to checkSchema; omitted, every caller keeps the built-in table. */
+export function validateRequest(value: unknown, verb: Verb, rawText?: string, wiseFields?: readonly WiseField[]): Validated {
   const blanks: Stop[] = [];
   findBlanks(value, '', blanks);
   if (blanks.length) return { ok: false, stops: blanks };
-  const schema = checkSchema(value, verb, rawText);
+  const schema = checkSchema(value, verb, rawText, wiseFields);
   if (schema.length) return { ok: false, stops: schema };
   const raw = value as Record<string, unknown>;
   const { stops, side, notes: crossNotes } = checkCross(raw, verb);
