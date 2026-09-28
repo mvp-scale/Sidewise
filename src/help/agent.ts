@@ -5,13 +5,21 @@
  * drift) then the same good/bad pairs (patterns.ts), why-only, no prose — atomic directives, one instruction
  * per line, imperative, no prose framing or decoration. Every card below — the overview and each verb/tool
  * card — is assembled by the one `renderCard` builder, in one fixed key order: identifier line(s) first
- * (`verb:`/`verbs:` for the six verbs, `tool:`/`tools:` for everything else), then `rules:`, then `patterns:`
- * only when the target has any, then `run:` only when it points further — so no card can quietly drift from
- * another's shape (test/unit/agent.test.ts checks this order holds for every card `agent` prints).
+ * (`verb:`/`verbs:` for the six verbs, `tool:`/`tools:` for everything else — the overview's `verbs (pick by
+ * goal):`/`tools:` sections are themselves multi-line, one purpose-bearing bullet per entry, but still land
+ * before `rules:`), then `rules:`, then `patterns:` only when the target has any, then `run:` only when it
+ * points further — so no card can quietly drift from another's shape (test/unit/agent.test.ts checks this
+ * order holds for every card `agent` prints).
  *
- * `agent` alone (no verb) gives the universal rules plus the verb list and the `tools:` line, and points at
+ * `agent` alone (no verb) gives the universal rules plus a `verbs (pick by goal):` list and a `tools:` list,
+ * each entry one atomic line naming what it's for — not just its name — so an agent holding a goal ("is this
+ * handler safe to merge?") rather than a verb name can map straight to the right one, and points at
  * `sidewise agent <verb>`/`<tool>` to go deeper, and explicitly at `sidewise agent probe` for the
- * question-shape rules. `probe`/`outcome`/`budget`/`report`/`template` are recognized non-verb targets too
+ * question-shape rules. Those purpose lines are never invented here: verbs.ts's `VERB_LINE` and report.ts's
+ * `TOOL_LINE` are the one shared source `help`'s own one-screen card (card.ts) renders too, so the two views
+ * can't state a different purpose for the same command. [C-189]
+ *
+ * `probe`/`outcome`/`budget`/`report`/`template` are recognized non-verb targets too
  * (round 3 smoke testing: `outcome` was undocumented in both `help` and `agent`, round3-findings.md's
  * "PRODUCT, confirmed" finding; `budget`/`report` got the same treatment for consistency; `template` — a real
  * command a cold agent needs before writing a request, and until now missing from `agent` entirely — followed
@@ -27,7 +35,9 @@ import { VERBS, type Verb } from '../contract/types.ts';
 import type { VerbResult } from '../verbs/types.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { terseLines } from './patterns.ts';
+import { TOOL_LINE } from './report.ts';
 import { PROBE_RULES, ruleLines } from './rules.ts';
+import { VERB_LINE } from './verbs.ts';
 
 const isVerb = (s: string): s is Verb => (VERBS as readonly string[]).includes(s);
 
@@ -39,16 +49,24 @@ function renderCard(id: readonly string[], rules: readonly string[], patterns: r
 }
 
 /** The real commands beyond the six verbs a cold agent needs, in the order shown on `agent`'s own `tools:`
- *  line — setup-only commands (init, uninstall, mcp, doctor) are deliberately left off. `probe` is a rules
+ *  section — setup-only commands (init, uninstall, mcp, doctor) are deliberately left off. `probe` is a rules
  *  topic, not a "tool" a request calls out to, so it's pointed at with its own `run:` line instead (below). */
-const AGENT_TOOLS = ['report', 'outcome', 'budget', 'template'] as const;
+export const AGENT_TOOLS = ['report', 'outcome', 'budget', 'template'] as const;
 
+/** `verbs (pick by goal):` then `tools:`, each followed by one `- name: purpose` bullet per entry, from the
+ *  same VERB_LINE/TOOL_LINE text `help`'s card renders (verbs.ts, report.ts) — never a second, divergent
+ *  copy. [C-189] */
 function overview(): string {
   return renderCard(
-    [`verbs: ${VERBS.join(', ')}`, `tools: ${AGENT_TOOLS.join(', ')}`],
+    [
+      'verbs (pick by goal):',
+      ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`),
+      'tools:',
+      ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`),
+    ],
     ruleLines('card'),
     [],
-    ['run: sidewise agent <verb>', 'run: sidewise agent <tool>', 'run: sidewise agent probe'],
+    ['run: sidewise agent <verb|tool> — before writing that request', 'run: sidewise agent probe — before writing questions: how to phrase one'],
   );
 }
 

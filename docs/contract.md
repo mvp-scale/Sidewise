@@ -722,19 +722,33 @@ universal rules, and a pointer to `sidewise agent probe`. Beyond the six verbs, 
 sidewise agent <verb>`, C-153) names this, not `help` — a stop is read by the agent that sent the request.
 [C-173]
 
-`sidewise agent` with no target also prints a `tools: report, outcome, budget, template` line, right after the
-verb list — the other real commands a cold agent needs before writing a request; setup-only commands (`init`,
-`uninstall`, `mcp`, `doctor`) are deliberately left off. `sidewise agent template` is a new bare card, the same
-shape as `outcome`/`budget`/`report`. Every card `agent` prints — the overview and each verb/tool — is
-assembled in one fixed key order: its identifier line(s) first (`verb:`/`verbs:` for a verb, `tool:`/`tools:`
-for everything else, including `probe`), then `rules:`, then `patterns:` only when that target has any, then
-`run:` only when it points further — a non-verb card's identifier line now reads `tool: <name>`, not the
-former `target: <name>`, so it matches a verb card's own `verb: <name>` line for line. [C-187]
+`sidewise agent` with no target also prints a `tools:` section, right after the verb list — the other real
+commands a cold agent needs before writing a request; setup-only commands (`init`, `uninstall`, `mcp`,
+`doctor`) are deliberately left off. `sidewise agent template` is a new bare card, the same shape as
+`outcome`/`budget`/`report`. Every card `agent` prints — the overview and each verb/tool — is assembled in one
+fixed key order: its identifier line(s) first (`verb:`/`verbs:` for a verb, `tool:`/`tools:` for everything
+else, including `probe`), then `rules:`, then `patterns:` only when that target has any, then `run:` only when
+it points further — a non-verb card's identifier line now reads `tool: <name>`, not the former `target: <name>`,
+so it matches a verb card's own `verb: <name>` line for line. [C-187]
 
 The Claude Code skill's own "Run this first" guidance (`skills/sidewise/SKILL.md`, carried verbatim into
 `AGENTS.md`'s "Using Sidewise" section and into `GEMINI.md`) sends a cold agent to `sidewise agent` (no verb)
 first — it names every command, including `report`/`outcome`/`budget`/`template`, in one card — before
 `sidewise agent <command>` on whichever one it's about to use, ahead of writing any request. [C-188]
+
+`sidewise agent` with no target lists one atomic purpose line under each verb and tool, not just its name —
+`verbs (pick by goal):` followed by `- view: free; what's already known, before any paid call`, one such
+bullet per verb, then a `tools:` section shaped the same way — so an agent holding a goal ("is this handler
+safe to merge?") rather than a verb name can map straight to the right one; the closing `run:` lines say what
+each next step is *for* too (`sidewise agent <verb|tool> — before writing that request`,
+`sidewise agent probe — before writing questions: how to phrase one`), rather than just naming it. These
+purpose lines are never a second, hand-typed copy: verbs' come from `help/verbs.ts`'s `VERB_LINE`, and the four
+tools' from `help/report.ts`'s `TOOL_LINE` — the same shared constants `sidewise help`'s own one-screen card
+(`help/card.ts`) renders too (its "Pick your verb" bullets and its "## Tools" section), so `help` and `agent`
+can't state a different purpose for the same command. The card's `rules:` section itself also dropped the
+`P(yes)` notation from the pass-bar rule (`pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between
+is unsure`) — the same simplification for both `help` and `agent`, since it's one shared rule (`rules.ts`).
+[C-189]
 
 ---
 

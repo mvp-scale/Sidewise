@@ -1,14 +1,18 @@
 // sidewise agent [verb]: free, no project needed — help's terse, agent-facing twin. [C-173]
 import { describe, expect, it } from 'vitest';
 import { VERBS } from '../../src/contract/types.ts';
-import { runAgent } from '../../src/help/agent.ts';
+import { AGENT_TOOLS, runAgent } from '../../src/help/agent.ts';
+import { runHelp } from '../../src/help/index.ts';
+import { TOOL_LINE } from '../../src/help/report.ts';
 import { PROBE_RULES, RULES } from '../../src/help/rules.ts';
+import { VERB_LINE } from '../../src/help/verbs.ts';
 
 describe('runAgent', () => {
   it('with no target: the verb list plus the universal rules, no prose', () => {
     const r = runAgent();
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('verbs: ' + VERBS.join(', '));
+    expect(r.text).toContain('verbs (pick by goal):');
+    for (const v of VERBS) expect(r.text).toContain(`- ${v}: `);
     expect(r.text).toContain('rules:');
     expect(r.text).not.toContain('##'); // no help-style headings
     expect(r.text).not.toContain('Sharp rules:'); // no help-style prose either
@@ -69,8 +73,34 @@ describe('runAgent', () => {
     expect(r.text).not.toMatch(/^##\s/mu); // no help-style headings
   });
 
-  it('[C-187] agent with no target lists the tools line, beyond the six verbs', () => {
-    expect(runAgent().text).toContain('tools: report, outcome, budget, template');
+  it('[C-187] agent with no target lists a tools section, beyond the six verbs', () => {
+    const text = runAgent().text;
+    expect(text).toContain('tools:');
+    for (const t of AGENT_TOOLS) expect(text).toContain(`- ${t}: `);
+  });
+
+  describe('[C-189] overview purpose lines: one each, shared verbatim with help', () => {
+    it('every verb has exactly one purpose line in the overview, matching VERB_LINE', () => {
+      const lines = runAgent().text.split('\n');
+      for (const v of VERBS) {
+        const matches = lines.filter((l) => l.startsWith(`- ${v}: `));
+        expect(matches, `expected exactly one purpose line for verb ${v}`).toEqual([`- ${v}: ${VERB_LINE[v]}`]);
+      }
+    });
+
+    it('every tool has exactly one purpose line in the overview, matching TOOL_LINE', () => {
+      const lines = runAgent().text.split('\n');
+      for (const t of AGENT_TOOLS) {
+        const matches = lines.filter((l) => l.startsWith(`- ${t}: `));
+        expect(matches, `expected exactly one purpose line for tool ${t}`).toEqual([`- ${t}: ${TOOL_LINE[t]}`]);
+      }
+    });
+
+    it('help\'s own card states the same purpose text as agent\'s overview, for every verb and tool', () => {
+      const helpText = runHelp().text;
+      for (const v of VERBS) expect(helpText, `help card missing agent's ${v} line`).toContain(`- ${v}: ${VERB_LINE[v]}`);
+      for (const t of AGENT_TOOLS) expect(helpText, `help card missing agent's ${t} line`).toContain(`${TOOL_LINE[t]}`);
+    });
   });
 
   it('[C-187] agent template: a recognized non-verb tool, bare, with a good/bad pair', () => {
@@ -101,10 +131,11 @@ describe('runAgent', () => {
 describe('every agent card follows the same key order', () => {
   const NON_VERBS = ['probe', 'outcome', 'budget', 'report', 'template'] as const;
 
-  /** 0 = an identifier line (verb:/verbs:/tool:/tools:), 1 = rules:, 2 = patterns:, 3 = run: — undefined for
-   *  any other line (a rule/pattern bullet, or bad/good body text), which carries no ordering constraint. */
+  /** 0 = an identifier line (verb:/verbs:/tool:/tools:, including the overview's "verbs (pick by goal):"
+   *  header), 1 = rules:, 2 = patterns:, 3 = run: — undefined for any other line (a purpose/rule/pattern
+   *  bullet, or bad/good body text), which carries no ordering constraint. */
   function tier(line: string): number | undefined {
-    if (/^verbs?: /.test(line) || /^tools?: /.test(line)) return 0;
+    if (/^verbs?[: (]/.test(line) || /^tools?[: (]/.test(line)) return 0;
     if (line === 'rules:') return 1;
     if (line === 'patterns:') return 2;
     if (line.startsWith('run:')) return 3;

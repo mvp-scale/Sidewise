@@ -12,7 +12,19 @@
  * check. `help/agent.ts` hand-writes its own terse cards for these targets rather than importing these (an
  * agent card is why-only with no rule prose to reuse), so these types stay internal to this module's own
  * prose rendering.
+ *
+ * `TOOL_LINE` below is the one exception: a one-atomic-line-each summary for all four tools — the three above
+ * plus `template` (whose own full human help page doesn't exist yet, only `agent`'s terse card) — shared
+ * verbatim between `help`'s one-screen card (card.ts's "Tools" list) and `agent`'s overview (agent.ts), the
+ * same discipline as verbs.ts's `VERB_LINE`. [C-189]
  */
+export const TOOL_LINE: Record<'report' | 'outcome' | 'budget' | 'template', string> = {
+  report: 'brief from history; free, no new checks',
+  outcome: 'record held/overruled/failed on a run (held needs a second actor)',
+  budget: 'show or set the spend and run caps',
+  template: 'print a valid starting request for a verb',
+};
+
 interface CliPair {
   /** One full sentence: why the bad version doesn't work — help's own prose. */
   readonly rule: string;

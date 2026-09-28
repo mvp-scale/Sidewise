@@ -21,7 +21,7 @@ export const RULES: readonly Rule[] = [
     in: ['card', 'authoring', 'class', 'scan', 'loop'],
   },
   { text: `where: at most 5 path entries — this is all the code a run sees`, in: ['card', 'authoring', 'class', 'view'] },
-  { text: `pass: yes clears at P(yes) >= 0.70; pass: no clears at P(yes) <= 0.30; in between is unsure`, in: ['card', 'verdict'] },
+  { text: `pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between is unsure`, in: ['card', 'verdict'] },
   { text: `every question in a category must point the same way as its pass:`, in: ['authoring'] },
   { text: `wise.why is one of ${list(WHYS)}`, in: ['wise'] },
   { text: `wise.area is one of ${list(AREAS)}`, in: ['wise'] },

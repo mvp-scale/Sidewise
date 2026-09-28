@@ -76,6 +76,21 @@ const WHEN: Record<Verb, string> = {
   loop: 'a design, a plan or a feature request before any code exists.',
 };
 
+/**
+ * One atomic line per verb: how to pick it by goal, not by name — condensed from PURPOSE/WHEN above into the
+ * one line a dense card has room for. Shared verbatim between `help`'s one-screen card (card.ts's "Pick your
+ * verb" list) and `agent`'s overview (agent.ts), so an agent holding a goal ("is this safe to merge?") and a
+ * human reading `help` can't be told a different story about the same verb. [C-189]
+ */
+export const VERB_LINE: Record<Verb, string> = {
+  view: "free; what's already known, before any paid call",
+  class: 'one decision on one thing (merge, choose, triage, check a fix)',
+  change: "re-check a run's questions after a fix, across two git refs",
+  scan: "sweep many files when the problem's location is unknown",
+  drill: 'go down from one flagged item of an earlier run',
+  loop: 'check a design or plan before code exists',
+};
+
 export function verbHelp(verb: Verb): string {
   return [
     `## ${verb}`,

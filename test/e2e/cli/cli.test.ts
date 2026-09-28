@@ -180,7 +180,8 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
   it('sidewise agent [verb]: free, no project needed, terse — help\'s agent-facing twin [C-173]', () => {
     const overview = sidewise('/', ['agent'], { home: false });
     expect(overview.status).toBe(0);
-    expect(overview.stdout).toContain('verbs: view, class, change, scan, drill, loop');
+    expect(overview.stdout).toContain('verbs (pick by goal):');
+    for (const verb of ['view', 'class', 'change', 'scan', 'drill', 'loop']) expect(overview.stdout).toContain(`- ${verb}: `);
 
     const classCard = sidewise('/', ['agent', 'class'], { home: false });
     expect(classCard.status).toBe(0);
