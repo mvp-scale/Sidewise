@@ -168,7 +168,10 @@ describe('scan', () => {
     const r2 = await runScan(REQUEST, { paths, provider, env });
     expect(provider.calls).toHaveLength(2); // exactly one new call
     const secondCall = provider.calls[1]!;
-    expect(secondCall.questions.map((q) => q.id)).toEqual(Array.from({ length: 11 }, (_, i) => `src/a.ts/bad#${i + 1}`)); // only the changed function is asked, all 11 of its questions
+    // Plan 2c B11: the goal's own reuse key is the sorted concatenation of every resolved item's own text
+    // (bad's changed, good's didn't) — bad's own text changing moves that concatenation, so the goal itself
+    // is no longer reused either, and rides this same call (first in the questions list) alongside bad's 11.
+    expect(secondCall.questions.map((q) => q.id)).toEqual(['goal', ...Array.from({ length: 11 }, (_, i) => `src/a.ts/bad#${i + 1}`)]);
     expect(Object.keys(secondCall.state.items ?? {})).toEqual(['src/a.ts/bad']); // and it carries only that function
     expect(r2.text).toContain('reused: 1'); // src/b.ts/good, unchanged, is still free
   });

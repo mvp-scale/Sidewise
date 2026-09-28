@@ -62,6 +62,12 @@ interface LayerWork {
   callQuestions: AskedQuestion[];
   itemIds: string[];
   skipped: string[];
+  /** Every item this run actually resolved (reused whole, or asked) — i.e. everything with an ask that wasn't
+   *  skipped past the depth cap. Plan 2c B11: this is the set the goal's own reuse key is built from, since it
+   *  stays identical between two runs of the same unchanged sweep regardless of which individual items happen
+   *  to reuse vs get asked fresh — only a real code/text change to one of them (or a change in which items are
+   *  skipped) can move it. */
+  resolvedItems: Item[];
 }
 
 /** Groups items by .layer, preserving relative order. */
@@ -86,7 +92,9 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
   const { layers, items } = expand(request.side.over!, opts);
   const itemsByLayer = groupByLayer(items);
 
-  // Pass 1: every ask, flat, grouped by item so pass 2 can look a whole item's asks up at once.
+  // Pass 1: every ask, flat, grouped by item so pass 2 can look a whole item's asks up at once. The goal's own
+  // key isn't known yet (plan 2c B11 — it depends on which items pass 2 ends up ASKING), so it isn't collected
+  // here; item keys only.
   const asksByItem = new Map<string, LayerAsk[]>();
   const allKeys: string[] = [];
   for (const layer of request.side.layers) {
@@ -97,10 +105,8 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
     }
   }
   const goalQ = goalQuestion(request.side.goal);
-  const goalKey = answerKey('', goalQ);
-  allKeys.push(goalKey);
 
-  // One lookup for every key collected above — not one per item.
+  // One lookup for every item key collected above — not one per item.
   const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun });
 
   const cap = SWEEP_ITEM_CAP[request.side.depth ?? 'quick'];
@@ -116,11 +122,13 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
     const callQuestions: AskedQuestion[] = [];
     const itemIds: string[] = [];
     const skipped: string[] = [];
+    const resolvedItems: Item[] = [];
     for (const item of itemsByLayer.get(layer.name) ?? []) {
       const itemAsks = asksByItem.get(item.id) ?? [];
       if (!itemAsks.length) continue; // this layer has no categories: status stays 'none'
       const missing = itemAsks.filter((a) => !reused.has(a.key));
       if (missing.length === 0) {
+        resolvedItems.push(item);
         for (const a of itemAsks) {
           const hit = reused.get(a.key)!;
           reusedFrom.set(a.q.id, hit.id);
@@ -133,6 +141,7 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
         askedCount += 1;
         callItems.push(item);
         itemIds.push(item.id);
+        resolvedItems.push(item);
         for (const a of itemAsks) {
           keys.set(a.q.id, a.key);
           const hit = reused.get(a.key);
@@ -146,12 +155,29 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
         }
       }
     }
-    return { layer: layer.name, callItems, callQuestions, itemIds, skipped };
+    return { layer: layer.name, callItems, callQuestions, itemIds, skipped, resolvedItems };
   });
+
+  // B11 (plan 2c): the goal's own reuse key includes evidence — the sorted concatenation of every RESOLVED
+  // item's own unit text (every item with an ask that wasn't skipped past the depth cap: reused whole or asked
+  // fresh both count, so the same unchanged sweep always builds the identical concatenation whether or not any
+  // individual item happens to reuse this time — only a real change to one of them, or a change in which items
+  // are skipped, can move it). Any code change to a resolved item changes its `item.text`, which
+  // changes this concatenation, which changes the key — so the goal can never wrongly reuse an old verdict
+  // against code that changed underneath it. Sorted by item id for a deterministic order regardless of layer/
+  // item enumeration order; joined by "\n" (item text itself never contains a literal newline — itemsState/
+  // answerKey already treat it as one line). Empty when no item was asked at all this run (every item reused or
+  // skipped) — nothing new to invalidate the goal against, so it keys the same as an empty sweep always did.
+  const resolvedItems = work.flatMap((w) => w.resolvedItems).sort((a, b) => a.id.localeCompare(b.id));
+  const resolvedText = resolvedItems.map((it) => it.text).join('\n');
+  const goalKey = answerKey(resolvedText, goalQ);
+  // A second, separate ledger READ (never a paid provider call — this doesn't touch the "one call per layer"
+  // rule) now that the key is finally known; readOnly matches the item lookup above.
+  const goalReused = lookupAnswers(paths, who, [goalKey], { readOnly: dryRun });
 
   // The goal: one reuse key for the whole run, resolved once. Unreused, it rides the first layer (in order):
   // that layer either already has item questions (the goal joins them) or gets a call just to carry the goal.
-  const goalHit = reused.get(goalKey);
+  const goalHit = goalReused.get(goalKey);
   if (goalHit) {
     reusedFrom.set(goalQ.id, goalHit.id);
     keys.set(goalQ.id, goalKey);
