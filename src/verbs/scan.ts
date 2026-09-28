@@ -112,17 +112,18 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
       ),
     );
 
+  const where = whereFromItems(plan.items);
   const run: NewContractRun = {
     verb: 'scan',
     actor: actorOf(ctx),
     task: ctx.env.SIDEWISE_TASK?.trim() || null,
     goal: request.side.goal,
     depth: request.side.depth ?? null,
-    where: whereFromItems(plan.items),
+    where,
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root),
+    commit: currentCommitSha(ctx.paths.root, where),
     wise: request.wise,
     ask: { categories: [], layers: request.side.layers },
     over: request.side.over!,

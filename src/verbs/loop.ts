@@ -77,7 +77,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root),
+    commit: currentCommitSha(ctx.paths.root, request.side.where),
     wise: request.wise,
     ask: { categories: [], layers: request.side.layers },
     over: request.side.over!,

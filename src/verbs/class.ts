@@ -126,7 +126,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root),
+    commit: currentCommitSha(ctx.paths.root, request.side.where),
     wise: request.wise,
     ask: { categories: request.side.categories, layers: [] },
     over: null,

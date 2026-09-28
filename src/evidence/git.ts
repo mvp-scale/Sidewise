@@ -29,15 +29,6 @@ export function hasGit(deps?: { spawn?: Spawn }): boolean {
   return spawn('git', ['--version'], {}).status === 0;
 }
 
-/** The repo's current HEAD commit sha (`git rev-parse HEAD`), or null when `root` isn't a git repo, or git is
- *  absent — the ledger's own `commit` field (plan 2b). Never a stop: a run without a commit sha still logs. */
-export function currentCommitSha(root: string, deps?: { spawn?: Spawn }): string | null {
-  const spawn = deps?.spawn ?? spawnSync;
-  const result = spawn('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
-  const out = typeof result.stdout === 'string' ? result.stdout.trim() : '';
-  return result.status === 0 && out ? out : null;
-}
-
 /** The nearest git repo actually containing `dir` (its own `git rev-parse --show-toplevel`), not necessarily
  *  the Sidewise project root — a monorepo package or a vendored project one level down is its own repo.
  *  `undefined` when `dir` isn't inside any repo at all (git itself is the source of truth here, not a
@@ -46,6 +37,42 @@ function gitRootOf(dir: string, spawn: Spawn): string | undefined {
   const result = spawn('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8' });
   const out = typeof result.stdout === 'string' ? result.stdout.trim() : '';
   return result.status === 0 && out ? out : undefined;
+}
+
+/** The directory to resolve a run's own containing repo from: the first `where` entry (stripped of any
+ *  `:line-range` suffix), resolved against `root` the same way readGitEvidence resolves a compared path — or
+ *  `root` itself when there's no `where` entry at all (a sweep verb like loop, which records no file paths). */
+function firstWhereDir(root: string, wherePaths: readonly string[]): string {
+  const first = wherePaths[0];
+  if (!first) return root;
+  return path.dirname(path.resolve(root, first.split(':')[0]!));
+}
+
+/** Resolves `ref` to its sha in the git repo that actually CONTAINS this run's own `where` files (`git -C <dir
+ *  of first where path>`), not necessarily the Sidewise project root — a monorepo package or a vendored project
+ *  one level down is its own repo (plan 2c B1). `ref === 'worktree'` resolves to that repo's own HEAD (the
+ *  working tree's own commit); any other ref is resolved literally (`git rev-parse <ref>`), guarded by the same
+ *  `isGitOption` check `readGitEvidence` uses so a `-`-prefixed ref can never reach git. Null when: the ref
+ *  looks like an option, `where` is non-empty but its path isn't inside any repo, git can't resolve the ref, or
+ *  git is absent. When `where` is empty, falls back to `root`'s own repo (exactly `currentCommitSha`'s old,
+ *  pre-plan-2c behavior) — there's no file to resolve a containing repo from. Never a stop: a run without a
+ *  commit sha still logs. */
+export function resolveRefSha(root: string, ref: string, wherePaths: readonly string[], deps?: { spawn?: Spawn }): string | null {
+  if (ref !== 'worktree' && isGitOption(ref)) return null;
+  const spawn = deps?.spawn ?? spawnSync;
+  const dir = firstWhereDir(root, wherePaths);
+  const gitRoot = gitRootOf(dir, spawn) ?? (wherePaths.length ? undefined : root);
+  if (!gitRoot) return null;
+  const result = spawn('git', ['rev-parse', ref === 'worktree' ? 'HEAD' : ref], { cwd: gitRoot, encoding: 'utf8' });
+  const out = typeof result.stdout === 'string' ? result.stdout.trim() : '';
+  return result.status === 0 && out ? out : null;
+}
+
+/** The repo HEAD sha of whichever repo actually contains this run's own `where` files (plan 2c B1 — see
+ *  `resolveRefSha`), or null when it isn't in a repo, or git is absent — the ledger's own `commit` field.
+ *  `wherePaths` defaults to `[]` (falls back to `root`'s own repo) for any caller with no file paths of its own. */
+export function currentCommitSha(root: string, wherePaths: readonly string[] = [], deps?: { spawn?: Spawn }): string | null {
+  return resolveRefSha(root, 'worktree', wherePaths, deps);
 }
 
 /** Redact, then cap per file and in total, exactly like evidence/code.ts's EVIDENCE_LIMITS. */

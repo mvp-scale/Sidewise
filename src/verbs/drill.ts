@@ -142,7 +142,7 @@ async function runOneSubjectProof(
     parent: request.side.parent!,
     from: request.side.from!,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root),
+    commit: currentCommitSha(ctx.paths.root, where),
     wise: request.wise,
     ask: { categories: request.side.categories, layers: [] },
     over: null,
@@ -284,17 +284,18 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
         ),
       );
 
+    const where = whereFromItems(plan.items);
     const run: NewContractRun = {
       verb: 'drill',
       actor: actorOf(ctx),
       task: ctx.env.SIDEWISE_TASK?.trim() || null,
       goal: request.side.goal,
       depth: request.side.depth ?? null,
-      where: whereFromItems(plan.items),
+      where,
       parent: request.side.parent!,
       from: request.side.from!,
       compare: null,
-      commit: currentCommitSha(ctx.paths.root),
+      commit: currentCommitSha(ctx.paths.root, where),
       wise: request.wise,
       ask: { categories: [], layers: request.side.layers },
       over: request.side.over!,

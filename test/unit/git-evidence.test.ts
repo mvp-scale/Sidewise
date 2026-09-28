@@ -2,7 +2,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { currentCommitSha, hasGit, isGitOption, readGitEvidence } from '../../src/evidence/git.ts';
+import { currentCommitSha, hasGit, isGitOption, readGitEvidence, resolveRefSha } from '../../src/evidence/git.ts';
 import { gitCommit, gitInit, tempProject } from '../helpers/project.ts';
 
 describe('isGitOption', () => {
@@ -54,7 +54,7 @@ describe('currentCommitSha (plan 2b: the ledger\'s own run.commit field)', () =>
   it('null when the project is not a git repo, and never calls spawn for a nonexistent one', () => {
     const { root } = tempProject({});
     const spawn = vi.fn(() => ({ status: 1, stdout: '' }));
-    expect(currentCommitSha(root, { spawn: spawn as never })).toBeNull();
+    expect(currentCommitSha(root, [], { spawn: spawn as never })).toBeNull();
     expect(spawn).toHaveBeenCalledWith('git', ['rev-parse', 'HEAD'], expect.objectContaining({ cwd: root }));
   });
 
@@ -64,5 +64,45 @@ describe('currentCommitSha (plan 2b: the ledger\'s own run.commit field)', () =>
     gitInit(root);
     const sha = gitCommit(root, 'first');
     expect(currentCommitSha(root)).toBe(sha);
+  });
+
+  // Plan 2c B1: commit is the HEAD of the repo that CONTAINS the run's own where files, not the ledger root's
+  // repo — same nested-repo shape as readGitEvidence's own fix #13 above.
+  it('resolves the HEAD of the repo containing the first where path, not the (non-repo) ledger root', (ctx) => {
+    const { root } = tempProject({});
+    if (!hasGit()) return ctx.skip();
+    const nested = path.join(root, 'nested');
+    mkdirSync(path.join(nested, 'src'), { recursive: true });
+    writeFileSync(path.join(nested, 'src', 'a.ts'), 'export const x = 1;\n');
+    gitInit(nested); // the Sidewise root itself is never a git repo here
+    const sha = gitCommit(nested, 'nested commit');
+    expect(currentCommitSha(root, ['nested/src/a.ts:1-3'])).toBe(sha);
+  });
+
+  it('null when the where path is inside no repo at all, even though the ledger root has no repo to fall back to either', () => {
+    const { root } = tempProject({ 'src/a.ts': 'x' });
+    const spawn = vi.fn(() => ({ status: 1, stdout: '' }));
+    expect(currentCommitSha(root, ['src/a.ts'], { spawn: spawn as never })).toBeNull();
+  });
+});
+
+describe('resolveRefSha (plan 2c B1: replay\'s own commit/commits.before/commits.after)', () => {
+  it('never lets an option-shaped ref reach git', () => {
+    const { root } = tempProject({});
+    const spawn = vi.fn();
+    expect(resolveRefSha(root, '--output=x', [], { spawn: spawn as never })).toBeNull();
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('resolves a real ref (not just HEAD) in the repo containing the first where path', (ctx) => {
+    const { root } = tempProject({});
+    if (!hasGit()) return ctx.skip();
+    const nested = path.join(root, 'nested');
+    mkdirSync(path.join(nested, 'src'), { recursive: true });
+    writeFileSync(path.join(nested, 'src', 'a.ts'), 'export const x = 1;\n');
+    gitInit(nested);
+    const sha = gitCommit(nested, 'nested commit');
+    expect(resolveRefSha(root, sha, ['nested/src/a.ts'])).toBe(sha);
+    expect(resolveRefSha(root, 'worktree', ['nested/src/a.ts'])).toBe(sha);
   });
 });

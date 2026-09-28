@@ -123,6 +123,14 @@ export interface ContractRun {
    *  route/baseURL above: an older record simply never had one. The index's own column for this is named
    *  after the OTel semantic convention `vcs.ref.head.revision` (docs only — no code depends on that name). */
   commit?: string | null;
+  /** replay only (plan 2c B2): which of the parent's concerns this run's own `side.expect` predicted would
+   *  turn to pass — a list of concern names, or the literal `'none'` (predict no flips). Optional so an older
+   *  record (predating this field) still reads. */
+  expect?: string[] | 'none';
+  /** replay only (plan 2c B1): the before/after refs' own resolved shas (evidence/git.ts's `resolveRefSha`),
+   *  distinct from `commit` above (replay's `commit` is the AFTER ref's resolved sha). Optional for the same
+   *  reason as `commit`. */
+  commits?: { before: string | null; after: string | null };
 }
 
 /** What a verb hands the ledger: the response is built inside the lock, once the id and the budget are known. */
