@@ -12,7 +12,7 @@ import type { Category } from '../contract/types.ts';
 import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun } from '../ledger/log.ts';
-import { reusedAgeNotes } from '../ledger/reuse.ts';
+import { cacheTelemetry, reusedAgeNotes } from '../ledger/reuse.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
 import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, reusedIds, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
@@ -60,7 +60,9 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const calls = plannedCallCount(plan);
 
   const items = itemRecords(plan.items, grades);
-  const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(Object.fromEntries(plan.reusedFrom)));
+  const reusedFromObj = Object.fromEntries(plan.reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(reusedFromObj));
+  const fullTelemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFromObj)];
 
   const response = (id: string, budget: string): string =>
     respondText(
@@ -105,7 +107,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
     calls,
     route: identity.route,
     baseURL: identity.baseURL,
-    telemetry,
+    telemetry: fullTelemetry,
   };
 
   return recordSweep(ctx, calls, costUsd, run);

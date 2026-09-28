@@ -14,7 +14,7 @@ import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { readGitEvidence, resolveRefSha, WHOLE_FILE_NOTE } from '../evidence/git.ts';
 import { findRun, isContractRun, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
-import { lookupAnswers, reusedAgeNotes, type Reusable } from '../ledger/reuse.ts';
+import { cacheTelemetry, lookupAnswers, reusedAgeNotes, type Reusable } from '../ledger/reuse.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
@@ -224,6 +224,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   // Which prior runs this run's answers came from, when any were reused.
   const reusedRunIds = reusedIds(reusedFrom);
   const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id: string, budget: string): string =>
     respondText(
       m(

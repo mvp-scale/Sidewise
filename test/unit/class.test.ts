@@ -59,6 +59,20 @@ describe('class', () => {
     expect(r2.text).toContain('reused: [SW-0001]'); // [C-130] fix #6: which run's answers this one reused
   });
 
+  // plan 2c B2/B, item 6: a fully-reused run's own telemetry gains a source:'cache' entry naming the origin,
+  // prorated from that origin's real provider telemetry — the origin's whole 12-question call was reused whole
+  // here, so this is an exact figure, not an estimate.
+  it('a fully-reused second run records cache-side telemetry alongside the free run [C-130]', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
+    await runClass(CLASS_YAML, { paths, provider, env }); // SW-0001: one real call, 12 questions (goal + 11)
+    await runClass(CLASS_YAML, { paths, provider, env }); // SW-0002: fully reused
+    const runs = readLedger(paths).filter(isContractRun);
+    const origin = runs[0]!;
+    const originTotalQuestions = origin.telemetry!.filter((t) => t.source === 'provider').reduce((n, t) => n + t.questions, 0);
+    expect(runs[1]!.telemetry).toEqual([{ source: 'cache', from: origin.id, questions: originTotalQuestions, original: { costUsd: origin.costUsd }, savedUsd: origin.costUsd, estimated: false }]);
+  });
+
   it('[C-160] a re-ask on the same place after the code changed says which older run answered it before', async () => {
     const { root, paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });

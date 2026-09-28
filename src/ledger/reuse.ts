@@ -47,7 +47,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import type { Answer } from '../contract/types.ts';
 import { readRecordAt, withIndex, type IndexHandle } from './index.ts';
-import { findRun, isContractRun, type ContractRun } from './log.ts';
+import { findRun, isContractRun, type ContractRun, type TelemetryEntry } from './log.ts';
 import { onStore } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
 
@@ -273,4 +273,49 @@ export function exactReuse(paths: SidewisePaths, who: Who, keys: readonly string
       { readOnly: true },
     ),
   );
+}
+
+/** plan 2c B2/B, item 6: one `source: 'cache'` telemetry entry per distinct origin run this run reused
+ *  ANYTHING from — `questions` is how many of THIS run's own questions came from that origin, `original` is
+ *  that origin's own provider spend prorated down to that same fraction. `estimated` is true whenever that's a
+ *  genuine proration (this run reused only PART of what the origin itself paid for); an origin whose entire
+ *  paid call was reused whole (fraction === 1) gets its exact figures back, not an estimate. Tokens are
+ *  omitted from `original` when the origin has no provider telemetry of its own to prorate from at all (a
+ *  pre-telemetry run, or one that was itself entirely free) — cost then can't be prorated either, so the whole
+ *  entry carries no `original`/`savedUsd`, just the count and `estimated: true` (nothing to base a number on). */
+function cacheEntryFor(paths: SidewisePaths, from: string, questions: number): TelemetryEntry {
+  const origin = findRun(paths, from);
+  const providerCalls = origin && isContractRun(origin) ? (origin.telemetry ?? []).filter((t): t is Extract<TelemetryEntry, { source: 'provider' }> => t.source === 'provider') : [];
+  const originQuestions = providerCalls.reduce((n, t) => n + t.questions, 0);
+  if (originQuestions === 0) return { source: 'cache', from, questions, original: {}, estimated: true };
+
+  const fraction = Math.min(1, questions / originQuestions);
+  const hasTokens = providerCalls.length > 0 && providerCalls.every((t) => t.inputTokens !== undefined);
+  const totalInputTokens = hasTokens ? providerCalls.reduce((n, t) => n + (t.inputTokens ?? 0), 0) : undefined;
+  // The origin RUN's own reported spend (isContractRun already checked above via originQuestions > 0), summed
+  // across every call it made — a more robust cost base than re-summing each call's own optional costUsd
+  // (a rehearsal adapter reports none at all).
+  const totalCostUsd = origin && isContractRun(origin) ? (origin.costUsd ?? undefined) : undefined;
+  const original: { inputTokens?: number; costUsd?: number } = {
+    ...(totalInputTokens !== undefined ? { inputTokens: Math.round(totalInputTokens * fraction) } : {}),
+    ...(totalCostUsd !== undefined ? { costUsd: totalCostUsd * fraction } : {}),
+  };
+  return {
+    source: 'cache',
+    from,
+    questions,
+    original,
+    ...(totalCostUsd !== undefined ? { savedUsd: totalCostUsd * fraction } : {}),
+    estimated: fraction < 1,
+  };
+}
+
+/** Every distinct origin this run reused from, each as one cache telemetry entry — `reusedFrom` is a run's own
+ *  question-id → origin-run-id map (ContractRun.reusedFrom, or a sweep's `Object.fromEntries(plan.reusedFrom)`).
+ *  Empty when nothing was reused. Callers append this to whatever provider telemetry askAll/runSweep already
+ *  produced (`[...providerTelemetry, ...cacheTelemetry(ctx.paths, reusedFrom)]`) — never a replacement. */
+export function cacheTelemetry(paths: SidewisePaths, reusedFrom: Record<string, string>): TelemetryEntry[] {
+  const counts = new Map<string, number>();
+  for (const from of Object.values(reusedFrom)) counts.set(from, (counts.get(from) ?? 0) + 1);
+  return [...counts].map(([from, questions]) => cacheEntryFor(paths, from, questions));
 }

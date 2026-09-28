@@ -19,7 +19,7 @@ import { readCodeEvidence } from '../evidence/code.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun, TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
-import { lookupAnswers, reusedAgeNotes } from '../ledger/reuse.ts';
+import { cacheTelemetry, lookupAnswers, reusedAgeNotes } from '../ledger/reuse.ts';
 import { staleNotes } from '../ledger/stale.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
@@ -108,6 +108,9 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   // Which prior runs this run's answers came from, when any were reused — not just that reuse happened.
   const reusedRunIds = reusedIds(reusedFrom);
   const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  // plan 2c B2/B, item 6: one cache-side telemetry entry per distinct origin reused from, alongside whatever
+  // provider call(s) this run itself made.
+  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id: string, budget: string): string =>
     respondText(
       subjectSide(id, subject.gate, subject, [

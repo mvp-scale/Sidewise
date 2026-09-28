@@ -24,7 +24,7 @@ import { currentCommitSha } from '../evidence/git.ts';
 import { createCodeResolver, readUnit } from '../evidence/units.ts';
 import { findRun, isContractRun, type ItemRecord, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
-import { lookupAnswers, reusedAgeNotes, type ReuseLimits } from '../ledger/reuse.ts';
+import { cacheTelemetry, lookupAnswers, reusedAgeNotes, type ReuseLimits } from '../ledger/reuse.ts';
 import { clip } from '../util/text.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
@@ -123,6 +123,7 @@ async function runOneSubjectProof(
   // Which prior runs this drill's answers came from, when any were reused.
   const reusedRunIds = reusedIds(reusedFrom);
   const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id: string, budget: string): string =>
     respondText(
       subjectSide(id, subject.gate, subject, [
@@ -287,7 +288,9 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     const calls = plannedCallCount(plan);
 
     const items = itemRecords(plan.items, grades);
-    const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(Object.fromEntries(plan.reusedFrom)));
+    const reusedFromObj = Object.fromEntries(plan.reusedFrom);
+    const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(reusedFromObj));
+    const fullTelemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFromObj)];
 
     // Combines sweepNext's own never-drill-a-passing-item edge cases (goal-only-missed, everything skipped)
     // with drill's own rule: when there IS a worst item to fix, say so and re-run — never drill further.
@@ -335,7 +338,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       calls,
       route: identity.route,
       baseURL: identity.baseURL,
-      telemetry,
+      telemetry: fullTelemetry,
     };
 
     return recordSweep(ctx, calls, costUsd, run);
