@@ -48,6 +48,16 @@ A good category names one of these families explicitly (`family: injection`) whe
 4. **One judgment.** Don't chain two questions with "and" — that's two probes wearing one number.
 5. **One polarity per category.** Every probe in a category answers the same direction for `pass:` — don't mix "is it unsafe" with "is it free of X" in one category.
 6. **Names the element when more than one could be meant** — `` `id` `` or `` `req.query.id` ``, not "the value," when the code shown has several candidates.
+7. **Asks about the property (invariant), not the fix mechanism.** Phrase a probe about the invariant a fix establishes — the thing that stays true no matter how the code is later written — not the specific mechanism or line that happens to make it true today. Name the function/variable/symbol involved (backtick it); never a line number.
+
+## Invariants over mechanisms, and why
+
+Two real cases broke probes written the other way round:
+
+- **research.js, a reject-and-replace fix**: a `guard` probe was written against the specific check the first fix added ("does it call `isValidUrl` before the request?"). The next fix replaced that check with a different mechanism entirely (reject-and-replace instead of validate-and-allow) — same invariant (untrusted input can't reach the request), different code. The probe's premise was gone, so it re-scored low (0.19/0.15) on a fix that was actually correct, because it was really asking "does the old mechanism still exist?", not "does the property hold?".
+- **Line-number-anchored probes** ("does the check at line 32 catch this?"): once the fix shifted surrounding lines, four probes anchored to line numbers kept reading `still` against code that had already moved past them — the lines they pointed at no longer held the logic they were written about.
+
+Write the probe about the outcome instead: "Is the URL validated (by whatever mechanism) before the request is made?" survives a reject-and-replace rewrite; "Does `isValidUrl` gate the request?" doesn't. "Does `handleRequest` reject a malformed URL before dispatching it?" survives a line shift; "does line 32 reject it?" doesn't.
 
 ## Bad probes, and why
 
@@ -72,12 +82,28 @@ A third, optional pattern is worth adding to `class`/`scan` whenever the code yo
 
 ## wise in about 70 tokens
 
-`wise:` never reaches the classifier — it's free context the ledger learns from. Beyond the older `why`/`area`/`stage`/`change`/`risk`/`parent` fields, four more describe *what* you believe, in your own words:
+`wise:` never reaches the classifier — it's free context the ledger learns from. Every field is optional: fill what you know, omit what doesn't apply. `why`/`area`/`stage`/`change`/`risk`/`blast` are closed lists — for this project's actual allowed values, run `sidewise agent wise` (they're config-driven, so they're never hard-coded here). Two fields carry more than a bare value:
 
 - `problem` — one line: what you're actually solving right now.
-- `nodes` — a C4 chain, `level:name -> level:name`, levels from `person · system · container · component · code`; multiple chains joined by `; `.
-- `touches` — up to 5 short entity/object names this run is about.
-- `blast` — how far a fix's effect reaches: `code · component · container · system · person`.
+- `uses` — up to 5 chains describing what this run touches, in the C4 model (c4model.com): five levels, each inside the one above.
+
+  ```
+  system: shop
+  └── container: web-app                      an app or data store
+  │   ├── component: orders-handler           a group of code inside a container
+  │   │   └── code: createOrder               your own function (not a built-in)
+  │   └── component: orders-dao
+  └── container: database
+  person: customer                             outside the system
+  system: payment-service                      an outside service is its own system
+  ```
+
+  Write it flat: `/` for "inside" (`component:web-app/orders-handler`), `->` for "uses" (`a -> b -> c`), `?` on any part for "guessed or not built yet" (`component:web-app/refunds?`, `system:email-service?`). Grammar: `chain := part (" -> " part)*`, `part := level ":" name ("/" name)* ["?"]`, `level := person | system | container | component | code`, `name` = lowercase kebab-case (or a code identifier at the code level).
+
+Plus:
+
+- `touches` — up to 5 domain objects/fields this run is about (not concepts like "authentication", not language built-ins).
+- `blast` — the widest level one failure reaches (`person` = users' data or accounts, not "everyone").
 
 Example, on a run fixing an injection flaw in a user-lookup handler:
 
@@ -85,7 +111,9 @@ Example, on a run fixing an injection flaw in a user-lookup handler:
 wise:
   why: validate
   problem: Removing the SQL injection in findUser flagged by an earlier scan
-  nodes: container:api -> component:user-handler -> container:db
+  uses:
+    - person:customer -> container:web-app
+    - component:web-app/user-handler -> code:findUser -> container:db
   touches: [userId, findUser]
   blast: component
 ```
