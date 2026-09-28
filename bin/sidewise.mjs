@@ -7482,6 +7482,51 @@ var CONFIG_KEYS = ["budget", "provider", "baseURL", "model", "pricing", "timeout
 var CONTRACT_ONLY_KEYS = ["depth", "goal", "where", "ask", "over", "wise.parent"];
 var SECRET_LIKE_KEYS = ["apikey", "api_key", "key", "token", "secret", "password", "credential", "credentials"];
 
+// src/ledger/redact.ts
+var MIN_SECRET_LEN = 8;
+var registeredSecrets = [];
+function registerSecret(value) {
+  const v = value?.trim();
+  if (v && v.length >= MIN_SECRET_LEN && !registeredSecrets.includes(v)) registeredSecrets = [...registeredSecrets, v];
+}
+var PATTERNS = [
+  /gh[pousr]_[A-Za-z0-9]{20,}/g,
+  /sk-[A-Za-z0-9_-]{20,}/g,
+  /npm_[A-Za-z0-9]{30,}/g,
+  /AKIA[0-9A-Z]{16}/g,
+  /xox[abprs]-[A-Za-z0-9-]{10,}/g,
+  // A key with no END line (cut off by a line range, or pasted in part) is redacted to the end: fail closed.
+  /-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,40}PRIVATE KEY-----|[\s\S]*)/g
+];
+var EMAIL = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+var KEY_VALUE = /(?<![A-Za-z0-9])([A-Za-z0-9_]{0,64}(?:api[_-]?key|token|secret|password|passwd)[A-Za-z0-9_]{0,64})(['"]?)(\s*[:=]\s*)(['"]?)(?![{[])[^\s'"]{8,}\4/gi;
+var BEARER = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi;
+function redactSecrets(text) {
+  let out = text.replace(KEY_VALUE, (_m, key2, quote, sep) => `${key2}${quote}${sep}[redacted]`);
+  out = out.replace(BEARER, (_m, word) => `${word} [redacted]`);
+  for (const p of PATTERNS) out = out.replace(p, "[redacted]");
+  for (const s of registeredSecrets) if (out.includes(s)) out = out.split(s).join("[redacted]");
+  return out;
+}
+function redact(text) {
+  return redactSecrets(text).replace(EMAIL, "[redacted]");
+}
+function looksLikeSecret(value) {
+  if (registeredSecrets.some((s) => value.includes(s))) return true;
+  return PATTERNS.some((p) => {
+    p.lastIndex = 0;
+    return p.test(value);
+  });
+}
+function redactDeep(value) {
+  if (typeof value === "string") return redact(value);
+  if (Array.isArray(value)) return value.map((v) => redactDeep(v));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [redact(k), redactDeep(v)]));
+  }
+  return value;
+}
+
 // src/config/validate.ts
 var isObj = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 function distance(a, b) {
@@ -7525,10 +7570,18 @@ function checkPositiveNumber(path22, v, out) {
   out.push(stop(path22, `${JSON.stringify(v)} is not a positive number`, "give a number greater than 0"));
   return false;
 }
+function checkSecretValue(path22, v, out) {
+  if (!looksLikeSecret(v)) return false;
+  out.push(stop(path22, "looks like a key", "keys go in env (TYPESAFE_API_KEY) or the keychain, never in config"));
+  return true;
+}
 function checkNonEmptyString(path22, v, out) {
-  if (typeof v === "string" && v.trim()) return true;
-  out.push(stop(path22, `${JSON.stringify(v)} is not text`, "give a non-empty string"));
-  return false;
+  if (typeof v !== "string" || !v.trim()) {
+    out.push(stop(path22, `${JSON.stringify(v)} is not text`, "give a non-empty string"));
+    return false;
+  }
+  if (checkSecretValue(path22, v, out)) return false;
+  return true;
 }
 function checkBudget(v, out) {
   if (!isObj(v)) {
@@ -7635,7 +7688,13 @@ function checkWise(v, out) {
         out.push(stop(`${path22}.${k}`, `"${k}" is not a wise override field`, hint ? `did you mean ${hint}?` : `use ${WISE_OVERRIDE_FIELDS.join(", ")}`));
         continue;
       }
-      entry[k] = override[k];
+      const val = override[k];
+      if (typeof val === "string" && checkSecretValue(`${path22}.${k}`, val, out)) continue;
+      if (Array.isArray(val) && val.some((x) => typeof x === "string" && looksLikeSecret(x))) {
+        out.push(stop(`${path22}.${k}`, "looks like a key", "keys go in env (TYPESAFE_API_KEY) or the keychain, never in config"));
+        continue;
+      }
+      entry[k] = val;
     }
     result[field] = entry;
   }
@@ -8075,44 +8134,6 @@ function formatRunId(n) {
   return `SW-${String(n).padStart(4, "0")}`;
 }
 
-// src/ledger/redact.ts
-var MIN_SECRET_LEN = 8;
-var registeredSecrets = [];
-function registerSecret(value) {
-  const v = value?.trim();
-  if (v && v.length >= MIN_SECRET_LEN && !registeredSecrets.includes(v)) registeredSecrets = [...registeredSecrets, v];
-}
-var PATTERNS = [
-  /gh[pousr]_[A-Za-z0-9]{20,}/g,
-  /sk-[A-Za-z0-9_-]{20,}/g,
-  /npm_[A-Za-z0-9]{30,}/g,
-  /AKIA[0-9A-Z]{16}/g,
-  /xox[abprs]-[A-Za-z0-9-]{10,}/g,
-  // A key with no END line (cut off by a line range, or pasted in part) is redacted to the end: fail closed.
-  /-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,40}PRIVATE KEY-----|[\s\S]*)/g
-];
-var EMAIL = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-var KEY_VALUE = /(?<![A-Za-z0-9])([A-Za-z0-9_]{0,64}(?:api[_-]?key|token|secret|password|passwd)[A-Za-z0-9_]{0,64})(['"]?)(\s*[:=]\s*)(['"]?)(?![{[])[^\s'"]{8,}\4/gi;
-var BEARER = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi;
-function redactSecrets(text) {
-  let out = text.replace(KEY_VALUE, (_m, key2, quote, sep) => `${key2}${quote}${sep}[redacted]`);
-  out = out.replace(BEARER, (_m, word) => `${word} [redacted]`);
-  for (const p of PATTERNS) out = out.replace(p, "[redacted]");
-  for (const s of registeredSecrets) if (out.includes(s)) out = out.split(s).join("[redacted]");
-  return out;
-}
-function redact(text) {
-  return redactSecrets(text).replace(EMAIL, "[redacted]");
-}
-function redactDeep(value) {
-  if (typeof value === "string") return redact(value);
-  if (Array.isArray(value)) return value.map((v) => redactDeep(v));
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [redact(k), redactDeep(v)]));
-  }
-  return value;
-}
-
 // src/ledger/log.ts
 var LedgerError = class extends Error {
   /** 1: the ledger itself is the problem · 2: the caller asked for something the ledger doesn't hold. */
@@ -8420,11 +8441,11 @@ function scanRange(fd, from, to, sink, shown2, startUpto, startLineCount) {
     const got = readSync2(fd, buf, 0, want, pos);
     if (got <= 0) break;
     pos += got;
-    const chunk = carry.length ? Buffer.concat([carry, buf.subarray(0, got)]) : Buffer.from(buf.subarray(0, got));
+    const chunk2 = carry.length ? Buffer.concat([carry, buf.subarray(0, got)]) : Buffer.from(buf.subarray(0, got));
     let lineStart = 0;
-    for (let i = 0; i < chunk.length; i++) {
-      if (chunk[i] !== 10) continue;
-      const raw = chunk.toString("utf8", lineStart, i);
+    for (let i = 0; i < chunk2.length; i++) {
+      if (chunk2[i] !== 10) continue;
+      const raw = chunk2.toString("utf8", lineStart, i);
       const startByte = at;
       at += i - lineStart + 1;
       line3 += 1;
@@ -8433,7 +8454,7 @@ function scanRange(fd, from, to, sink, shown2, startUpto, startLineCount) {
       if (raw.trim() && applyLine(sink, raw, startByte, line3, shown2)) runsSeen += 1;
       lineStart = i + 1;
     }
-    carry = Buffer.from(chunk.subarray(lineStart));
+    carry = Buffer.from(chunk2.subarray(lineStart));
   }
   return { upto: at, lineCount: line3, runsSeen, lastLineStart, lastLineRaw };
 }
@@ -8753,8 +8774,8 @@ function sqliteAvailable() {
   return getSqliteCtor() !== null;
 }
 function getMeta(db, key2) {
-  const row2 = db.prepare("SELECT value FROM meta WHERE key = ?").get(key2);
-  return row2 ? String(row2.value) : void 0;
+  const row = db.prepare("SELECT value FROM meta WHERE key = ?").get(key2);
+  return row ? String(row.value) : void 0;
 }
 function setMeta(db, key2, value) {
   db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)").run(key2, value);
@@ -8856,8 +8877,8 @@ function handleFromSql(db) {
   const stBudgetRollup = db.prepare("SELECT COALESCE(SUM(cost), 0) AS spentUsd, COUNT(*) AS runs FROM spend WHERE ts >= ?");
   return {
     findOffset: (id) => {
-      const row2 = stFindOffset.get(id);
-      return row2 ? Number(row2.offset) : void 0;
+      const row = stFindOffset.get(id);
+      return row ? Number(row.offset) : void 0;
     },
     // A line count (run_count in meta), not SELECT COUNT(*) FROM runs — see applyLine's comment: `runs.id` is a
     // PK (INSERT OR REPLACE), which a real ledger's id-assignment invariant never collides, but nextRunNumber
@@ -8866,12 +8887,12 @@ function handleFromSql(db) {
     upto: () => Number(getMeta(db, "upto") ?? "0"),
     lineCount: () => Number(getMeta(db, "line_count") ?? "0"),
     isBlocked: (id) => {
-      const row2 = stIsBlocked.get(id);
-      return !!row2 && Number(row2.blocked) !== 0;
+      const row = stIsBlocked.get(id);
+      return !!row && Number(row.blocked) !== 0;
     },
     reuseKeyHit: (adapter, model, key2) => {
-      const row2 = stReuseHit.get(adapter, model, key2);
-      return row2 ? { runId: String(row2.runId), qid: String(row2.qid), offset: Number(row2.offset), blocked: Number(row2.blocked) !== 0 } : void 0;
+      const row = stReuseHit.get(adapter, model, key2);
+      return row ? { runId: String(row.runId), qid: String(row.qid), offset: Number(row.offset), blocked: Number(row.blocked) !== 0 } : void 0;
     },
     candidates: (adapter, model) => {
       if (__testOnly.throwOnCandidates) {
@@ -8886,13 +8907,13 @@ function handleFromSql(db) {
       const out = /* @__PURE__ */ new Map();
       if (!ids.length) return out;
       const stmt = db.prepare(`SELECT run_id AS runId, outcome FROM outcomes WHERE run_id IN (${ids.map(() => "?").join(",")})`);
-      for (const row2 of stmt.all(...ids)) out.set(String(row2.runId), row2.outcome);
+      for (const row of stmt.all(...ids)) out.set(String(row.runId), row.outcome);
       return out;
     },
     everHeld: (adapter, model, key2) => !!stEverHeld.get(adapter, model, key2),
     latestOutcomeOf: (id) => {
-      const row2 = stLatestOutcome.get(id);
-      return row2 ? { outcome: row2.outcome, uid: String(row2.uid), ts: String(row2.ts), by: String(row2.by) } : void 0;
+      const row = stLatestOutcome.get(id);
+      return row ? { outcome: row.outcome, uid: String(row.uid), ts: String(row.ts), by: String(row.by) } : void 0;
     },
     distinctPlaces: () => stDistinctPlaces.all().map((r) => ({ kind: r.kind, val: String(r.val) })),
     patternCounts: () => {
@@ -8924,8 +8945,8 @@ function handleFromSql(db) {
     recentReplays: (limit) => stRecentReplays.all("replay", limit).map((r) => ({ id: String(r.id), offset: Number(r.offset) })),
     recentOutcomes: (limit) => stRecentOutcomes.all(limit).map((r) => ({ runId: String(r.runId), outcome: r.outcome, ts: String(r.ts), by: String(r.by) })),
     budgetRollup: (sinceIso) => {
-      const row2 = stBudgetRollup.get(sinceIso);
-      return { spentUsd: Number(row2.spentUsd), runs: Number(row2.runs) };
+      const row = stBudgetRollup.get(sinceIso);
+      return { spentUsd: Number(row.spentUsd), runs: Number(row.runs) };
     }
   };
 }
@@ -9767,58 +9788,83 @@ function emit(doc) {
 }
 
 // src/config/config.ts
-var show = (v) => v === void 0 ? "(unset)" : typeof v === "string" ? v : JSON.stringify(v);
-function row(value, source) {
-  return `${show(value)}  # ${source ?? "default"}`;
+var valueText = (v) => typeof v === "string" ? scalar(v, false) : String(v);
+function fieldLine(indent3, key2, source, value, example) {
+  if ((source === "config" || source === "env") && value !== void 0) {
+    return `${indent3}${key2}: ${valueText(value)}  # ${source === "config" ? "from config.yaml" : "env"}`;
+  }
+  if (value !== void 0) return `${indent3}# ${key2}: ${valueText(value)}  # default`;
+  if (source === "env") return `${indent3}# ${key2}: (set via env, not config.yaml)`;
+  return `${indent3}# ${key2}: ${valueText(example)}  # example`;
 }
-function pricingEntries(resolved) {
-  return Object.entries(resolved.config.pricing).map(([model, rate]) => [
-    model,
-    m(...Object.entries(rate).map(([k, v]) => [k, row(v, resolved.sources[`pricing.${model}.${k}`] ?? resolved.sources[`pricing.${model}`])]))
-  ]);
+var PRICING_FIELDS = ["inputPerMTok", "outputPerMTok", "perSecond", "perCall"];
+function pricingLines(resolved) {
+  const lines = ["  pricing:"];
+  for (const [model, rate] of Object.entries(resolved.config.pricing)) {
+    lines.push(`    ${scalar(model, false)}:`);
+    const modelSource = resolved.sources[`pricing.${model}`];
+    for (const f of PRICING_FIELDS) {
+      const v = rate[f];
+      if (v === void 0) continue;
+      lines.push(fieldLine("      ", f, resolved.sources[`pricing.${model}.${f}`] ?? modelSource, v, 0));
+    }
+  }
+  return lines;
 }
-function wiseEntries(resolved) {
-  return Object.entries(resolved.config.wise).map(([field, override]) => [
-    field,
-    m(...Object.entries(override).map(([k, v]) => [k, row(v, "config")]))
-  ]);
+function wiseLines(resolved) {
+  const entries = Object.entries(resolved.config.wise);
+  if (!entries.length) return ["  # wise:", "  #   risk: {values: [low, medium, high]}  # example override"];
+  const lines = ["  wise:"];
+  for (const [field, override] of entries) {
+    lines.push(`    ${scalar(field, false)}:`);
+    for (const [k, v] of Object.entries(override)) {
+      const text = Array.isArray(v) ? `[${v.map((x) => scalar(String(x), true)).join(", ")}]` : typeof v === "boolean" ? String(v) : scalar(String(v), false);
+      lines.push(`      ${k}: ${text}  # from config.yaml`);
+    }
+  }
+  return lines;
 }
 function formatConfig(resolved, projectLine2) {
+  const c = resolved.config;
   const s = resolved.sources;
-  const doc = m(
-    [
-      "config",
-      m(
-        ["project", projectLine2],
-        [
-          "budget",
-          m(["usd", row(resolved.config.budget.usd, s["budget.usd"])], ["runs", row(resolved.config.budget.runs, s["budget.runs"])], ["per", row(resolved.config.budget.per, s["budget.per"])])
-        ],
-        ["provider", row(resolved.config.provider, s.provider)],
-        ["baseURL", row(resolved.config.baseURL, s.baseURL)],
-        ["model", row(resolved.config.model, s.model)],
-        ["pricing", m(...pricingEntries(resolved))],
-        ["timeoutMs", row(resolved.config.timeoutMs, s.timeoutMs)],
-        ["retries", row(resolved.config.retries, s.retries)],
-        ["backoffMs", row(resolved.config.backoffMs, s.backoffMs)],
-        [
-          "sweep",
-          m(
-            ["maxItems", row(resolved.config.sweep.maxItems, s["sweep.maxItems"])],
-            ["maxQuestionsPerCall", row(resolved.config.sweep.maxQuestionsPerCall, s["sweep.maxQuestionsPerCall"])]
-          )
-        ],
-        ["requestMaxBytes", row(resolved.config.requestMaxBytes, s.requestMaxBytes)],
-        [
-          "reuse",
-          m(["maxAgeDays", row(resolved.config.reuse.maxAgeDays, s["reuse.maxAgeDays"])], ["maxCommits", row(resolved.config.reuse.maxCommits, s["reuse.maxCommits"])])
-        ],
-        ...Object.keys(resolved.config.wise).length ? [["wise", m(...wiseEntries(resolved))]] : []
-      )
-    ],
-    ["notes", ["free: never writes, never spends", ...resolved.present ? [] : ["no config.yaml here \u2192 every value is a default or env var"]]]
-  );
-  return emit(doc);
+  const lines = [
+    "config:",
+    `  project: ${scalar(projectLine2, false)}`,
+    "",
+    "  budget:",
+    fieldLine("    ", "usd", s["budget.usd"], c.budget.usd, 5),
+    fieldLine("    ", "runs", s["budget.runs"], c.budget.runs, 500),
+    fieldLine("    ", "per", s["budget.per"], c.budget.per, "total"),
+    fieldLine("    ", "since", s["budget.since"], c.budget.since, "2026-01-01T00:00:00Z"),
+    "",
+    fieldLine("  ", "provider", s.provider, c.provider, "typesafe"),
+    fieldLine("  ", "baseURL", s.baseURL, c.baseURL, "https://api.typesafe.ai"),
+    fieldLine("  ", "model", s.model, c.model, "jev-1.13.0"),
+    "",
+    ...pricingLines(resolved),
+    "",
+    fieldLine("  ", "timeoutMs", s.timeoutMs, c.timeoutMs, 2e4),
+    fieldLine("  ", "retries", s.retries, c.retries, 2),
+    fieldLine("  ", "backoffMs", s.backoffMs, c.backoffMs, 1e3),
+    "",
+    "  sweep:",
+    fieldLine("    ", "maxItems", s["sweep.maxItems"], c.sweep.maxItems, 30),
+    fieldLine("    ", "maxQuestionsPerCall", s["sweep.maxQuestionsPerCall"], c.sweep.maxQuestionsPerCall, 500),
+    "",
+    fieldLine("  ", "requestMaxBytes", s.requestMaxBytes, c.requestMaxBytes, 1048576),
+    "",
+    "  reuse:",
+    fieldLine("    ", "maxAgeDays", s["reuse.maxAgeDays"], c.reuse.maxAgeDays, 30),
+    fieldLine("    ", "maxCommits", s["reuse.maxCommits"], c.reuse.maxCommits, 20),
+    "",
+    ...wiseLines(resolved),
+    "",
+    "notes:",
+    "  - free: never writes, never spends",
+    ...resolved.present ? [] : ["  - no config.yaml here \u2192 every value is a default or env var"]
+  ];
+  return `${lines.join("\n")}
+`;
 }
 function runConfig(env, paths, projectLine2) {
   const resolved = resolveConfig(paths, env);
@@ -10223,7 +10269,7 @@ var SECTION_NAMES = ["concerns", "decisions"];
 var NOT_QUESTIONS = /^(yes|no|true|false|on|off|y|n)$/iu;
 var isObj3 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 var len = (s) => [...s].length;
-var show2 = (v) => clip(typeof v === "string" ? `"${v}"` : JSON.stringify(v) ?? String(v), 40);
+var show = (v) => clip(typeof v === "string" ? `"${v}"` : JSON.stringify(v) ?? String(v), 40);
 var list = (xs) => `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}`;
 var isTag = (k) => TAG.test(k) && len(k) <= 20;
 var Out = class {
@@ -10240,7 +10286,7 @@ var Out = class {
 };
 var MAX_QUESTION_CHARS = 160;
 function lineProblem(v) {
-  if (typeof v !== "string") return `${show2(v)} is not text`;
+  if (typeof v !== "string") return `${show(v)} is not text`;
   if (v.includes("\n")) return "has a line break";
   if (len(v) < 3) return "is too short";
   if (len(v) > MAX_QUESTION_CHARS) return `is longer than ${MAX_QUESTION_CHARS} characters`;
@@ -10255,7 +10301,7 @@ function checkStringList(v, field, noun, min, max, out) {
   if (!Array.isArray(v)) return out.add(field, `${noun} must be a list`, `write [a, b]`);
   if (v.length < min || v.length > max) out.add(field, `${v.length} ${noun}`, `give ${min}\u2013${max}`);
   const bad = v.find((x) => typeof x !== "string");
-  if (bad !== void 0) out.add(field, `${show2(bad)} is not text`, `quote it: "${String(bad)}"`);
+  if (bad !== void 0) out.add(field, `${show(bad)} is not text`, `quote it: "${String(bad)}"`);
   if (new Set(v.map((x) => JSON.stringify(x))).size !== v.length) out.add(field, `repeated ${noun}`, "make each one different");
 }
 function checkQuestion(v, n, out) {
@@ -10284,15 +10330,15 @@ function checkQuestion(v, n, out) {
 function checkCategory(v, field, out) {
   const pass = v.pass;
   const passOk = typeof pass === "boolean" || pass === "yes" || pass === "no" || Array.isArray(pass) && pass.length >= 1 && pass.every((x) => typeof x === "string");
-  if (!passOk) out.add(`${field}.pass`, `${show2(pass)}`, "use yes, no, or a list of the passing levels or options");
-  if ("need" in v && !["all", "most", "any"].includes(v.need)) out.add(`${field}.need`, `${show2(v.need)}`, "use all, most or any");
+  if (!passOk) out.add(`${field}.pass`, `${show(pass)}`, "use yes, no, or a list of the passing levels or options");
+  if ("need" in v && !["all", "most", "any"].includes(v.need)) out.add(`${field}.need`, `${show(v.need)}`, "use all, most or any");
   if ("tags" in v) {
     const t = v.tags;
     if (!Array.isArray(t) || t.length > 3 || !t.every((x) => typeof x === "string" && isTag(x))) {
-      out.add(`${field}.tags`, `${show2(t)}`, "give up to 3 tags, lowercase kebab-case, \u2264 20 characters");
+      out.add(`${field}.tags`, `${show(t)}`, "give up to 3 tags, lowercase kebab-case, \u2264 20 characters");
     }
   }
-  if ("family" in v && !FAMILIES.includes(v.family)) out.add(`${field}.family`, show2(v.family), `use ${list(FAMILIES)}`);
+  if ("family" in v && !FAMILIES.includes(v.family)) out.add(`${field}.family`, show(v.family), `use ${list(FAMILIES)}`);
   for (const [k, q] of Object.entries(v)) {
     if (CATEGORY_KEYS.includes(k)) continue;
     if (!QNUM.test(k)) {
@@ -10358,13 +10404,13 @@ function checkTouches(v, out) {
   if (v.length > 5) out.add("wise.touches", `${v.length} entries`, "give up to 5");
   v.forEach((x, i) => {
     if (typeof x !== "string" || x.includes("\n") || len(x) < 1 || len(x) > MAX_TOUCH_LEN) {
-      out.add(`wise.touches[${i}]`, show2(x), `each entry is 1\u2013${MAX_TOUCH_LEN} characters, one line`);
+      out.add(`wise.touches[${i}]`, show(x), `each entry is 1\u2013${MAX_TOUCH_LEN} characters, one line`);
     }
   });
 }
 function checkUses(v, out) {
   const list3 = typeof v === "string" ? [v] : v;
-  if (!Array.isArray(list3)) return void out.add("wise.uses", show2(v), "write a level:name chain, e.g. container:api -> component:dao");
+  if (!Array.isArray(list3)) return void out.add("wise.uses", show(v), "write a level:name chain, e.g. container:api -> component:dao");
   if (list3.length < 1 || list3.length > 5) {
     out.add("wise.uses", `${list3.length} chains`, "give 1\u20135");
     return void 0;
@@ -10373,13 +10419,13 @@ function checkUses(v, out) {
   list3.forEach((x, i) => {
     const field = typeof v === "string" ? "wise.uses" : `wise.uses[${i}]`;
     if (typeof x !== "string") {
-      out.add(field, show2(x), "write level:name, e.g. container:web-app");
+      out.add(field, show(x), "write level:name, e.g. container:web-app");
       ok2 = false;
     } else if (len(x) > MAX_FREETEXT_LEN) {
       out.add(field, `is longer than ${MAX_FREETEXT_LEN} characters`, "shorten the chain");
       ok2 = false;
     } else if (!CHAIN_RE.test(x)) {
-      out.add(field, show2(x), "write level:name, e.g. container:web-app");
+      out.add(field, show(x), "write level:name, e.g. container:web-app");
       ok2 = false;
     }
   });
@@ -10387,17 +10433,17 @@ function checkUses(v, out) {
 }
 function checkClosedSingle(field, v, out) {
   const allowed = closedValues(field);
-  if (!allowed.includes(v)) out.add(`wise.${field.key}`, show2(v), `use ${list(field.values)}`);
+  if (!allowed.includes(v)) out.add(`wise.${field.key}`, show(v), `use ${list(field.values)}`);
 }
 function checkClosedList(field, v, out) {
   const allowed = closedValues(field);
   if (Array.isArray(v) && (v.length < 1 || v.length > (field.maxList ?? Infinity))) {
-    out.add(`wise.${field.key}`, show2(v), `one value or a list of \u2264${field.maxList}: [${field.values.slice(0, field.maxList).join(", ")}]`);
+    out.add(`wise.${field.key}`, show(v), `one value or a list of \u2264${field.maxList}: [${field.values.slice(0, field.maxList).join(", ")}]`);
     return;
   }
   const entries = Array.isArray(v) ? v : [v];
   const bad = entries.find((x) => !allowed.includes(x));
-  if (bad !== void 0) out.add(`wise.${field.key}`, show2(v), `use ${list(field.values)}, or a list of \u2264${field.maxList}`);
+  if (bad !== void 0) out.add(`wise.${field.key}`, show(v), `use ${list(field.values)}, or a list of \u2264${field.maxList}`);
 }
 function checkSide(side, verb, out) {
   if (!isObj3(side)) return out.add("side", "is not a mapping", "put goal: and the other fields under side:");
@@ -10409,29 +10455,29 @@ function checkSide(side, verb, out) {
     const bad = lineProblem(side.goal);
     if (bad) out.add("side.goal", bad, "write one line of 3\u2013160 characters: what you want to be true");
   }
-  if ("depth" in side && !DEPTHS.includes(side.depth)) out.add("side.depth", show2(side.depth), `use ${list(DEPTHS)}`);
+  if ("depth" in side && !DEPTHS.includes(side.depth)) out.add("side.depth", show(side.depth), `use ${list(DEPTHS)}`);
   if ("where" in side) {
     const w = side.where;
     if (!Array.isArray(w) || w.length < 1 || w.length > 5) out.add("side.where", "needs 1\u20135 paths", "write where: [path/to/file.ts]");
-    else for (const p of w) if (typeof p !== "string" || !PATH.test(p)) out.add("side.where", `${show2(p)} is not a path`, "use a project path, optionally :start-end, with no spaces");
+    else for (const p of w) if (typeof p !== "string" || !PATH.test(p)) out.add("side.where", `${show(p)} is not a path`, "use a project path, optionally :start-end, with no spaces");
   }
-  if ("parent" in side && !(typeof side.parent === "string" && RUN_ID2.test(side.parent))) out.add("side.parent", `${show2(side.parent)} is not a run id`, "use SW-####");
-  if ("from" in side && !(typeof side.from === "string" && len(side.from) >= 1 && len(side.from) <= 200)) out.add("side.from", show2(side.from), "name an item id or a category of the parent run");
+  if ("parent" in side && !(typeof side.parent === "string" && RUN_ID2.test(side.parent))) out.add("side.parent", `${show(side.parent)} is not a run id`, "use SW-####");
+  if ("from" in side && !(typeof side.from === "string" && len(side.from) >= 1 && len(side.from) <= 200)) out.add("side.from", show(side.from), "name an item id or a category of the parent run");
   if ("compare" in side) {
     const c = side.compare;
     const ok2 = isObj3(c) && typeof c.before === "string" && typeof c.after === "string" && Object.keys(c).every((k) => k === "before" || k === "after");
-    if (!ok2) out.add("side.compare", show2(c), "write compare: {before: main, after: HEAD}");
+    if (!ok2) out.add("side.compare", show(c), "write compare: {before: main, after: HEAD}");
   }
   if ("expect" in side) {
     const e = side.expect;
     if (e === "none") {
     } else if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === "string" && isTag(x))) {
-      out.add("side.expect", show2(e), 'give 1\u20139 concern names, lowercase kebab-case, \u2264 20 characters, or the word "none"');
+      out.add("side.expect", show(e), 'give 1\u20139 concern names, lowercase kebab-case, \u2264 20 characters, or the word "none"');
     } else if (new Set(e).size !== e.length) {
       out.add("side.expect", "repeated concern name", "make each one different");
     }
   }
-  if ("verb" in side && !VERBS.includes(side.verb)) out.add("side.verb", show2(side.verb), `use ${list(VERBS)}, or leave it out`);
+  if ("verb" in side && !VERBS.includes(side.verb)) out.add("side.verb", show(side.verb), `use ${list(VERBS)}, or leave it out`);
   if ("ask" in side) checkAsk(side.ask, verb, out);
   if ("over" in side) checkOverShape(side.over, out);
 }
@@ -10460,7 +10506,7 @@ function checkWiseField(field, v, out) {
         } catch {
           matches = true;
         }
-        if (!matches) out.add(`wise.${field.key}`, show2(v), `must match the project's pattern for this field: ${field.pattern}`);
+        if (!matches) out.add(`wise.${field.key}`, show(v), `must match the project's pattern for this field: ${field.pattern}`);
       }
       return;
     }
@@ -10479,7 +10525,7 @@ function checkCustomWiseValue(k, v, out) {
   if (Array.isArray(v) && (v.length < 1 || v.length > 5)) return out.add(`wise.${k}`, `${v.length} entries`, "give 1\u20135");
   const entries = Array.isArray(v) ? v : [v];
   const bad = entries.find((x) => typeof x !== "string" || x.includes("\n") || len(x) > MAX_FREETEXT_LEN);
-  if (bad !== void 0) out.add(`wise.${k}`, show2(bad), `write one line \u2264${MAX_FREETEXT_LEN} characters, or a list of \u22645`);
+  if (bad !== void 0) out.add(`wise.${k}`, show(bad), `write one line \u2264${MAX_FREETEXT_LEN} characters, or a list of \u22645`);
 }
 function wiseBlockLineCount(rawText) {
   if (!rawText) return void 0;
@@ -10514,7 +10560,7 @@ function checkWise2(wise2, out, rawText, wiseFields = WISE_FIELDS) {
     }
   }
   if (WISE_PARENT_KEY in wise2 && !(typeof wise2[WISE_PARENT_KEY] === "string" && RUN_ID2.test(wise2[WISE_PARENT_KEY]))) {
-    out.add(`wise.${WISE_PARENT_KEY}`, `${show2(wise2[WISE_PARENT_KEY])} is not a run id`, "use SW-####");
+    out.add(`wise.${WISE_PARENT_KEY}`, `${show(wise2[WISE_PARENT_KEY])} is not a run id`, "use SW-####");
   }
   for (const [k, v] of Object.entries(wise2)) if (!isKnown(k) && isCustomKey(k)) checkCustomWiseValue(k, v, out);
   const lineCount = wiseBlockLineCount(rawText);
@@ -11171,11 +11217,16 @@ function sniffVerb(text) {
     return "class";
   }
 }
+function singleTrailingPointer(text) {
+  const lines = text.split("\n");
+  const last = lines.length - 1;
+  return lines.map((line3, i) => i === last ? line3 : line3.replace(/ → see: sidewise agent \S+$/, "")).join("\n");
+}
 function runDoctorFile(text) {
   if (isRequestShaped(text)) {
     const verb = sniffVerb(text);
     const loaded = loadRequest(text, verb);
-    if (!loaded.ok) return loaded.result;
+    if (!loaded.ok) return { ...loaded.result, text: singleTrailingPointer(loaded.result.text) };
     return { exit: 0, text: `\u2714 request: valid \u2192 checked as ${verb}` };
   }
   let raw;
@@ -11979,6 +12030,20 @@ function reuseAge(paths, r, now = Date.now()) {
   const ageDays = Number.isFinite(parsed) ? Math.max(0, Math.floor((now - parsed) / 864e5)) : 0;
   return { ageDays, commitsSince: commitsSince(paths.root, r.commit, r.where) };
 }
+var MAX_REUSED_AGE_NOTES = 5;
+function reusedAgeNotes(paths, ids) {
+  if (!ids.length) return [];
+  const shown2 = ids.slice(0, MAX_REUSED_AGE_NOTES);
+  const parts = shown2.map((id) => {
+    const run = findRun(paths, id);
+    if (!run || !isContractRun(run)) return `${id} (age unknown)`;
+    const age = reuseAge(paths, { ts: run.ts, commit: run.commit ?? null, where: run.where });
+    const commits = age.commitsSince !== null ? `, ${age.commitsSince} commit${age.commitsSince === 1 ? "" : "s"}` : "";
+    return `${id} (${age.ageDays}d${commits})`;
+  });
+  const more = ids.length > shown2.length ? `, +${ids.length - shown2.length} more` : "";
+  return [`reused: ${parts.join(", ")}${more}`];
+}
 function isStale2(paths, r, limits, now) {
   if (!limits || limits.maxAgeDays === void 0 && limits.maxCommits === void 0) return false;
   const { ageDays, commitsSince: since } = reuseAge(paths, r, now);
@@ -12078,6 +12143,33 @@ function exactReuse(paths, who, keys, opts = {}) {
       { readOnly: true }
     )
   );
+}
+function cacheEntryFor(paths, from, questions) {
+  const origin = findRun(paths, from);
+  const providerCalls = origin && isContractRun(origin) ? (origin.telemetry ?? []).filter((t) => t.source === "provider") : [];
+  const originQuestions = providerCalls.reduce((n, t) => n + t.questions, 0);
+  if (originQuestions === 0) return { source: "cache", from, questions, original: {}, estimated: true };
+  const fraction = Math.min(1, questions / originQuestions);
+  const hasTokens = providerCalls.length > 0 && providerCalls.every((t) => t.inputTokens !== void 0);
+  const totalInputTokens = hasTokens ? providerCalls.reduce((n, t) => n + (t.inputTokens ?? 0), 0) : void 0;
+  const totalCostUsd = origin && isContractRun(origin) ? origin.costUsd ?? void 0 : void 0;
+  const original = {
+    ...totalInputTokens !== void 0 ? { inputTokens: Math.round(totalInputTokens * fraction) } : {},
+    ...totalCostUsd !== void 0 ? { costUsd: totalCostUsd * fraction } : {}
+  };
+  return {
+    source: "cache",
+    from,
+    questions,
+    original,
+    ...totalCostUsd !== void 0 ? { savedUsd: totalCostUsd * fraction } : {},
+    estimated: fraction < 1
+  };
+}
+function cacheTelemetry(paths, reusedFrom) {
+  const counts = /* @__PURE__ */ new Map();
+  for (const from of Object.values(reusedFrom)) counts.set(from, (counts.get(from) ?? 0) + 1);
+  return [...counts].map(([from, questions]) => cacheEntryFor(paths, from, questions));
 }
 
 // src/ledger/record.ts
@@ -12450,7 +12542,8 @@ function gradeReplay(categories, answers) {
   return { categories: categoryGrades, goal, regressed, gate };
 }
 async function runReplay(text, ctx) {
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, "replay", wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
@@ -12482,8 +12575,8 @@ async function runReplay(text, ctx) {
   const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, "after:")];
   const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)]);
   const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)]);
-  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
-  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
+  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
+  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
   const answers = {};
   const reusedFrom = {};
   const beforeCall = planCall(beforeKeyed, beforeReused, { code: before.files }, answers, reusedFrom);
@@ -12546,6 +12639,8 @@ async function runReplay(text, ctx) {
     return true;
   });
   const reusedRunIds = reusedIds(reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id, budget) => respondText(
     m(
       ["id", id],
@@ -12563,7 +12658,7 @@ async function runReplay(text, ctx) {
     // regressed takes priority: name it, per C-065 (revert or drill into it). [C-091]
     regressed.length ? regressionNext(id, regressed, categories) : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
     commonNotes(
-      [...loaded.notes, ...evidenceNotes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      [...loaded.notes, ...evidenceNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       `2 states \xB7 ${budget}`,
       ctx.provider.adapter
     )
@@ -12656,7 +12751,8 @@ function staleNotes(paths, where, toAsk) {
 // src/verbs/class.ts
 var CAP_NOTE = "would be blocked: the budget cap is already reached";
 async function runClass(text, ctx) {
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, "class", wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
@@ -12667,7 +12763,7 @@ async function runClass(text, ctx) {
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)]);
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
   const answers = {};
   const reusedFrom = {};
   const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
@@ -12710,6 +12806,8 @@ async function runClass(text, ctx) {
   const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
   const subject = gradeSubject(request.side.categories, answers);
   const reusedRunIds = reusedIds(reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id, budget) => respondText(
     subjectSide(id, subject.gate, subject, [
       ["consensus", consensus],
@@ -12719,7 +12817,7 @@ async function runClass(text, ctx) {
     wiseRecorded(request.wise),
     outcomeNext(id, subject.gate, subject.categories, request.side.categories, "act on it"),
     commonNotes(
-      [...loaded.notes, ...evidence.evidence.notes, ...stale, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      [...loaded.notes, ...evidence.evidence.notes, ...stale, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       budget,
       ctx.provider.adapter
     )
@@ -13220,9 +13318,18 @@ function groupByLayer(items) {
   }
   return out;
 }
-function planSweep(request, who, paths, dryRun, opts = {}) {
+function chunk(arr, size) {
+  if (size <= 0 || arr.length <= size) return [[...arr]];
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+function planSweep(request, who, paths, dryRun, opts = {}, limits = {}) {
   const { layers, items } = expand(request.side.over, opts);
   const itemsByLayer = groupByLayer(items);
+  const reuseLimits = limits.reuse;
+  const projectMaxItems = limits.sweep?.maxItems;
+  const maxQuestionsPerCall = limits.sweep?.maxQuestionsPerCall ?? DEFAULT_CONFIG.sweep.maxQuestionsPerCall;
   const asksByItem = /* @__PURE__ */ new Map();
   const allKeys = [];
   for (const layer of request.side.layers) {
@@ -13233,8 +13340,8 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
     }
   }
   const goalQ = goalQuestion(request.side.goal);
-  const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun });
-  const cap2 = SWEEP_ITEM_CAP[request.side.depth ?? "quick"];
+  const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun, reuse: reuseLimits });
+  const cap2 = projectMaxItems !== void 0 ? Math.min(SWEEP_ITEM_CAP[request.side.depth ?? "quick"], projectMaxItems) : SWEEP_ITEM_CAP[request.side.depth ?? "quick"];
   const keys = /* @__PURE__ */ new Map();
   const reusedFrom = /* @__PURE__ */ new Map();
   const answers = {};
@@ -13283,7 +13390,7 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
   const resolvedItems = work.flatMap((w) => w.resolvedItems).sort((a, b) => a.id.localeCompare(b.id));
   const resolvedText = resolvedItems.map((it) => it.text).join("\n");
   const goalKey = answerKey(resolvedText, goalQ);
-  const goalReused = lookupAnswers(paths, who, [goalKey], { readOnly: dryRun });
+  const goalReused = lookupAnswers(paths, who, [goalKey], { readOnly: dryRun, reuse: reuseLimits });
   const goalHit = goalReused.get(goalKey);
   if (goalHit) {
     reusedFrom.set(goalQ.id, goalHit.id);
@@ -13296,17 +13403,33 @@ function planSweep(request, who, paths, dryRun, opts = {}) {
       keys.set(goalQ.id, goalKey);
     }
   }
+  const splitNotes = [];
   const planned = work.map(({ layer, callItems, callQuestions, itemIds, skipped }) => {
-    if (!callQuestions.length) return { layer, call: null, itemIds, skipped };
-    const notes = [];
+    if (!callQuestions.length) return { layer, call: null, extraCalls: [], itemIds, skipped };
     const hasGoal = callQuestions[0] === goalQ;
-    const state = { ...hasGoal ? { goal: redact(request.side.goal) } : {}, items: itemsState(callItems, notes) };
-    return { layer, call: { state, questions: callQuestions }, itemIds, skipped };
+    const chunks = chunk(callQuestions, maxQuestionsPerCall);
+    if (chunks.length > 1) {
+      splitNotes.push(`${layer}: ${callQuestions.length} questions split into ${chunks.length} calls (over sweep.maxQuestionsPerCall: ${maxQuestionsPerCall})`);
+    }
+    const calls = chunks.map((qs, i) => {
+      const notes = [];
+      const wanted = new Set(qs.map((q) => q.item).filter((id) => id !== void 0));
+      const chunkItems = wanted.size ? callItems.filter((it) => wanted.has(it.id)) : callItems;
+      const state = { ...i === 0 && hasGoal ? { goal: redact(request.side.goal) } : {}, items: itemsState(chunkItems, notes) };
+      return { state, questions: qs };
+    });
+    return { layer, call: calls[0], extraCalls: calls.slice(1), itemIds, skipped };
   });
-  return { layers, items, planned, keys, reusedFrom, answers, askedQuestions };
+  return { layers, items, planned, keys, reusedFrom, answers, askedQuestions, splitNotes };
 }
 function planNeedsBudget(plan) {
   return plan.planned.some((p) => p.call !== null);
+}
+function plannedCalls(plan) {
+  return plan.planned.flatMap((p) => p.call ? [p.call, ...p.extraCalls] : []);
+}
+function plannedCallCount(plan) {
+  return plannedCalls(plan).length;
 }
 async function runSweep(ctx, verb, plan) {
   const skippedIds = new Set(plan.planned.flatMap((p) => p.skipped));
@@ -13322,7 +13445,7 @@ async function runSweep(ctx, verb, plan) {
     if (reusedItemIds.has(id)) return "reused";
     return "none";
   };
-  const calls = plan.planned.map((p) => p.call).filter((c) => c !== null);
+  const calls = plannedCalls(plan);
   if (calls.length === 0) return { ok: true, value: { answers: plan.answers, costUsd: 0, costEstimated: false, telemetry: [], statusOf } };
   const asked2 = await askAll(ctx, verb, calls);
   if (!asked2.ok) return asked2;
@@ -13332,7 +13455,7 @@ async function runSweep(ctx, verb, plan) {
   };
 }
 function sweepDryRun(plan, identity, extraNotes = []) {
-  const calls = plan.planned.filter((p) => p.call !== null).length;
+  const calls = plannedCallCount(plan);
   const askedItems = plan.planned.reduce((n, p) => n + p.itemIds.length, 0);
   const skippedItems = plan.planned.reduce((n, p) => n + p.skipped.length, 0);
   return {
@@ -13346,7 +13469,7 @@ function sweepDryRun(plan, identity, extraNotes = []) {
         route: identity.route,
         baseURL: identity.baseURL
       },
-      extraNotes
+      [...extraNotes, ...plan.splitNotes]
     )
   };
 }
@@ -13377,7 +13500,7 @@ var WHERE_CAP = 50;
 function whereFromItems(items) {
   return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP);
 }
-async function runOneSubjectProof(ctx, loaded, request, where, replayParent, evidenceOpts) {
+async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reuseLimits, evidenceOpts) {
   const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "drill") };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
@@ -13385,7 +13508,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, evi
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)]);
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: reuseLimits });
   const answers = {};
   const reusedFrom = {};
   const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
@@ -13423,6 +13546,8 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, evi
   const subject = gradeSubject(request.side.categories, answers);
   const oneSubjectNext = (gate, id) => gate === "pass" ? "act on it" : `fix it, then sidewise replay --parent ${replayParent(id)} --compare <before>..<after>`;
   const reusedRunIds = reusedIds(reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
+  telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id, budget) => respondText(
     subjectSide(id, subject.gate, subject, [
       ["consensus", consensus],
@@ -13432,7 +13557,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, evi
     wiseRecorded(request.wise),
     oneSubjectNext(subject.gate, id),
     commonNotes(
-      [...loaded.notes, ...evidence.evidence.notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      [...loaded.notes, ...evidence.evidence.notes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       budget,
       ctx.provider.adapter
     )
@@ -13475,7 +13600,8 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, evi
   return { exit: 0, text: rec.value.run.response, run: rec.value.run };
 }
 async function runDrill(text, ctx) {
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, "drill", wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
@@ -13505,7 +13631,7 @@ async function runDrill(text, ctx) {
           )
         };
       }
-      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, { stopOnOversize: false });
+      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, cfg.reuse, { stopOnOversize: false });
     }
     const from = request.side.from;
     const name = from.includes("/") ? from.slice(from.lastIndexOf("/") + 1) : from;
@@ -13532,7 +13658,14 @@ async function runDrill(text, ctx) {
     const notes = [];
     const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
     const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-    const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
+    const plan = planSweep(
+      request,
+      who,
+      ctx.paths,
+      ctx.dryRun ?? false,
+      itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root },
+      { sweep: cfg.sweep, reuse: cfg.reuse }
+    );
     if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
     const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
     if (!pre.ok) return pre.result;
@@ -13548,14 +13681,17 @@ async function runDrill(text, ctx) {
     const worst = worstFirst(grades.values());
     const failing = m(...worst.map((g) => sweepEntry(g)));
     const passing = graded.filter((g) => g.ownGate === "pass").length;
-    const calls = plan.planned.filter((p) => p.call !== null).length;
+    const calls = plannedCallCount(plan);
     const items = itemRecords(plan.items, grades);
+    const reusedFromObj = Object.fromEntries(plan.reusedFrom);
+    const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(reusedFromObj));
+    const fullTelemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFromObj)];
     const response = (id, budget) => respondText(
       m(["id", id], ["gate", gate], ["goal", m(["gate", goalGrade], ["p", goalAnswer.p])], ["failing", failing], ["passing", passing]),
       wiseRecorded(request.wise),
       worst.length ? REDRILL_NEXT : sweepNext(id, gate, worst, graded, "act on it"),
       commonNotes(
-        [...loaded.notes, ...notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+        [...loaded.notes, ...notes, ...plan.splitNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
         `${calls} call${calls === 1 ? "" : "s"} \xB7 ${plan.askedQuestions} question${plan.askedQuestions === 1 ? "" : "s"} \xB7 ${budget}`,
         ctx.provider.adapter
       )
@@ -13592,7 +13728,7 @@ async function runDrill(text, ctx) {
       calls,
       route: identity.route,
       baseURL: identity.baseURL,
-      telemetry
+      telemetry: fullTelemetry
     };
     return recordSweep(ctx, calls, costUsd, run);
   }
@@ -13606,18 +13742,19 @@ async function runDrill(text, ctx) {
       )
     };
   }
-  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent);
+  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent, cfg.reuse);
 }
 
 // src/verbs/loop.ts
 async function runLoop(text, ctx) {
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, "loop", wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, {}, { sweep: cfg.sweep, reuse: cfg.reuse });
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
@@ -13634,14 +13771,17 @@ async function runLoop(text, ctx) {
   const passing = plan.items.filter((i) => grades.get(i.id).gate === "pass").map((i) => i.id);
   const graded = [...grades.values()].filter((g) => g.status === "asked" || g.status === "reused");
   const worst = worstFirst(graded);
-  const calls = plan.planned.filter((p) => p.call).length;
+  const calls = plannedCallCount(plan);
   const items = itemRecords(plan.items, grades);
+  const reusedFromObj = Object.fromEntries(plan.reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(reusedFromObj));
+  const fullTelemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFromObj)];
   const response = (id, budget) => respondText(
     m(["id", id], ["gate", gate], ["goal", m(["gate", goal], ["p", goalAnswer?.p ?? 0])], ["failing", failing], ["passing", passing]),
     wiseRecorded(request.wise),
     sweepNext(id, gate, worst, graded, "act on it"),
     commonNotes(
-      [...loaded.notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      [...loaded.notes, ...plan.splitNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       `${calls} call${calls === 1 ? "" : "s"} \xB7 ${plan.askedQuestions} question${plan.askedQuestions === 1 ? "" : "s"} \xB7 ${budget}`,
       ctx.provider.adapter
     )
@@ -13677,7 +13817,7 @@ async function runLoop(text, ctx) {
     calls,
     route: identity.route,
     baseURL: identity.baseURL,
-    telemetry
+    telemetry: fullTelemetry
   };
   return recordSweep(ctx, calls, costUsd, run);
 }
@@ -14459,14 +14599,15 @@ function unlookedEntrypoints(root, items) {
   return `entrypoints/config outside over: ${named} \u2014 add them to over: file if they matter here`;
 }
 async function runScan(text, ctx) {
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, "scan", wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const notes = [];
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) }, { sweep: cfg.sweep, reuse: cfg.reuse });
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
   const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
   if (entrypointNote) notes.push(entrypointNote);
@@ -14486,8 +14627,11 @@ async function runScan(text, ctx) {
   const passing = graded.filter((g) => g.ownGate === "pass").length;
   const reused = graded.filter((g) => g.status === "reused").length;
   const scanned = m(...plan.layers.map((l) => [l, plan.items.filter((i) => i.layer === l).length]));
-  const calls = plan.planned.filter((p) => p.call !== null).length;
+  const calls = plannedCallCount(plan);
   const items = itemRecords(plan.items, grades);
+  const reusedFromObj = Object.fromEntries(plan.reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(reusedFromObj));
+  const fullTelemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFromObj)];
   const response = (id, budget) => respondText(
     m(
       ["id", id],
@@ -14501,7 +14645,7 @@ async function runScan(text, ctx) {
     wiseRecorded(request.wise),
     sweepNext(id, gate, worst, graded, "act on it"),
     commonNotes(
-      [...loaded.notes, ...notes, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
+      [...loaded.notes, ...notes, ...plan.splitNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       `${calls} call${calls === 1 ? "" : "s"} \xB7 ${plan.askedQuestions} question${plan.askedQuestions === 1 ? "" : "s"} \xB7 ${budget}`,
       ctx.provider.adapter
     )
@@ -14538,7 +14682,7 @@ async function runScan(text, ctx) {
     calls,
     route: identity.route,
     baseURL: identity.baseURL,
-    telemetry
+    telemetry: fullTelemetry
   };
   return recordSweep(ctx, calls, costUsd, run);
 }
