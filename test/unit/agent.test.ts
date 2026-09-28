@@ -91,6 +91,15 @@ describe('runAgent', () => {
     expect(runAgent('view').text).toContain(String(MAX_QUESTION_CHARS));
   });
 
+  // Round-4 finding: an agent had to fail once (`✖ side.where: cannot read "..."`) to learn `where:` resolves
+  // against the MCP `project` arg/`SIDEWISE_HOME`, not session cwd — stated only in agent's overview.
+  it('[C-195] the overview states where: resolves against project/SIDEWISE_HOME, not session cwd', () => {
+    const text = runAgent().text;
+    expect(text).toContain('SIDEWISE_HOME');
+    expect(text).toContain('project');
+    expect(text.toLowerCase()).toContain('session cwd');
+  });
+
   it.each(['outcome', 'budget', 'report'] as const)('[C-182] agent %s: a recognized non-verb target, bare, with a good/bad pair', (target) => {
     const r = runAgent(target);
     expect(r.exit).toBe(0);

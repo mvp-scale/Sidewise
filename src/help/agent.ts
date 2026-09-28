@@ -39,7 +39,11 @@
  * Every verb card also splices verbs.ts's `SHARP[verb]` bullets into its `rules:` list, alongside
  * `ruleLines(verb)` (round-4 finding: `agent drill`/`agent change` rendered an empty `rules:` section since
  * neither RULES nor patterns.ts had anything tagged for either verb, even though `help <verb>` already had
- * real prose for both — SHARP was just unreachable from here).
+ * real prose for both — SHARP was just unreachable from here). The overview's own `rules:` list carries one
+ * hand-written line beyond RULES too (`PROJECT_SCOPE_RULE` below): `where:` resolves against the MCP `project`
+ * argument or `SIDEWISE_HOME`, not session cwd — a runtime fact, not a request-schema one, so it doesn't
+ * belong in rules.ts's RULES (built only from schema-check.ts/validate.ts constants); it's stated only here,
+ * not in `help`'s card, since an agent is the one that actually passes `project`/sets `SIDEWISE_HOME`.
  */
 import { hasKey, resolveJevConfig, type ResolveStored } from '../classifier/typesafe/client.ts';
 import { VERBS, type Verb } from '../contract/types.ts';
@@ -84,6 +88,16 @@ function noKeyRunLine(env: Record<string, string | undefined>, deps: { resolveSt
 /** `verbs (pick by goal):` then `tools:`, each followed by one `- name: purpose` bullet per entry, from the
  *  same VERB_LINE/TOOL_LINE text `help`'s card renders (verbs.ts, report.ts) — never a second, divergent
  *  copy. [C-189] */
+/** The `where:`/`SIDEWISE_HOME` fact: a runtime/environment rule, not a request-schema one, so it's hand-
+ *  written rather than pulled from rules.ts's RULES (which is built only from schema-check.ts/validate.ts
+ *  constants — see that file's own header comment). Defined once, here, since only `agent`'s overview states
+ *  it: an agent is the one that actually passes the MCP `project` arg or sets `SIDEWISE_HOME`, so a cold
+ *  agent — not a human reading `help` — is who needs this before its first call (round-4 finding: an agent
+ *  had to fail once, `✖ side.where: cannot read "app/routes/contributions.js"`, to learn `where:` resolves
+ *  against `project`/`SIDEWISE_HOME`, not session cwd). [C-195] */
+const PROJECT_SCOPE_RULE =
+  "- where: resolves against the MCP `project` argument or `SIDEWISE_HOME` (CLI), never your session cwd — pass `project` (or set `SIDEWISE_HOME`) when you started elsewhere.";
+
 function overview(env: Record<string, string | undefined>, deps: { resolveStored?: ResolveStored }): string {
   return renderCard(
     [
@@ -92,7 +106,7 @@ function overview(env: Record<string, string | undefined>, deps: { resolveStored
       'tools:',
       ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`),
     ],
-    ruleLines('card'),
+    [...ruleLines('card'), PROJECT_SCOPE_RULE],
     [],
     [
       'run: sidewise agent <verb|tool> — before writing that request',
