@@ -14128,7 +14128,7 @@ async function runLoop(text, ctx) {
 
 // src/ledger/graph.ts
 import { existsSync as existsSync12, readFileSync as readFileSync15, statSync as statSync8 } from "node:fs";
-var GRAPH_SCHEMA_VERSION = "1";
+var GRAPH_SCHEMA_VERSION = "2";
 var GRAPH_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS nodes (
   id INTEGER PRIMARY KEY,
@@ -14145,7 +14145,8 @@ CREATE TABLE IF NOT EXISTS triples (
   score REAL,
   PRIMARY KEY (p, s, o, run)
 ) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS idx_triples_pos ON triples(p, o, s);
+CREATE INDEX IF NOT EXISTS idx_triples_spo ON triples(s, p, o);
+CREATE INDEX IF NOT EXISTS idx_triples_o ON triples(o, p, s);
 `;
 var META_TABLE_SQL = `CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);`;
 var GraphUnavailableError = class extends Error {
@@ -14210,6 +14211,9 @@ function parseChainPart(part) {
 function isLiteral(wiseConfig, key2) {
   return wiseConfig[key2]?.literal === true;
 }
+function gateScore(gate) {
+  return gate === "pass" ? 1 : gate === "fail" ? 0 : gate === "unsure" ? 0.5 : null;
+}
 function ingestContractRun(db, rec, wiseConfig) {
   const RUN = rec.id;
   const runNode = nodeId(db, "run", RUN);
@@ -14221,25 +14225,25 @@ function ingestContractRun(db, rec, wiseConfig) {
   const cats = runCategories2(rec);
   for (const cat of cats) {
     const catNode = nodeId(db, "category", cat.name);
-    addTriple(db, "asks", runNode, catNode, RUN, "extracted", null);
-    const gate = rec.categories[cat.name];
-    const score = gate === "pass" ? 1 : gate === "fail" ? 0 : gate === "unsure" ? 0.5 : null;
-    addTriple(db, "judged", runNode, catNode, RUN, "extracted", score);
+    addTriple(db, "checks", runNode, catNode, RUN, "extracted", null);
     if (cat.family) addTriple(db, "is-a", catNode, nodeId(db, "family", cat.family), RUN, "extracted", null);
   }
   if (!rec.items) {
     const places = runPlaces(rec);
     for (const cat of cats) {
       const catNode = nodeId(db, "category", cat.name);
-      for (const placeLabel of places) addTriple(db, "checks", catNode, nodeId(db, "place", placeLabel), RUN, "extracted", null);
+      const score = gateScore(rec.categories[cat.name]);
+      for (const placeLabel of places) addTriple(db, "judged", catNode, nodeId(db, "place", placeLabel), RUN, "extracted", score);
     }
   } else {
     for (const layer of rec.ask.layers) {
       const layerItems = Object.values(rec.items).filter((it) => it.layer === layer.name && it.unit);
-      const placeLabels = [...new Set(layerItems.map((it) => normalizeLabel("place", it.unit.path)))];
       for (const cat of layer.categories) {
         const catNode = nodeId(db, "category", cat.name);
-        for (const placeLabel of placeLabels) addTriple(db, "checks", catNode, nodeId(db, "place", placeLabel), RUN, "extracted", null);
+        for (const item of layerItems) {
+          const placeLabel = normalizeLabel("place", item.unit.path);
+          addTriple(db, "judged", catNode, nodeId(db, "place", placeLabel), RUN, "extracted", gateScore(item.categories[cat.name]));
+        }
       }
     }
   }
@@ -14514,20 +14518,28 @@ function callStats(paths, opts = {}) {
   const agg = /* @__PURE__ */ new Map();
   for (const row of rows) {
     const rec = readRecordAt(paths.log, Number(row.offset));
-    if (!rec || !isContractRun(rec) || !rec.telemetry) continue;
+    if (!rec || !isContractRun(rec)) continue;
     const day = String(row.ts).slice(0, 10);
-    for (const t of rec.telemetry) {
-      const model = t.source === "provider" ? t.model : "reused";
-      const key2 = `${day}\0${rec.verb}\0${model}\0${t.source}`;
-      const cur = agg.get(key2) ?? { day, verb: rec.verb, model, source: t.source, calls: 0, tokens: 0, costUsd: 0, savedUsd: 0 };
-      cur.calls += 1;
-      if (t.source === "provider") {
-        cur.tokens += (t.inputTokens ?? 0) + (t.outputTokens ?? 0);
-        cur.costUsd += t.costUsd ?? 0;
-      } else {
-        cur.tokens += t.original.inputTokens ?? 0;
-        cur.savedUsd += t.savedUsd ?? 0;
+    if (rec.telemetry && rec.telemetry.length) {
+      for (const t of rec.telemetry) {
+        const model = t.source === "provider" ? t.model : "reused";
+        const key2 = `${day}\0${rec.verb}\0${model}\0${t.source}`;
+        const cur = agg.get(key2) ?? { day, verb: rec.verb, model, source: t.source, calls: 0, tokens: 0, costUsd: 0, savedUsd: 0 };
+        cur.calls += 1;
+        if (t.source === "provider") {
+          cur.tokens += (t.inputTokens ?? 0) + (t.outputTokens ?? 0);
+          cur.costUsd += t.costUsd ?? 0;
+        } else {
+          cur.tokens += t.original.inputTokens ?? 0;
+          cur.savedUsd += t.savedUsd ?? 0;
+        }
+        agg.set(key2, cur);
       }
+    } else if (rec.calls > 0) {
+      const key2 = `${day}\0${rec.verb}\0${rec.model}\0none`;
+      const cur = agg.get(key2) ?? { day, verb: rec.verb, model: rec.model, source: "none", calls: 0, tokens: 0, costUsd: 0, savedUsd: 0 };
+      cur.calls += rec.calls;
+      cur.costUsd += rec.costUsd ?? 0;
       agg.set(key2, cur);
     }
   }
@@ -15328,11 +15340,15 @@ function reportHistory(paths) {
   rows.sort((a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0);
   return { exit: 0, text: [heading("history", rows.length, "event"), ...withCap(rows.map((r) => r.text), rows.length)].join("\n") };
 }
+function ensureHotIndexFresh(paths) {
+  withIndex(paths, () => void 0);
+}
 function graphUnavailableText(view) {
   return `sidewise report ${view} \xB7 graph needs node:sqlite (Node \u2265 22.13) \u2192 see "sidewise doctor"`;
 }
 function withGraphView(paths, env, view, fn) {
   try {
+    ensureHotIndexFresh(paths);
     refreshGraph(paths, env);
   } catch (e) {
     if (e instanceof GraphUnavailableError) return { exit: 0, text: graphUnavailableText(view) };
@@ -15367,6 +15383,37 @@ function reportCalls(paths, env) {
     return { exit: 0, text: [heading("calls", rows.length, "row"), ...withCap(lines, rows.length)].join("\n") };
   });
 }
+function gateWord(score) {
+  if (score === 0) return "fail";
+  if (score === 0.5) return "unsure";
+  if (score === 1) return "pass";
+  return void 0;
+}
+function groupEdges(edges) {
+  const byKey = /* @__PURE__ */ new Map();
+  for (const e of edges) {
+    const key2 = `${e.p}\0${e.s}\0${e.o}\0${e.score ?? ""}\0${e.provenance}`;
+    let g = byKey.get(key2);
+    if (!g) {
+      g = { p: e.p, s: e.s, o: e.o, score: e.score, provenance: e.provenance, runs: [] };
+      byKey.set(key2, g);
+    }
+    if (!g.runs.includes(e.run)) g.runs.push(e.run);
+  }
+  return [...byKey.values()];
+}
+function runsLabel(runs) {
+  const sorted = [...runs].sort();
+  return sorted.length <= 3 ? sorted.join(", ") : `${sorted[0]}..${sorted[sorted.length - 1]}`;
+}
+function renderEdge(byId2, g) {
+  const sLabel = byId2.get(g.s) ?? String(g.s);
+  const oLabel = byId2.get(g.o) ?? String(g.o);
+  const word = gateWord(g.score);
+  const count = g.runs.length;
+  const pred = word !== void 0 ? count > 1 ? `${g.p} ${word} (p ${g.score}, \xD7${count})` : `${g.p} ${word} (p ${g.score})` : count > 1 ? `${g.p} (\xD7${count})` : g.p;
+  return `${sLabel} --${pred}--> ${oLabel} (${g.provenance}) [${runsLabel(g.runs)}]`;
+}
 function reportGraph(paths, env, target) {
   return withGraphView(paths, env, "graph", () => {
     const t = target?.trim();
@@ -15380,9 +15427,10 @@ function reportGraph(paths, env, target) {
     const { nodes, edges } = graphAround(paths, { kind, label, depth: 2 });
     if (!nodes.length) return { exit: 0, text: `sidewise report graph ${t} \xB7 not found \u2192 run "sidewise class <request>" first, or check the kind:label spelling` };
     const byId2 = new Map(nodes.map((n) => [n.id, `${n.kind}:${n.label}`]));
-    const lines = edges.map((e) => `${byId2.get(e.s) ?? e.s} --${e.p}--> ${byId2.get(e.o) ?? e.o}`);
-    const headingLine = `sidewise report graph ${t} \xB7 ${edges.length} edge${edges.length === 1 ? "" : "s"} (depth 2, ${nodes.length} node${nodes.length === 1 ? "" : "s"})`;
-    return { exit: 0, text: [headingLine, ...withCap(lines, edges.length)].join("\n") };
+    const groups = groupEdges(edges);
+    const lines = groups.map((g) => renderEdge(byId2, g));
+    const headingLine = `sidewise report graph ${t} \xB7 ${groups.length} edge${groups.length === 1 ? "" : "s"} (depth 2, ${nodes.length} node${nodes.length === 1 ? "" : "s"})`;
+    return { exit: 0, text: [headingLine, ...withCap(lines, groups.length)].join("\n") };
   });
 }
 var CLOSED_MAX_DISTINCT = 8;
@@ -15412,6 +15460,7 @@ function suggestionText(s) {
   return "reference (link: where)";
 }
 function reportFields(paths, env, accept) {
+  ensureHotIndexFresh(paths);
   const { config } = resolveConfig(paths, env);
   const knownKeys = [...WISE_KEYS, ...Object.keys(config.wise)];
   const fields = undeclaredFieldSamples(paths, { knownKeys });
