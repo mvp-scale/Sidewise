@@ -295,8 +295,11 @@ never been asked here. There is no `best` field yet: nothing ranks "the question
 here," even for a category whose fix was later recorded `held`. [C-052]
 `next` is `sidewise view <reuse>` when there's an exact reuse, to read that answer; otherwise it's `sidewise
 class`, and your categories become the first pattern here. [C-053]
-`wise: {recorded: none}` always, and view writes nothing to the ledger — no call, no spend, and its lookups
-are not logged either. `notes: [free]`. [C-054]
+`wise: {recorded: none}` always: view never adds to what the ledger *teaches* (no run, no category record) —
+no call, no spend. `notes: [free]`. A full draft check (one with `ask:` categories, not a bare place/id lookup)
+does append one free `kind: "lookup"` ledger line of its own (`goal`, `where`, `hit`, `reused`), so the ledger
+can see what agents search for even when nothing is asked outright; it takes no `SW-####` id, is never counted
+as a run, and never touches the budget (see "Setup, keys and the MCP tool" below). [C-054]
 Given a folder, a tag, or a run id instead of a request body, view answers in place/id mode, which is Plan
 1's own text history rather than the YAML `side:` shape above: for a place, a count line (held / overruled /
 failed / open, with rehearsal runs counted apart) followed by its newest runs, newest first; for a run id,
@@ -422,7 +425,6 @@ side:
   injection: {before: fail, after: pass, fixed: [1, 2, 3]}
   access:    {before: fail, after: fail, still: [4, 5]}
   leaks:     {before: unsure, after: pass, fixed: [7]}
-  expected: {fixed: [injection], still: []}
   regressed: []
 wise: {recorded: [why, area, parent]}
 next: sidewise template drill --parent SW-0051 --from access
@@ -436,13 +438,13 @@ refused; run the sweep again instead, since unchanged items are reused there for
 A category's response shows `before`/`after` gates, `fixed` (questions failing or unsure before that pass
 after) and `still` (ones that don't); anything in the run-wide `regressed` list (passing before, not after
 now) can alone fail the gate even when every `after` category passes on its own. [C-064]
-`expect:` is the agent's own prediction, checked before any call is made against the parent's own concern
-names — an entry that isn't one of them is a stop, `✖ side.expect: "x" is not a concern of SW-0042 → use one
-of injection, access, leaks`. The response's `expected:` grades that prediction against what the run actually
-found, after the per-category lines: `fixed` (a predicted concern that did turn to pass) and `still` (one that
-didn't) — grading the yardstick itself, not just the code, over time.
-On `fixed`, record `outcome held` on the parent; on `still`, keep working; anything in `regressed`, revert or
-drill into it. [C-065]
+`expect:` is required: 1–9 concern names, lowercase kebab-case, each ≤ 20 characters and unique — the agent's
+own prediction of which of the parent's concerns this change should turn to pass. **Not fully wired yet**: the
+schema checks `expect:`'s own shape, but nothing yet checks each name against the parent's actual concern
+names, and the response carries no `expected:` grade of the prediction (`fixed`/`still` per category, and
+`regressed`, are unaffected by `expect:` either way, exactly as before this field existed).
+On a category's own `fixed`, record `outcome held` on the parent; on `still`, keep working; anything in
+`regressed`, revert or drill into it. [C-065]
 
 ```yaml
 side:
@@ -452,7 +454,6 @@ side:
   injection: {before: fail, after: pass, fixed: [1, 2, 3]}
   access:    {before: pass, after: pass}
   leaks:     {before: unsure, after: pass, fixed: [7]}
-  expected: {fixed: [injection], still: []}
   regressed: [5]
 wise: {recorded: [why, area, parent]}
 next: sidewise template drill --parent SW-0052 --from access
