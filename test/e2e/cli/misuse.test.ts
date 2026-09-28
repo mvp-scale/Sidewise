@@ -213,19 +213,23 @@ describe('view', () => {
     for (const target of ['../..', '..', 'src/../../etc', '/etc']) {
       expect(expectCleanStop(unchanged(root, ['view', target]), 2)).toBe(`✖ view: "${target}" is outside the project → use a folder inside it, a tag, or SW-####`);
     }
-    const abs = unchanged(root, ['view', path.join(root, 'src')]);
+    // A successful place view now logs a free `kind:"lookup"` record (plan 2c B4) — no longer a no-op, so it's
+    // run plain rather than through `unchanged`.
+    const abs = sidewise(root, ['view', path.join(root, 'src')]);
     expect(abs.status).toBe(0);
     expect(abs.stdout).toMatch(/^sidewise view src · 1 run /);
   });
 
   it('control characters are refused; other odd characters are just a place with no runs', () => {
     expect(expectCleanStop(unchanged(root, ['view', 'src\u001b[31m']), 2)).toBe('✖ view: the target has control characters → use a folder, a tag, or SW-####');
-    const odd = unchanged(root, ['view', 'wéird *?[] name']);
+    // Same B4 note as above: a successful (if odd) place view logs a free lookup, so it's not a no-op either.
+    const odd = sidewise(root, ['view', 'wéird *?[] name']);
     expect(odd).toMatchObject({ status: 0, stdout: 'sidewise view wéird *?[] name · no runs yet → "sidewise class <request>" starts one\n', stderr: '' });
   });
 
   it('a very long target: exit 0, one short line', () => {
-    const r = unchanged(root, ['view', 'x'.repeat(5000)]);
+    // Same B4 note: a successful view logs a free lookup, so it's not a no-op.
+    const r = sidewise(root, ['view', 'x'.repeat(5000)]);
     expect(r.status).toBe(0);
     expect(r.stdout.split('\n')).toHaveLength(2);
     expect(r.stdout.length).toBeLessThan(160);

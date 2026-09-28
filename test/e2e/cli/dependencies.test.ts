@@ -34,7 +34,9 @@ describe('a corrupt log', () => {
     // incomplete last line is left unconsumed by the scanner (an append may be in progress), so class's own
     // preflight can still successfully self-heal (build or catch up) the index over the valid PREFIX before its
     // separate, stricter tail check refuses the command — legitimate self-healing, not a violation of "nothing
-    // is spent or logged." log.jsonl and budget.json are what must stay untouched here.
+    // is spent or logged." budget.json must stay untouched here; log.jsonl keeps its truncated tail plus exactly
+    // one new `kind:"lookup"` line from the successful view below (plan 2c B4: a place view now logs a free
+    // lookup record — no longer the strict no-op this test used to pin).
     const before = snapshotLedgerAndBudget(root);
     const stop = '✖ ledger: line 2 of .sidewise/log.jsonl is not valid JSON → fix or remove that line';
     expect(expectCleanStop(sidewise(root, ['class', 'req.yaml']), 1)).toBe(stop);
@@ -42,7 +44,12 @@ describe('a corrupt log', () => {
     const view = sidewise(root, ['view', 'src']);
     expect(view).toMatchObject({ status: 0, stderr: '' });
     expect(view.stdout).toMatch(/^sidewise view src · 1 run /);
-    expect(snapshotLedgerAndBudget(root)).toEqual(before);
+    const after = snapshotLedgerAndBudget(root);
+    expect(after?.['budget.json']).toEqual(before?.['budget.json']);
+    expect(after?.['log.jsonl']?.startsWith(before?.['log.jsonl'] ?? '')).toBe(true);
+    const appended = after!['log.jsonl']!.slice((before?.['log.jsonl'] ?? '').length);
+    expect(appended.trim().split('\n')).toHaveLength(1);
+    expect(appended).toContain('"kind":"lookup"');
   });
 });
 
