@@ -8,6 +8,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { parseDocument } from 'yaml';
+import { onStore } from '../ledger/lock.ts';
 import { ensureDir, type SidewisePaths } from '../ledger/paths.ts';
 import type { SidewiseConfig } from './defaults.ts';
 
@@ -33,9 +34,14 @@ function setDeep(doc: ReturnType<typeof parseDocument>, prefix: string[], value:
  * (`resolveConfig`/`sidewise doctor`), same as an agent hand-editing the file badly would be.
  */
 export function writeConfigOverride(paths: SidewisePaths, patch: DeepPartial<SidewiseConfig>): void {
-  ensureDir(paths);
-  const text = existsSync(paths.config) ? readFileSync(paths.config, 'utf8') : '';
-  const doc = parseDocument(text, { version: '1.2', schema: 'core' });
-  setDeep(doc, [], patch);
-  writeFileSync(paths.config, doc.toString());
+  // Wrapped in onStore, same as every other file this codebase writes (budget.json before it, log.jsonl) — a
+  // raw fs error (an unwritable .sidewise/, a permissions problem) must surface as the usual clean StoreError,
+  // never an unwrapped errno reaching the agent.
+  onStore(paths.config, 'write', () => {
+    ensureDir(paths);
+    const text = existsSync(paths.config) ? readFileSync(paths.config, 'utf8') : '';
+    const doc = parseDocument(text, { version: '1.2', schema: 'core' });
+    setDeep(doc, [], patch);
+    writeFileSync(paths.config, doc.toString());
+  });
 }

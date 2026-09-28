@@ -221,6 +221,14 @@ interface Sink {
 
 const CHUNK_BYTES = 1 << 20; // 1 MiB: bounds memory during a scan regardless of log.jsonl's size.
 
+/** Whether a run/contract record counts toward the budget rollup (plan 2c B1's invariant: "budget.runs == paid
+ *  runs (calls > 0) + failed records"). A Plan-1 `RunRecord` has no `calls` field — it predates reuse/free runs
+ *  entirely, so every one of them was paid. A `ContractRun` counts only when it actually made a call:
+ *  `recordFree`'s fully-reused runs (`calls: 0`) must never inflate the run cap or its spend. */
+function countsTowardBudget(rec: RunRecord | ContractRun): boolean {
+  return !isContractRun(rec) || rec.calls > 0;
+}
+
 /** plan 2c F1: a ledger record written before plan 2c may still carry `wise.nodes` (a single chain string) instead
  *  of `wise.uses` — every raw-JSON parse site in the ledger (this file's own `parseLedgerLine`/`readRecordAt`, and
  *  log.ts's `readLedger`) runs a freshly-parsed record through here so every reader (report, view, report patterns/
@@ -414,7 +422,7 @@ function memorySink(state: MemoryState): Sink {
   return {
     run(rec, offset) {
       state.runCount += 1;
-      state.spend.set(rec.id, { ts: rec.ts, cost: rec.costUsd ?? 0 });
+      if (countsTowardBudget(rec)) state.spend.set(rec.id, { ts: rec.ts, cost: rec.costUsd ?? 0 });
       state.runOffset.set(rec.id, offset);
       state.allRuns.push({ id: rec.id, offset, verb: rec.verb, gate: isContractRun(rec) ? rec.gate : null, pattern: patternFingerprint(rec) });
       const parent = rec.parent ?? null;
@@ -839,7 +847,7 @@ function sqlSink(stmts: SqlStatements): Sink {
     run(rec, offset) {
       const gate = 'gate' in rec ? (rec.gate ?? null) : null;
       stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null, patternFingerprint(rec));
-      stmts.insertSpend.run(rec.id, rec.ts, rec.costUsd ?? 0);
+      if (countsTowardBudget(rec)) stmts.insertSpend.run(rec.id, rec.ts, rec.costUsd ?? 0);
       if (isContractRun(rec)) {
         for (const [qid, key] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key, rec.reusedFrom[qid] ?? rec.id, qid);
         for (const w of rec.where) stmts.insertPlace.run('where', stripLines(w), rec.id);

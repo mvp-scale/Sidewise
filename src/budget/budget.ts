@@ -16,7 +16,7 @@ import type { SidewiseConfig } from '../config/defaults.ts';
 import { resolveConfig } from '../config/load.ts';
 import { writeConfigOverride } from '../config/write.ts';
 import { budgetRollup } from '../ledger/index.ts';
-import { withLock } from '../ledger/lock.ts';
+import { onStore, withLock } from '../ledger/lock.ts';
 import { appendFailedLocked, type NewFailed } from '../ledger/log.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 
@@ -78,7 +78,10 @@ function windowStartMs(budget: SidewiseConfig['budget'], now: number): number {
 
 function stateFromConfig(paths: SidewisePaths, config: SidewiseConfig, now: number, opts: { readOnly?: boolean } = {}): BudgetState {
   const sinceMs = windowStartMs(config.budget, now);
-  const { spentUsd, runs } = budgetRollup(paths, iso(sinceMs), opts);
+  // Wrapped in onStore, same as every other ledger read (ledger/reuse.ts's lookupAnswers/exactReuse) — a raw fs
+  // error (log.jsonl replaced by a directory, permissions) must surface as the usual clean StoreError, never an
+  // unwrapped errno escaping just because this read happens to go through budgetRollup instead of readLedger.
+  const { spentUsd, runs } = onStore(paths.log, 'read', () => budgetRollup(paths, iso(sinceMs), opts));
   return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: config.budget.since ?? EPOCH };
 }
 
@@ -156,23 +159,29 @@ export function recordSpend(paths: SidewisePaths, costUsd: number, now: number =
   return budgetStateNow(paths, now);
 }
 
-/** Moves `since` to now — the window narrows from here on; nothing already in the ledger is touched or erased. */
+/** Moves `since` to now — the window narrows from here on; nothing already in the ledger is touched or erased.
+ *  Under the same lock every other budget/ledger mutation uses, so a concurrent writer (or a stale held lock)
+ *  is detected the same way it always was, even though there's no longer a running counter to serialize. */
 export function resetBudget(paths: SidewisePaths, now: number = Date.now(), env: Record<string, string | undefined> = process.env): BudgetState {
-  writeConfigOverride(paths, { budget: { since: iso(now) } });
-  return budgetStateNow(paths, now, env);
+  return withLock(paths.lock, () => {
+    writeConfigOverride(paths, { budget: { since: iso(now) } });
+    return budgetStateNow(paths, now, env);
+  });
 }
 
 export function setBudget(paths: SidewisePaths, caps: { capUsd?: number; capRuns?: number }, now: number = Date.now(), env: Record<string, string | undefined> = process.env): BudgetState {
   for (const [name, v] of Object.entries(caps)) {
     if (v !== undefined && !(Number.isFinite(v) && v > 0)) throw new BudgetError(`✖ budget: ${name} must be a positive number, got ${v} → e.g. --usd 5 --runs 500${AGENT_POINTER}`);
   }
-  writeConfigOverride(paths, {
-    budget: {
-      ...(caps.capUsd !== undefined ? { usd: caps.capUsd } : {}),
-      ...(caps.capRuns !== undefined ? { runs: caps.capRuns } : {}),
-    },
+  return withLock(paths.lock, () => {
+    writeConfigOverride(paths, {
+      budget: {
+        ...(caps.capUsd !== undefined ? { usd: caps.capUsd } : {}),
+        ...(caps.capRuns !== undefined ? { runs: caps.capRuns } : {}),
+      },
+    });
+    return budgetStateNow(paths, now, env);
   });
-  return budgetStateNow(paths, now, env);
 }
 
 export function budgetLine(s: BudgetState): string {
