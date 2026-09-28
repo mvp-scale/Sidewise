@@ -42,6 +42,7 @@ import { runScan } from './verbs/scan.ts';
 import { runTemplate } from './verbs/template.ts';
 import { runView } from './verbs/view.ts';
 import { AGENT_EXTRAS, runAgent } from './help/agent.ts';
+import { agentFrontDoorLines } from './help/card.ts';
 import { HELP_EXTRAS, HELP_TOPICS, runHelp } from './help/index.ts';
 import { VERBS } from './contract/types.ts';
 import { resolveMcpActor } from './mcp/actor.ts';
@@ -80,15 +81,28 @@ const LINES = {
   mcp: 'sidewise mcp',
 } as const;
 type Command = keyof typeof LINES;
-// A bare usage list is unhelpful to someone who has never run this before: one line points them at init
-// before the full list.
-const USAGE = `new here? → sidewise init\nusage:\n${Object.values(LINES).map((l) => `  ${l}`).join('\n')}`;
+// A bare usage list is unhelpful to someone who has never run this before, and round-4 smoke testing found a
+// cold CLI agent makes zero `sidewise` calls at all otherwise — it never discovers `sidewise agent` exists.
+// `agentFrontDoorLines()` (help/card.ts) gives, in order: the agent-first directive, the `new here?` hint for a
+// human, this tool's own one-line pitch, then a purpose bullet per verb — all shared with `agent`'s overview and
+// `help`'s own card, never a second hand-typed copy. [C-191]
+const USAGE = `${agentFrontDoorLines().join('\n')}\nusage:\n${Object.values(LINES).map((l) => `  ${l}`).join('\n')}`;
 const isCommand = (c: string): c is Command => Object.hasOwn(LINES, c);
 
-/** A usage mistake: exit 2 with "✖ args: <problem> → <that command's usage line>". */
+// The six verbs plus the four tools `sidewise agent` also carries a card for (report/outcome/budget/template) —
+// every other command (help, agent, doctor, init, uninstall, mcp) has no agent card to point at, so a stop from
+// one of those never gets the pointer below. Every stop a REQUEST can trigger already ends with this same
+// pointer via verbs/request.ts's `stopText` (C-153); the additions here close the remaining gaps that never run
+// through that path — a bare CLI usage mistake, a request file cli.ts itself couldn't even read, a missing
+// project, and outcome/budget's own argument checks.
+const AGENT_POINTABLE = new Set<Command>([...VERBS, 'report', 'outcome', 'budget', 'template']);
+const withAgentPointer = (text: string, command: Command): string => (AGENT_POINTABLE.has(command) ? `${text}\n→ see: sidewise agent ${command}` : text);
+
+/** A usage mistake: exit 2 with "✖ args: <problem> → <that command's usage line>", plus the same agent pointer
+ *  every other stop ends with, when `command` is one `sidewise agent` actually has a card for. */
 class UsageStop extends Error {
   constructor(command: Command, problem: string) {
-    super(`✖ args: ${problem} → ${LINES[command]}`);
+    super(withAgentPointer(`✖ args: ${problem} → ${LINES[command]}`, command));
     this.name = 'UsageStop';
   }
 }
@@ -193,11 +207,11 @@ export interface CliCtx {
 /** class, scan, drill and loop share one shape: a request file (or -), optional --dry-run. */
 async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths: SidewisePaths, ctx: CliCtx): Promise<{ exit: number; text: string }> {
   const twice = givenTwice(rest, ['dry-run']);
-  if (twice) return finish(2, twice);
+  if (twice) return finish(2, withAgentPointer(twice, command));
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { 'dry-run': { type: 'boolean', default: false } } });
   positionalCount(command, positionals, 1, 1);
   const read = readRequest(positionals[0]!, ctx.stdin);
-  if ('stop' in read) return finish(2, read.stop);
+  if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
   let provider: ClassifierPort;
   try {
     provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json') });
@@ -247,7 +261,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   // ledger, just falls back to the sweep sample (runTemplate's own drillSampleFile).
   if (command === 'template') {
     const twice = givenTwice(rest, ['parent', 'from', 'goal']);
-    if (twice) return finish(2, twice);
+    if (twice) return finish(2, withAgentPointer(twice, command));
     const { values, positionals } = args('template', {
       args: rest,
       allowPositionals: true,
@@ -407,18 +421,20 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   }
 
   const paths = resolvePaths(ctx.cwd, ctx.env);
-  if (!paths) return finish(2, NO_PROJECT);
+  if (!paths) return finish(2, withAgentPointer(NO_PROJECT, command));
   switch (command) {
     case 'view': {
       const twice = givenTwice(rest, ['level']);
-      if (twice) return finish(2, twice);
+      if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args('view', {
         args: rest,
         allowPositionals: true,
         options: { level: { type: 'string', default: '1' }, summary: { type: 'boolean', default: false } },
       });
       positionalCount('view', positionals, 1, 1);
-      if (!['1', '2', '3'].includes(values.level)) return finish(2, `✖ --level: "${clip(values.level, 20)}" is not a level → use --level 1, 2 or 3`);
+      if (!['1', '2', '3'].includes(values.level)) {
+        return finish(2, withAgentPointer(`✖ --level: "${clip(values.level, 20)}" is not a level → use --level 1, 2 or 3`, command));
+      }
       const arg = positionals[0]!;
       // `arg` is always the thing the caller actually named — never overwritten by a file's own bytes. `content`
       // (whatever text was actually read for it, if any) is passed separately so runView can probe it for
@@ -449,7 +465,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       return runSweptVerb(command, rest, paths, ctx);
     case 'change': {
       const twice = givenTwice(rest, ['dry-run', 'parent', 'compare']);
-      if (twice) return finish(2, twice);
+      if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args('change', {
         args: rest,
         allowPositionals: true,
@@ -459,12 +475,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       let text: string;
       if (usingFlags) {
         if (values.parent === undefined || values.compare === undefined) {
-          return finish(2, '✖ --parent/--compare: give both, or neither → sidewise change --parent SW-#### --compare <before>..<after>');
+          return finish(2, withAgentPointer('✖ --parent/--compare: give both, or neither → sidewise change --parent SW-#### --compare <before>..<after>', command));
         }
         positionalCount('change', positionals, 0, 0);
         const sep = values.compare.indexOf('..');
         if (sep <= 0 || sep >= values.compare.length - 2) {
-          return finish(2, `✖ --compare: "${clip(values.compare, 60)}" is not <before>..<after> → e.g. --compare main..HEAD`);
+          return finish(2, withAgentPointer(`✖ --compare: "${clip(values.compare, 60)}" is not <before>..<after> → e.g. --compare main..HEAD`, command));
         }
         // The goal comes from the parent run itself (not a fixed placeholder): a real parent's own goal is what
         // "did the fix work?" is asking about. When the parent can't supply one (missing, or predates the
@@ -475,7 +491,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       } else {
         positionalCount('change', positionals, 1, 1);
         const read = readRequest(positionals[0]!, ctx.stdin);
-        if ('stop' in read) return finish(2, read.stop);
+        if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
         text = read.text;
       }
       let provider: ClassifierPort;
@@ -489,14 +505,18 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     }
     case 'outcome': {
       const twice = givenTwice(rest, ['by']);
-      if (twice) return finish(2, twice);
+      if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args('outcome', { args: rest, allowPositionals: true, options: { by: { type: 'string' } } });
       positionalCount('outcome', positionals, 2, 2);
       const [id = '', outcome = ''] = positionals;
-      if (!RUN_ID.test(id)) return finish(2, `✖ outcome: "${clip(id, 40)}" is not a run id → use the SW-#### that class printed, e.g. SW-0001`);
-      if (!OUTCOMES.includes(outcome)) return finish(2, `✖ outcome: "${clip(outcome, 40)}" is not an outcome → use held, overruled or failed`);
+      if (!RUN_ID.test(id)) {
+        return finish(2, withAgentPointer(`✖ outcome: "${clip(id, 40)}" is not a run id → use the SW-#### that class printed, e.g. SW-0001`, command));
+      }
+      if (!OUTCOMES.includes(outcome)) {
+        return finish(2, withAgentPointer(`✖ outcome: "${clip(outcome, 40)}" is not an outcome → use held, overruled or failed`, command));
+      }
       const by = values.by?.trim();
-      if (!by) return finish(2, '✖ --by: missing → add --by <who judged the run>');
+      if (!by) return finish(2, withAgentPointer('✖ --by: missing → add --by <who judged the run>', command));
       const { record, repeat } = appendOutcome(paths, id, outcome as Outcome, by);
       return finish(0, `sidewise outcome ${record.of} ${record.outcome} · ${repeat ? 'already recorded ' : ''}by ${record.by}`);
     }
@@ -509,13 +529,13 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       }
       if (sub !== 'set') throw new UsageStop('budget', `"${clip(sub, 40)}" is not show, reset or set`);
       const twice = givenTwice(more, ['usd', 'runs']);
-      if (twice) return finish(2, twice);
+      if (twice) return finish(2, withAgentPointer(twice, command));
       const { usd, runs } = args('budget', { args: more, options: { usd: { type: 'string' }, runs: { type: 'string' } } }).values;
-      if (usd === undefined && runs === undefined) return finish(2, `✖ budget: set needs --usd or --runs → ${BUDGET_EXAMPLE}`);
+      if (usd === undefined && runs === undefined) return finish(2, withAgentPointer(`✖ budget: set needs --usd or --runs → ${BUDGET_EXAMPLE}`, command));
       const capUsd = usd === undefined ? undefined : cap('usd', usd);
       const capRuns = runs === undefined ? undefined : cap('runs', runs);
       const stops = [capUsd, capRuns].filter((v): v is string => typeof v === 'string');
-      if (stops.length) return finish(2, stops.join('\n'));
+      if (stops.length) return finish(2, withAgentPointer(stops.join('\n'), command));
       const caps = {
         ...(typeof capUsd === 'number' ? { capUsd } : {}),
         ...(typeof capRuns === 'number' ? { capRuns } : {}),

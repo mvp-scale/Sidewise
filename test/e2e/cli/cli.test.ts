@@ -143,12 +143,12 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
     expect(sidewise(root, ['view'])).toMatchObject({
       status: 2,
       stdout: '',
-      stderr: '✖ args: missing arguments → sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]\n',
+      stderr: '✖ args: missing arguments → sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]\n→ see: sidewise agent view\n',
     });
     expect(sidewise(root, ['class'])).toMatchObject({
       status: 2,
       stdout: '',
-      stderr: '✖ args: missing arguments → sidewise class <request-file | -> [--dry-run]\n',
+      stderr: '✖ args: missing arguments → sidewise class <request-file | -> [--dry-run]\n→ see: sidewise agent class\n',
     });
   });
 

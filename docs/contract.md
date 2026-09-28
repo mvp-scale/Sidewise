@@ -158,6 +158,22 @@ Every stop a request can trigger — a parse error, a validation stop, or a bad 
 `→ see: sidewise agent <verb>`, naming the verb that was actually run, on top of whatever it already told you
 to fix: a stop is read by the agent that sent the request, not a person at a terminal, so it points at the
 terse agent view, not `help`. [C-153]
+That same pointer now closes every other stop a person or agent can hit while running one of the six verbs or
+the four tools beyond them (`report`, `outcome`, `budget`, `template`) — not just a request's own validation:
+`view`'s own place/id checks (control characters, outside the project, an unknown run id), `drill`'s own
+parent/from/over checks that aren't evidence reads (an unknown or pre-contract `side.parent`, `side.from` naming
+no such item or category, an item with no code, code that changed since scan, an idea item given a code-only
+layer, `side.over` on a non-sweep parent), `report`'s own view-name checks, `budget`'s own cap-reached/
+corrupt-file/bad-cap-value messages, and `outcome`'s own ledger-lookup checks (an unknown run id, the asking
+actor trying to self-certify `held`) — plus every bare CLI usage mistake for a pointable command (an unknown or
+duplicated flag, a missing project, a request file the CLI itself couldn't read, `outcome`'s own id/value/`--by`
+checks, `budget`'s own cap parsing). `report`, `outcome`, `budget` and `template` are tools, not one of the six
+`Verb`s, so `verbs/request.ts`'s `stopText` widens to a small `AgentTarget` union (`Verb` plus the four tool
+names) rather than `verbs/` importing `help/agent.ts`'s `AGENT_TOOLS` just for a type; `budget/budget.ts` and
+`ledger/log.ts` sit below `verbs/` in the dependency order, so their own stops append the identical
+`\n→ see: sidewise agent <tool>` line as a literal suffix instead, avoiding a layering inversion. A command with
+no agent card (`help`, `agent`, `doctor`, `init`, `uninstall`, `mcp`) never gets this pointer — there's nothing
+deeper for it to point at. [C-197]
 
 ### Every response
 
@@ -643,6 +659,15 @@ An unrecognized view name is a clean stop naming the three real ones. [C-167]
 cause most first-try rejects, and how to read a verdict. [C-113]
 `sidewise help <verb>` (view, class, change, scan, drill, loop) prints that verb's purpose, when to use it,
 one annotated example, and its own sharp rules. [C-114]
+`sidewise help <verb>` now opens with a first line, `Agents: sidewise agent <verb>`, ahead of its own
+`## <verb>` heading — round-4 smoke testing's top finding: a cold CLI agent made zero `sidewise` calls at all
+because it never discovered `sidewise agent` exists. The bare CLI usage text (`sidewise --help`, a bare
+`sidewise`, and `sidewise <command> --help`) carries the same front door: `help/card.ts`'s exported
+`agentFrontDoorLines()` returns, in order, `Agents: run "sidewise agent" first`, the existing `new here? →
+sidewise init` hint for a human, this tool's own one-line pitch (`card()`'s own opening wording, factored out
+rather than retyped a second time), and one purpose bullet per verb from the same shared `VERB_LINE` text
+`agent`'s overview and `help`'s own card already render — `cli.ts` splices this ahead of its usage block rather
+than hand-typing a third copy. [C-191]
 Per-verb sharp rules `help` carries: `drill` says to follow `next:` rather than hand-authoring parent/from;
 `change` says the files must be committed at the ref it names; `scan` says a `scale` question ranks findings
 by severity, worst first, and to scan by file when the file is the unit that matters; `loop` says a sub-layer
@@ -664,6 +689,15 @@ cross-validator. [C-180]
 `sidewise agent probe` renders the same 8 rules bare, no citations, no prose, from the one shared list `help
 probe` renders with citations, so the two views can't drift apart; `sidewise agent` with no verb points
 explicitly at `sidewise agent probe`. [C-181]
+The 160-character cap on a single question (or the goal) line — previously a bare literal inside
+`schema-check.ts`'s `lineProblem` — is now the named, exported constant `MAX_QUESTION_CHARS`, documented as a
+shared `rules.ts` entry reaching `sidewise help`'s one-screen card, `help authoring`, every verb that accepts
+`ask:` (`class`, `scan`, `drill`, `loop`, `view` — checked against the schema envelope; `change` never accepts
+`ask:` at all), and both `help probe` and `agent probe`. This closes a round-4 finding: a cold agent hit `✖
+question 1: is longer than 160 characters` with zero prior warning in `agent view` or `agent probe`. Because the
+cap is Sidewise's own hard validator rule rather than TypeSafe's own published guidance, it lives in
+`RULES`/`ruleLines`, not `PROBE_RULES` (whose cited-guidance contract is unchanged) — `probe()`/`probeCard()`
+simply splice `ruleLines('probe')` in alongside it. [C-194]
 `sidewise help outcome` and `sidewise help budget` are recognized targets the same way `sidewise help report`
 already was — neither is a `side:`-YAML verb (neither takes `ask:`, neither calls the classifier) — each with
 its own purpose, example, sharp rules and a good/bad pair grounded in a real stop: `outcome`'s self-held
@@ -673,6 +707,16 @@ citations, no headings, hand-written rather than sharing a data structure with `
 why-only; there's no rule prose to reuse). Before this, `outcome` appeared in neither `help` nor `agent` at
 all. An unknown `help`/`agent` target now names all three extras (`report`, `outcome`, `budget`) alongside
 every verb and topic. [C-182]
+A new `agent verdict` card (`tool: verdict`) and a refactored `help verdict` render the same response-vocabulary
+facts from one shared list, `rules.ts`'s `VERDICT_FACTS`: `need:`'s all/most/any bar, the goal-and-every-category
+gate rule, `consensus` (STRONG/SPLIT/WEAK) and which verbs compute it, `escalate`'s triggers, what a probability
+near 0.50 landing in `unsure` means, `change`'s per-category fixed/still/regressed grade, `reused: [SW-####]`'s
+meaning, `sidewise report hits`'s `stale` flag, and the three exit codes. `help verdict` keeps its own prose
+framing around the list; `agent verdict` renders it bare, matching every other agent card's why-only shape and
+key order. `agent`'s overview gains a third `run:` line, `sidewise agent verdict — before reading a response:
+how to read it`, alongside its existing pointers at `<verb|tool>` and `probe`. This closes a round-4 finding:
+response-side vocabulary was previously documented only in `help report`'s own prose, and only after a response
+had already used it once. [C-196]
 Every fact the validator enforces that `help` also states (depth counts, the `where` limit, the pass bar, and
 the `wise` catalog lists) is built from the same constants the schema check and validator use, and a test
 asserts each one appears verbatim in the `help` output it names — so the validator and `help` can't quietly
@@ -684,6 +728,21 @@ a drill item or category: its `ask:`/`over:` (the frozen question set) is printe
 validated — template only prints, like every other path. [C-111]
 `--where`/`--goal` are refused unless paired with `--from`, and refused together with `--parent` (they overlay
 a checklist read from a file, not a drill item/category lookup). [C-112]
+`sidewise template <verb> --from SW-####` prints that run's own request straight from the ledger — free,
+read-only, no spend, same discipline as every other `template` path (it only prints; nothing here is
+validated). The `SW-####` shape is checked before the file-path branch (unambiguous, and a typo'd id would
+otherwise surface a confusing "file not found" instead of "not in the ledger"). An id not in the ledger, or one
+that predates the YAML contract (a Plan 1 run, no `v: 2`), is a clean stop naming the problem, not a crash. With
+no project reachable, the lookup itself is a clean stop (a run-id lookup has nothing to search). `--where`/
+`--goal` overlay on top of a ledger-fetched request the same way they already do for a file-based `--from`.
+[C-201]
+The `--from SW-####` rebuild is faithful to the run's own request for every verb except `change`: a `change`
+run's stored record also carries its *parent's* `where` and `ask.categories` (kept there only so it can grade
+before/after answers against the same categories — never because the original change request carried them;
+`change`'s own `NEVER` list forbids `ask`/`over`/`from`/`where`/`depth` outright). `--from SW-####` on a change
+run therefore reprints only `goal`/`parent`/`compare` (plus `verb`), never the borrowed `where`/`ask`, so the
+printed request stays a schema-valid `change` request. Every other verb (`class`/`scan`/`loop`/`drill`) stores
+exactly its own request's fields on its own run, so the rebuild for those is a direct, unqualified copy. [C-202]
 `sidewise help report` is its own recognized target, not one of the six verbs (`report` is outside the 2x3
 Know/Judge/Prove grid) and not a cross-cutting topic: purpose, an example and its own sharp rules, the same
 shape as `help <verb>`. [C-161]
@@ -731,6 +790,25 @@ else, including `probe`), then `rules:`, then `patterns:` only when that target 
 it points further — a non-verb card's identifier line now reads `tool: <name>`, not the former `target: <name>`,
 so it matches a verb card's own `verb: <name>` line for line. [C-187]
 
+`sidewise agent`'s overview states one more rule, beyond the shared `RULES` list: `where:` resolves against the
+MCP `project` argument or the CLI's `SIDEWISE_HOME`, never the agent's own session cwd, naming both surfaces.
+This is a runtime/environment fact rather than a request-schema one, so it's hand-written once as `agent.ts`'s
+own constant rather than forced into `rules.ts` (built only from `schema-check.ts`/`validate.ts` constants), and
+it appears only in `agent`'s card, not `help`'s — an agent, not a human reading `help`, is the one that actually
+passes `project` or sets `SIDEWISE_HOME`. Round-4 finding: an agent had to fail once, `✖ side.where: cannot read
+"app/routes/contributions.js"`, to learn this the hard way. [C-195]
+
+Every `agent <verb>` card's `rules:` list also carries that verb's own sharp-rule prose (`help/verbs.ts`'s
+`SHARP`, the same bullets `help <verb>` already states), spliced in ahead of the shared `ruleLines(verb)`
+entries. This closes a round-4 finding: `agent drill` and `agent change` — the two highest-stakes verbs, isolate
+a finding and prove a fix — rendered an empty `rules:` section, since neither `rules.ts`'s `RULES` nor
+`patterns.ts` had any entries tagged for either verb, even though `help drill`/`help change` already had real
+prose. The splice applies to all six verbs, not just drill/change, so a verb card can't fall back to empty
+again as sharp rules are added elsewhere. `patterns.ts` also gained one good/bad pair each for `drill` (a bad
+request missing `from:`) and `change` (a bad request that includes `ask:`), both genuinely catchable outright
+by the real cross-validator (drill's trips its NEEDS check; change's trips its NEVER check, since `change` only
+ever replays a parent run's own questions) rather than assumed. [C-192] [C-193]
+
 The Claude Code skill's own "Run this first" guidance (`skills/sidewise/SKILL.md`, carried verbatim into
 `AGENTS.md`'s "Using Sidewise" section and into `GEMINI.md`) sends a cold agent to `sidewise agent` (no verb)
 first — it names every command, including `report`/`outcome`/`budget`/`template`, in one card — before
@@ -775,6 +853,16 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   place of it) — e.g. a budget-cap warning when the request would still need to call the classifier and the
   cap is already reached: `"would be blocked: the budget cap is already reached"`, without the dry run itself
   failing or spending anything. [C-131] [C-134]
+- `--dry-run`'s notes also carry up to 3 `probe:`-prefixed warnings for mechanically-checkable authoring issues
+  in the request's own `ask:` questions — never a new stop, never a new validator rule: a question that reads as
+  two joined into one (two `?` in one line, or the literal `" and "` between clauses), and a backticked file
+  path named in a question that isn't in the request's own `where:` (skipped for a request with no `where:` at
+  all — `scan`/`drill`/`loop` legitimately have none). A category mixing yes/no polarity words is deliberately
+  not checked here — not mechanically checkable, left to `sidewise agent probe`'s own prose rule — and neither is
+  a question over 160 characters, since the schema already stops that outright before a request can ever reach
+  `--dry-run`. More than 3 warnings still shows only 3, plus one line naming how many more, the same overflow
+  shape used for more than 5 request stops. `change` carries no `ask:` of its own (it replays its parent's
+  frozen questions), so it has nothing to check. [C-198]
 - A run whose every answer is reused from prior runs is never blocked by an already-reached budget cap, on
   any verb: the cap is checked only when the run would actually need to call the classifier — reuse only
   skips the *spend* gate, never the *ledger* one (the ledger must still read cleanly and accept the new line
@@ -813,6 +901,14 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   left untouched, not an error. The first hit wins, and its source (`env`/`keychain`/`file`) is carried
   alongside it. The resolved value never appears in any output, error, ledger line or note — the redaction list
   (`ledger/redact.ts`) also scrubs it as a literal, on top of its own secret-shaped patterns. [C-097]
+- The secret-shaped-key redaction pattern (`ledger/redact.ts`'s `KEY_VALUE`) refuses to start its value match on
+  `{` or `[`: a real secret is never itself a literal YAML mapping or list, so a Sidewise-chosen name that
+  happens to contain a secret-ish word (a sweep item or category like `issue-token`, `verify-token`,
+  `set-new-password`) no longer has the immediately-following structured value swallowed as if it were the
+  secret (previously `issue-token: {depends: unsure, ...}` became `issue-token: [redacted] unsure, ...}`,
+  destroying the category name — data loss, not a leak, since nothing there was ever a secret). A genuinely
+  secret-shaped value after the same kind of key (`api_key: sk-...`) is still redacted exactly as before.
+  [C-200]
 - `sidewise doctor` names where a resolved key came from (`key: yes · from OS keychain (encrypted, per user)`,
   `from user file <path> (0600, not encrypted)`, or `from env TYPESAFE_API_KEY`, with `(overrides stored)` when
   a stored key also exists but env won), or `key: no → run "sidewise init" to add one`; the env file gets its
