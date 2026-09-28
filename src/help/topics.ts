@@ -1,13 +1,15 @@
 /**
  * `sidewise help <topic>`: cross-cutting rules that don't belong to one verb:
  * authoring (how to write a request), verdict (how to read one), wise (the ledger's own context fields),
- * reuse (what answers are free and why). `probe()` splices `ruleLines('probe')` in after `PROBE_RULES`, for
+ * reuse (what answers are free and why). `verdict()`'s response-vocabulary bullets come from rules.ts's
+ * `VERDICT_FACTS` — the same list `agent verdict` (help/agent.ts) renders bare, so the two views can't state
+ * the verdict rules differently; `probe()` likewise splices `ruleLines('probe')` in after `PROBE_RULES`, for
  * facts that are Sidewise's own validator rules rather than TypeSafe guidance (schema-check.ts's per-question
- * character cap). [C-194]
+ * character cap). [C-194] [C-196]
  */
 import { AREAS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
 import { proseLines } from './patterns.ts';
-import { PROBE_RULES, ruleLines } from './rules.ts';
+import { PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
 
 export const TOPICS = ['authoring', 'verdict', 'wise', 'reuse', 'probe'] as const;
 export type Topic = (typeof TOPICS)[number];
@@ -35,14 +37,7 @@ function verdict(): string {
     '## verdict',
     'How to read what comes back:',
     ...ruleLines('verdict'),
-    '- `need:` on a category: `all` (default, every answer clears the bar) · `most` (>= 2/3 clear, none a clear miss) · `any` (at least one clears).',
-    '- the gate passes only when the goal and every category pass; in a sweep, an item passes only when its own categories and every child does too.',
-    '- `consensus` (STRONG · SPLIT · WEAK): whether the yes/no answers agree with each other — shown on `class`, and `drill` on a one-subject parent; a sweep or `change` response never computes it.',
-    '- `escalate: true` on non-STRONG consensus, `depth: thorough`, or a goal that reads as irreversible (delete, deploy, drop, pay, migrate, secret, credential) — don\'t act on this alone.',
-    '- a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes — that\'s exactly why it lands in `unsure` rather than a weak pass.',
-    '- the answer\'s shape is guaranteed (a number in range, a level that\'s really one of yours) — whether it\'s the RIGHT number is what consensus, escalate and your own reading are for, not the schema.',
-    '- a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) — read which one you got before treating a stop as `unsure`.',
-    '- a stop always reads `✖ field: problem → fix`; run `sidewise help <verb>` when one doesn\'t make sense.',
+    ...VERDICT_FACTS.map((f) => `- ${f}.`),
   ].join('\n');
 }
 

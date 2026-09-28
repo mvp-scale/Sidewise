@@ -60,6 +60,14 @@ describe('runHelp', () => {
     expect(runHelp('loop').text).toContain('## Good / bad');
   });
 
+  // [C-196] help verdict aligns with agent verdict's response-vocabulary facts (rules.ts's shared VERDICT_FACTS).
+  it('[C-196] help verdict covers consensus, escalate, stale, reused and fixed/still/regressed', () => {
+    const text = runHelp('verdict').text;
+    for (const term of ['STRONG', 'SPLIT', 'WEAK', 'escalate', 'stale', 'reused', 'fixed', 'still', 'regressed']) {
+      expect(text, `missing "${term}"`).toContain(term);
+    }
+  });
+
   it.each(TOPICS)('[C-116] help %s: a real topic page', (topic) => {
     const r = runHelp(topic);
     expect(r.exit).toBe(0);

@@ -24,17 +24,18 @@
  * the same detection and the same wording `doctor`'s `key:` line uses (setup/plugin.ts's `inPluginContext` and
  * `NO_KEY_PLUGIN_HINT`), so the two views can't drift on how to add a key.
  *
- * `probe`/`outcome`/`budget`/`report`/`template` are recognized non-verb targets too
+ * `probe`/`verdict`/`outcome`/`budget`/`report`/`template` are recognized non-verb targets too
  * (round 3 smoke testing: `outcome` was undocumented in both `help` and `agent`, round3-findings.md's
  * "PRODUCT, confirmed" finding; `budget`/`report` got the same treatment for consistency; `template` — a real
  * command a cold agent needs before writing a request, and until now missing from `agent` entirely — followed
- * the same way) — each its own bare terse card, no citations, no headings, traceable to the shared source
- * `help`'s prose pages use where one exists (rules.ts's PROBE_RULES; report.ts's own
- * outcomeHelp/budgetHelp/reportHelp content, hand-mirrored here terse per that module's own note, since an
- * agent card is why-only with no rule prose to reuse) so the two views can't drift apart. cli.ts wires this in
- * next to `help`; the MCP tool answers it the same way it answers `help`, since both are just another
- * `args[0]` in the same dispatch — and the tool's own description (src/mcp/protocol.ts) now tells a cold agent
- * to call this first, before anything else.
+ * the same way; `verdict` — how to read a response, round-4 smoke testing's "response vocabulary never taught
+ * before it appears" finding — is the newest) — each its own bare terse card, no citations, no headings,
+ * traceable to the shared source `help`'s prose pages use where one exists (rules.ts's PROBE_RULES and
+ * VERDICT_FACTS; report.ts's own outcomeHelp/budgetHelp/reportHelp content, hand-mirrored here terse per that
+ * module's own note, since an agent card is why-only with no rule prose to reuse) so the two views can't drift
+ * apart. cli.ts wires this in next to `help`; the MCP tool answers it the same way it answers `help`, since
+ * both are just another `args[0]` in the same dispatch — and the tool's own description (src/mcp/protocol.ts)
+ * now tells a cold agent to call this first, before anything else.
  *
  * Every verb card also splices verbs.ts's `SHARP[verb]` bullets into its `rules:` list, alongside
  * `ruleLines(verb)` (round-4 finding: `agent drill`/`agent change` rendered an empty `rules:` section since
@@ -52,7 +53,7 @@ import type { VerbResult } from '../verbs/types.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { terseLines } from './patterns.ts';
 import { TOOL_LINE } from './report.ts';
-import { PROBE_RULES, ruleLines } from './rules.ts';
+import { PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
 import { SHARP, VERB_LINE } from './verbs.ts';
 
 const isVerb = (s: string): s is Verb => (VERBS as readonly string[]).includes(s);
@@ -111,6 +112,7 @@ function overview(env: Record<string, string | undefined>, deps: { resolveStored
     [
       'run: sidewise agent <verb|tool> — before writing that request',
       'run: sidewise agent probe — before writing questions: how to phrase one',
+      'run: sidewise agent verdict — before reading a response: how to read it',
       ...noKeyRunLine(env, deps),
     ],
   );
@@ -133,6 +135,13 @@ function probeCard(): string {
     ['tool: probe'],
     [...PROBE_RULES.map((r) => `- ${r.text}`), ...ruleLines('probe')],
   );
+}
+
+/** rules.ts's `VERDICT_FACTS` bare, no headings, no prose framing — the same list `help verdict`'s prose wraps.
+ *  Round-4 finding: this response-side vocabulary (consensus, escalate, stale, reused, fixed/still/regressed,
+ *  what unsure means, goal vs category gates) was never taught before a response first showed it. [C-196] */
+function verdictCard(): string {
+  return renderCard(['tool: verdict'], [...ruleLines('verdict'), ...VERDICT_FACTS.map((f) => `- ${f}`)]);
 }
 
 function outcomeCard(): string {
@@ -214,6 +223,7 @@ function templateCard(): string {
 /** Non-verb targets `agent` recognizes, beyond the six verbs above. */
 const AGENT_TOPICS: Record<string, () => string> = {
   probe: probeCard,
+  verdict: verdictCard,
   outcome: outcomeCard,
   budget: budgetCard,
   report: reportCard,

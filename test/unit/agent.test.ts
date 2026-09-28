@@ -6,7 +6,7 @@ import { AGENT_TOOLS, runAgent } from '../../src/help/agent.ts';
 import { runHelp } from '../../src/help/index.ts';
 import { PATTERNS } from '../../src/help/patterns.ts';
 import { TOOL_LINE } from '../../src/help/report.ts';
-import { PROBE_RULES, RULES } from '../../src/help/rules.ts';
+import { PROBE_RULES, RULES, VERDICT_FACTS } from '../../src/help/rules.ts';
 import { SHARP, VERB_LINE } from '../../src/help/verbs.ts';
 
 describe('runAgent', () => {
@@ -98,6 +98,39 @@ describe('runAgent', () => {
     expect(text).toContain('SIDEWISE_HOME');
     expect(text).toContain('project');
     expect(text.toLowerCase()).toContain('session cwd');
+  });
+
+  // [C-196] The overview's closing run: block now has a third line pointing at the new verdict topic.
+  it('[C-196] the overview points at "sidewise agent verdict" for reading a response', () => {
+    expect(runAgent().text).toContain('run: sidewise agent verdict');
+  });
+
+  // [C-196] A new bare topic card covering the response-side vocabulary, aligned with help verdict's prose via
+  // the shared VERDICT_FACTS list (rules.ts).
+  describe('[C-196] agent verdict', () => {
+    it('identifier, bare, no headings, no citations', () => {
+      const text = runAgent('verdict').text;
+      expect(text).toContain('tool: verdict');
+      expect(text).not.toMatch(/^##\s/mu);
+      expect(text).not.toContain('TypeSafe');
+    });
+
+    it('carries every VERDICT_FACTS entry, verbatim', () => {
+      const text = runAgent('verdict').text;
+      for (const f of VERDICT_FACTS) expect(text).toContain(f);
+    });
+
+    it('covers consensus, escalate, stale, reused and fixed/still/regressed', () => {
+      const text = runAgent('verdict').text;
+      for (const term of ['STRONG', 'SPLIT', 'WEAK', 'escalate', 'stale', 'reused', 'fixed', 'still', 'regressed', 'unsure']) {
+        expect(text, `missing "${term}"`).toContain(term);
+      }
+    });
+
+    it('is listed among the recognized extras', () => {
+      const r = runAgent('nope');
+      expect(r.text).toContain('"verdict"');
+    });
   });
 
   it.each(['outcome', 'budget', 'report'] as const)('[C-182] agent %s: a recognized non-verb target, bare, with a good/bad pair', (target) => {
@@ -193,7 +226,7 @@ describe('runAgent: the overview\'s no-key hint', () => {
 // line(s) first, then `rules:`, then `patterns:` (only when the target has any), then `run:` (only when it
 // points further). [C-187]
 describe('every agent card follows the same key order', () => {
-  const NON_VERBS = ['probe', 'outcome', 'budget', 'report', 'template'] as const;
+  const NON_VERBS = ['probe', 'verdict', 'outcome', 'budget', 'report', 'template'] as const;
 
   /** 0 = an identifier line (verb:/verbs:/tool:/tools:, including the overview's "verbs (pick by goal):"
    *  header), 1 = rules:, 2 = patterns:, 3 = run: — undefined for any other line (a purpose/rule/pattern
