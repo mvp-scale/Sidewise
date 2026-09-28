@@ -11558,6 +11558,35 @@ function dryRunText(plan, extraNotes = []) {
   );
 }
 var MAX_PROBE_WARNINGS = 3;
+var PATH_EXTENSIONS = /* @__PURE__ */ new Set([
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "py",
+  "go",
+  "rs",
+  "java",
+  "rb",
+  "php",
+  "cs",
+  "json",
+  "yaml",
+  "yml",
+  "html",
+  "sql",
+  "md",
+  "sh",
+  "env"
+]);
+function looksLikeFilePath(text) {
+  if (text.includes("/")) return true;
+  const dot = text.lastIndexOf(".");
+  if (dot <= 0 || dot === text.length - 1) return false;
+  return PATH_EXTENSIONS.has(text.slice(dot + 1).toLowerCase());
+}
 function allQuestions(side) {
   return [...side.categories, ...side.layers.flatMap((l) => l.categories)].flatMap((c) => c.questions);
 }
@@ -11571,7 +11600,7 @@ function probeWarnings(side) {
     if (side.where.length > 0) {
       for (const m2 of q.text.matchAll(/`([^`]+)`/g)) {
         const named = m2[1];
-        if (!side.where.includes(named) && !side.where.some((w) => w.startsWith(`${named}:`))) {
+        if (looksLikeFilePath(named) && !side.where.includes(named) && !side.where.some((w) => w.startsWith(`${named}:`))) {
           warnings.push(`probe: "${clip(named, 60)}" is named in a question but not in where: \u2014 it has nothing to answer from`);
         }
       }
@@ -15035,7 +15064,15 @@ async function dispatch(argv, ctx) {
         }
         const parentRun = findRun(paths, values.parent);
         const goal = parentRun && isContractRun(parentRun) ? parentRun.goal : "The change works";
-        const expect = values.expect ? values.expect.split(",").map((s) => s.trim()).filter(Boolean) : parentRun && isContractRun(parentRun) ? parentRun.ask.categories.filter((c) => c.section !== "decisions").map((c) => c.name) : [];
+        const expect = values.expect ? values.expect.split(",").map((s) => s.trim()).filter(Boolean) : [];
+        if (expect.length === 0) {
+          const concernNames = parentRun && isContractRun(parentRun) ? parentRun.ask.categories.filter((c) => c.section !== "decisions").map((c) => c.name) : [];
+          const sample = concernNames.length > 0 ? concernNames.join(",") : "injection,guards";
+          return finish(
+            2,
+            withAgentPointer(`\u2716 --expect: name the concerns this change should fix \u2192 sidewise change --parent SW-#### --compare <before>..<after> --expect ${sample}`, command)
+          );
+        }
         text = (0, import_yaml3.stringify)({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount("change", positionals, 1, 1);
