@@ -239,9 +239,33 @@ side:
     sub: [guest, saved]
   ask:
     sub:
-      quality:
-        pass: yes
-        1: Is {sub} well defined?
+      concerns:
+        quality:
+          pass: yes
+          1: Is {sub} well defined?
+          2: Is {sub} independently testable?
+          3: Is {sub} owned by one clear team?
+        risk:
+          pass: no
+          4: Does {sub} depend on data it doesn't own?
+          5: Could {sub} fail silently?
+          6: Does {sub} skip error handling?
+        fit:
+          pass: yes
+          7: Does {sub} match how the gateway is meant to work?
+          8: Would {sub} survive a redesign of the gateway?
+          9: Is {sub} covered by an existing test?
+      decisions:
+        severity:
+          pass: [none, low]
+          10:
+            scale: How risky is {sub}?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [build-now]
+          11:
+            choice: What should happen to {sub} next?
+            options: [build-now, rework, redesign]
 wise:
   why: debug
   area: api
@@ -259,9 +283,33 @@ side:
     sub: each
   ask:
     sub:
-      quality:
-        pass: yes
-        1: Is {sub} well defined?
+      concerns:
+        quality:
+          pass: yes
+          1: Is {sub} well defined?
+          2: Is {sub} independently testable?
+          3: Is {sub} owned by one clear team?
+        risk:
+          pass: no
+          4: Does {sub} depend on data it doesn't own?
+          5: Could {sub} fail silently?
+          6: Does {sub} skip error handling?
+        fit:
+          pass: yes
+          7: Does {sub} match how the gateway is meant to work?
+          8: Would {sub} survive a redesign of the gateway?
+          9: Is {sub} covered by an existing test?
+      decisions:
+        severity:
+          pass: [none, low]
+          10:
+            scale: How risky is {sub}?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [build-now]
+          11:
+            choice: What should happen to {sub} next?
+            options: [build-now, rework, redesign]
 wise:
   why: debug
   area: api
