@@ -99,7 +99,8 @@ describe('runInit: a fresh --yes --no-claude --key-stdin run, inside a git proje
     expect(readInstallRecord(ctx.env)).toMatchObject({ mode: 'user', npmPrefix: path.join(home, '.local') });
     expect(readEnvFile(envFilePath(ctx.env))).toMatchObject({ values: { TYPESAFE_API_KEY: 'dummy-key-value-123' } });
     expect(existsSync(path.join(ctx.cwd, '.sidewise', '.gitignore'))).toBe(true);
-    expect(readFileSync(path.join(ctx.cwd, '.sidewise', '.gitignore'), 'utf8')).toBe('*\n');
+    // plan 2c B1: config.yaml is the one file under .sidewise/ meant to be committed (ledger/paths.ts's ensureDir).
+    expect(readFileSync(path.join(ctx.cwd, '.sidewise', '.gitignore'), 'utf8')).toBe('*\n!config.yaml\n');
   });
 
   it('defaults to --local when cwd has a package.json, regardless of the global prefix', async () => {
