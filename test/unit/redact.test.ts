@@ -59,6 +59,56 @@ describe('redact still catches what it did', () => {
   });
 });
 
+// SW-0006 (round 4 smoke): a `loop` sweep response named its own items `issue-token`, `verify-token` and
+// `set-new-password` — real category/item names an agent chose, never a secret. KEY_VALUE matched each name as
+// a "secret-ish key", then greedily consumed the immediately-following YAML mapping (`{depends: unsure, ...}`)
+// as if it were the secret VALUE (its char class stopped only at whitespace/quotes, and `{`/`d`/`e`/... aren't
+// whitespace), destroying the category name in the process: `issue-token: {depends: unsure, ...}` became
+// `issue-token: [redacted] unsure, ...}` — 3 of 4 result rows corrupted, one clean (`request-reset`, no
+// flagged substring). [C-200]
+describe('KEY_VALUE never eats a structured YAML value that follows a secret-shaped key name [C-200]', () => {
+  it('reproduces SW-0006 byte-for-byte before the fix: the category name is destroyed', () => {
+    // Sanity check against the raw pattern shape, documenting the exact incident this test guards against.
+    const before = 'issue-token: {depends: unsure, route: fail, 3: 0.66, 7: {top: build-now, p: 1}}';
+    const corrupted = 'issue-token: [redacted] unsure, route: fail, 3: 0.66, 7: {top: build-now, p: 1}}';
+    expect(corrupted).not.toBe(before); // documents what the bug used to produce, not an assertion on current code
+  });
+
+  it('a sweep item name shaped like a secret keyword, followed by a YAML mapping, is left untouched', () => {
+    const line = 'issue-token: {depends: unsure, route: fail, 3: 0.66, 7: {top: build-now, p: 1}}';
+    expect(redactSecrets(line)).toBe(line);
+  });
+
+  it('every corrupted name from the real incident survives, mapping value intact', () => {
+    const lines = [
+      'issue-token: {depends: unsure, route: fail, 3: 0.66, 7: {top: build-now, p: 1}}',
+      'verify-token: {depends: unsure, route: fail, 3: 0.68, 7: {top: build-now, p: 1}}',
+      'set-new-password: {depends: unsure, route: fail, 3: 0.70, 7: {top: build-now, p: 1}}',
+    ];
+    for (const line of lines) expect(redactSecrets(line)).toBe(line);
+  });
+
+  it('the one clean row from the real incident (no flagged substring) is still a no-op', () => {
+    const line = 'request-reset: {depends: unsure, route: fail, 3: 0.60, 7: {top: build-now, p: 1}}';
+    expect(redactSecrets(line)).toBe(line);
+  });
+
+  it('a genuinely secret-shaped value after the same kind of key is still redacted, in the same string', () => {
+    const text = 'issue-token: {depends: unsure}\napi_key: sk-abc123def456ghi789\n';
+    const out = redactSecrets(text);
+    expect(out).toContain('issue-token: {depends: unsure}');
+    expect(out).not.toContain('sk-abc123def456ghi789');
+    expect(out).toContain('api_key: [redacted]');
+  });
+
+  it('a secret-shaped value that is itself a YAML list is still not swallowed as a value with { or [ leading it (documents the bracket check applies to both)', () => {
+    // Not a realistic secret shape (secrets are never literal YAML lists), but proves the fix keys off "does
+    // the value look structured", not off which specific bracket the incident happened to use.
+    const line = 'set-new-password: [depends, route]';
+    expect(redactSecrets(line)).toBe(line);
+  });
+});
+
 describe('registerSecret: a resolved key gets scrubbed even with no secret-shaped pattern [C-097]', () => {
   afterEach(() => clearRegisteredSecrets());
 

@@ -35,7 +35,17 @@ const EMAIL = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2
 // Tradeoff: a long expression assigned to such a name (const tokenCount = countTokens(x)) is redacted too.
 // The identifier around the keyword is bounded ({0,64}): unbounded, the two runs backtrack cubically. A longer
 // name is still caught, from the keyword (or the last "_" before it) onwards.
-const KEY_VALUE = /(?<![A-Za-z0-9])([A-Za-z0-9_]{0,64}(?:api[_-]?key|token|secret|password|passwd)[A-Za-z0-9_]{0,64})(['"]?)(\s*[:=]\s*)(['"]?)[^\s'"]{8,}\4/gi;
+//
+// C-200: this also matches Sidewise's OWN structured response/ledger keys — a sweep item or category name an
+// agent chose itself (issue-token, verify-token, set-new-password), never a real secret. Without the `(?![{[])`
+// guard below, the "value" half (`[^\s'"]{8,}`, which stops only at whitespace or a quote) happily swallows the
+// immediately-following YAML mapping or list as if it were the secret: `issue-token: {depends: unsure, ...}`
+// became `issue-token: [redacted] unsure, ...}`, destroying the category name `depends` — data loss, not a
+// leak. A real secret value is never itself a literal `{...}` mapping or `[...]` list, so refusing to start the
+// match there is a narrow, correct fix: it leaves every genuine `key: <secret-shaped-value>` pair caught
+// exactly as before (verified in redact.test.ts alongside the regression case), and only stops the match from
+// starting where the "value" is actually a nested structure, not a secret.
+const KEY_VALUE = /(?<![A-Za-z0-9])([A-Za-z0-9_]{0,64}(?:api[_-]?key|token|secret|password|passwd)[A-Za-z0-9_]{0,64})(['"]?)(\s*[:=]\s*)(['"]?)(?![{[])[^\s'"]{8,}\4/gi;
 const BEARER = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi;
 
 /** Secret-shaped redaction only; emails are kept. For identities (actor, by), which must stay comparable. */
