@@ -114,17 +114,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key2, node, visitor, path20) {
-      const ctrl = callVisitor(key2, node, visitor, path20);
+    function visit_(key2, node, visitor, path21) {
+      const ctrl = callVisitor(key2, node, visitor, path21);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key2, path20, ctrl);
-        return visit_(key2, ctrl, visitor, path20);
+        replaceNode(key2, path21, ctrl);
+        return visit_(key2, ctrl, visitor, path21);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path20 = Object.freeze(path20.concat(node));
+          path21 = Object.freeze(path21.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path20);
+            const ci = visit_(i, node.items[i], visitor, path21);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -135,13 +135,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path20 = Object.freeze(path20.concat(node));
-          const ck = visit_("key", node.key, visitor, path20);
+          path21 = Object.freeze(path21.concat(node));
+          const ck = visit_("key", node.key, visitor, path21);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path20);
+          const cv = visit_("value", node.value, visitor, path21);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -162,17 +162,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key2, node, visitor, path20) {
-      const ctrl = await callVisitor(key2, node, visitor, path20);
+    async function visitAsync_(key2, node, visitor, path21) {
+      const ctrl = await callVisitor(key2, node, visitor, path21);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key2, path20, ctrl);
-        return visitAsync_(key2, ctrl, visitor, path20);
+        replaceNode(key2, path21, ctrl);
+        return visitAsync_(key2, ctrl, visitor, path21);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path20 = Object.freeze(path20.concat(node));
+          path21 = Object.freeze(path21.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path20);
+            const ci = await visitAsync_(i, node.items[i], visitor, path21);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -183,13 +183,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path20 = Object.freeze(path20.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path20);
+          path21 = Object.freeze(path21.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path21);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path20);
+          const cv = await visitAsync_("value", node.value, visitor, path21);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -216,23 +216,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key2, node, visitor, path20) {
+    function callVisitor(key2, node, visitor, path21) {
       if (typeof visitor === "function")
-        return visitor(key2, node, path20);
+        return visitor(key2, node, path21);
       if (identity.isMap(node))
-        return visitor.Map?.(key2, node, path20);
+        return visitor.Map?.(key2, node, path21);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key2, node, path20);
+        return visitor.Seq?.(key2, node, path21);
       if (identity.isPair(node))
-        return visitor.Pair?.(key2, node, path20);
+        return visitor.Pair?.(key2, node, path21);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key2, node, path20);
+        return visitor.Scalar?.(key2, node, path21);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key2, node, path20);
+        return visitor.Alias?.(key2, node, path21);
       return void 0;
     }
-    function replaceNode(key2, path20, node) {
-      const parent = path20[path20.length - 1];
+    function replaceNode(key2, path21, node) {
+      const parent = path21[path21.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key2] = node;
       } else if (identity.isPair(parent)) {
@@ -844,10 +844,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path20, value) {
+    function collectionFromPath(schema, path21, value) {
       let v = value;
-      for (let i = path20.length - 1; i >= 0; --i) {
-        const k = path20[i];
+      for (let i = path21.length - 1; i >= 0; --i) {
+        const k = path21[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -866,7 +866,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path20) => path20 == null || typeof path20 === "object" && !!path20[Symbol.iterator]().next().done;
+    var isEmptyPath = (path21) => path21 == null || typeof path21 === "object" && !!path21[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -896,11 +896,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path20, value) {
-        if (isEmptyPath(path20))
+      addIn(path21, value) {
+        if (isEmptyPath(path21))
           this.add(value);
         else {
-          const [key2, ...rest] = path20;
+          const [key2, ...rest] = path21;
           const node = this.get(key2, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -914,8 +914,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path20) {
-        const [key2, ...rest] = path20;
+      deleteIn(path21) {
+        const [key2, ...rest] = path21;
         if (rest.length === 0)
           return this.delete(key2);
         const node = this.get(key2, true);
@@ -929,8 +929,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path20, keepScalar) {
-        const [key2, ...rest] = path20;
+      getIn(path21, keepScalar) {
+        const [key2, ...rest] = path21;
         const node = this.get(key2, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -948,8 +948,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path20) {
-        const [key2, ...rest] = path20;
+      hasIn(path21) {
+        const [key2, ...rest] = path21;
         if (rest.length === 0)
           return this.has(key2);
         const node = this.get(key2, true);
@@ -959,8 +959,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path20, value) {
-        const [key2, ...rest] = path20;
+      setIn(path21, value) {
+        const [key2, ...rest] = path21;
         if (rest.length === 0) {
           this.set(key2, value);
         } else {
@@ -3475,9 +3475,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path20, value) {
+      addIn(path21, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path20, value);
+          this.contents.addIn(path21, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -3552,14 +3552,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path20) {
-        if (Collection.isEmptyPath(path20)) {
+      deleteIn(path21) {
+        if (Collection.isEmptyPath(path21)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path20) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path21) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -3574,10 +3574,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path20, keepScalar) {
-        if (Collection.isEmptyPath(path20))
+      getIn(path21, keepScalar) {
+        if (Collection.isEmptyPath(path21))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path20, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path21, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -3588,10 +3588,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path20) {
-        if (Collection.isEmptyPath(path20))
+      hasIn(path21) {
+        if (Collection.isEmptyPath(path21))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path20) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path21) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -3608,13 +3608,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path20, value) {
-        if (Collection.isEmptyPath(path20)) {
+      setIn(path21, value) {
+        if (Collection.isEmptyPath(path21)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path20), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path21), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path20, value);
+          this.contents.setIn(path21, value);
         }
       }
       /**
@@ -5575,9 +5575,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path20) => {
+    visit.itemAtPath = (cst, path21) => {
       let item = cst;
-      for (const [field, index] of path20) {
+      for (const [field, index] of path21) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -5586,23 +5586,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path20) => {
-      const parent = visit.itemAtPath(cst, path20.slice(0, -1));
-      const field = path20[path20.length - 1][0];
+    visit.parentCollection = (cst, path21) => {
+      const parent = visit.itemAtPath(cst, path21.slice(0, -1));
+      const field = path21[path21.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path20, item, visitor) {
-      let ctrl = visitor(item, path20);
+    function _visit(path21, item, visitor) {
+      let ctrl = visitor(item, path21);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path20.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path21.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -5613,10 +5613,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path20);
+            ctrl = ctrl(item, path21);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path20) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path21) : ctrl;
     }
     exports.visit = visit;
   }
@@ -7371,7 +7371,7 @@ var require_dist = __commonJS({
 var import_yaml3 = __toESM(require_dist(), 1);
 import { readFileSync as readFileSync14, statSync as statSync8 } from "node:fs";
 import os3 from "node:os";
-import path19 from "node:path";
+import path20 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -11087,22 +11087,22 @@ function never(field, verb) {
   return `\u2716 side.${field}: ${verb} doesn't take it \u2192 remove it`;
 }
 var cross = (text) => ({ cls: "cross", text });
-function findBlanks(v, path20, out) {
+function findBlanks(v, path21, out) {
   const label = (p) => {
     const q = /^side\.ask\..*\.(\d+)$/u.exec(p);
     return q ? `question ${q[1]}` : p;
   };
   if (typeof v === "string") {
-    if (v.includes("____")) out.push(cross(`\u2716 ${label(path20)}: still a ____ blank \u2192 fill it in`));
+    if (v.includes("____")) out.push(cross(`\u2716 ${label(path21)}: still a ____ blank \u2192 fill it in`));
     return;
   }
   if (Array.isArray(v)) {
-    v.forEach((x, i) => findBlanks(x, `${path20}[${i}]`, out));
+    v.forEach((x, i) => findBlanks(x, `${path21}[${i}]`, out));
     return;
   }
   if (isObj2(v)) {
     for (const [k, x] of Object.entries(v)) {
-      const p = path20 ? `${path20}.${k}` : k;
+      const p = path21 ? `${path21}.${k}` : k;
       if (k.includes("____")) out.push(cross(`\u2716 ${label(p)}: still a ____ blank \u2192 fill it in`));
       else findBlanks(x, p, out);
     }
@@ -12608,8 +12608,628 @@ async function runLoop(text, ctx) {
   return recordSweep(ctx, calls, costUsd, run);
 }
 
+// src/verbs/report-web.ts
+import { writeFileSync as writeFileSync6 } from "node:fs";
+import path17 from "node:path";
+var DAY_MS = 24 * 60 * 60 * 1e3;
+var LIST_CAP = 12;
+var GATE_RANK = { fail: 0, unsure: 1, pass: 2 };
+function normalizeQuestion(text) {
+  return text.toLowerCase().replace(/\{[a-z_]+\}/gu, " ").replace(/[^a-z0-9 ]/gu, " ").replace(/\s+/gu, " ").trim();
+}
+function placeSummary(rec) {
+  const direct = rec.where.map(stripLines).filter(Boolean);
+  if (direct.length) return direct.join(", ");
+  const sweep = sweepPlaces(rec).filter((p) => p.kind === "where").map((p) => p.val);
+  return sweep.length ? sweep.join(", ") : "(no place)";
+}
+function wiseTags(rec) {
+  const w = rec.wise;
+  if (!w) return [];
+  const tags = [];
+  if (w.why) tags.push(`why:${w.why}`);
+  if (w.area) tags.push(`area:${w.area}`);
+  if (w.stage) tags.push(`stage:${w.stage}`);
+  if (w.change) tags.push(`change:${w.change}`);
+  if (w.risk) tags.push(`risk:${w.risk}`);
+  return tags;
+}
+function meanP(answers, ns, prefix) {
+  const ps = [];
+  for (const n of ns) {
+    const a = answers[`${prefix}${n}`];
+    if (a && a.kind === "yesno") ps.push(a.p);
+  }
+  return ps.length ? ps.reduce((s, v) => s + v, 0) / ps.length : null;
+}
+function questionFingerprint(cat) {
+  return cat.questions.map((q) => normalizeQuestion(q.text)).sort().join("|");
+}
+function collectEdges(runs) {
+  const edges = [];
+  const runTags = /* @__PURE__ */ new Map();
+  for (const rec of runs) {
+    runTags.set(rec.id, wiseTags(rec));
+    if (rec.items) {
+      const layerCats = /* @__PURE__ */ new Map();
+      for (const layer of rec.ask.layers) layerCats.set(layer.name, layer.categories);
+      for (const [itemKey, item] of Object.entries(rec.items)) {
+        const place = item.unit?.path;
+        if (!place) continue;
+        for (const cat of layerCats.get(item.layer) ?? []) {
+          const gate = item.categories?.[cat.name];
+          if (gate === void 0) continue;
+          const ns = cat.questions.map((q) => q.n);
+          const p = meanP(rec.answers, ns, `${itemKey}#`);
+          edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext: questionFingerprint(cat) });
+        }
+      }
+    } else {
+      const places = rec.where.map(stripLines).filter(Boolean);
+      if (!places.length) continue;
+      for (const cat of rec.ask.categories) {
+        const gate = rec.categories[cat.name];
+        if (gate === void 0) continue;
+        const ns = cat.questions.map((q) => q.n);
+        const p = meanP(rec.answers, ns, "");
+        const qtext = questionFingerprint(cat);
+        for (const place of places) edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext });
+      }
+    }
+  }
+  return { edges, runTags };
+}
+function rollup(verdicts) {
+  if (!verdicts.length) return "none";
+  if (verdicts.includes("conflict")) return "conflict";
+  const gates = verdicts.filter((v) => v === "pass" || v === "fail" || v === "unsure");
+  if (!gates.length) return "none";
+  return [...gates].sort((a, b) => GATE_RANK[a] - GATE_RANK[b])[0];
+}
+function buildOutcomes(runs, outcomes) {
+  const latest = /* @__PURE__ */ new Map();
+  for (const o of outcomes) latest.set(o.of, o.outcome);
+  const counts = { held: 0, overruled: 0, failed: 0, open: 0 };
+  for (const outcome of latest.values()) counts[outcome]++;
+  for (const r of runs) {
+    if ((r.gate === "fail" || r.gate === "unsure") && !latest.has(r.id)) counts.open++;
+  }
+  return counts;
+}
+function buildArcs(runs) {
+  const fixes = [];
+  const regressions = [];
+  for (const r of runs) {
+    if (r.verb !== "change" || !r.answers["goal"]) continue;
+    let graded;
+    try {
+      graded = gradeChange(r.ask.categories, r.answers);
+    } catch {
+      continue;
+    }
+    const place = placeSummary(r);
+    if (graded.regressed.length) regressions.push({ id: r.id, place });
+    else if (graded.categories.some((c) => c.before !== "pass" && c.after === "pass")) fixes.push({ id: r.id, place });
+  }
+  return { fixes, regressions };
+}
+function buildWindow(records) {
+  const runs = records.filter(isContractRun);
+  const legacyRuns = records.filter(isRun);
+  const outcomes = records.filter((r) => r.kind === "outcome");
+  const failed = records.filter((r) => r.kind === "failed");
+  const { edges, runTags } = collectEdges(runs);
+  const placeConcerns = /* @__PURE__ */ new Map();
+  const placeRuns = /* @__PURE__ */ new Map();
+  const placeTags = /* @__PURE__ */ new Map();
+  const concernRuns = /* @__PURE__ */ new Map();
+  const concernPlaces = /* @__PURE__ */ new Map();
+  const tagRuns = /* @__PURE__ */ new Map();
+  const tagPlaces = /* @__PURE__ */ new Map();
+  const pcMap = /* @__PURE__ */ new Map();
+  for (const e of edges) {
+    if (!placeConcerns.has(e.place)) placeConcerns.set(e.place, /* @__PURE__ */ new Set());
+    placeConcerns.get(e.place).add(e.concern);
+    if (!placeRuns.has(e.place)) placeRuns.set(e.place, /* @__PURE__ */ new Set());
+    placeRuns.get(e.place).add(e.runId);
+    if (!concernRuns.has(e.concern)) concernRuns.set(e.concern, /* @__PURE__ */ new Set());
+    concernRuns.get(e.concern).add(e.runId);
+    if (!concernPlaces.has(e.concern)) concernPlaces.set(e.concern, /* @__PURE__ */ new Set());
+    concernPlaces.get(e.concern).add(e.place);
+    for (const tag of runTags.get(e.runId) ?? []) {
+      if (!placeTags.has(e.place)) placeTags.set(e.place, /* @__PURE__ */ new Set());
+      placeTags.get(e.place).add(tag);
+      if (!tagRuns.has(tag)) tagRuns.set(tag, /* @__PURE__ */ new Set());
+      tagRuns.get(tag).add(e.runId);
+      if (!tagPlaces.has(tag)) tagPlaces.set(tag, /* @__PURE__ */ new Set());
+      tagPlaces.get(tag).add(e.place);
+    }
+    const key2 = `${e.place}\0${e.concern}`;
+    if (!pcMap.has(key2)) pcMap.set(key2, []);
+    pcMap.get(key2).push(e);
+  }
+  const pairStats = /* @__PURE__ */ new Map();
+  for (const [key2, hits] of pcMap) {
+    const runIds = [...new Set(hits.map((h) => h.runId))];
+    const uniqGates = [...new Set(hits.map((h) => h.gate))];
+    const status = uniqGates.length > 1 ? "CONFLICT" : runIds.length >= 2 ? "STRONG" : "SINGLE";
+    const verdict2 = uniqGates.length > 1 ? "conflict" : uniqGates[0];
+    const ps = hits.map((h) => h.p).filter((p) => p !== null);
+    const spread = ps.length ? Math.max(...ps) - Math.min(...ps) : null;
+    const sameChecklist = new Set(hits.map((h) => h.qtext)).size <= 1;
+    pairStats.set(key2, { status, verdict: verdict2, spread, sameChecklist, runIds, uniqGates });
+  }
+  const places = [...placeConcerns.keys()].sort();
+  const layerNames = /* @__PURE__ */ new Map();
+  for (const place of places) {
+    const dir = path17.posix.dirname(place);
+    const layer = dir === "." ? "(root)" : dir;
+    if (!layerNames.has(layer)) layerNames.set(layer, []);
+    layerNames.get(layer).push(place);
+  }
+  const layers = [...layerNames.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([name, layerPlaces]) => ({
+    name,
+    cards: layerPlaces.map((place) => {
+      const concerns2 = [...placeConcerns.get(place)].sort().map((name2) => ({ name: name2, verdict: pairStats.get(`${place}\0${name2}`).verdict }));
+      return {
+        place,
+        verdict: rollup(concerns2.map((c) => c.verdict)),
+        runCount: placeRuns.get(place).size,
+        concerns: concerns2,
+        tags: [...placeTags.get(place) ?? []].sort()
+      };
+    })
+  }));
+  const concerns = [
+    ...[...concernRuns.entries()].map(([name, runIds]) => ({ key: name, label: name, kind: "category", count: runIds.size, places: [...concernPlaces.get(name) ?? []].sort() })),
+    ...[...tagRuns.entries()].map(([tag, runIds]) => ({ key: tag, label: tag, kind: "tag", count: runIds.size, places: [...tagPlaces.get(tag) ?? []].sort() }))
+  ].sort((a, b) => b.count - a.count || (a.kind === b.kind ? a.key.localeCompare(b.key) : a.kind === "category" ? -1 : 1));
+  const concernNames = [...concernRuns.keys()].sort();
+  const cells = [];
+  for (const place of places) {
+    for (const concern of concernNames) {
+      const stat = pairStats.get(`${place}\0${concern}`);
+      if (!stat) {
+        cells.push({ place, concern, verdict: "none", status: "NONE", runs: 0, gates: [], spread: null, sameChecklist: null, title: `${place} \xB7 ${concern} \xB7 no runs` });
+        continue;
+      }
+      const spreadText = stat.spread === null ? "n/a" : stat.spread.toFixed(2);
+      const sameChecklist = stat.status === "CONFLICT" ? stat.sameChecklist : null;
+      const checklistNote = sameChecklist === null ? "" : sameChecklist ? " \xB7 same checklist reused, verdict moved \u2014 real signal" : " \xB7 different questions asked under this name \u2014 may not be comparable";
+      cells.push({
+        place,
+        concern,
+        verdict: stat.verdict,
+        status: stat.status,
+        runs: stat.runIds.length,
+        gates: stat.uniqGates,
+        spread: stat.spread,
+        sameChecklist,
+        title: `${place} \xB7 ${concern} \xB7 ${stat.status} \xB7 runs ${stat.runIds.length} \xB7 gate ${stat.uniqGates.join("/")} \xB7 P(yes) spread ${spreadText}${checklistNote}`
+      });
+    }
+  }
+  const { fixes, regressions } = buildArcs(runs);
+  const findings = runs.filter((r) => r.gate === "fail").sort((a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0).slice(0, LIST_CAP).map((r) => ({ id: r.id, place: placeSummary(r), goal: r.goal, ts: r.ts }));
+  const actors = /* @__PURE__ */ new Set();
+  for (const r of runs) actors.add(r.actor);
+  for (const r of legacyRuns) actors.add(r.actor);
+  let paidCalls = 0;
+  let spendUsd = 0;
+  for (const r of runs) {
+    paidCalls += r.calls;
+    if (r.costUsd) spendUsd += r.costUsd;
+  }
+  for (const r of legacyRuns) {
+    if (r.costUsd) {
+      spendUsd += r.costUsd;
+      paidCalls += 1;
+    }
+  }
+  for (const f of failed) if (f.costUsd) spendUsd += f.costUsd;
+  let dateFrom = null;
+  let dateTo = null;
+  for (const r of records) {
+    if (dateFrom === null || r.ts < dateFrom) dateFrom = r.ts;
+    if (dateTo === null || r.ts > dateTo) dateTo = r.ts;
+  }
+  const story = {
+    runs: runs.length + legacyRuns.length,
+    paidCalls,
+    spendUsd,
+    actors: [...actors].sort(),
+    dateFrom,
+    dateTo,
+    fixes: fixes.slice(0, LIST_CAP),
+    regressions: regressions.slice(0, LIST_CAP),
+    findings,
+    outcomes: buildOutcomes(runs, outcomes)
+  };
+  return { layers, concerns, heatmap: { places, concerns: concernNames, cells }, story };
+}
+function buildViewerData(records, nowMs = Date.now()) {
+  const cutoff = nowMs - 30 * DAY_MS;
+  const recent = records.filter((r) => new Date(r.ts).getTime() >= cutoff);
+  return { generatedAt: new Date(nowMs).toISOString(), windows: { all: buildWindow(records), last30: buildWindow(recent) } };
+}
+function escapeForInlineJson(json) {
+  return json.replace(/&/gu, "\\u0026").replace(/</gu, "\\u003c").replace(/>/gu, "\\u003e").replace(/\u2028/gu, "\\u2028").replace(/\u2029/gu, "\\u2029");
+}
+var CSS = `
+:root {
+  --bg:#f5f3ef; --surface:#ffffff; --surface2:#efece6; --surface3:#e6e2da;
+  --border:#e2ded6; --border2:#c9c4ba;
+  --text:#151412; --muted:#6b6862; --faint:#a09c94;
+  --accent:#d4531e; --accent-bg:rgba(212,83,30,.12);
+  --run:#2f8a5b; --run-bg:rgba(47,138,91,.12);
+  --wait:#a8781a; --wait-bg:rgba(168,120,26,.14);
+  --park:#2f6fc4; --park-bg:rgba(47,111,196,.12);
+  --done:#8a877f; --done-bg:rgba(138,135,127,.16);
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --r-control:5px; --r-card:6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#0c0c0c; --surface:#121212; --surface2:#1a1a1a; --surface3:#222222;
+    --border:#262626; --border2:#383838;
+    --text:#f2efe9; --muted:#8f8c86; --faint:#5c5a56;
+    --accent:#e5622b; --accent-bg:rgba(229,98,43,.14);
+    --run:#5ea87f; --run-bg:rgba(94,168,127,.14);
+    --wait:#d4a54a; --wait-bg:rgba(212,165,74,.14);
+    --park:#6b9bd8; --park-bg:rgba(107,155,216,.14);
+    --done:#6b6b66; --done-bg:rgba(107,107,102,.18);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#0c0c0c; --surface:#121212; --surface2:#1a1a1a; --surface3:#222222;
+  --border:#262626; --border2:#383838;
+  --text:#f2efe9; --muted:#8f8c86; --faint:#5c5a56;
+  --accent:#e5622b; --accent-bg:rgba(229,98,43,.14);
+  --run:#5ea87f; --run-bg:rgba(94,168,127,.14);
+  --wait:#d4a54a; --wait-bg:rgba(212,165,74,.14);
+  --park:#6b9bd8; --park-bg:rgba(107,155,216,.14);
+  --done:#6b6b66; --done-bg:rgba(107,107,102,.18);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin:0; padding:0; background:var(--bg); color:var(--text); }
+body { font-family:var(--font-ui); font-size:13px; line-height:1.5; }
+.label { font-family:var(--font-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); font-weight:600; }
+button { font-family:inherit; font-size:inherit; color:inherit; background:none; border:none; cursor:pointer; }
+h1,h2,h3,p,ul { margin:0; }
+
+.topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 16px; border-bottom:1px solid var(--border); background:var(--surface); flex-wrap:wrap; }
+.topbar-left { display:flex; align-items:center; gap:14px; }
+.brand { font-weight:700; letter-spacing:.03em; font-size:12px; }
+.tabs { display:flex; gap:4px; }
+.tab-btn { padding:6px 12px; border-radius:var(--r-control); color:var(--muted); }
+.tab-btn[aria-selected="true"] { background:var(--surface2); color:var(--text); font-weight:600; }
+.topbar-right { display:flex; align-items:center; gap:8px; }
+.range-group { display:flex; border:1px solid var(--border2); border-radius:var(--r-control); overflow:hidden; }
+.range-btn { padding:5px 10px; color:var(--muted); }
+.range-btn[aria-pressed="true"] { background:var(--surface2); color:var(--text); font-weight:600; }
+.icon-btn { border:1px solid var(--border2); border-radius:var(--r-control); padding:5px 10px; }
+
+.layout { display:grid; grid-template-columns: 220px 1fr 300px; align-items:start; }
+.rail { padding:14px; }
+.rail-left { border-right:1px solid var(--border); position:sticky; top:0; }
+.rail-right { border-left:1px solid var(--border); background:var(--surface); }
+.center { padding:16px; min-width:0; }
+
+.concern-row { display:flex; width:100%; justify-content:space-between; align-items:center; gap:8px; padding:6px 8px; border-radius:var(--r-control); margin-bottom:2px; text-align:left; }
+.concern-row:hover { background:var(--surface2); }
+.concern-row.active { background:var(--accent-bg); color:var(--accent); font-weight:600; }
+.concern-name { font-family:var(--font-mono); font-size:11.5px; overflow-wrap:anywhere; }
+.concern-count { font-family:var(--font-mono); color:var(--muted); font-size:11px; }
+
+.layer { margin-bottom:22px; }
+.layer-head { display:flex; align-items:baseline; gap:8px; margin-bottom:8px; }
+.layer-num { font-family:var(--font-mono); font-size:11px; color:var(--muted); border:1px solid var(--border2); border-radius:3px; padding:1px 6px; }
+.layer-name { font-family:var(--font-mono); font-weight:700; font-size:12.5px; }
+.card-grid { display:flex; flex-wrap:wrap; gap:10px; }
+.card { width:220px; border:1px solid var(--border2); border-left-width:4px; border-radius:var(--r-card); background:var(--surface); padding:10px; transition:opacity .15s; }
+.card.dim { opacity:.25; }
+.card.hl { outline:2px solid var(--accent); outline-offset:1px; }
+.card-title { font-family:var(--font-mono); font-size:11.5px; overflow-wrap:anywhere; margin-bottom:4px; }
+.card-meta { color:var(--muted); font-size:11px; margin-bottom:6px; }
+.chip-row { display:flex; flex-wrap:wrap; gap:4px; }
+.chip { font-family:var(--font-mono); font-size:9.5px; text-transform:uppercase; letter-spacing:.05em; padding:2px 6px; border-radius:3px; border:1px solid var(--border2); }
+
+.v-pass { border-left-color:var(--run); } .chip.v-pass, .heat-cell.v-pass { background:var(--run-bg); color:var(--run); }
+.v-fail { border-left-color:var(--accent); } .chip.v-fail, .heat-cell.v-fail { background:var(--accent-bg); color:var(--accent); }
+.v-unsure { border-left-color:var(--wait); } .chip.v-unsure, .heat-cell.v-unsure { background:var(--wait-bg); color:var(--wait); }
+.v-conflict { border-left-color:var(--park); } .chip.v-conflict, .heat-cell.v-conflict { background:var(--park-bg); color:var(--park); }
+.v-none { border-left-color:var(--done); } .chip.v-none, .heat-cell.v-none { background:var(--done-bg); color:var(--muted); }
+
+.heat-table-wrap { overflow:auto; max-width:100%; }
+.heat-table { border-collapse:collapse; font-size:12px; }
+.heat-table th, .heat-table td { border:1px solid var(--border); padding:0; }
+.heat-table th.col-label { padding:6px 4px; font-family:var(--font-mono); font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); white-space:nowrap; }
+.heat-table th.row-label { text-align:left; padding:4px 8px; font-family:var(--font-mono); font-size:11px; white-space:nowrap; background:var(--surface); }
+.heat-table th.corner { background:var(--surface); }
+.heat-cell { width:26px; height:22px; }
+
+.story-section { margin-bottom:18px; }
+.story-section .label { display:block; margin-bottom:6px; }
+.stat-row { display:flex; justify-content:space-between; gap:8px; margin-bottom:4px; font-size:12px; }
+.stat-row .k { color:var(--muted); }
+ul.story-list { list-style:none; font-family:var(--font-mono); font-size:11px; }
+ul.story-list li { padding:3px 0; border-bottom:1px solid var(--border); overflow-wrap:anywhere; }
+.muted { color:var(--muted); }
+
+.viewer-footer { text-align:center; padding:14px; color:var(--faint); font-size:11px; border-top:1px solid var(--border); }
+
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .rail-left, .rail-right { border:none; border-top:1px solid var(--border); position:static; }
+}
+`;
+var BODY = `
+<header class="topbar">
+  <div class="topbar-left">
+    <span class="brand">SIDEWISE</span>
+    <nav class="tabs" role="tablist">
+      <button class="tab-btn" type="button" data-tab="map" aria-selected="true" role="tab">Map</button>
+      <button class="tab-btn" type="button" data-tab="heat" aria-selected="false" role="tab">Heat map</button>
+    </nav>
+  </div>
+  <div class="topbar-right">
+    <div class="range-group" role="group" aria-label="time range">
+      <button class="range-btn" type="button" data-range="all" aria-pressed="true">All</button>
+      <button class="range-btn" type="button" data-range="last30" aria-pressed="false">Last 30 days</button>
+    </div>
+    <button class="icon-btn" type="button" id="theme-btn" title="Toggle light/dark">Theme</button>
+  </div>
+</header>
+<div class="layout">
+  <aside class="rail rail-left">
+    <span class="label">Concerns</span>
+    <div id="rail-concerns"></div>
+  </aside>
+  <main class="center">
+    <section id="tab-map" class="tab-panel">
+      <div id="map-layers"></div>
+    </section>
+    <section id="tab-heat" class="tab-panel" hidden>
+      <div class="heat-table-wrap" id="heat-host"></div>
+    </section>
+  </main>
+  <aside class="rail rail-right">
+    <span class="label">Session story</span>
+    <div class="story-section">
+      <div class="stat-row"><span class="k">Runs</span><span id="story-runs"></span></div>
+      <div class="stat-row"><span class="k">Paid calls</span><span id="story-calls"></span></div>
+      <div class="stat-row"><span class="k">Spend</span><span id="story-spend"></span></div>
+      <div class="stat-row"><span class="k">Actors</span><span id="story-actors"></span></div>
+      <div class="stat-row"><span class="k">Range</span><span id="story-range"></span></div>
+    </div>
+    <div class="story-section">
+      <span class="label">Fixes held</span>
+      <ul class="story-list" id="story-fixes"></ul>
+    </div>
+    <div class="story-section">
+      <span class="label">Regressions</span>
+      <ul class="story-list" id="story-regressions"></ul>
+    </div>
+    <div class="story-section">
+      <span class="label">Latest findings</span>
+      <ul class="story-list" id="story-findings"></ul>
+    </div>
+    <div class="story-section">
+      <span class="label">Outcomes</span>
+      <div id="story-outcomes" class="muted"></div>
+    </div>
+  </aside>
+</div>
+<footer class="viewer-footer">A System One needs a Knowledge One. \xB7 Sidewise</footer>
+`;
+var CLIENT_JS = `
+(function () {
+  'use strict';
+  var raw = document.getElementById('viewer-data').textContent;
+  var data = JSON.parse(raw);
+  var state = { range: 'all', tab: 'map', highlight: null };
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function setText(id, text) {
+    var e = document.getElementById(id);
+    if (e) e.textContent = text;
+  }
+  function currentWindow() { return data.windows[state.range]; }
+  function verdictClass(v) { return 'v-' + v; }
+
+  function renderConcerns() {
+    var host = document.getElementById('rail-concerns');
+    host.textContent = '';
+    var w = currentWindow();
+    if (!w.concerns.length) { host.appendChild(el('p', 'muted', 'none yet')); return; }
+    w.concerns.forEach(function (c) {
+      var row = el('button', 'concern-row');
+      row.type = 'button';
+      if (state.highlight === c.key) row.classList.add('active');
+      row.appendChild(el('span', 'concern-name', c.label));
+      row.appendChild(el('span', 'concern-count', String(c.count)));
+      row.addEventListener('click', function () {
+        state.highlight = state.highlight === c.key ? null : c.key;
+        render();
+      });
+      host.appendChild(row);
+    });
+  }
+
+  function renderMap() {
+    var host = document.getElementById('map-layers');
+    host.textContent = '';
+    var w = currentWindow();
+    if (!w.layers.length) { host.appendChild(el('p', 'muted', 'No runs recorded yet.')); return; }
+    w.layers.forEach(function (layer, i) {
+      var sec = el('section', 'layer');
+      var head = el('div', 'layer-head');
+      head.appendChild(el('span', 'layer-num', String(i + 1)));
+      head.appendChild(el('span', 'layer-name', layer.name));
+      sec.appendChild(head);
+      var grid = el('div', 'card-grid');
+      layer.cards.forEach(function (card) {
+        var concernNames = card.concerns.map(function (x) { return x.name; });
+        var c = el('article', 'card ' + verdictClass(card.verdict));
+        if (state.highlight) {
+          var hit = concernNames.indexOf(state.highlight) !== -1 || card.tags.indexOf(state.highlight) !== -1;
+          c.classList.add(hit ? 'hl' : 'dim');
+        }
+        c.appendChild(el('div', 'card-title', card.place));
+        c.appendChild(el('div', 'card-meta', card.runCount + (card.runCount === 1 ? ' run' : ' runs')));
+        var chips = el('div', 'chip-row');
+        card.concerns.forEach(function (cc) { chips.appendChild(el('span', 'chip ' + verdictClass(cc.verdict), cc.name)); });
+        c.appendChild(chips);
+        grid.appendChild(c);
+      });
+      sec.appendChild(grid);
+      host.appendChild(sec);
+    });
+  }
+
+  function renderHeat() {
+    var host = document.getElementById('heat-host');
+    host.textContent = '';
+    var w = currentWindow();
+    if (!w.heatmap.places.length || !w.heatmap.concerns.length) { host.appendChild(el('p', 'muted', 'No runs recorded yet.')); return; }
+    var table = el('table', 'heat-table');
+    var thead = el('thead');
+    var hr = el('tr');
+    hr.appendChild(el('th', 'corner'));
+    w.heatmap.concerns.forEach(function (cn) { hr.appendChild(el('th', 'col-label', cn)); });
+    thead.appendChild(hr);
+    table.appendChild(thead);
+    var tbody = el('tbody');
+    var cellMap = {};
+    w.heatmap.cells.forEach(function (cell) { cellMap[cell.place + '\\u0000' + cell.concern] = cell; });
+    w.heatmap.places.forEach(function (place) {
+      var row = el('tr');
+      row.appendChild(el('th', 'row-label', place));
+      w.heatmap.concerns.forEach(function (cn) {
+        var cell = cellMap[place + '\\u0000' + cn];
+        var td = el('td', 'heat-cell ' + verdictClass(cell.verdict));
+        td.title = cell.title;
+        row.appendChild(td);
+      });
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    host.appendChild(table);
+  }
+
+  function renderList(id, items, fmt, emptyText) {
+    var host = document.getElementById(id);
+    host.textContent = '';
+    if (!items.length) { host.appendChild(el('li', 'muted', emptyText)); return; }
+    items.forEach(function (it) { host.appendChild(el('li', null, fmt(it))); });
+  }
+
+  function renderStory() {
+    var s = currentWindow().story;
+    setText('story-runs', String(s.runs));
+    setText('story-calls', String(s.paidCalls));
+    setText('story-spend', '$' + s.spendUsd.toFixed(2));
+    setText('story-actors', s.actors.length ? s.actors.join(', ') : 'none');
+    setText('story-range', (s.dateFrom ? s.dateFrom.slice(0, 10) : '\u2014') + ' \u2192 ' + (s.dateTo ? s.dateTo.slice(0, 10) : '\u2014'));
+    renderList('story-fixes', s.fixes, function (f) { return f.id + ' \xB7 ' + f.place; }, 'none yet');
+    renderList('story-regressions', s.regressions, function (f) { return f.id + ' \xB7 ' + f.place; }, 'none');
+    renderList('story-findings', s.findings, function (f) { return f.id + ' \xB7 ' + f.place + ' \xB7 ' + f.goal; }, 'none');
+    setText('story-outcomes', 'held ' + s.outcomes.held + ' \xB7 overruled ' + s.outcomes.overruled + ' \xB7 failed ' + s.outcomes.failed + ' \xB7 open ' + s.outcomes.open);
+  }
+
+  function render() {
+    renderConcerns();
+    renderMap();
+    renderHeat();
+    renderStory();
+    document.getElementById('tab-map').hidden = state.tab !== 'map';
+    document.getElementById('tab-heat').hidden = state.tab !== 'heat';
+    Array.prototype.forEach.call(document.querySelectorAll('.tab-btn'), function (b) { b.setAttribute('aria-selected', b.dataset.tab === state.tab ? 'true' : 'false'); });
+    Array.prototype.forEach.call(document.querySelectorAll('.range-btn'), function (b) { b.setAttribute('aria-pressed', b.dataset.range === state.range ? 'true' : 'false'); });
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('.tab-btn'), function (b) {
+    b.addEventListener('click', function () { state.tab = b.dataset.tab; render(); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('.range-btn'), function (b) {
+    b.addEventListener('click', function () { state.range = b.dataset.range; render(); });
+  });
+
+  var themeBtn = document.getElementById('theme-btn');
+  function applyTheme(t) {
+    if (t) document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+  }
+  var saved = null;
+  try { saved = localStorage.getItem('sidewise-viewer-theme'); } catch (e) { saved = null; }
+  if (saved === 'light' || saved === 'dark') applyTheme(saved);
+  themeBtn.addEventListener('click', function () {
+    var current = document.documentElement.getAttribute('data-theme');
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var next = current === 'dark' ? 'light' : current === 'light' ? null : (prefersDark ? 'light' : 'dark');
+    applyTheme(next);
+    try {
+      if (next) localStorage.setItem('sidewise-viewer-theme', next);
+      else localStorage.removeItem('sidewise-viewer-theme');
+    } catch (e) { /* per-viewer convenience only; a blocked store just means the toggle doesn't persist */ }
+  });
+
+  render();
+})();
+`;
+function renderViewerHtml(data) {
+  const json = escapeForInlineJson(JSON.stringify(data));
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sidewise ledger viewer</title>
+<style>${CSS}</style>
+</head>
+<body>
+${BODY}
+<script type="application/json" id="viewer-data">${json}</script>
+<script>${CLIENT_JS}</script>
+</body>
+</html>
+`;
+}
+function tryOpen(filePath, platform, runner, env) {
+  if (platform === "linux" && !env.DISPLAY?.trim() && !env.WAYLAND_DISPLAY?.trim()) return false;
+  const [cmd, args2] = platform === "darwin" ? ["open", [filePath]] : platform === "win32" ? ["cmd", ["/c", "start", "", filePath]] : ["xdg-open", [filePath]];
+  try {
+    return runner(cmd, args2).status === 0;
+  } catch {
+    return false;
+  }
+}
+function runReportWeb(ctx) {
+  const records = readLedger(ctx.paths, { partialTail: true });
+  const data = buildViewerData(records, ctx.now ? ctx.now() : Date.now());
+  const html = renderViewerHtml(data);
+  ensureDir(ctx.paths);
+  const viewerPath = path17.join(ctx.paths.dir, "viewer.html");
+  writeFileSync6(viewerPath, html);
+  const shown2 = path17.relative(ctx.paths.root, viewerPath).split(path17.sep).join("/");
+  const opened = tryOpen(viewerPath, ctx.platform, ctx.runner, ctx.env);
+  const runCount = data.windows.all.story.runs;
+  const placeCount = data.windows.all.layers.reduce((n, l) => n + l.cards.length, 0);
+  const summary = `sidewise report web \xB7 wrote ${shown2} (${runCount} run${runCount === 1 ? "" : "s"}, ${placeCount} place${placeCount === 1 ? "" : "s"})`;
+  return { exit: 0, text: opened ? `${summary} \u2192 opened in your browser` : `${summary} \u2192 open it yourself, no browser available` };
+}
+
 // src/verbs/report.ts
-var VIEWS = ["hits", "patterns", "history"];
+var VIEWS = ["hits", "patterns", "history", "web"];
 var isView = (s) => VIEWS.includes(s);
 var ROW_LIMIT = 30;
 function withCap(lines, total) {
@@ -12626,7 +13246,7 @@ function isStale2(root, rec, categoryName) {
   const key2 = answerKey(subjectEvidence(evidence.evidence.files), q);
   return rec.keys[q.id] !== key2;
 }
-var GATE_RANK = { fail: 0, unsure: 1, pass: 2 };
+var GATE_RANK2 = { fail: 0, unsure: 1, pass: 2 };
 function reportHits(paths) {
   const rows = withIndex(
     paths,
@@ -12654,7 +13274,7 @@ function reportHits(paths) {
     { readOnly: true }
   );
   if (!rows.length) return { exit: 0, text: 'sidewise report hits \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
-  rows.sort((a, b) => GATE_RANK[a.gate] - GATE_RANK[b.gate] || a.place.localeCompare(b.place) || a.category.localeCompare(b.category));
+  rows.sort((a, b) => GATE_RANK2[a.gate] - GATE_RANK2[b.gate] || a.place.localeCompare(b.place) || a.category.localeCompare(b.category));
   const shown2 = rows.slice(0, ROW_LIMIT);
   const lines = shown2.map((r) => {
     const stale = r.rec ? isStale2(paths.root, r.rec, r.category) : false;
@@ -12711,11 +13331,12 @@ function reportHistory(paths) {
 }
 function runReport(view, ctx) {
   const target = view?.trim() || "hits";
-  if (hasControlChars(target)) return { exit: 2, text: stopText(["\u2716 report: the view name has control characters \u2192 use hits, patterns or history"], "report") };
-  if (!isView(target)) return { exit: 2, text: stopText([`\u2716 report: "${clip(target, 40)}" is not a view \u2192 use hits, patterns or history`], "report") };
+  if (hasControlChars(target)) return { exit: 2, text: stopText(["\u2716 report: the view name has control characters \u2192 use hits, patterns, history or web"], "report") };
+  if (!isView(target)) return { exit: 2, text: stopText([`\u2716 report: "${clip(target, 40)}" is not a view \u2192 use hits, patterns, history or web`], "report") };
   if (target === "hits") return reportHits(ctx.paths);
   if (target === "patterns") return reportPatterns(ctx.paths);
-  return reportHistory(ctx.paths);
+  if (target === "history") return reportHistory(ctx.paths);
+  return runReportWeb({ paths: ctx.paths, env: ctx.env ?? process.env, runner: ctx.runner ?? realRunner, platform: ctx.platform ?? process.platform });
 }
 
 // src/verbs/scan.ts
@@ -12813,9 +13434,9 @@ async function runScan(text, ctx) {
 // src/verbs/template.ts
 var import_yaml2 = __toESM(require_dist(), 1);
 import { readFileSync as readFileSync13 } from "node:fs";
-import path17 from "node:path";
+import path18 from "node:path";
 import { fileURLToPath } from "node:url";
-var DEFAULT_PACKAGE_DIR = path17.join(path17.dirname(fileURLToPath(import.meta.url)), "..", "..");
+var DEFAULT_PACKAGE_DIR = path18.join(path18.dirname(fileURLToPath(import.meta.url)), "..", "..");
 function drillSampleFile(parent, paths) {
   const run = paths && findRun(paths, parent);
   if (run && isContractRun(run) && run.items === null) return "drill-subject.yaml";
@@ -12905,7 +13526,7 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
       };
     }
     const file = drillSampleFile(flags.parent, paths);
-    const raw = readFileSync13(path17.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
+    const raw = readFileSync13(path18.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
     const doc = (0, import_yaml2.parseDocument)(raw);
     doc.setIn(["side", "parent"], flags.parent);
     doc.setIn(["side", "from"], flags.from);
@@ -12915,11 +13536,11 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
   if (flags.where !== void 0 || flags.goal !== void 0) {
     return { exit: 2, text: stopText([`\u2716 template: --where/--goal need --from \u2192 sidewise template ${target} --from <request.yaml>`], "template") };
   }
-  return { exit: 0, text: readFileSync13(path17.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
+  return { exit: 0, text: readFileSync13(path18.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
 }
 
 // src/verbs/view.ts
-import path18 from "node:path";
+import path19 from "node:path";
 var REQUEST_MODE = /^side\s*:/mu;
 function runLine(r, outcome) {
   const rehearsal = isRehearsal(r.adapter) ? " \xB7 rehearsal" : "";
@@ -12938,12 +13559,12 @@ function whereMatches(r, place) {
 }
 function toPlace(target, root) {
   if (hasControlChars(target)) return { stop: stopText(["\u2716 view: the target has control characters \u2192 use a folder, a tag, or SW-####"], "view") };
-  if (!path18.isAbsolute(target) && !target.split(/[\\/]/).includes("..")) return { place: target.replace(/^\.\//, "").replace(/\/+$/, "") || "." };
-  const rel = path18.relative(root, path18.resolve(root, target));
-  if (rel.startsWith("..") || path18.isAbsolute(rel)) {
+  if (!path19.isAbsolute(target) && !target.split(/[\\/]/).includes("..")) return { place: target.replace(/^\.\//, "").replace(/\/+$/, "") || "." };
+  const rel = path19.relative(root, path19.resolve(root, target));
+  if (rel.startsWith("..") || path19.isAbsolute(rel)) {
     return { stop: stopText([`\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or SW-####`], "view") };
   }
-  return { place: rel.split(path18.sep).join("/") || "." };
+  return { place: rel.split(path19.sep).join("/") || "." };
 }
 function renderPlace(place, hits, outcomeOf, limit) {
   if (!hits.length) return { exit: 0, text: `sidewise view ${clip(place, 60)} \xB7 no runs yet \u2192 "sidewise class <request>" starts one` };
@@ -12961,7 +13582,7 @@ function renderPlace(place, hits, outcomeOf, limit) {
     text: [head, ...shown2.map((r) => runLine(r, outcomeOf(r.id) ?? "open")), ...older ? [`\u2026 ${older} older \u2192 raise the level to see more`] : []].join("\n")
   };
 }
-var GATE_RANK2 = { fail: 0, unsure: 1, pass: 2 };
+var GATE_RANK3 = { fail: 0, unsure: 1, pass: 2 };
 function renderSummary(scope, hits) {
   const latest = /* @__PURE__ */ new Map();
   for (const r of hits) {
@@ -12970,7 +13591,7 @@ function renderSummary(scope, hits) {
     for (const p of sweepPlaces(r)) if (p.kind === "where") latest.set(p.val, r);
   }
   if (!latest.size) return { exit: 0, text: `sidewise view ${clip(scope, 60)} --summary \xB7 no runs yet \u2192 "sidewise class <request>" starts one` };
-  const rows = [...latest.entries()].sort(([pa, ra], [pb, rb]) => GATE_RANK2[ra.gate] - GATE_RANK2[rb.gate] || pa.localeCompare(pb));
+  const rows = [...latest.entries()].sort(([pa, ra], [pb, rb]) => GATE_RANK3[ra.gate] - GATE_RANK3[rb.gate] || pa.localeCompare(pb));
   return {
     exit: 0,
     text: [
@@ -13260,8 +13881,8 @@ var TOOL_LINE = {
 };
 var REPORT_PAIRS = [
   {
-    rule: "there is no view beyond hits, patterns and history \u2014 nothing else to ask it for.",
-    bad: ["sidewise report level2", '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns or history'],
+    rule: "there is no view beyond hits, patterns, history and web \u2014 nothing else to ask it for.",
+    bad: ["sidewise report level2", '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns, history or web'],
     good: ["sidewise report patterns"]
   }
 ];
@@ -13308,13 +13929,15 @@ function reportHelp() {
     "sidewise report            # same as: sidewise report hits",
     "sidewise report patterns",
     "sidewise report history",
+    "sidewise report web        # writes .sidewise/viewer.html and tries to open it",
     "",
     "Sharp rules:",
     "- free: never calls a provider, never writes to the ledger, and works even with no on-disk index.",
-    "- no options beyond the view name \u2014 hits (default), patterns or history; anything else is a stop.",
+    "- no options beyond the view name \u2014 hits (default), patterns, history or web; anything else is a stop.",
     "- `hits`: the newest run's own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.",
     "- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.",
     "- `history`: a merged, newest-first feed of `change` results (fixed/regressed) and recorded outcomes.",
+    "- `web`: writes one self-contained `.sidewise/viewer.html` (a place x concern consensus map, a heat map, a session summary) and tries to open it in a browser; always prints the file's path, opened or not. The only view that writes anything, and only ever that one file \u2014 never the ledger.",
     "- every view caps its rows and says plainly how many more exist, rather than dropping them silently.",
     ...proseCliPairs(REPORT_PAIRS)
   ].join("\n");
@@ -13609,10 +14232,14 @@ function budgetCard() {
 function reportCard() {
   return renderCard(
     ["tool: report"],
-    ["- free: never calls a provider, never writes to the ledger", "- views: hits (default), patterns, history \u2014 nothing else"],
+    [
+      "- free: never calls a provider, never writes to the ledger",
+      "- views: hits (default), patterns, history, web \u2014 nothing else",
+      "- web writes one file, .sidewise/viewer.html, and tries to open it \u2014 the only view that writes anything"
+    ],
     [
       "patterns:",
-      "- why: no view beyond hits, patterns or history exists",
+      "- why: no view beyond hits, patterns, history or web exists",
       "  bad:",
       "    sidewise report level2",
       "  good:",
@@ -13807,7 +14434,7 @@ function resolveMcpActor() {
 }
 
 // src/cli.ts
-var PACKAGE_DIR = path19.join(path19.dirname(fileURLToPath2(import.meta.url)), "..");
+var PACKAGE_DIR = path20.join(path20.dirname(fileURLToPath2(import.meta.url)), "..");
 var LINES3 = {
   view: "sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]",
   class: "sidewise class <request-file | -> [--dry-run]",
@@ -13904,7 +14531,7 @@ async function runSweptVerb(command, rest, paths, ctx) {
   if ("stop" in read2) return finish(2, withAgentPointer(read2.stop, command));
   let provider;
   try {
-    provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json"), resolveStored: resolveStoredFor(ctx) });
+    provider = selectProvider(ctx.env, { chaosState: path20.join(paths.dir, "chaos.json"), resolveStored: resolveStoredFor(ctx) });
   } catch (e) {
     return finish(providerExit(e), e.message);
   }
@@ -14088,7 +14715,7 @@ async function dispatch(argv, ctx) {
     case "report": {
       const { positionals } = args("report", { args: rest, allowPositionals: true, options: {} });
       positionalCount("report", positionals, 0, 1);
-      const r = runReport(positionals[0], { paths });
+      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform });
       return finish(r.exit, r.text);
     }
     case "class":
@@ -14126,7 +14753,7 @@ async function dispatch(argv, ctx) {
       }
       let provider;
       try {
-        provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json"), resolveStored: resolveStoredFor(ctx) });
+        provider = selectProvider(ctx.env, { chaosState: path20.join(paths.dir, "chaos.json"), resolveStored: resolveStoredFor(ctx) });
       } catch (e) {
         return finish(providerExit(e), e.message);
       }
