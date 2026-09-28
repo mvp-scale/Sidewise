@@ -8,6 +8,7 @@ export * from './ledger/paths.ts';
 export { formatRunId, RUN_ID, ulid } from './ledger/ids.ts';
 export { redact, redactDeep, redactSecrets } from './ledger/redact.ts';
 export * from './ledger/log.ts';
+export * from './ledger/graph.ts';
 export { recordCall } from './ledger/record.ts';
 export { LockError } from './ledger/lock.ts';
 export * from './budget/budget.ts';
