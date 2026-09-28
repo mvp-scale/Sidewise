@@ -32,7 +32,7 @@ describe('runReport: graph-tier views, empty state', () => {
     expect(runReport('fields', { paths }).text).toBe('sidewise report fields · no undeclared fields yet → every wise key so far is a base field or already configured');
   });
 
-  it('graph with no target names how to give one; with a target but nothing there says not found', () => {
+  it('graph with no target names how to give one; with a target but nothing there says not found [C-219]', () => {
     const { paths } = tempProject({});
     const noTarget = runReport('graph', { paths });
     expect(noTarget.exit).toBe(0);
@@ -51,7 +51,7 @@ describe('runReport: graph-tier views, empty state', () => {
 });
 
 describe('runReport: problems', () => {
-  it('ranks family x place by gate counts, worst (most fail) first', () => {
+  it('ranks family x place by gate counts, worst (most fail) first [C-220]', () => {
     const { paths } = tempProject({});
     const cat = (name: string, family: string) => ({ name, section: 'concerns' as const, pass: 'no' as const, need: 'all' as const, tags: [], family: family as never, questions: [{ n: 1, kind: 'yesno' as const, text: 'q?' }] });
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], ask: { categories: [cat('injection', 'injection')], layers: [] }, categories: { injection: 'fail' } }), T, 'b'); // SW-0001
@@ -67,7 +67,7 @@ describe('runReport: problems', () => {
 });
 
 describe('runReport: wise', () => {
-  it('lists every run\'s own wise fields, newest first', () => {
+  it('lists every run\'s own wise fields, newest first [C-221]', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', area: 'api', risk: 'high' } }), T, 'b'); // SW-0001
     appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], wise: { why: 'find', stage: 'build' } }), T + 1000, 'b'); // SW-0002, later ts
@@ -84,7 +84,7 @@ describe('runReport: wise', () => {
 });
 
 describe('runReport: calls', () => {
-  it('rolls telemetry up by day/verb/model/source', () => {
+  it('rolls telemetry up by day/verb/model/source [C-222]', () => {
     const { paths } = tempProject({});
     appendContractRun(
       paths,
@@ -124,7 +124,7 @@ describe('runReport: graph', () => {
 });
 
 describe('runReport: fields', () => {
-  it('classifies closed: <=8 distinct values across >=5 runs', () => {
+  it('classifies closed: <=8 distinct values across >=5 runs [C-223]', () => {
     const { paths } = tempProject({});
     const values = ['low', 'high', 'low', 'high', 'low'];
     for (const v of values) appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', extras: { severity: v } } }), T, 'b');
