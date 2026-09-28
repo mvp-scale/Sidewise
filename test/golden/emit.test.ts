@@ -284,10 +284,10 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it("wise: {recorded: [...]} carries plan 2b's four knowledge fields (problem/nodes/touches/blast), in that order, last", () => {
+  it("wise: {recorded: [...]} carries plan 2c's knowledge fields (problem/uses/touches/blast), in that order, last", () => {
     const doc = m(
       ['side', m(['id', 'SW-0080'], ['gate', 'pass'])],
-      ['wise', m(['recorded', ['why', 'area', 'problem', 'nodes', 'touches', 'blast']])],
+      ['wise', m(['recorded', ['why', 'area', 'problem', 'uses', 'touches', 'blast']])],
       ['next', 'act on it'],
       ['notes', ['free']],
     );
@@ -296,7 +296,7 @@ describe('emit (golden: the contract examples)', () => {
         'side:',
         '  id: SW-0080',
         '  gate: pass',
-        'wise: {recorded: [why, area, problem, nodes, touches, blast]}',
+        'wise: {recorded: [why, area, problem, uses, touches, blast]}',
         'next: act on it',
         'notes: [free]',
       ),

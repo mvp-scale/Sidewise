@@ -57,7 +57,7 @@ describe('replay', () => {
     // (before === after === worktree here only to exercise the plumbing without a real git repo; git-evidence.test.ts covers refs.)
     const r = await runReplay(changeText, { paths, provider: stubProvider({ yes: () => 0.05 }), env });
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('injection: {before: pass, after: pass}');
+    expect(r.text).toContain('injection: {before: pass, after: pass, probes: 0/3 fixed}');
     expect(r.text).toContain('regressed: []');
     expect(r.text).toContain('reading whole files: line ranges may not match the parent run');
     const [run] = readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'replay');
@@ -211,7 +211,7 @@ describe('replay', () => {
     expect(r.exit).toBe(0);
     expect(r.text).toContain('gate: fail');
     expect(r.text).toContain('regressed: [2]');
-    expect(r.text).toContain('injection: {before: pass, after: fail}');
+    expect(r.text).toContain('injection: {before: pass, after: fail, probes: 0/2 fixed}');
   });
 
   it('the top gate fails from a regression alone, even though the "after" category still passes on its own (need: any) [C-091]', async () => {
@@ -253,7 +253,7 @@ describe('replay', () => {
     });
 
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('injection: {before: pass, after: pass}'); // the "after" category is clean on its own
+    expect(r.text).toContain('injection: {before: pass, after: pass, probes: 0/2 fixed}'); // the "after" category is clean on its own
     expect(r.text).toContain('regressed: [2]');
     expect(r.text).toContain('gate: fail'); // ...yet the top gate still fails, from the regression alone
     // outcomeNext's own "which category matches the overall gate?" search finds nothing here (injection itself
@@ -306,9 +306,48 @@ describe('replay', () => {
     });
 
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('injection: {before: fail, after: fail, fixed: [1], still: [2]}');
+    expect(r.text).toContain('injection: {before: fail, after: fail, fixed: [1], still: [2], probes: 1/3 fixed}');
     expect(r.text).toContain('regressed: [3]');
     expect(r.text).toContain('gate: fail');
+  });
+
+  it('expect: none predicts no flips at all; a flip that happens anyway is listed as unexpected: [N4]', async (ctx) => {
+    if (!hasGit()) return ctx.skip();
+    const { paths, root } = tempProject({ 'src/a.ts': 'export function f(x) {\n  return db.query(`SELECT * FROM t WHERE id = ${x}`); // VULN\n}\n' });
+    gitInit(root);
+    const beforeRef = gitCommit(root, 'before');
+    const parent = sampleContractRun({
+      where: ['src/a.ts'],
+      ask: {
+        categories: [
+          { name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'Does the file contain VULN?' }] },
+        ],
+        layers: [],
+      },
+      answers: { goal: { kind: 'yesno', p: 0.1 }, '1': { kind: 'yesno', p: 0.9 } },
+      keys: { goal: 'k-goal', '1': 'k-1' },
+      categories: { injection: 'fail' },
+      gate: 'fail',
+    });
+    appendContractRun(paths, parent, T, 'b'); // SW-0001
+
+    // The fix is real (VULN is gone), but the agent didn't name injection in expect: — expect: none predicts no
+    // flips at all, so this unpredicted fix surfaces as unexpected:, not silently folded into expected: fixed.
+    writeFileSync(path.join(root, 'src/a.ts'), 'export function f(x) {\n  return db.query("SELECT * FROM t WHERE id = ?", [x]);\n}\n');
+    const afterRef = gitCommit(root, 'fix');
+
+    const r = await runReplay(`side:\n  goal: verify nothing changed\n  parent: SW-0001\n  compare: {before: ${beforeRef}, after: ${afterRef}}\n  expect: none\n`, {
+      paths,
+      provider: markerProvider(),
+      env,
+    });
+
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('injection: {before: fail, after: pass, fixed: [1], probes: 1/1 fixed}');
+    expect(r.text).toContain('expected: {fixed: [], still: []}');
+    expect(r.text).toContain('unexpected: [injection]');
+    const [run] = readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'replay');
+    expect(run).toMatchObject({ expect: 'none', commit: afterRef, commits: { before: beforeRef, after: afterRef } });
   });
 
   // Round 2 smoke test root cause (archive/round-2/QUESTION-DETAIL.md #3, archive/round-2/REPORT.md friction
@@ -342,7 +381,8 @@ describe('replay', () => {
     // content at beforeRef (proof that the nested repo was actually read, not just "not found by git" again);
     // "after" is a fresh, fresh-content call against the fixed commit.
     expect(r.text).toContain('reused: [SW-0001]');
-    expect(r.text).toContain('injection: {before: fail, after: pass, fixed: [1, 2, 3]}');
+    expect(r.text).toContain('injection: {before: fail, after: pass, fixed: [1, 2, 3], probes: 3/3 fixed}');
+    expect(r.text).toContain('unexpected: [access, leaks]');
     expect(r.text).toContain('gate: pass');
     expect(r.text).not.toContain('not found by git');
   });

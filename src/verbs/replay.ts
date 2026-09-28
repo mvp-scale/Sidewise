@@ -9,7 +9,7 @@ import { providerIdentity } from '../classifier/select.ts';
 import { combine, gradeSubject, goalGate, type Mark } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions, type AskedQuestion } from '../contract/translate.ts';
 import type { Answer, Category, Gate } from '../contract/types.ts';
-import { readGitEvidence, WHOLE_FILE_NOTE } from '../evidence/git.ts';
+import { readGitEvidence, resolveRefSha, WHOLE_FILE_NOTE } from '../evidence/git.ts';
 import { findRun, isContractRun, type NewContractRun } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type Reusable } from '../ledger/reuse.ts';
@@ -97,10 +97,13 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   if (parent.items !== null) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} was a sweep → run the sweep again (unchanged items are reused for free)`], 'replay') };
 
   const categories = parent.ask.categories;
-  // expect: names which of the parent's concerns this replay should turn to pass (plan 2b) — every entry must
-  // be a real concern of the parent; decisions categories don't count (they're never "fixed").
+  // expect: names which of the parent's concerns this replay should turn to pass (plan 2b), or the literal
+  // "none" to predict no flips at all (plan 2c N4) — every named entry must be a real concern of the parent;
+  // decisions categories don't count (they're never "fixed").
   const concernNames = categories.filter((c) => c.section === 'concerns').map((c) => c.name);
-  const badExpect = request.side.expect!.find((name) => !concernNames.includes(name));
+  const expect = request.side.expect!;
+  const expectList = expect === 'none' ? [] : expect;
+  const badExpect = expectList.find((name) => !concernNames.includes(name));
   if (badExpect !== undefined) {
     return { exit: 2, text: stopText([`✖ side.expect: "${badExpect}" is not a concern of ${parent.id} → use one of ${concernNames.join(', ')}`], 'replay') };
   }
@@ -163,6 +166,9 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   const { goal, regressed, gate } = replayGrade;
   const afterCatsGrade = gradeSubject(categories, answers, 'after:');
 
+  // B3: each category line names how many of its own probes fixed (question numbers that missed/were mid
+  // before and clear now) out of the category's own question count — e.g. `probes: 2/3 fixed`.
+  const questionCountByName = new Map(categories.map((c) => [c.name, c.questions.length]));
   const catEntries: Array<[string, Value]> = replayGrade.categories.map((c) => [
     c.name,
     m(
@@ -170,21 +176,30 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
       ['after', c.after],
       ...(c.fixed.length ? [['fixed', c.fixed] as [string, Value]] : []),
       ...(c.still.length ? [['still', c.still] as [string, Value]] : []),
+      ['probes', `${c.fixed.length}/${questionCountByName.get(c.name) ?? c.fixed.length + c.still.length} fixed`],
     ),
   ]);
 
   // The agent's own prediction, graded against what actually happened: a concern named in expect: is "fixed"
   // when it missed/was mid before and clears now, "still" when it missed/was mid before and still doesn't
   // clear. A concern that already passed before predicts nothing meaningful either way, so it's left out of
-  // both lists (plan 2b: "grading the prediction against the expected concerns").
+  // both lists (plan 2b: "grading the prediction against the expected concerns"). N4: expect: none predicts no
+  // flips at all — either way, any CONCERN category that flips (before != after) without being named in expect
+  // (an empty list, for "none") is reported separately as unexpected:, replacing the old forced workaround of
+  // having to name every affected concern up front.
   const gradeByName = new Map(replayGrade.categories.map((c) => [c.name, c]));
   const expectedFixed: string[] = [];
   const expectedStill: string[] = [];
-  for (const name of request.side.expect!) {
+  for (const name of expectList) {
     const g = gradeByName.get(name);
     if (!g || g.before === 'pass') continue;
     (g.after === 'pass' ? expectedFixed : expectedStill).push(name);
   }
+  const expectSet = new Set(expectList);
+  const unexpected = concernNames.filter((name) => {
+    const g = gradeByName.get(name);
+    return g !== undefined && g.before !== g.after && !expectSet.has(name);
+  });
 
   // Both states can add WHOLE_FILE_NOTE (once per call, per git.ts); shown once here, since it's one fact about the run.
   let sawWholeFileNote = false;
@@ -205,6 +220,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
         ['goal', m(['gate', goal.gate], ['p', goal.p])],
         ...catEntries,
         ['expected', m(['fixed', expectedFixed], ['still', expectedStill])],
+        ...(unexpected.length ? [['unexpected', unexpected] as [string, Value]] : []),
         ['regressed', regressed],
         ...(reusedRunIds.length ? [['reused', reusedRunIds] as [string, Value]] : []),
       ),
@@ -222,6 +238,13 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
       ),
     );
 
+  // plan 2c B1: commit is the AFTER ref's own resolved sha (in the repo that actually contains the parent's
+  // where files), plus commits: {before, after} for both refs resolved the same way — replacing the old
+  // "always null" (replay has no single worktree-HEAD commit the way class/scan/drill/loop do, but its two
+  // compared refs each resolve to a real sha).
+  const beforeSha = resolveRefSha(ctx.paths.root, compare.before, parent.where);
+  const afterSha = resolveRefSha(ctx.paths.root, compare.after, parent.where);
+
   const run: NewContractRun = {
     verb: 'replay',
     actor: actorOf(ctx),
@@ -232,6 +255,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
     parent: request.side.parent!,
     from: null,
     compare,
+    expect,
     wise: request.wise,
     ask: { categories, layers: [] },
     over: null,
@@ -252,9 +276,8 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
     calls: calls.length,
     route: identity.route,
     baseURL: identity.baseURL,
-    // replay re-runs the parent's own questions rather than reading the worktree at HEAD, so there's no single
-    // commit this run itself is "at" the way class/scan/loop/drill are — left null on purpose.
-    commit: null,
+    commit: afterSha,
+    commits: { before: beforeSha, after: afterSha },
   };
 
   const rec = calls.length === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
