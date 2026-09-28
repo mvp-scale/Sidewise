@@ -5,6 +5,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { readRequestText } from '../../src/contract/read.ts';
 import { checkSchema } from '../../src/contract/schema-check.ts';
+import { effectiveWiseFields, WISE_FIELDS } from '../../src/contract/wise-fields.ts';
 
 const base = (): Record<string, any> => ({
   side: {
@@ -277,5 +278,89 @@ describe('checkSchema', () => {
     const badBlast = base();
     badBlast.wise = { blast: 'process' };
     expect(texts(badBlast)).toEqual(['✖ wise.blast: "process" → use code, component, container, system or person → see: sidewise agent wise']);
+  });
+});
+
+// plan 2c B1: a project's .sidewise/config.yaml `wise:` overrides merge onto WISE_FIELDS.
+describe('effectiveWiseFields', () => {
+  it('no overrides (undefined or {}): returns WISE_FIELDS itself, unchanged', () => {
+    expect(effectiveWiseFields(undefined)).toBe(WISE_FIELDS);
+    expect(effectiveWiseFields({})).toBe(WISE_FIELDS);
+  });
+
+  it('a values override replaces the enum; unknown still works alongside it', () => {
+    const fields = effectiveWiseFields({ risk: { values: ['minor', 'major'] } });
+    const risk = fields.find((f) => f.key === 'risk')!;
+    expect(risk.values).toEqual(['minor', 'major']);
+    // every other field is untouched.
+    const why = fields.find((f) => f.key === 'why')!;
+    expect(why).toBe(WISE_FIELDS.find((f) => f.key === 'why'));
+  });
+
+  it('a note override replaces the card note', () => {
+    const fields = effectiveWiseFields({ risk: { note: 'a custom scale' } });
+    expect(fields.find((f) => f.key === 'risk')!.note).toBe('a custom scale');
+  });
+
+  it('an "as" override sets an alias, both the original key and the alias are accepted [C-207]', () => {
+    const fields = effectiveWiseFields({ risk: { as: 'severity' } });
+    const wiseFields = fields;
+    const asKey = { ...base(), wise: { risk: 'high' } };
+    expect(checkSchema(asKey, 'class', undefined, wiseFields)).toEqual([]);
+    const asAlias = { ...base(), wise: { severity: 'high' } };
+    expect(checkSchema(asAlias, 'class', undefined, wiseFields)).toEqual([]);
+    const asBoth = { ...base(), wise: { risk: 'high', severity: 'low' } };
+    expect(checkSchema(asBoth, 'class', undefined, wiseFields).map((s) => s.text)).toEqual([
+      '✖ wise.severity: given alongside its own alias wise.risk → use one of wise.risk or wise.severity, not both → see: sidewise agent wise',
+    ]);
+  });
+
+  it('the C4 chain levels and the uses grammar are unaffected by any override', () => {
+    const fields = effectiveWiseFields({ uses: { note: 'a different note' }, risk: { values: ['minor', 'major'] } });
+    const uses = fields.find((f) => f.key === 'uses')!;
+    expect(uses.note).toBe('a different note');
+    expect(uses.kind).toBe('chain-list');
+    // the chain grammar itself (CHAIN_RE) lives outside WiseField entirely — proven here by a real chain still
+    // validating under the "overridden" table.
+    const r = { ...base(), wise: { uses: 'container:api -> component:dao' } };
+    expect(checkSchema(r, 'class', undefined, fields)).toEqual([]);
+  });
+
+  it('checkSchema enforces the OVERRIDDEN enum, not the default one, once wiseFields is threaded through', () => {
+    const fields = effectiveWiseFields({ risk: { values: ['minor', 'major', 'severe'] } });
+    // "high" is legal under the DEFAULT risk enum but not under this project's override.
+    const overridden = { ...base(), wise: { risk: 'high' } };
+    expect(checkSchema(overridden, 'class', undefined, fields).map((s) => s.text)).toEqual([
+      '✖ wise.risk: "high" → use minor, major or severe → see: sidewise agent wise',
+    ]);
+    // "severe" is illegal under the default enum but legal under the override.
+    const defaultCheck = checkSchema({ ...base(), wise: { risk: 'severe' } }); // no wiseFields: built-in table
+    expect(defaultCheck.length).toBeGreaterThan(0);
+    const withOverride = checkSchema({ ...base(), wise: { risk: 'severe' } }, 'class', undefined, fields);
+    expect(withOverride).toEqual([]);
+  });
+
+  it('literal: true skips the field\'s normal shape checks, same treatment as a custom key', () => {
+    const fields = effectiveWiseFields({ risk: { literal: true } });
+    // "extreme" would fail the built-in enum, but literal: true means no enum is enforced at all.
+    const r = { ...base(), wise: { risk: 'extreme' } };
+    expect(checkSchema(r, 'class', undefined, fields)).toEqual([]);
+  });
+
+  it('pattern adds an extra check on top of the normal freetext checks', () => {
+    const fields = effectiveWiseFields({ problem: { pattern: '^ticket-\\d+:' } });
+    const bad = { ...base(), wise: { problem: 'a problem with no ticket prefix at all' } };
+    expect(checkSchema(bad, 'class', undefined, fields).map((s) => s.text)).toEqual([
+      "✖ wise.problem: \"a problem with no ticket prefix at all\" → must match the project's pattern for this field: ^ticket-\\d+: → see: sidewise agent wise",
+    ]);
+    const ok = { ...base(), wise: { problem: 'ticket-42: the SQL injection in findUser' } };
+    expect(checkSchema(ok, 'class', undefined, fields)).toEqual([]);
+  });
+
+  it('link round-trips through without affecting validation', () => {
+    const fields = effectiveWiseFields({ problem: { link: 'where' } });
+    const r = { ...base(), wise: { problem: 'the SQL injection in findUser' } };
+    expect(checkSchema(r, 'class', undefined, fields)).toEqual([]);
+    expect(fields.find((f) => f.key === 'problem')!.link).toBe('where');
   });
 });

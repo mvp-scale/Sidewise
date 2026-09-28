@@ -1,4 +1,5 @@
 // sidewise agent [verb]: free, no project needed — help's terse, agent-facing twin. [C-173]
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MAX_QUESTION_CHARS } from '../../src/contract/schema-check.ts';
 import { VERBS } from '../../src/contract/types.ts';
@@ -8,6 +9,7 @@ import { PATTERNS } from '../../src/help/patterns.ts';
 import { TOOL_LINE } from '../../src/help/report.ts';
 import { PROBE_RULES, RULES, VERDICT_FACTS } from '../../src/help/rules.ts';
 import { SHARP, VERB_LINE } from '../../src/help/verbs.ts';
+import { tempProject } from '../helpers/project.ts';
 
 describe('runAgent', () => {
   it('with no target: the verb list plus the universal rules, no prose', () => {
@@ -260,5 +262,83 @@ describe('every agent card follows the same key order', () => {
 
   it('every verb card leads with "verb: <name>"', () => {
     for (const v of VERBS) expect(runAgent(v).text.split('\n')[0]).toBe(`verb: ${v}`);
+  });
+});
+
+// plan 2c B1/F2: `sidewise agent wise`'s card is generated from wise-fields.ts's WISE_FIELDS, or from a
+// project's own EFFECTIVE (config-overridden) table when `deps.paths` names one with a `.sidewise/config.yaml`
+// `wise:` override. Pinned exactly (no project) so any accidental drift in the card text is caught; a second
+// test proves the override actually reaches the rendered card end to end, not just in wise-fields.ts unit tests.
+describe('runAgent("wise"): the legend card', () => {
+  it('with no project (or a project with no config override): pinned exactly to the built-in table', () => {
+    const text = runAgent('wise').text;
+    expect(text).toBe(
+      [
+        'tool: wise — optional, free, ≤25 lines. Flat keys; the only nesting is a list.',
+        "Every field is optional: fill what you know, omit what doesn't apply.",
+        '',
+        'FIELDS',
+        '  why      validate | find | debug',
+        '  area     data | api | ui | auth | hosting | build | tests          (list ≤2; omit for whole-system questions: uses carries the map)',
+        '  stage    design | build | review | pre-merge | post-fix | release | operate   (operate = live production/incident)',
+        '  change   feature | fix | refactor | dependency | config   (only when a code change is involved)',
+        '  risk     low | medium | high         the stakes if this answer is wrong',
+        "  problem  one line ≤160: what you're solving, in your own words",
+        '  uses     list ≤5 of chains (grammar below)',
+        "  blast    person | system | container | component | code   the widest level one failure reaches (person = users' data or accounts)",
+        '  touches  list ≤5 domain objects/fields (not concepts like "authentication", not language built-ins)',
+        '  <other>  any kebab-case key: one line ≤160 or a list ≤5, recorded as-is',
+        '  unknown  allowed as a value for any closed field',
+        '',
+        'ARCHITECTURE: the C4 model (c4model.com). Five levels, each inside the one above:',
+        '',
+        '  system: shop',
+        '  └── container: web-app                      an app or data store',
+        '  │   ├── component: orders-handler           a group of code inside a container',
+        '  │   │   └── code: createOrder               your own function (not a built-in)',
+        '  │   └── component: orders-dao',
+        '  └── container: database',
+        '  person: customer                             outside the system',
+        '  system: payment-service                      an outside service is its own system',
+        '',
+        'WRITE IT FLAT',
+        '  inside  →  parent/child in the name:  component:web-app/orders-handler',
+        '  uses    →  ->  between parts:         a -> b -> c',
+        '  guessed or not built yet  →  end any part with ?:  component:web-app/refunds?  system:email-service?',
+        '',
+        '  chain   :=  part ( " -> " part )*',
+        '  part    :=  level ":" name ( "/" name )* [ "?" ]',
+        '  level   :=  person | system | container | component | code',
+        '  name    :=  lowercase kebab-case, or a code identifier at the code level',
+        '',
+        'EXAMPLE',
+        '  wise:',
+        '    why: validate',
+        '    problem: request input reaches a raw query in order creation',
+        '    uses:',
+        '      - person:customer -> container:web-app',
+        '      - component:web-app/orders-handler -> component:web-app/orders-dao -> container:database',
+        '    blast: container',
+        '    touches: [Order, amount]',
+      ].join('\n'),
+    );
+  });
+
+  it('a project config.yaml override for risk (values + note) appears in the rendered card, end to end', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.config, 'wise:\n  risk:\n    values: [minor, major, severe]\n    note: how bad if wrong, this project\'s own scale\n');
+    const text = runAgent('wise', {}, { paths }).text;
+    expect(text).toContain('risk     minor | major | severe         how bad if wrong, this project\'s own scale');
+    // every other field is unaffected by an override that only names risk.
+    expect(text).toContain('why      validate | find | debug');
+  });
+
+  it('with no deps.paths at all: behaves exactly like before B1 (no project-config lookup attempted)', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.config, 'wise:\n  risk:\n    values: [minor, major, severe]\n');
+    // paths omitted: the override must never leak in even though a config.yaml exists on disk somewhere.
+    expect(runAgent('wise').text).not.toContain('minor | major | severe');
   });
 });
