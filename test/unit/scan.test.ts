@@ -154,7 +154,7 @@ describe('scan', () => {
     expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
-  it('a changed function forces exactly one new call carrying only it; the unchanged one stays reused [C-036]', async () => {
+  it('a changed function forces exactly one new call carrying only it; the unchanged one stays reused [C-036] [C-214]', async () => {
     const { root, paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
     await runScan(REQUEST, { paths, provider, env });
