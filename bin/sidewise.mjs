@@ -13117,6 +13117,108 @@ function terseLines(tag) {
   ];
 }
 
+// src/help/report.ts
+var TOOL_LINE = {
+  report: "brief from history; free, no new checks",
+  outcome: "record held/overruled/failed on a run (held needs a second actor)",
+  budget: "show or set the spend and run caps",
+  template: "print a valid starting request for a verb"
+};
+var REPORT_PAIRS = [
+  {
+    rule: "there is no view beyond hits, patterns and history \u2014 nothing else to ask it for.",
+    bad: ["sidewise report level2", '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns or history'],
+    good: ["sidewise report patterns"]
+  }
+];
+var OUTCOME_PAIRS = [
+  {
+    rule: "an agent can't certify its own run as correct \u2014 `held` needs a second party.",
+    bad: [
+      "sidewise outcome SW-0002 held --by claude   # claude is the actor that asked SW-0002",
+      `\u2192 \u2716 outcome: claude asked SW-0002, so it can't mark it held \u2192 another agent or the owner records "held"`
+    ],
+    good: ["sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>"]
+  },
+  {
+    rule: "`outcome` takes no reason field.",
+    bad: [
+      'sidewise outcome SW-0002 overruled --by claude --note "wrong file blamed"',
+      "\u2192 \u2716 args: unknown flag --note \u2192 sidewise outcome <SW-####> held|overruled|failed --by <actor>"
+    ],
+    good: ["sidewise outcome SW-0002 overruled --by claude   # keep the reason in your own notes"]
+  }
+];
+var BUDGET_PAIRS = [
+  {
+    rule: "`set` with no flags changes nothing and has nothing to report.",
+    bad: ["sidewise budget set", "\u2192 \u2716 budget: set needs --usd or --runs \u2192 e.g. sidewise budget set --usd 5 --runs 500"],
+    good: ["sidewise budget set --usd 5 --runs 500"]
+  }
+];
+var indent2 = (lines, pad) => lines.map((l) => `${pad}${l}`);
+function proseCliPairs(pairs) {
+  return [
+    "",
+    "## Good / bad",
+    ...pairs.flatMap((p, i) => [...i ? [""] : [], `- ${p.rule}`, "  bad:", ...indent2(p.bad, "    "), "  good:", ...indent2(p.good, "    ")])
+  ];
+}
+function reportHelp() {
+  return [
+    "## report",
+    "A free, read-only view across everything the ledger holds, not one place: what's known, what recurs, what changed.",
+    "When: briefing a teammate or picking up a codebase cold, instead of hand-assembling several `view` calls.",
+    "",
+    "Example:",
+    "sidewise report            # same as: sidewise report hits",
+    "sidewise report patterns",
+    "sidewise report history",
+    "",
+    "Sharp rules:",
+    "- free: never calls a provider, never writes to the ledger, and works even with no on-disk index.",
+    "- no options beyond the view name \u2014 hits (default), patterns or history; anything else is a stop.",
+    "- `hits`: the newest run's own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.",
+    "- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.",
+    "- `history`: a merged, newest-first feed of `change` results (fixed/regressed) and recorded outcomes.",
+    "- every view caps its rows and says plainly how many more exist, rather than dropping them silently.",
+    ...proseCliPairs(REPORT_PAIRS)
+  ].join("\n");
+}
+function outcomeHelp() {
+  return [
+    "## outcome",
+    "Records what happened to a run after the fact, so weak spots roll up later in `sidewise report history`: `held` (it was right), `overruled` (it was wrong) or `failed` (it was useless). Not a side:-YAML verb: it never calls a provider, only appends one line to the ledger.",
+    "",
+    "Example:",
+    "sidewise outcome SW-0002 overruled --by claude",
+    "sidewise outcome SW-0002 held --by the-owner       # a different actor than the one who asked it",
+    "",
+    "Sharp rules:",
+    "- exact form: sidewise outcome <SW-####> held|overruled|failed --by <actor> \u2014 no other flags (there is no `--note`; keep a reason in your own notes, not here).",
+    "- the agent that asked a run can't mark it `held` itself \u2014 `overruled` and `failed` have no such restriction.",
+    '- recording the exact same outcome, by the exact same actor, again is a no-op (exit 0, "already recorded by <actor>"), not a second entry.',
+    ...proseCliPairs(OUTCOME_PAIRS)
+  ].join("\n");
+}
+function budgetHelp() {
+  return [
+    "## budget",
+    "Shows or changes the project's spend cap. Not a side:-YAML verb: it never calls a provider. `show` (the default) prints the current spend and run count; `reset` zeroes both but keeps the caps; `set` changes either or both caps without touching the spend already counted.",
+    "",
+    "Example:",
+    "sidewise budget                          # same as: sidewise budget show",
+    "sidewise budget set --usd 5 --runs 500   # the defaults",
+    "",
+    "Sharp rules:",
+    "- three subcommands only: `show` (default), `reset`, `set`.",
+    "- `set` needs at least one of `--usd`/`--runs` \u2014 giving neither is a stop.",
+    "- by convention only the project owner runs `reset` \u2014 nothing in the code stops any agent from running it.",
+    "- any verb call that would go over either cap stops at exit 3 before it spends anything.",
+    ...proseCliPairs(BUDGET_PAIRS)
+  ].join("\n");
+}
+
 // src/help/rules.ts
 var list2 = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}` : xs[0];
 var RULES = [
@@ -13125,7 +13227,7 @@ var RULES = [
     in: ["card", "authoring", "class", "scan", "loop"]
   },
   { text: `where: at most 5 path entries \u2014 this is all the code a run sees`, in: ["card", "authoring", "class", "view"] },
-  { text: `pass: yes clears at P(yes) >= 0.70; pass: no clears at P(yes) <= 0.30; in between is unsure`, in: ["card", "verdict"] },
+  { text: `pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between is unsure`, in: ["card", "verdict"] },
   { text: `every question in a category must point the same way as its pass:`, in: ["authoring"] },
   { text: `wise.why is one of ${list2(WHYS)}`, in: ["wise"] },
   { text: `wise.area is one of ${list2(AREAS)}`, in: ["wise"] },
@@ -13172,6 +13274,97 @@ var PROBE_RULES = [
   }
 ];
 
+// src/help/verbs.ts
+var EXAMPLES = {
+  view: "sidewise view src/handlers          # what does the ledger already know about this folder?\nsidewise view SW-0042               # this run's own lineage, up and down",
+  class: [
+    "side:",
+    "  goal: This login handler is safe to merge   # phrase as the exact claim to prove",
+    "  depth: quick                                # => exactly 10 yes/no below",
+    "  where: [src/user.ts:1-3]                     # include the wiring, not just the handler",
+    "  ask:",
+    "    injection: {pass: no, 1: Is request text put into a query unvalidated?, ...}",
+    "wise: {why: validate, area: auth}"
+  ].join("\n"),
+  change: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}",
+  scan: [
+    "side:",
+    "  goal: Handlers don't trust request input",
+    "  depth: quick",
+    "  over: {file: src/handlers/*.ts, function: each}     # scan by file when the file itself is the unit",
+    "  ask:",
+    "    function:",
+    "      injection: {pass: no, 1: Does {function} put request text straight into a query?}"
+  ].join("\n"),
+  drill: "sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser   # follow next:, don't hand-author the ids",
+  loop: [
+    "side:",
+    "  goal: The checkout redesign is sound",
+    "  depth: quick",
+    "  over:",
+    "    part:                              # part and story are SIBLINGS, both under over:",
+    "      - name: gateway",
+    "        story: [guest checkout, saved cards]",
+    "  ask:",
+    "    story:",
+    '      done: {pass: yes, 1: Is "{story}" testable against {part} as written?}   # asked of EVERY story'
+  ].join("\n")
+};
+var SHARP = {
+  view: ['a code file (not a request) is a place, not a request \u2014 view <folder>, ".", a tag, or SW-#### all work'],
+  class: ["goal wording changes the verdict (that's a feature, not a bug) \u2014 phrase it as the claim you need proven"],
+  change: [
+    'the files must be committed at the ref you name (or use "worktree" for the working tree) \u2014 change runs git in the repo that actually holds them',
+    "change replays the parent's own questions; it never takes ask: (use class for new questions)"
+  ],
+  scan: ["add a scale question to a layer to rank findings by severity, worst first, instead of an unordered map", "scan by file when the file itself is the unit that matters, not a function inside it"],
+  drill: ["follow the `next:` line rather than hand-authoring parent/from \u2014 it already names the id and the category or item"],
+  loop: [
+    "a sub-layer (like story under part) is a SIBLING key under over:, never nested inside its parent item",
+    'a story/part name is one word or kebab-case, at most 20 characters, and never contains "/"',
+    "every question under a layer is asked of every item at that layer \u2014 phrase it so that holds for all of them"
+  ]
+};
+var PURPOSE = {
+  view: "Side x Know: what do we already know here? Free \u2014 it reads the ledger and never calls out.",
+  class: "Side x Judge: does the evidence support this one goal? One call, one subject.",
+  change: "Side x Prove: did the change work? It replays a parent run's questions on two states.",
+  scan: "Wise x Know: where in this code should we look? A sweep across code, read by us.",
+  drill: "Wise x Judge: why did this one thing fail? It goes down from one item in a parent run.",
+  loop: "Wise x Prove: does this idea hold up? A sweep across layers of ideas the agent writes."
+};
+var WHEN = {
+  view: "before any paid call, when entering unfamiliar code, or to find proven questions.",
+  class: "a decision on one subject: merge, choose, triage, check a fix.",
+  change: "after a fix, a refactor, a dependency bump, or to compare fix A with fix B.",
+  scan: "a new codebase, a release check, a PR's changed files, or a vague bug with no location yet.",
+  drill: "after a fail or unsure from class, scan, loop or change.",
+  loop: "a design, a plan or a feature request before any code exists."
+};
+var VERB_LINE = {
+  view: "free; what's already known, before any paid call",
+  class: "one decision on one thing (merge, choose, triage, check a fix)",
+  change: "re-check a run's questions after a fix, across two git refs",
+  scan: "sweep many files when the problem's location is unknown",
+  drill: "go down from one flagged item of an earlier run",
+  loop: "check a design or plan before code exists"
+};
+function verbHelp(verb) {
+  return [
+    `## ${verb}`,
+    PURPOSE[verb],
+    `When: ${WHEN[verb]}`,
+    "",
+    "Example:",
+    EXAMPLES[verb],
+    "",
+    "Sharp rules:",
+    ...SHARP[verb].map((s) => `- ${s}.`),
+    ...ruleLines(verb),
+    ...proseLines(verb)
+  ].join("\n");
+}
+
 // src/help/agent.ts
 var isVerb = (s) => VERBS.includes(s);
 function renderCard(id, rules, patterns = [], run = []) {
@@ -13180,10 +13373,15 @@ function renderCard(id, rules, patterns = [], run = []) {
 var AGENT_TOOLS = ["report", "outcome", "budget", "template"];
 function overview() {
   return renderCard(
-    [`verbs: ${VERBS.join(", ")}`, `tools: ${AGENT_TOOLS.join(", ")}`],
+    [
+      "verbs (pick by goal):",
+      ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`),
+      "tools:",
+      ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`)
+    ],
     ruleLines("card"),
     [],
-    ["run: sidewise agent <verb>", "run: sidewise agent <tool>", "run: sidewise agent probe"]
+    ["run: sidewise agent <verb|tool> \u2014 before writing that request", "run: sidewise agent probe \u2014 before writing questions: how to phrase one"]
   );
 }
 function verbCard(verb) {
@@ -13302,6 +13500,8 @@ function card() {
     "| Side \u2014 solve it with what's proven   | view (free) | class (1 call) | change (up to 2 calls) |",
     "| Wise \u2014 find what's new, and learn it | scan (1 call) | drill (1 call) | loop (1 call/layer) |",
     "",
+    ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`),
+    "",
     "## The contract (memorize \u2014 these cause most first-try rejects)",
     ...ruleLines("card"),
     "- every question in a category must point the same way as its pass: (one reversed question fails the whole gate).",
@@ -13311,105 +13511,13 @@ function card() {
     "reads `\u2716 field: problem \u2192 fix` \u2014 the error text names exactly what to change.",
     "",
     "Go deeper: `sidewise help <verb>` (view, class, change, scan, drill, loop) or `sidewise help <topic>`",
-    "(authoring, verdict, wise, reuse). `sidewise template <verb>` prints a commented, filled-in sample.",
-    "`sidewise report [hits|patterns|history]` reads back what the ledger has learned across every place, free \u2014",
-    "not a seventh verb, just a read tool (`sidewise help report`)."
-  ].join("\n");
-}
-
-// src/help/report.ts
-var REPORT_PAIRS = [
-  {
-    rule: "there is no view beyond hits, patterns and history \u2014 nothing else to ask it for.",
-    bad: ["sidewise report level2", '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns or history'],
-    good: ["sidewise report patterns"]
-  }
-];
-var OUTCOME_PAIRS = [
-  {
-    rule: "an agent can't certify its own run as correct \u2014 `held` needs a second party.",
-    bad: [
-      "sidewise outcome SW-0002 held --by claude   # claude is the actor that asked SW-0002",
-      `\u2192 \u2716 outcome: claude asked SW-0002, so it can't mark it held \u2192 another agent or the owner records "held"`
-    ],
-    good: ["sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>"]
-  },
-  {
-    rule: "`outcome` takes no reason field.",
-    bad: [
-      'sidewise outcome SW-0002 overruled --by claude --note "wrong file blamed"',
-      "\u2192 \u2716 args: unknown flag --note \u2192 sidewise outcome <SW-####> held|overruled|failed --by <actor>"
-    ],
-    good: ["sidewise outcome SW-0002 overruled --by claude   # keep the reason in your own notes"]
-  }
-];
-var BUDGET_PAIRS = [
-  {
-    rule: "`set` with no flags changes nothing and has nothing to report.",
-    bad: ["sidewise budget set", "\u2192 \u2716 budget: set needs --usd or --runs \u2192 e.g. sidewise budget set --usd 5 --runs 500"],
-    good: ["sidewise budget set --usd 5 --runs 500"]
-  }
-];
-var indent2 = (lines, pad) => lines.map((l) => `${pad}${l}`);
-function proseCliPairs(pairs) {
-  return [
+    "(authoring, verdict, wise, reuse).",
     "",
-    "## Good / bad",
-    ...pairs.flatMap((p, i) => [...i ? [""] : [], `- ${p.rule}`, "  bad:", ...indent2(p.bad, "    "), "  good:", ...indent2(p.good, "    ")])
-  ];
-}
-function reportHelp() {
-  return [
-    "## report",
-    "A free, read-only view across everything the ledger holds, not one place: what's known, what recurs, what changed.",
-    "When: briefing a teammate or picking up a codebase cold, instead of hand-assembling several `view` calls.",
-    "",
-    "Example:",
-    "sidewise report            # same as: sidewise report hits",
-    "sidewise report patterns",
-    "sidewise report history",
-    "",
-    "Sharp rules:",
-    "- free: never calls a provider, never writes to the ledger, and works even with no on-disk index.",
-    "- no options beyond the view name \u2014 hits (default), patterns or history; anything else is a stop.",
-    "- `hits`: the newest run's own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.",
-    "- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.",
-    "- `history`: a merged, newest-first feed of `change` results (fixed/regressed) and recorded outcomes.",
-    "- every view caps its rows and says plainly how many more exist, rather than dropping them silently.",
-    ...proseCliPairs(REPORT_PAIRS)
-  ].join("\n");
-}
-function outcomeHelp() {
-  return [
-    "## outcome",
-    "Records what happened to a run after the fact, so weak spots roll up later in `sidewise report history`: `held` (it was right), `overruled` (it was wrong) or `failed` (it was useless). Not a side:-YAML verb: it never calls a provider, only appends one line to the ledger.",
-    "",
-    "Example:",
-    "sidewise outcome SW-0002 overruled --by claude",
-    "sidewise outcome SW-0002 held --by the-owner       # a different actor than the one who asked it",
-    "",
-    "Sharp rules:",
-    "- exact form: sidewise outcome <SW-####> held|overruled|failed --by <actor> \u2014 no other flags (there is no `--note`; keep a reason in your own notes, not here).",
-    "- the agent that asked a run can't mark it `held` itself \u2014 `overruled` and `failed` have no such restriction.",
-    '- recording the exact same outcome, by the exact same actor, again is a no-op (exit 0, "already recorded by <actor>"), not a second entry.',
-    ...proseCliPairs(OUTCOME_PAIRS)
-  ].join("\n");
-}
-function budgetHelp() {
-  return [
-    "## budget",
-    "Shows or changes the project's spend cap. Not a side:-YAML verb: it never calls a provider. `show` (the default) prints the current spend and run count; `reset` zeroes both but keeps the caps; `set` changes either or both caps without touching the spend already counted.",
-    "",
-    "Example:",
-    "sidewise budget                          # same as: sidewise budget show",
-    "sidewise budget set --usd 5 --runs 500   # the defaults",
-    "",
-    "Sharp rules:",
-    "- three subcommands only: `show` (default), `reset`, `set`.",
-    "- `set` needs at least one of `--usd`/`--runs` \u2014 giving neither is a stop.",
-    "- by convention only the project owner runs `reset` \u2014 nothing in the code stops any agent from running it.",
-    "- any verb call that would go over either cap stops at exit 3 before it spends anything.",
-    ...proseCliPairs(BUDGET_PAIRS)
+    "## Tools",
+    `- report: ${TOOL_LINE.report} (\`sidewise help report\`)`,
+    `- outcome: ${TOOL_LINE.outcome} (\`sidewise help outcome\`)`,
+    `- budget: ${TOOL_LINE.budget} (\`sidewise help budget\`)`,
+    `- template: ${TOOL_LINE.template}`
   ].join("\n");
 }
 
@@ -13497,89 +13605,6 @@ function probe() {
 var BUILDERS = { authoring, verdict, wise, reuse, probe };
 function topicHelp(topic) {
   return BUILDERS[topic]();
-}
-
-// src/help/verbs.ts
-var EXAMPLES = {
-  view: "sidewise view src/handlers          # what does the ledger already know about this folder?\nsidewise view SW-0042               # this run's own lineage, up and down",
-  class: [
-    "side:",
-    "  goal: This login handler is safe to merge   # phrase as the exact claim to prove",
-    "  depth: quick                                # => exactly 10 yes/no below",
-    "  where: [src/user.ts:1-3]                     # include the wiring, not just the handler",
-    "  ask:",
-    "    injection: {pass: no, 1: Is request text put into a query unvalidated?, ...}",
-    "wise: {why: validate, area: auth}"
-  ].join("\n"),
-  change: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}",
-  scan: [
-    "side:",
-    "  goal: Handlers don't trust request input",
-    "  depth: quick",
-    "  over: {file: src/handlers/*.ts, function: each}     # scan by file when the file itself is the unit",
-    "  ask:",
-    "    function:",
-    "      injection: {pass: no, 1: Does {function} put request text straight into a query?}"
-  ].join("\n"),
-  drill: "sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser   # follow next:, don't hand-author the ids",
-  loop: [
-    "side:",
-    "  goal: The checkout redesign is sound",
-    "  depth: quick",
-    "  over:",
-    "    part:                              # part and story are SIBLINGS, both under over:",
-    "      - name: gateway",
-    "        story: [guest checkout, saved cards]",
-    "  ask:",
-    "    story:",
-    '      done: {pass: yes, 1: Is "{story}" testable against {part} as written?}   # asked of EVERY story'
-  ].join("\n")
-};
-var SHARP = {
-  view: ['a code file (not a request) is a place, not a request \u2014 view <folder>, ".", a tag, or SW-#### all work'],
-  class: ["goal wording changes the verdict (that's a feature, not a bug) \u2014 phrase it as the claim you need proven"],
-  change: [
-    'the files must be committed at the ref you name (or use "worktree" for the working tree) \u2014 change runs git in the repo that actually holds them',
-    "change replays the parent's own questions; it never takes ask: (use class for new questions)"
-  ],
-  scan: ["add a scale question to a layer to rank findings by severity, worst first, instead of an unordered map", "scan by file when the file itself is the unit that matters, not a function inside it"],
-  drill: ["follow the `next:` line rather than hand-authoring parent/from \u2014 it already names the id and the category or item"],
-  loop: [
-    "a sub-layer (like story under part) is a SIBLING key under over:, never nested inside its parent item",
-    'a story/part name is one word or kebab-case, at most 20 characters, and never contains "/"',
-    "every question under a layer is asked of every item at that layer \u2014 phrase it so that holds for all of them"
-  ]
-};
-var PURPOSE = {
-  view: "Side x Know: what do we already know here? Free \u2014 it reads the ledger and never calls out.",
-  class: "Side x Judge: does the evidence support this one goal? One call, one subject.",
-  change: "Side x Prove: did the change work? It replays a parent run's questions on two states.",
-  scan: "Wise x Know: where in this code should we look? A sweep across code, read by us.",
-  drill: "Wise x Judge: why did this one thing fail? It goes down from one item in a parent run.",
-  loop: "Wise x Prove: does this idea hold up? A sweep across layers of ideas the agent writes."
-};
-var WHEN = {
-  view: "before any paid call, when entering unfamiliar code, or to find proven questions.",
-  class: "a decision on one subject: merge, choose, triage, check a fix.",
-  change: "after a fix, a refactor, a dependency bump, or to compare fix A with fix B.",
-  scan: "a new codebase, a release check, a PR's changed files, or a vague bug with no location yet.",
-  drill: "after a fail or unsure from class, scan, loop or change.",
-  loop: "a design, a plan or a feature request before any code exists."
-};
-function verbHelp(verb) {
-  return [
-    `## ${verb}`,
-    PURPOSE[verb],
-    `When: ${WHEN[verb]}`,
-    "",
-    "Example:",
-    EXAMPLES[verb],
-    "",
-    "Sharp rules:",
-    ...SHARP[verb].map((s) => `- ${s}.`),
-    ...ruleLines(verb),
-    ...proseLines(verb)
-  ].join("\n");
 }
 
 // src/help/index.ts
