@@ -81,6 +81,22 @@ describe('validateConfig', () => {
     expect(nested.stops.some((s) => s.text.includes('keys go in env or the keychain'))).toBe(true);
   });
 
+  // plan 2c B, security item: a real key pasted into a config VALUE stops regardless of the key's own name —
+  // baseURL isn't secret-shaped itself, only the value is. Built at runtime (never a literal secret in the repo).
+  it('a key-shaped VALUE stops even under a non-secret-named key (baseURL)', () => {
+    const secret = 'sk-' + 'A'.repeat(24);
+    const { stops, value } = validateConfig({ baseURL: secret });
+    expect(stops).toEqual([{ path: 'baseURL', text: '✖ config.baseURL: looks like a key → keys go in env (TYPESAFE_API_KEY) or the keychain, never in config' }]);
+    expect(value.baseURL).toBeUndefined(); // never applied
+  });
+
+  it('a key-shaped value inside a wise override (free text) also stops', () => {
+    const secret = 'ghp_' + 'B'.repeat(30);
+    const { stops, value } = validateConfig({ wise: { risk: { note: secret } } });
+    expect(stops.some((s) => s.text === '✖ config.wise.risk.note: looks like a key → keys go in env (TYPESAFE_API_KEY) or the keychain, never in config')).toBe(true);
+    expect(value.wise?.risk?.note).toBeUndefined();
+  });
+
   it('a good file round-trips with no stops and the parsed values', () => {
     const { stops, value } = validateConfig({ budget: { usd: 10, runs: 200 }, sweep: { maxQuestionsPerCall: 100 }, wise: { risk: { values: ['low', 'high'] } } });
     expect(stops).toEqual([]);

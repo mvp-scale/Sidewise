@@ -5,6 +5,7 @@
  * stop in the shared `✖ config.<path>: problem → fix` shape (AGENTS.md rule 7); this module only builds text,
  * never throws.
  */
+import { looksLikeSecret } from '../ledger/redact.ts';
 import { CONFIG_KEYS, CONTRACT_ONLY_KEYS, SECRET_LIKE_KEYS, type SidewiseConfig } from './defaults.ts';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -65,10 +66,23 @@ function checkPositiveNumber(path: string, v: unknown, out: ConfigStop[]): boole
   return false;
 }
 
+/** The value-shaped counterpart to checkSecretLike (which flags a secret-NAMED key): a real key pasted into a
+ *  config value — `baseURL`, `budget.since`, a wise override's free text — stops here regardless of what the
+ *  surrounding key is called. Reuses redact.ts's own detectors (plan 2c B, security item) so this file never
+ *  duplicates the pattern list. */
+function checkSecretValue(path: string, v: string, out: ConfigStop[]): boolean {
+  if (!looksLikeSecret(v)) return false;
+  out.push(stop(path, 'looks like a key', 'keys go in env (TYPESAFE_API_KEY) or the keychain, never in config'));
+  return true;
+}
+
 function checkNonEmptyString(path: string, v: unknown, out: ConfigStop[]): boolean {
-  if (typeof v === 'string' && v.trim()) return true;
-  out.push(stop(path, `${JSON.stringify(v)} is not text`, 'give a non-empty string'));
-  return false;
+  if (typeof v !== 'string' || !v.trim()) {
+    out.push(stop(path, `${JSON.stringify(v)} is not text`, 'give a non-empty string'));
+    return false;
+  }
+  if (checkSecretValue(path, v, out)) return false;
+  return true;
 }
 
 function checkBudget(v: unknown, out: ConfigStop[]): Partial<SidewiseConfig['budget']> {
@@ -185,7 +199,13 @@ function checkWise(v: unknown, out: ConfigStop[]): SidewiseConfig['wise'] {
         out.push(stop(`${path}.${k}`, `"${k}" is not a wise override field`, hint ? `did you mean ${hint}?` : `use ${WISE_OVERRIDE_FIELDS.join(', ')}`));
         continue;
       }
-      entry[k] = override[k];
+      const val = override[k];
+      if (typeof val === 'string' && checkSecretValue(`${path}.${k}`, val, out)) continue;
+      if (Array.isArray(val) && val.some((x) => typeof x === 'string' && looksLikeSecret(x))) {
+        out.push(stop(`${path}.${k}`, 'looks like a key', 'keys go in env (TYPESAFE_API_KEY) or the keychain, never in config'));
+        continue;
+      }
+      entry[k] = val;
     }
     result[field] = entry;
   }

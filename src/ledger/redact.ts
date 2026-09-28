@@ -61,6 +61,21 @@ export function redact(text: string): string {
   return redactSecrets(text).replace(EMAIL, '[redacted]');
 }
 
+/** Whether `value` itself, standalone (no surrounding "key: " prefix needed), looks like a real secret — the
+ *  same provider-shaped PATTERNS above, or a registered resolved key. config/validate.ts (plan 2c B, security
+ *  item) uses this to catch a real key pasted into a config VALUE (e.g. baseURL) regardless of what the key
+ *  around it is named — checkSecretLike (defaults.ts's SECRET_LIKE_KEYS) already covers the key-NAME-shaped
+ *  case; this is the value-shaped one. `lastIndex` is reset before each test: PATTERNS carry the `g` flag for
+ *  redactSecrets' own replace() scans, and a stateful regex's `.test()` would otherwise silently skip matches on
+ *  later calls. */
+export function looksLikeSecret(value: string): boolean {
+  if (registeredSecrets.some((s) => value.includes(s))) return true;
+  return PATTERNS.some((p) => {
+    p.lastIndex = 0;
+    return p.test(value);
+  });
+}
+
 export function redactDeep<T>(value: T): T {
   if (typeof value === 'string') return redact(value) as unknown as T;
   if (Array.isArray(value)) return value.map((v: unknown) => redactDeep(v)) as unknown as T;
