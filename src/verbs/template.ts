@@ -23,6 +23,7 @@ import { findRun, isContractRun, type ContractRun } from '../ledger/log.ts';
 import { RUN_ID } from '../ledger/ids.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { clip } from '../util/text.ts';
+import { stopText } from './request.ts';
 import type { VerbResult } from './types.ts';
 
 export interface TemplateFlags {
@@ -96,10 +97,10 @@ function askToWire(run: ContractRun): Record<string, unknown> {
  *  survive) — it validates and replays identically either way, which is what makes a request reusable at all.
  *  Read-only and free, like every other template path: never validated here either. */
 function fromRunId(id: string, flags: TemplateFlags, paths: SidewisePaths | undefined): VerbResult {
-  if (!paths) return { exit: 2, text: `✖ template: --from "${id}" needs a project to look up the ledger → run inside one, or point --from at a request file` };
+  if (!paths) return { exit: 2, text: stopText([`✖ template: --from "${id}" needs a project to look up the ledger → run inside one, or point --from at a request file`], 'template') };
   const run = findRun(paths, id);
-  if (!run) return { exit: 2, text: `✖ template: --from "${id}" is not in the ledger → check the id, or point --from at a request file` };
-  if (!isContractRun(run)) return { exit: 2, text: `✖ template: --from "${id}" predates the YAML contract → point --from at a request file instead` };
+  if (!run) return { exit: 2, text: stopText([`✖ template: --from "${id}" is not in the ledger → check the id, or point --from at a request file`], 'template') };
+  if (!isContractRun(run)) return { exit: 2, text: stopText([`✖ template: --from "${id}" predates the YAML contract → point --from at a request file instead`], 'template') };
 
   // `change` is the one verb where the stored fields aren't a faithful copy of the original request: a change
   // run stores its PARENT's `where`/`ask.categories` too (change.ts), so it can grade before/after answers
@@ -136,30 +137,36 @@ function fromFile(from: string, flags: TemplateFlags): VerbResult {
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
     const shown = clip(from, 60);
-    return { exit: 2, text: `✖ template: --from "${shown}" ${code === 'ENOENT' ? 'not found' : 'cannot be read'} → check the path` };
+    return { exit: 2, text: stopText([`✖ template: --from "${shown}" ${code === 'ENOENT' ? 'not found' : 'cannot be read'} → check the path`], 'template') };
   }
   let doc: ReturnType<typeof parseDocument>;
   try {
     doc = parseDocument(raw);
   } catch {
-    return { exit: 2, text: `✖ template: --from "${clip(from, 60)}" is not valid YAML → point at a Sidewise request file` };
+    return { exit: 2, text: stopText([`✖ template: --from "${clip(from, 60)}" is not valid YAML → point at a Sidewise request file`], 'template') };
   }
-  if (!doc.has('side')) return { exit: 2, text: `✖ template: --from "${clip(from, 60)}" has no side: block → point at a Sidewise request file` };
+  if (!doc.has('side')) return { exit: 2, text: stopText([`✖ template: --from "${clip(from, 60)}" has no side: block → point at a Sidewise request file`], 'template') };
   if (flags.goal !== undefined) doc.setIn(['side', 'goal'], flags.goal);
   if (flags.where !== undefined) doc.setIn(['side', 'where'], flags.where);
   return { exit: 0, text: doc.toString() };
 }
 
 export function runTemplate(target: string, flags: TemplateFlags = {}, paths?: SidewisePaths, packageDir: string = DEFAULT_PACKAGE_DIR): VerbResult {
-  if (!VERBS.includes(target as Verb)) return { exit: 2, text: `✖ template: "${clip(target, 30)}" is not a verb → one of ${VERBS.join(', ')}` };
+  if (!VERBS.includes(target as Verb)) return { exit: 2, text: stopText([`✖ template: "${clip(target, 30)}" is not a verb → one of ${VERBS.join(', ')}`], 'template') };
 
   if (flags.parent !== undefined) {
-    if (target !== 'drill') return { exit: 2, text: `✖ template: --parent only applies to drill → sidewise template ${target}` };
+    if (target !== 'drill') return { exit: 2, text: stopText([`✖ template: --parent only applies to drill → sidewise template ${target}`], 'template') };
     if (flags.from === undefined) {
-      return { exit: 2, text: '✖ template drill: needs both --parent and --from, or neither → sidewise template drill --parent SW-#### --from <item or category>' };
+      return {
+        exit: 2,
+        text: stopText(['✖ template drill: needs both --parent and --from, or neither → sidewise template drill --parent SW-#### --from <item or category>'], 'template'),
+      };
     }
     if (flags.where !== undefined || flags.goal !== undefined) {
-      return { exit: 2, text: '✖ template: --where/--goal don\'t apply with --parent → they overlay a checklist read from --from <request.yaml> instead' };
+      return {
+        exit: 2,
+        text: stopText(['✖ template: --where/--goal don\'t apply with --parent → they overlay a checklist read from --from <request.yaml> instead'], 'template'),
+      };
     }
     const file = drillSampleFile(flags.parent, paths);
     const raw = readFileSync(path.join(packageDir, 'skills', 'sidewise', 'templates', file), 'utf8');
@@ -172,7 +179,7 @@ export function runTemplate(target: string, flags: TemplateFlags = {}, paths?: S
   if (flags.from !== undefined) return RUN_ID.test(flags.from) ? fromRunId(flags.from, flags, paths) : fromFile(flags.from, flags);
 
   if (flags.where !== undefined || flags.goal !== undefined) {
-    return { exit: 2, text: `✖ template: --where/--goal need --from → sidewise template ${target} --from <request.yaml>` };
+    return { exit: 2, text: stopText([`✖ template: --where/--goal need --from → sidewise template ${target} --from <request.yaml>`], 'template') };
   }
 
   return { exit: 0, text: readFileSync(path.join(packageDir, 'skills', 'sidewise', 'templates', `${target}.yaml`), 'utf8') };

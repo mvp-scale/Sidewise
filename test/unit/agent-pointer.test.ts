@@ -4,13 +4,16 @@
 // naming the right target. Structured as a flat table of {label, target, text} so a captain-owned cli.ts row
 // (UsageStop, NO_PROJECT, outcome/budget argument checks) or a crew-3-owned template.ts row can be appended
 // later without restructuring; the async drill cases sit alongside it since a table entry can't await.
+import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { checkBudget, loadBudget, recordSpend, setBudget } from '../../src/budget/budget.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { appendOutcome, appendRun } from '../../src/ledger/log.ts';
+import { runCli, type CliCtx } from '../../src/cli.ts';
 import { runDrill } from '../../src/verbs/drill.ts';
 import { runLoop } from '../../src/verbs/loop.ts';
 import { runReport } from '../../src/verbs/report.ts';
+import { runTemplate } from '../../src/verbs/template.ts';
 import { runView } from '../../src/verbs/view.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleRun } from '../helpers/runs.ts';
@@ -18,9 +21,27 @@ import { stubProvider } from '../helpers/stub-provider.ts';
 
 const env = { SIDEWISE_ACTOR: 'r' };
 
-/** Every stop text checked here ends "\n→ see: sidewise agent <target>" — no trailing content after it. */
+function fakeCliCtx(overrides: Partial<CliCtx> = {}): CliCtx {
+  return {
+    env: {},
+    cwd: process.cwd(),
+    platform: process.platform,
+    runner: () => ({ status: 1, stdout: '', stderr: '' }),
+    packageDir: process.cwd(),
+    pkg: { name: '@mvpscale/sidewise', version: '9.9.9-test' },
+    homeDir: '/nonexistent-home',
+    nodeVersion: process.version,
+    stdin: () => Buffer.from(''),
+    io: { input: new PassThrough(), output: new PassThrough() },
+    ...overrides,
+  };
+}
+
+/** Every stop text checked here ends "\n→ see: sidewise agent <target>" — no trailing content after it, beyond
+ *  the one trailing newline `runCli`'s own `finish()` adds to every text that doesn't already end with one
+ *  (real dispatch output, unlike a verb called directly). */
 function expectPointer(text: string, target: string): void {
-  expect(text, `expected a "sidewise agent ${target}" pointer in: ${JSON.stringify(text)}`).toMatch(new RegExp(`\\n→ see: sidewise agent ${target}$`));
+  expect(text, `expected a "sidewise agent ${target}" pointer in: ${JSON.stringify(text)}`).toMatch(new RegExp(`\\n→ see: sidewise agent ${target}\\n?$`));
 }
 
 describe('every non-request-validation stop still points at its own "sidewise agent <target>" (item B)', () => {
@@ -100,5 +121,40 @@ describe('every non-request-validation stop still points at its own "sidewise ag
     const { paths } = tempProject({});
     const r = await runLoop('side:\n  goal: x\n', { paths, provider: stubProvider(), env });
     expectPointer(r.text, 'loop');
+  });
+
+  // template.ts's own stop messages (crew 3's file, item E's --from SW-#### plus the pre-existing ones) — added
+  // by the captain after crew 3 finished, using the same stopText reuse as view/drill/report.
+  it.each([
+    { label: 'template: not a verb', fn: () => runTemplate('nope') },
+    { label: 'template: --parent only applies to drill', fn: () => runTemplate('class', { parent: 'SW-0001' }) },
+    { label: 'template: --where/--goal need --from', fn: () => runTemplate('class', { goal: 'x' }) },
+    { label: 'template: --from SW-#### with no project reachable', fn: () => runTemplate('class', { from: 'SW-0001' }, undefined) },
+  ])('$label', ({ fn }) => expectPointer(fn().text, 'template'));
+
+  // The cli.ts-level gaps stopText never reaches: a bare usage mistake, a missing project, and a request file
+  // cli.ts itself couldn't even read — all captain-owned (src/cli.ts), verified here through the real dispatch.
+  describe('cli.ts-level stops', () => {
+    it('a bad flag value (UsageStop) points at the command\'s own agent card', async () => {
+      const r = await runCli(['view', 'x', '--level', '9'], fakeCliCtx());
+      expectPointer(r.text, 'view');
+    });
+
+    it('no project reachable (NO_PROJECT) points at the command actually run', async () => {
+      const r = await runCli(['budget'], fakeCliCtx({ cwd: '/tmp' }));
+      expectPointer(r.text, 'budget');
+    });
+
+    it('a request file cli.ts itself could not read points at the verb run', async () => {
+      const { root } = tempProject({});
+      mkdirSync(`${root}/.sidewise`, { recursive: true });
+      const r = await runCli(['class', '/no/such/file.yaml'], fakeCliCtx({ cwd: root }));
+      expectPointer(r.text, 'class');
+    });
+
+    it('a non-pointable command (doctor) never gets a pointer — there is no "sidewise agent doctor"', async () => {
+      const r = await runCli(['doctor', '--bogus'], fakeCliCtx());
+      expect(r.text).not.toContain('→ see: sidewise agent');
+    });
   });
 });

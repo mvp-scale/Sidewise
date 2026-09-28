@@ -35,11 +35,17 @@ describe('runTemplate', () => {
   });
 
   it('an unknown verb: a clean stop', () => {
-    expect(runTemplate('nope')).toEqual({ exit: 2, text: '✖ template: "nope" is not a verb → one of view, class, change, scan, drill, loop' });
+    expect(runTemplate('nope')).toEqual({
+      exit: 2,
+      text: '✖ template: "nope" is not a verb → one of view, class, change, scan, drill, loop\n→ see: sidewise agent template',
+    });
   });
 
   it('--parent only applies to drill', () => {
-    expect(runTemplate('class', { parent: 'SW-0001' })).toEqual({ exit: 2, text: '✖ template: --parent only applies to drill → sidewise template class' });
+    expect(runTemplate('class', { parent: 'SW-0001' })).toEqual({
+      exit: 2,
+      text: '✖ template: --parent only applies to drill → sidewise template class\n→ see: sidewise agent template',
+    });
   });
 
   it('drill needs both flags together, or neither', () => {
@@ -252,7 +258,10 @@ describe('runTemplate', () => {
       const { root } = tempProject({});
       const file = write(root, 'wise:\n  why: validate\n');
       const r = runTemplate('class', { from: file });
-      expect(r).toEqual({ exit: 2, text: `✖ template: --from "${file}" has no side: block → point at a Sidewise request file` });
+      expect(r).toEqual({
+        exit: 2,
+        text: `✖ template: --from "${file}" has no side: block → point at a Sidewise request file\n→ see: sidewise agent template`,
+      });
     });
 
     it('--where/--goal without --from: a clean stop', () => {
