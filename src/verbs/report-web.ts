@@ -14,10 +14,21 @@
  * here reads one project's own ledger, so "the id index" already gives every run a stable identity as gate-space to
  * agree or disagree in.
  *
- * `fail`→`pass` and `pass`→`fail` arcs reuse change.ts's own `gradeChange` (the same regression call `change`
- * itself makes, and report.ts's `history` view already reads) rather than re-deriving fixed/regressed from
- * scratch. A card's own colour rolls the place's concerns up to one verdict: `conflict` beats any gate, else the
- * worst gate wins (fail, then unsure, then pass); `none` is a place or a heat-map cell with no runs at all.
+ * `fail`→`pass` and `pass`→`fail` arcs come straight out of the same (place, concern) history the consensus
+ * above already groups: every hit sorted by its own run's `ts` (never by SW id — ids repeat across a
+ * concatenated/multi-session ledger, and even within one ledger, id order and ts order can't be assumed the
+ * same), earliest vs latest. Earliest `fail` and latest `pass` is a fix that held; the reverse is a regression;
+ * anything else (agreement, or an `unsure` at either end) is neither — this is deliberately a two-point read,
+ * not a full walk of every flip in between.
+ *
+ * A path can be double-counted when the same file was asked about from two different roots (a session run from
+ * a project's own root, another from one level up) — `mergePathAliases` folds a longer place into a shorter one
+ * already present whenever the longer is exactly the shorter with a `/`-prefixed extra path segment in front (a
+ * real project has one root, so this is a same-file suffix match, not a heuristic over file content); the story
+ * panel says how many aliases were folded.
+ *
+ * A card's own colour rolls the place's concerns up to one verdict: `conflict` beats any gate, else the worst
+ * gate wins (fail, then unsure, then pass); `none` is a place or a heat-map cell with no runs at all.
  *
  * Security: the embedded data is JSON inside a `<script type="application/json">` block, escaped against `<`,
  * `>`, `&`, U+2028 and U+2029 so nothing in it (a question, a goal, an actor name) can close that tag early or
@@ -32,7 +43,6 @@ import { sweepPlaces, stripLines } from '../ledger/index.ts';
 import { isContractRun, isRun, readLedger, type ContractRun, type FailedRecord, type LedgerRecord, type Outcome, type OutcomeRecord } from '../ledger/log.ts';
 import { ensureDir, type SidewisePaths } from '../ledger/paths.ts';
 import type { Runner } from '../setup/runner.ts';
-import { gradeChange } from './change.ts';
 import type { VerbResult } from './types.ts';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -88,9 +98,13 @@ interface HeatCell {
   title: string;
 }
 
+/** A (place, concern) pair whose earliest and latest hit (by ts) disagree in one specific direction: fromId is
+ *  the earliest hit's run, toId the latest. */
 interface Arc {
-  id: string;
   place: string;
+  concern: string;
+  fromId: string;
+  toId: string;
 }
 
 interface Finding {
@@ -111,6 +125,8 @@ interface SessionStory {
   regressions: Arc[];
   findings: Finding[];
   outcomes: { held: number; overruled: number; failed: number; open: number };
+  /** How many place strings were folded into a shorter, already-present one (see mergePathAliases). */
+  pathsMerged: number;
 }
 
 export interface WindowData {
@@ -183,6 +199,8 @@ interface Edge {
   gate: Gate;
   p: number | null;
   qtext: string;
+  /** The run's own ts (never the SW id) — the only thing arcs are ever ordered by. */
+  ts: string;
 }
 
 /** Every (run, place, concern) vote in the window: a one-subject run's categories against its `where` places, or
@@ -204,7 +222,7 @@ function collectEdges(runs: readonly ContractRun[]): { edges: Edge[]; runTags: M
           if (gate === undefined) continue;
           const ns = cat.questions.map((q) => q.n);
           const p = meanP(rec.answers, ns, `${itemKey}#`);
-          edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext: questionFingerprint(cat) });
+          edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext: questionFingerprint(cat), ts: rec.ts });
         }
       }
     } else {
@@ -216,7 +234,7 @@ function collectEdges(runs: readonly ContractRun[]): { edges: Edge[]; runTags: M
         const ns = cat.questions.map((q) => q.n);
         const p = meanP(rec.answers, ns, '');
         const qtext = questionFingerprint(cat);
-        for (const place of places) edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext });
+        for (const place of places) edges.push({ runId: rec.id, place, concern: cat.name.toLowerCase(), gate, p, qtext, ts: rec.ts });
       }
     }
   }
@@ -244,25 +262,56 @@ function buildOutcomes(runs: readonly ContractRun[], outcomes: readonly OutcomeR
   return counts;
 }
 
-/** change.ts's own gradeChange, reused (never re-derived): a change run is `fixed` when nothing regressed and at
- *  least one category moved off a miss, `regressed` when anything did — the exact priority `change`'s own gate
- *  and report.ts's `history` view already use. */
-function buildArcs(runs: readonly ContractRun[]): { fixes: Arc[]; regressions: Arc[] } {
-  const fixes: Arc[] = [];
-  const regressions: Arc[] = [];
-  for (const r of runs) {
-    if (r.verb !== 'change' || !r.answers['goal']) continue;
-    let graded;
-    try {
-      graded = gradeChange(r.ask.categories, r.answers);
-    } catch {
-      continue;
+/** Real precision for a sub-cent sum (e.g. $0.0023 — 2 significant digits) instead of a misleading $0.00; the
+ *  same rule wherever a dollar amount appears on the page. Exported so this exact implementation is unit-tested
+ *  here, then embedded verbatim into the client script below (`${formatUsd.toString()}`) — one implementation,
+ *  never a second hand-copied one that could drift. */
+export function formatUsd(n: number): string {
+  if (!n) return '$0.00';
+  if (n >= 0.01) return `$${n.toFixed(2)}`;
+  let s = n.toPrecision(2);
+  if (s.includes('e')) s = n.toFixed(6); // far below a cent: toPrecision would go exponential
+  return `$${s}`;
+}
+
+/** Folds a longer place into a shorter one already present when the longer is exactly the shorter with a
+ *  `/`-prefixed path in front (e.g. `stage/NodeGoat/app/routes/x.js` -> `app/routes/x.js`, when the latter is
+ *  itself one of this window's places) — the same file, asked about from two different roots. Shortest-first so
+ *  a chain of three aliases all collapse onto the one true shortest, never a middle link. Returns the merge map
+ *  (longer -> canonical) and the number of aliases folded, for the story panel's "N paths merged". */
+function mergePathAliases(places: readonly string[]): { canonicalOf: Map<string, string>; merged: number } {
+  const sorted = [...new Set(places)].sort((a, b) => a.length - b.length);
+  const canonicalOf = new Map<string, string>();
+  for (let i = 0; i < sorted.length; i++) {
+    const short = sorted[i]!;
+    if (canonicalOf.has(short)) continue; // short is itself an alias of something even shorter — never a target
+    for (let j = i + 1; j < sorted.length; j++) {
+      const long = sorted[j]!;
+      if (!canonicalOf.has(long) && long.endsWith(`/${short}`)) canonicalOf.set(long, short);
     }
-    const place = placeSummary(r);
-    if (graded.regressed.length) regressions.push({ id: r.id, place });
-    else if (graded.categories.some((c) => c.before !== 'pass' && c.after === 'pass')) fixes.push({ id: r.id, place });
   }
-  return { fixes, regressions };
+  return { canonicalOf, merged: canonicalOf.size };
+}
+
+/** Every (place, concern) pair's earliest and latest hit, ordered by the run's own `ts` — never by SW id, which
+ *  repeats across a concatenated/multi-session ledger and isn't chronological even within one ledger. Earliest
+ *  `fail` -> latest `pass` is a fix that held; the reverse is a regression; anything else (agreement, or an
+ *  `unsure` at either end) isn't reported at all — a deliberate two-point read, not a full walk of every flip. */
+function buildArcs(pcMap: ReadonlyMap<string, readonly Edge[]>): { fixes: Arc[]; regressions: Arc[] } {
+  const fixes: (Arc & { ts: string })[] = [];
+  const regressions: (Arc & { ts: string })[] = [];
+  for (const [key, hits] of pcMap) {
+    if (hits.length < 2) continue;
+    const [place, concern] = key.split('\u0000') as [string, string];
+    const byTs = [...hits].sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+    const first = byTs[0]!;
+    const last = byTs[byTs.length - 1]!;
+    if (first.gate === 'fail' && last.gate === 'pass') fixes.push({ place, concern, fromId: first.runId, toId: last.runId, ts: last.ts });
+    else if (first.gate === 'pass' && last.gate === 'fail') regressions.push({ place, concern, fromId: first.runId, toId: last.runId, ts: last.ts });
+  }
+  const byNewest = (a: { ts: string }, b: { ts: string }): number => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0);
+  const strip = ({ place, concern, fromId, toId }: Arc & { ts: string }): Arc => ({ place, concern, fromId, toId });
+  return { fixes: fixes.sort(byNewest).map(strip), regressions: regressions.sort(byNewest).map(strip) };
 }
 
 function buildWindow(records: readonly LedgerRecord[]): WindowData {
@@ -271,7 +320,9 @@ function buildWindow(records: readonly LedgerRecord[]): WindowData {
   const outcomes = records.filter((r): r is OutcomeRecord => r.kind === 'outcome');
   const failed = records.filter((r): r is FailedRecord => r.kind === 'failed');
 
-  const { edges, runTags } = collectEdges(runs);
+  const { edges: rawEdges, runTags } = collectEdges(runs);
+  const { canonicalOf, merged: pathsMerged } = mergePathAliases(rawEdges.map((e) => e.place));
+  const edges = canonicalOf.size ? rawEdges.map((e) => (canonicalOf.has(e.place) ? { ...e, place: canonicalOf.get(e.place)! } : e)) : rawEdges;
 
   const placeConcerns = new Map<string, Set<string>>();
   const placeRuns = new Map<string, Set<string>>();
@@ -382,12 +433,13 @@ function buildWindow(records: readonly LedgerRecord[]): WindowData {
     }
   }
 
-  const { fixes, regressions } = buildArcs(runs);
+  const { fixes, regressions } = buildArcs(pcMap);
+  const canonicalPlace = (p: string): string => canonicalOf.get(p) ?? p;
   const findings: Finding[] = runs
     .filter((r) => r.gate === 'fail')
     .sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0))
     .slice(0, LIST_CAP)
-    .map((r) => ({ id: r.id, place: placeSummary(r), goal: r.goal, ts: r.ts }));
+    .map((r) => ({ id: r.id, place: placeSummary(r).split(', ').map(canonicalPlace).join(', '), goal: r.goal, ts: r.ts }));
 
   const actors = new Set<string>();
   for (const r of runs) actors.add(r.actor);
@@ -423,6 +475,7 @@ function buildWindow(records: readonly LedgerRecord[]): WindowData {
     regressions: regressions.slice(0, LIST_CAP),
     findings,
     outcomes: buildOutcomes(runs, outcomes),
+    pathsMerged,
   };
 
   return { layers, concerns, heatmap: { places, concerns: concernNames, cells }, story };
@@ -600,6 +653,7 @@ const BODY = `
       <div class="stat-row"><span class="k">Spend</span><span id="story-spend"></span></div>
       <div class="stat-row"><span class="k">Actors</span><span id="story-actors"></span></div>
       <div class="stat-row"><span class="k">Range</span><span id="story-range"></span></div>
+      <div class="stat-row"><span class="k">Paths merged</span><span id="story-merged"></span></div>
     </div>
     <div class="story-section">
       <span class="label">Fixes held</span>
@@ -732,15 +786,21 @@ const CLIENT_JS = `
     items.forEach(function (it) { host.appendChild(el('li', null, fmt(it))); });
   }
 
+  // The exact same formatUsd implementation tested in report-web.test.ts, embedded verbatim — never a second,
+  // hand-copied one that could drift from it.
+  ${formatUsd.toString()}
+
   function renderStory() {
     var s = currentWindow().story;
     setText('story-runs', String(s.runs));
     setText('story-calls', String(s.paidCalls));
-    setText('story-spend', '$' + s.spendUsd.toFixed(2));
+    setText('story-spend', formatUsd(s.spendUsd));
     setText('story-actors', s.actors.length ? s.actors.join(', ') : 'none');
     setText('story-range', (s.dateFrom ? s.dateFrom.slice(0, 10) : '—') + ' → ' + (s.dateTo ? s.dateTo.slice(0, 10) : '—'));
-    renderList('story-fixes', s.fixes, function (f) { return f.id + ' · ' + f.place; }, 'none yet');
-    renderList('story-regressions', s.regressions, function (f) { return f.id + ' · ' + f.place; }, 'none');
+    setText('story-merged', String(s.pathsMerged));
+    var arcText = function (f) { return f.place + ' · ' + f.concern + ' · ' + f.fromId + ' → ' + f.toId; };
+    renderList('story-fixes', s.fixes, arcText, 'none yet');
+    renderList('story-regressions', s.regressions, arcText, 'none');
     renderList('story-findings', s.findings, function (f) { return f.id + ' · ' + f.place + ' · ' + f.goal; }, 'none');
     setText('story-outcomes', 'held ' + s.outcomes.held + ' · overruled ' + s.outcomes.overruled + ' · failed ' + s.outcomes.failed + ' · open ' + s.outcomes.open);
   }

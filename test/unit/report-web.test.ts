@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { appendContractRun, appendOutcome, readLedger } from '../../src/ledger/log.ts';
-import { buildViewerData, escapeForInlineJson, renderViewerHtml, runReportWeb, type PairStatus, type ViewerData, type WindowData } from '../../src/verbs/report-web.ts';
+import { buildViewerData, escapeForInlineJson, formatUsd, renderViewerHtml, runReportWeb, type PairStatus, type ViewerData, type WindowData } from '../../src/verbs/report-web.ts';
 import type { RunResult, Runner } from '../../src/setup/runner.ts';
 import { writeSyntheticLedger } from '../gen/synthetic-ledger.ts';
 import { tempProject } from '../helpers/project.ts';
@@ -144,40 +144,33 @@ describe('report-web: buildViewerData (the ported place x concern consensus)', (
     expect(byKey.get('area:data')).toMatchObject({ kind: 'tag', count: 1 });
   });
 
-  it('fixes that held (fail->pass) and regressions (pass->fail) come from gradeChange, the same call `change` and report history use', () => {
+  it('[C-204] arcs are ordered by run ts, never by SW id: fail (earlier ts) then pass (later ts) is a fix held; the reverse is a regression', () => {
     const { paths } = tempProject({});
     const cat = oneQuestion('guards', 'q1?');
-    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { guards: 'fail' } }), Date.now(), 'b'); // SW-0001
-    appendContractRun(
-      paths,
-      sampleContractRun({
-        verb: 'change',
-        parent: 'SW-0001',
-        where: ['src/a.ts'],
-        ask: { categories: [cat], layers: [] },
-        answers: { goal: { kind: 'yesno', p: 0.9 }, 'before:1': { kind: 'yesno', p: 0.1 }, 'after:1': { kind: 'yesno', p: 0.9 } },
-        categories: { guards: 'pass' },
-      }),
-      Date.now(),
-      'b',
-    ); // SW-0002: fixed
-    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], categories: { guards: 'pass' } }), Date.now(), 'b'); // SW-0003
-    appendContractRun(
-      paths,
-      sampleContractRun({
-        verb: 'change',
-        parent: 'SW-0003',
-        where: ['src/b.ts'],
-        ask: { categories: [cat], layers: [] },
-        answers: { goal: { kind: 'yesno', p: 0.9 }, 'before:1': { kind: 'yesno', p: 0.9 }, 'after:1': { kind: 'yesno', p: 0.1 } },
-        categories: { guards: 'fail' },
-      }),
-      Date.now(),
-      'b',
-    ); // SW-0004: regressed
+    // P1: SW-0001 gets the LOWER id but a LATER ts (pass); SW-0002 gets the HIGHER id but an EARLIER ts (fail).
+    // Ordering by id would read this as pass -> fail (a regression, wrong); ordering by ts (the truth, e.g. a
+    // concatenated multi-session ledger where ids repeat and aren't chronological) reads it as the fix it is.
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/contributions.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'pass' } }), 2_000_000, 'b'); // SW-0001, later ts
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/contributions.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'fail' } }), 1_000_000, 'b'); // SW-0002, earlier ts
+    // P2: the mirror image (a real regression), same id/ts scramble.
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/other.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'fail' } }), 2_000_000, 'b'); // SW-0003, later ts
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/other.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'pass' } }), 1_000_000, 'b'); // SW-0004, earlier ts
+
     const story = buildViewerData(readLedger(paths)).windows.all.story;
-    expect(story.fixes).toEqual([{ id: 'SW-0002', place: 'src/a.ts' }]);
-    expect(story.regressions).toEqual([{ id: 'SW-0004', place: 'src/b.ts' }]);
+    expect(story.fixes).toEqual([{ place: 'app/routes/contributions.js', concern: 'guards', fromId: 'SW-0002', toId: 'SW-0001' }]);
+    expect(story.regressions).toEqual([{ place: 'app/routes/other.js', concern: 'guards', fromId: 'SW-0004', toId: 'SW-0003' }]);
+  });
+
+  it('[C-204] a path asked about from two different roots is folded into the shorter one (a suffix match), and the story panel counts it', () => {
+    const { paths } = tempProject({});
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/contributions.js'], categories: { injection: 'fail' } }), Date.now(), 'b');
+    appendContractRun(paths, sampleContractRun({ where: ['stage/NodeGoat/app/routes/contributions.js'], categories: { injection: 'pass' } }), Date.now(), 'b');
+    const all = buildViewerData(readLedger(paths)).windows.all;
+    // Both runs land on the SAME (shorter) card — no second, duplicate card for the aliased longer path.
+    expect(card(all, 'app/routes/contributions.js').runCount).toBe(2);
+    expect(all.layers.some((l) => l.cards.some((c) => c.place === 'stage/NodeGoat/app/routes/contributions.js'))).toBe(false);
+    expect(cell(all, 'app/routes/contributions.js', 'injection').status).toBe('CONFLICT' satisfies PairStatus); // fail + pass, now one place
+    expect(all.story.pathsMerged).toBe(1);
   });
 
   it('latest findings are the newest fails; outcomes tally held/overruled/failed, and an untriaged fail counts as open', () => {
@@ -333,5 +326,20 @@ describe('report-web: renderViewerHtml', () => {
   it('never writes ledger text with innerHTML — only textContent/className/title appear in the client script', () => {
     const html = renderViewerHtml(buildViewerData([]));
     expect(html).not.toContain('innerHTML');
+  });
+
+  it('[C-204] embeds the exact same formatUsd implementation the client renders spend with — no second, hand-copied copy', () => {
+    const html = renderViewerHtml(buildViewerData([]));
+    expect(html).toContain(formatUsd.toString());
+  });
+});
+
+describe('report-web: formatUsd (real precision under a cent, the same rule everywhere a dollar amount shows)', () => {
+  it('[C-204] shows 2 significant digits below a cent instead of rounding away to $0.00', () => {
+    expect(formatUsd(0)).toBe('$0.00');
+    expect(formatUsd(0.0022900080000000005)).toBe('$0.0023');
+    expect(formatUsd(0.005)).toBe('$0.0050');
+    expect(formatUsd(1.234)).toBe('$1.23');
+    expect(formatUsd(46)).toBe('$46.00');
   });
 });
