@@ -6,7 +6,7 @@ Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/uns
 
 ## Run this first
 
-Run `sidewise agent <verb>` first: a dense, no-prose card of that verb's enforced rules and good/bad examples, built for an agent about to write a request. `sidewise help` is the human-readable version of the same contract: a one-screen card, plus `help <verb>` (view, class, change, scan, drill, loop) and `help <topic>` (authoring, verdict, wise, reuse) going deeper — both free, no project needed. `sidewise report [hits|patterns|history]` reads back what the ledger has learned across every place so far — free, no options beyond the view name; a read tool, not a seventh verb.
+Run `sidewise agent` first: it names every command an agent needs — the six verbs plus `report`, `outcome`, `budget`, `template` — and the universal rules, in one dense, no-prose card. Then run `sidewise agent <command>` before writing a request: a verb's own card is its enforced rules and good/bad examples; a tool's is its syntax and a good/bad pair. `sidewise help` is the human-readable version of the same contract: a one-screen card, plus `help <verb>` (view, class, change, scan, drill, loop) and `help <topic>` (authoring, verdict, wise, reuse) going deeper — both free, no project needed. `sidewise report [hits|patterns|history]` reads back what the ledger has learned across every place so far — free, no options beyond the view name; a read tool, not a seventh verb.
 
 ## Invoke it
 

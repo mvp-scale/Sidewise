@@ -2,7 +2,10 @@
  * Pure JSON-RPC 2.0 message handling for the `sidewise` MCP tool — no real I/O here (see stdio.ts for the
  * actual stdin/stdout loop, and cli.ts's `mcp` command for the wiring). One tool, `sidewise`, runs exactly what
  * `sidewise <args...>` would run, in-process, with `stdin` standing in for the CLI's own stdin — there's no
- * second contract; the same YAML goes in and comes out.
+ * second contract; the same YAML goes in and comes out. `toolDefinition`'s own description leads with a
+ * directive rather than a description: a cold agent's first call should be `args: ["agent"]` (src/help/agent.ts),
+ * since that's the only thing telling it `agent`/`template`/`report`/`outcome`/`budget` exist at all — the tool
+ * description is the first and sometimes only text a fresh agent ever reads before its first call.
  *
  * Handshake: this implements the classic initialize/initialized flow (initialize, notifications/initialized,
  * tools/list, tools/call, ping), not the newest published MCP revision (2026-07-28), which drops the handshake
@@ -41,9 +44,10 @@ export function toolDefinition(): { name: string; description: string; inputSche
   return {
     name: TOOL_NAME,
     description:
-      'Run a sidewise CLI command in this project — the same arguments and stdin the sidewise CLI takes ' +
-      '(e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). Returns the same text output ' +
-      'sidewise would print, and marks the result an error when the exit code is not 0.',
+      'First call args: ["agent"] to learn the commands and rules, then args: ["agent", "<command>"] before ' +
+      'writing a request. Otherwise runs any sidewise CLI command in this project — the same arguments and ' +
+      'stdin the sidewise CLI takes (e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). ' +
+      'Returns the same text output sidewise would print, and marks the result an error when the exit code is not 0.',
     inputSchema: {
       type: 'object',
       properties: {

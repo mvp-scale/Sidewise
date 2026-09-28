@@ -55,7 +55,7 @@ describe('runAgent', () => {
 
   it('[C-181] agent probe: the 8 probe rules, bare — no citations, no headings', () => {
     const text = runAgent('probe').text;
-    expect(text).toContain('target: probe');
+    expect(text).toContain('tool: probe');
     for (const r of PROBE_RULES) expect(text).toContain(r.text);
     expect(text).not.toContain('TypeSafe');
     expect(text).not.toMatch(/^##\s/mu);
@@ -64,9 +64,21 @@ describe('runAgent', () => {
   it.each(['outcome', 'budget', 'report'] as const)('[C-182] agent %s: a recognized non-verb target, bare, with a good/bad pair', (target) => {
     const r = runAgent(target);
     expect(r.exit).toBe(0);
-    expect(r.text).toContain(`target: ${target}`);
+    expect(r.text).toContain(`tool: ${target}`);
     expect(r.text).toContain('patterns:');
     expect(r.text).not.toMatch(/^##\s/mu); // no help-style headings
+  });
+
+  it('[C-187] agent with no target lists the tools line, beyond the six verbs', () => {
+    expect(runAgent().text).toContain('tools: report, outcome, budget, template');
+  });
+
+  it('[C-187] agent template: a recognized non-verb tool, bare, with a good/bad pair', () => {
+    const r = runAgent('template');
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('tool: template');
+    expect(r.text).toContain('patterns:');
+    expect(r.text).not.toMatch(/^##\s/mu);
   });
 
   // Same shared rule list `help` uses (rules.ts) — never a second, divergent copy for the terse view.
@@ -80,5 +92,45 @@ describe('runAgent', () => {
         }
       }
     }
+  });
+});
+
+// Every card `agent` prints — the overview and each verb/tool — is built in one fixed shape: identifier
+// line(s) first, then `rules:`, then `patterns:` (only when the target has any), then `run:` (only when it
+// points further). [C-187]
+describe('every agent card follows the same key order', () => {
+  const NON_VERBS = ['probe', 'outcome', 'budget', 'report', 'template'] as const;
+
+  /** 0 = an identifier line (verb:/verbs:/tool:/tools:), 1 = rules:, 2 = patterns:, 3 = run: — undefined for
+   *  any other line (a rule/pattern bullet, or bad/good body text), which carries no ordering constraint. */
+  function tier(line: string): number | undefined {
+    if (/^verbs?: /.test(line) || /^tools?: /.test(line)) return 0;
+    if (line === 'rules:') return 1;
+    if (line === 'patterns:') return 2;
+    if (line.startsWith('run:')) return 3;
+    return undefined;
+  }
+
+  const cards: readonly [string, string][] = [
+    ['overview', runAgent().text],
+    ...VERBS.map((v): [string, string] => [`verb ${v}`, runAgent(v).text]),
+    ...NON_VERBS.map((t): [string, string] => [`tool ${t}`, runAgent(t).text]),
+  ];
+
+  it.each(cards)('%s: identifier, rules, patterns, run — never out of order', (_label, text) => {
+    const tiers = text
+      .split('\n')
+      .map(tier)
+      .filter((t): t is number => t !== undefined);
+    expect(tiers.length).toBeGreaterThan(0);
+    for (let i = 1; i < tiers.length; i++) expect(tiers[i]!).toBeGreaterThanOrEqual(tiers[i - 1]!);
+  });
+
+  it('every non-verb card leads with "tool: <name>", matching verb cards\' "verb: <name>"', () => {
+    for (const t of NON_VERBS) expect(runAgent(t).text.split('\n')[0]).toBe(`tool: ${t}`);
+  });
+
+  it('every verb card leads with "verb: <name>"', () => {
+    for (const v of VERBS) expect(runAgent(v).text.split('\n')[0]).toBe(`verb: ${v}`);
   });
 });

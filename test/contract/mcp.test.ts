@@ -62,6 +62,12 @@ describe('mcp protocol: tools/list', () => {
     expect(resp?.result).toEqual({ tools: [toolDefinition()] });
     expect(TOOL_NAME).toBe('sidewise');
   });
+
+  it('[C-186] the tool description opens with the agent directive, before anything else', () => {
+    const { description } = toolDefinition();
+    expect(description).toMatch(/^First call args: \["agent"\] to learn the commands and rules/);
+    expect(description).toContain('args: ["agent", "<command>"]');
+  });
 });
 
 describe('mcp protocol: initialize', () => {

@@ -34,4 +34,10 @@ describe('skill-docs stay in sync', () => {
     expect(body).toMatch(/templates\/\*\.yaml|templates\//);
     expect(body).not.toMatch(/lab\//);
   });
+
+  it('[C-188] "Run this first" sends a cold agent to `sidewise agent` (no verb), then `agent <command>`', () => {
+    const body = skillBody();
+    expect(body).toMatch(/Run `sidewise agent` first/);
+    expect(body).toContain('Then run `sidewise agent <command>` before writing a request');
+  });
 });

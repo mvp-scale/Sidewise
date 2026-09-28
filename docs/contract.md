@@ -716,10 +716,25 @@ optional-field comment style. [C-185]
 `sidewise agent [verb]` (free, no project needed, never spends or writes) is `help`'s terse, agent-facing twin:
 the enforced rules for that verb (the same list `help <verb>` states) and its "Good / bad" pairs, why-only, in
 at most 8 words — no prose, no headings beyond a bare label. `sidewise agent` alone gives the verb list, the
-universal rules, and a pointer to `sidewise agent probe`. Beyond the six verbs, `agent` also recognizes the
-same non-verb targets `help` does — `probe`, `outcome`, `budget`, `report` — each its own bare card, free,
-read-only. Every request-validation stop's pointer (`→ see: sidewise agent <verb>`, C-153) names this, not
-`help` — a stop is read by the agent that sent the request. [C-173]
+universal rules, and a pointer to `sidewise agent probe`. Beyond the six verbs, `agent` also recognizes
+`probe`, `outcome`, `budget` and `report` — the same non-verb targets `help` does — plus `template`, which
+`help` does not; each its own bare card, free, read-only. Every request-validation stop's pointer (`→ see:
+sidewise agent <verb>`, C-153) names this, not `help` — a stop is read by the agent that sent the request.
+[C-173]
+
+`sidewise agent` with no target also prints a `tools: report, outcome, budget, template` line, right after the
+verb list — the other real commands a cold agent needs before writing a request; setup-only commands (`init`,
+`uninstall`, `mcp`, `doctor`) are deliberately left off. `sidewise agent template` is a new bare card, the same
+shape as `outcome`/`budget`/`report`. Every card `agent` prints — the overview and each verb/tool — is
+assembled in one fixed key order: its identifier line(s) first (`verb:`/`verbs:` for a verb, `tool:`/`tools:`
+for everything else, including `probe`), then `rules:`, then `patterns:` only when that target has any, then
+`run:` only when it points further — a non-verb card's identifier line now reads `tool: <name>`, not the
+former `target: <name>`, so it matches a verb card's own `verb: <name>` line for line. [C-187]
+
+The Claude Code skill's own "Run this first" guidance (`skills/sidewise/SKILL.md`, carried verbatim into
+`AGENTS.md`'s "Using Sidewise" section and into `GEMINI.md`) sends a cold agent to `sidewise agent` (no verb)
+first — it names every command, including `report`/`outcome`/`budget`/`template`, in one card — before
+`sidewise agent <command>` on whichever one it's about to use, ahead of writing any request. [C-188]
 
 ---
 
@@ -831,6 +846,11 @@ read-only. Every request-validation stop's pointer (`→ see: sidewise agent <ve
   `sidewise <args…>` would run, in-process, treating `stdin` as what real stdin would have supplied, and
   returns the same text output the CLI would print plus the exit code as `isError` (true when the exit code
   isn't 0) — there is no second contract. [C-103]
+- The `sidewise` tool's own description opens with a directive, not a description: "First call args:
+  ["agent"] to learn the commands and rules, then args: ["agent", "<command>"] before writing a request." —
+  ahead of what the tool otherwise does (runs any CLI command in the project). The description is the first,
+  and sometimes only, text a cold agent reads before its first call, so it has to name `agent` itself rather
+  than assume the agent already knows to ask for it. [C-186]
 - Every tool call runs through the same error normalization the real CLI entrypoint uses, so a thrown
   provider, budget, ledger or usage error comes back as one clean `✖ field: problem → fix` line in the tool
   result's `isError` text — never a doubled `✖ sidewise: ✖ field: ...` prefix. [C-140]
