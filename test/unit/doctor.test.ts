@@ -332,4 +332,42 @@ describe('runDoctorFile [plan 2c B1b]', () => {
     const r = runDoctorFile('');
     expect(r).toEqual({ exit: 0, text: '✔ config: valid' });
   });
+
+  // Controller-found defect (plan 2c B): a contract cross-stop (sections/angles/counts) already embeds its own
+  // "→ see: sidewise agent probe" pointer; loadRequest's stopText then appends a second, generic
+  // "→ see: sidewise agent <verb>" at the very end. Fine for a real verb's --dry-run (schema-check.ts's own
+  // header comment says that pointer is deliberately additional there), but doctor is meant to print each stop
+  // once with a SINGLE trailing pointer.
+  it('a request with a contract cross-stop: exactly one trailing → see: pointer, not two', () => {
+    const text = [
+      'side:',
+      '  goal: This login handler is safe to merge',
+      '  depth: quick',
+      '  where: [src/user.ts:1-3]',
+      '  ask:',
+      '    concerns:',
+      '      injection:',
+      '        pass: no',
+      '        1: Is request text placed directly into the SQL query?',
+      '        2: Is the query built with string concatenation instead of a bound parameter?',
+      '        3: Does the query run with db.query on that concatenated string?',
+      '    decisions:',
+      '      severity:',
+      '        pass: [none, low]',
+      '        10:',
+      '          scale: How severe is the worst issue?',
+      '          levels: [none, low, medium, high, critical]',
+      '      route:',
+      '        pass: [ship]',
+      '        11:',
+      '          choice: Where should this go?',
+      '          options: [ship, fix, block]',
+      '',
+    ].join('\n');
+    const r = runDoctorFile(text);
+    expect(r.exit).toBe(2);
+    const pointers = r.text.match(/→ see:/g) ?? [];
+    expect(pointers).toHaveLength(1);
+    expect(r.text.trim().endsWith('→ see: sidewise agent class')).toBe(true);
+  });
 });

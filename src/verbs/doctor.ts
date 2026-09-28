@@ -209,13 +209,26 @@ function sniffVerb(text: string): Verb {
   }
 }
 
+/** Controller-found defect (plan 2c B): a contract cross-stop (validate.ts's checkCross) already embeds its own
+ *  "→ see: sidewise agent probe" pointer in the stop line itself; loadRequest's own stopText then appends a
+ *  SECOND, generic "→ see: sidewise agent <verb>" at the very end — deliberate for a real verb's own --dry-run
+ *  (schema-check.ts's header comment: that pointer is an ADDITIONAL, more specific one, and the generic trailing
+ *  one "still fires afterward regardless"), but doctor is meant to be simpler: every problem in one pass, each
+ *  stop printed once, a SINGLE trailing pointer. This strips any embedded "→ see: sidewise agent <word>" from
+ *  every line but the last (which is always stopText's own generic pointer, already exactly what doctor wants). */
+function singleTrailingPointer(text: string): string {
+  const lines = text.split('\n');
+  const last = lines.length - 1;
+  return lines.map((line, i) => (i === last ? line : line.replace(/ → see: sidewise agent \S+$/, ''))).join('\n');
+}
+
 /** `sidewise doctor <file>` / `sidewise doctor -` (plan 2c B1b): checks ONE document, offline, and never writes
  *  anything — works with no project at all. See the module doc for the kind-detection rule. */
 export function runDoctorFile(text: string): VerbResult {
   if (isRequestShaped(text)) {
     const verb = sniffVerb(text);
     const loaded = loadRequest(text, verb);
-    if (!loaded.ok) return loaded.result;
+    if (!loaded.ok) return { ...loaded.result, text: singleTrailingPointer(loaded.result.text) };
     return { exit: 0, text: `✔ request: valid → checked as ${verb}` };
   }
   let raw: unknown;
