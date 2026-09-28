@@ -55,17 +55,18 @@ Drill goes down from one item, named by `from:`, in a parent run's own arrays. [
 | side | `from` | drill only |
 | side | `compare` | replay only |
 | side | `parent` | required by drill and replay (what to build on); allowed on every verb otherwise, as lineage only |
-| side | `expect` | replay only, required: which of the parent's concerns this replay should turn to pass |
+| side | `expect` | replay only, required: which of the parent's concerns this replay should turn to pass, or the word `none` to predict no flips at all |
 | wise | `why` | `validate` · `find` · `debug` |
-| wise | `area` | `data` · `api` · `ui` · `auth` · `hosting` · `build` · `tests` |
-| wise | `stage` | `design` · `build` · `review` · `pre-merge` · `post-fix` · `release` |
-| wise | `change` | `feature` · `fix` · `refactor` · `dependency` · `config` |
-| wise | `risk` | `low` · `medium` · `high` |
+| wise | `area` | `data` · `api` · `ui` · `auth` · `hosting` · `build` · `tests` — single value, or a list of up to 2; omit for a whole-system question (`uses` carries the map) |
+| wise | `stage` | `design` · `build` · `review` · `pre-merge` · `post-fix` · `release` · `operate` (live production/incident) |
+| wise | `change` | `feature` · `fix` · `refactor` · `dependency` · `config` — only when a code change is involved |
+| wise | `risk` | `low` · `medium` · `high`: the stakes if this answer is wrong |
 | wise | `parent` | the run this follows (lineage only; an alias of `side.parent` for verbs that don't require it structurally) |
 | wise | `problem` | one line: what you're solving right now |
-| wise | `nodes` | a C4 chain: `level:name( -> level:name)*`, chains joined by `; ` (`level`: `person`/`system`/`container`/`component`/`code`) |
-| wise | `touches` | up to 5 short entities/objects the run touches |
-| wise | `blast` | `code` · `component` · `container` · `system` · `person` |
+| wise | `uses` | up to 5 C4 chains: `level:name( -> level:name)*` (`level`: `person`/`system`/`container`/`component`/`code`); a single string is a 1-item list |
+| wise | `touches` | up to 5 short domain objects/fields the run touches (not language built-ins) |
+| wise | `blast` | `code` · `component` · `container` · `system` · `person` — the widest level one failure reaches (`person` = users' data or accounts) |
+| wise | *(any other key)* | a lower-kebab key ≤ 20 characters: one line ≤ 160, or a list of ≤ 5 such lines, recorded as-is |
 
 `goal` is one line, at most 160 characters, and is the question asked of TypeSafe outright. [C-010]
 `depth` is `quick` · `standard` · `thorough` = k = 1 · 2 · 3: one subject's `ask.concerns` holds exactly 3k
@@ -96,17 +97,33 @@ there too, since a layer of either name would collide with `ask`'s own sections.
 build on); every other verb accepts it too now, purely as lineage (the same role `wise.parent` already played,
 which remains an accepted alias for it). [C-015]
 `wise.why` is one of `validate`, `find` or `debug`. [C-016]
-`wise.area` is one of `data`, `api`, `ui`, `auth`, `hosting`, `build` or `tests`. [C-017]
+`wise.area` is one of `data`, `api`, `ui`, `auth`, `hosting`, `build` or `tests` — a single value, or a list of
+up to 2 (omit it for a question about the whole system; `wise.uses` carries the map instead). [C-017]
 `wise.parent` records the run this one follows, for lineage only. [C-018]
-`wise.stage` is one of `design`, `build`, `review`, `pre-merge`, `post-fix` or `release`. [C-108]
-`wise.change` is one of `feature`, `fix`, `refactor`, `dependency` or `config`. [C-109]
-`wise.risk` is one of `low`, `medium` or `high`. [C-110]
-`wise.problem`, `wise.nodes`, `wise.touches` and `wise.blast` are the newer knowledge fields: a one-line
-problem statement, a C4 dependency chain, up to 5 touched entities, and a blast-radius level. All four are
+`wise.stage` is one of `design`, `build`, `review`, `pre-merge`, `post-fix`, `release` or `operate` (`operate`:
+a live production/incident question). [C-108] [C-209]
+`wise.change` is one of `feature`, `fix`, `refactor`, `dependency` or `config` — only when a code change is
+actually involved (a pure design/plan question, e.g. `loop`, usually leaves it out). [C-109]
+`wise.risk` is one of `low`, `medium` or `high`: the stakes if this answer turns out to be wrong. [C-110]
+`wise.problem`, `wise.uses`, `wise.touches` and `wise.blast` are the knowledge fields: a one-line problem
+statement, up to 5 C4 dependency chains, up to 5 touched entities, and a blast-radius level. All four are
 optional, and none of them reach the classifier — like every other `wise` field, they only shape what the
-ledger learns. `wise.nodes` is a chain of `level:name` pairs (`level` one of `person`, `system`, `container`,
-`component` or `code`; `name` project-identifier-shaped), joined by ` -> ` within one chain and `; ` between
-chains — e.g. `container:api -> component:contributions-dao -> container:db`.
+ledger learns. `wise.uses` (replaces the single-string `wise.nodes` of the earlier contract — nothing is
+published on `nodes` any more, though an old ledger record that still has one reads back as a 1-item `uses`)
+is a list of up to 5 C4 chains, each a chain of `level:name` pairs (`level` one of `person`, `system`,
+`container`, `component` or `code`; `name` project-identifier-shaped, or `name/name` for containment, or ending
+`?` for something guessed or not built yet), joined by ` -> ` within one chain — e.g.
+`container:api -> component:contributions-dao -> container:db`; a single string is accepted as a 1-item list.
+`wise.touches` names domain objects/fields the run is actually about, not language built-ins or vague concepts.
+`wise.blast`'s widest level, `person`, means the failure reaches users' own data or accounts. [C-205]
+Every closed `wise` field (`why`, `area`, `stage`, `change`, `risk`, `blast`) also accepts the literal value
+`unknown`, when the agent genuinely doesn't know yet. [C-206]
+Any other key under `wise:` is accepted as a custom field when it's a lower-kebab name ≤ 20 characters: its
+value (one line ≤ 160 characters, or a list of up to 5 such lines) is recorded as-is, with no further checking
+— `sidewise agent wise` still generates its card from the built-in table plus any project config, so a custom
+key is a genuine escape hatch, not a way to redefine a catalog field. [C-207]
+The whole `wise:` block is capped at 25 YAML source lines, counted from the request's own text (not the parsed
+value) — the 26th line stops with `✖ wise: 26 lines → the wise block is capped at 25 lines`. [C-208]
 
 A concerns category is a lowercase name (one word or `kebab-case`, ≤ 20 chars), `pass: yes` or `pass: no`, an
 optional `need`, optional `tags` (≤ 3), an optional `family`, and exactly 3 yes/no questions (each ending in
@@ -191,6 +208,13 @@ stay text rather than becoming booleans) — sent back as `✖ question 4 is not
 text`, the same as an unquoted `true`/`false`/`on`/`off`. [C-041]
 `pass: no` / `pass: yes` written as `false` / `true` (an older parser's booleans) is accepted: false means
 no, true means yes. [C-042]
+Before any of the above ever reaches YAML parsing, every numbered question line carrying one of the two traps
+above (an unquoted `": "`, or text starting with an unquoted `"{"`), plus every line over the request's own
+character cap (full-line comments skipped, a trailing `# comment` stripped first), is reported together, in one
+response — not just whichever one the parser happens to choke on first — capped at the same "a few lines, then
+`N more`" shape every other stop list uses. A blank filled in per sweep item (`{function}`) is never flagged:
+only a question's own text actually *starting* with `{` is a trap. When nothing trips this pre-parse scan,
+parsing proceeds exactly as before, so an already-passing request keeps its original wording untouched.
 Every stop a request can trigger — a parse error, a validation stop, or a bad `where`/git path — ends with
 `→ see: sidewise agent <verb>`, naming the verb that was actually run, on top of whatever it already told you
 to fix: a stop is read by the agent that sent the request, not a person at a terminal, so it points at the
@@ -296,10 +320,14 @@ here," even for a category whose fix was later recorded `held`. [C-052]
 `next` is `sidewise view <reuse>` when there's an exact reuse, to read that answer; otherwise it's `sidewise
 class`, and your categories become the first pattern here. [C-053]
 `wise: {recorded: none}` always: view never adds to what the ledger *teaches* (no run, no category record) —
-no call, no spend. `notes: [free]`. A full draft check (one with `ask:` categories, not a bare place/id lookup)
-does append one free `kind: "lookup"` ledger line of its own (`goal`, `where`, `hit`, `reused`), so the ledger
-can see what agents search for even when nothing is asked outright; it takes no `SW-####` id, is never counted
-as a run, and never touches the budget (see "Setup, keys and the MCP tool" below). [C-054]
+no call, no spend. `notes: [free]`. Every successful view — a full draft check (`ask:` categories), a place/tag
+browse, or a run-id lookup — appends one free `kind: "lookup"` ledger line of its own (`goal`, `where`, `hit`,
+`reused`), so the ledger can see what agents search for even when nothing is asked outright; it takes no
+`SW-####` id, is never counted as a run, and never touches the budget (see "Setup, keys and the MCP tool"
+below). A draft check's own `hit`/`reused` reflect a real exact-answer match; a place/tag browse or a run-id
+lookup always logs `hit: false, reused: null` (there's no "exact question set" concept for a bare browse), with
+`goal`/`where` carrying the place string or run id itself, so the record still says *what* was searched for. A
+run-id lookup that fails (an id not in the ledger) logs nothing, same as a failed draft check. [C-054]
 Given a folder, a tag, or a run id instead of a request body, view answers in place/id mode, which is Plan
 1's own text history rather than the YAML `side:` shape above: for a place, a count line (held / overruled /
 failed / open, with rehearsal runs counted apart) followed by its newest runs, newest first; for a run id,
@@ -411,7 +439,7 @@ side:
   goal: The injection fix works
   parent: SW-0042                  # replay this run's categories and questions
   compare: {before: main, after: HEAD}
-  expect: [injection]              # required, ≥1: which of the parent's concerns this replay should fix
+  expect: [injection]              # required: which of the parent's concerns this replay should fix, or "none"
 wise:
   why: validate
   area: data
@@ -422,9 +450,10 @@ side:
   id: SW-0051
   gate: fail                       # every category passes on "after", and nothing regressed
   goal: {gate: pass, p: 0.84}
-  injection: {before: fail, after: pass, fixed: [1, 2, 3]}
-  access:    {before: fail, after: fail, still: [4, 5]}
-  leaks:     {before: unsure, after: pass, fixed: [7]}
+  injection: {before: fail, after: pass, fixed: [1, 2, 3], probes: 3/3 fixed}
+  access:    {before: fail, after: fail, still: [4, 5], probes: 0/2 fixed}
+  leaks:     {before: unsure, after: pass, fixed: [7], probes: 1/1 fixed}
+  expected: {fixed: [injection], still: [access]}
   regressed: []
 wise: {recorded: [why, area, parent]}
 next: sidewise template drill --parent SW-0051 --from access
@@ -436,13 +465,19 @@ notes: [2 states · budget 2% used]
 `replay`'s parent must be a one-subject run (class, replay, or drill's one-subject form) — a sweep parent is
 refused; run the sweep again instead, since unchanged items are reused there for free. [C-063]
 A category's response shows `before`/`after` gates, `fixed` (questions failing or unsure before that pass
-after) and `still` (ones that don't); anything in the run-wide `regressed` list (passing before, not after
-now) can alone fail the gate even when every `after` category passes on its own. [C-064]
-`expect:` is required: 1–9 concern names, lowercase kebab-case, each ≤ 20 characters and unique — the agent's
-own prediction of which of the parent's concerns this replay should turn to pass. **Not fully wired yet**: the
-schema checks `expect:`'s own shape, but nothing yet checks each name against the parent's actual concern
-names, and the response carries no `expected:` grade of the prediction (`fixed`/`still` per category, and
-`regressed`, are unaffected by `expect:` either way, exactly as before this field existed).
+after) and `still` (ones that don't), and a `probes: <fixed>/<total> fixed` count naming how many of the
+category's own questions cleared out of how many it has; anything in the run-wide `regressed` list (passing
+before, not after now) can alone fail the gate even when every `after` category passes on its own. [C-064] [C-211]
+`expect:` is required: either 1–9 concern names (lowercase kebab-case, each ≤ 20 characters and unique), or the
+literal word `none` — the agent's own prediction of which of the parent's concerns this replay should turn to
+pass (`none`: predicts no flips at all). Each named concern must be a real concerns-section category of the
+parent; naming a decisions category or an unknown name is a stop. The response's `expected:` grades the
+prediction against what actually happened, per named concern: `fixed` (missed or unsure before, clears now) or
+`still` (missed or unsure before, still doesn't) — a concern already passing before predicts nothing meaningful
+either way, so it's left out of both lists. Any concerns-section category that flips (`before` != `after`)
+WITHOUT being named in `expect:` (every flipped concern, when `expect: none`) is reported separately, in
+`unexpected:` — this is what replaces having to name every affected concern up front just to avoid a false
+"prediction missed." [C-210]
 On a category's own `fixed`, record `outcome held` on the parent; on `still`, keep working; anything in
 `regressed`, revert or drill into it. [C-065]
 
@@ -451,9 +486,11 @@ side:
   id: SW-0052
   gate: fail                       # access regressed even though it (and the goal) grade pass on their own
   goal: {gate: pass, p: 0.81}
-  injection: {before: fail, after: pass, fixed: [1, 2, 3]}
-  access:    {before: pass, after: pass}
-  leaks:     {before: unsure, after: pass, fixed: [7]}
+  injection: {before: fail, after: pass, fixed: [1, 2, 3], probes: 3/3 fixed}
+  access:    {before: pass, after: pass, probes: 0/2 fixed}
+  leaks:     {before: unsure, after: pass, fixed: [7], probes: 1/1 fixed}
+  expected: {fixed: [injection], still: []}
+  unexpected: [leaks]              # leaks flipped too, but wasn't named in expect: [injection]
   regressed: [5]
 wise: {recorded: [why, area, parent]}
 next: sidewise template drill --parent SW-0052 --from access
@@ -795,8 +832,10 @@ is a sibling key under `over:`, names are ≤ 20 characters with no `/`, and eve
 asked of every item at that layer. [C-115]
 `sidewise help <topic>` covers `authoring`, `verdict`, `wise`, `reuse` and `probe` — cross-cutting rules that
 don't belong to one verb. [C-116]
-`sidewise help wise` lists all five catalog fields (`why`, `area`, `stage`, `change`, `risk`) with their closed
-values and what each is for. [C-117]
+`sidewise help wise` lists every catalog field (`why`, `area`, `stage`, `change`, `risk`, `problem`, `uses`,
+`touches`, `blast`) with its closed values (where it has any) and what each is for, notes that every closed
+field also accepts `unknown` and that any other lower-kebab key (≤ 20 characters) is recorded as-is, and points
+at `sidewise agent wise` for this project's exact allowed values and the full C4 legend. [C-117]
 An unknown `help` target is a clean stop naming every real verb and topic. [C-118]
 `sidewise help probe` is its own recognized topic: a valid probe, the shape of a well-formed Sidewise question —
 one narrow judgment per question, self-contained wording (a question's number is a label for the response
@@ -881,9 +920,9 @@ name the range", matching the real behavior since e6b7d78 (a stop, not a silent 
 Each of the six verb templates (`skills/sidewise/templates/{view,class,replay,scan,drill,loop}.yaml`) shows
 every `side.*` field that verb's own schema and cross-validator allow it to carry — required fields with a
 live value, optional fields either live or as a commented-out example — each marked `# required` or
-`# optional` in a trailing comment, and its `wise:` block names all six catalog keys (`why`, `area`, `stage`,
-`change`, `risk`, `parent`); a test checks every template against the same rule the validator itself enforces,
-so template and schema can't quietly drift apart. The category-level schema fields that don't vary by verb —
+`# optional` in a trailing comment, and its `wise:` block names every catalog key (`why`, `area`, `stage`,
+`change`, `risk`, `parent`, `problem`, `uses`, `touches`, `blast`); a test checks every template against the
+same rule the validator itself enforces, so template and schema can't quietly drift apart. The category-level schema fields that don't vary by verb —
 `need:` and `tags:`, alongside `pass:` and the three question kinds (yes/no, `scale`, `choice`) — are
 demonstrated once, in `class.yaml`, rather than repeated in all six. [C-174] [C-175]
 `class.yaml` and `scan.yaml` show the visible-scope probe question ("Can this be answered from the code
@@ -900,6 +939,16 @@ universal rules, and a pointer to `sidewise agent probe`. Beyond the six verbs, 
 `help` does not; each its own bare card, free, read-only. Every request-validation stop's pointer (`→ see:
 sidewise agent <verb>`, C-153) names this, not `help` — a stop is read by the agent that sent the request.
 [C-173]
+
+`sidewise agent wise` is the wise catalog's own legend card: every field, its closed values (plus the
+always-legal `unknown`), the note that any other lower-kebab key is recorded as-is, the C4 model's five levels
+(person/system/container/component/code, each nested inside the one above), how to write a chain flat
+(`parent/child` for containment, ` -> ` for uses, a trailing `?` for something guessed or not built yet), the
+chain grammar itself, and one worked example. Unlike every other `agent` card, it isn't shaped
+identifier/`rules:`/`patterns:`/`run:` — the field table and the architecture teaching don't fit that mold —
+so it's the one deliberate exception to `agent`'s otherwise-fixed card shape (C-187). It's generated from the
+same built-in field table the schema check and cross-validator check against, so it can't state a value the
+request validator would then reject.
 
 `sidewise agent` with no target also prints a `tools:` section, right after the verb list — the other real
 commands a cold agent needs before writing a request; setup-only commands (`init`, `uninstall`, `mcp`,
@@ -956,12 +1005,17 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
 - `depth` counts `concerns:` categories only (exactly 3k of them); `decisions:` questions never count toward
   it. [C-086]
 - The ledger stores a category's `section` and `family`/`familySource` alongside its usual fields, the run's
-  git HEAD sha (`commit`, or `null` outside a repo) at the time it ran, `expect` for a `replay` run, and
-  `where` for every verb (a sweep derives it from its items' own code paths). None of this changes an answer
-  key or a pattern fingerprint — the same question on the same evidence still reuses for free regardless of
-  which family tag or commit sha it was asked under. A `view` request-mode check (the free draft-against-the-
-  ledger lookup shown above) is itself logged too, as a free record that never takes a run number and never
-  counts toward the budget.
+  git sha (`commit`, or `null` when it can't be resolved) at the time it ran, and `where` for every verb (a
+  sweep derives it from its items' own code paths). `commit` is resolved in the git repo that actually contains
+  the run's own `where` files — not necessarily the Sidewise project root — falling back to the root's own repo
+  only when a verb records no `where` at all (a sweep like `loop`). `replay` additionally stores `expect` (the
+  agent's own prediction, array or `"none"`) and `commits: {before, after}`, the before/after refs' own
+  resolved shas — distinct from `commit`, which for `replay` is specifically the `after` ref's sha, since a
+  replay's two compared states don't otherwise reduce to one single "commit this run is at" the way
+  `class`/`scan`/`drill`/`loop` do. None of this changes an answer key or a pattern fingerprint — the same
+  question on the same evidence still reuses for free regardless of which family tag or commit sha it was asked
+  under. [C-213] A `view` request-mode check (the free draft-against-the-ledger lookup shown above) is itself
+  logged too, as a free record that never takes a run number and never counts toward the budget.
 - Nested items use `- name: <item>` plus child layers beside it, which is what agents write naturally.
   Different items may have different child layers. [C-087]
 - `sidewise --version` and `sidewise -v` print the installed package's version, one line, exit 0 — free, no
