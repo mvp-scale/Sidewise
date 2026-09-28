@@ -493,15 +493,20 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         // contract), the placeholder is never read — runChange's own findRun/isContractRun checks bail first.
         const parentRun = findRun(paths, values.parent);
         const goal = parentRun && isContractRun(parentRun) ? parentRun.goal : 'The change works';
-        // expect: (plan 2b, required): --expect names specific concerns (comma-separated); with neither
-        // given, default to every one of the parent's own concerns (predict the fix clears all of them) —
-        // runChange's own parent checks (missing, legacy, a sweep) still fire first when those apply, since
-        // this is only a best-effort default, not a validation of the parent.
+        // expect: (plan 2b, required): --expect names specific concerns (comma-separated) this change should
+        // turn to pass — the agent's own prediction, never a default. Omitting it defeats the point (the agent
+        // must actually predict), so the flag form requires it exactly like the file form's schema does.
         const expect = values.expect
           ? values.expect.split(',').map((s) => s.trim()).filter(Boolean)
-          : parentRun && isContractRun(parentRun)
-            ? parentRun.ask.categories.filter((c) => c.section !== 'decisions').map((c) => c.name)
-            : [];
+          : [];
+        if (expect.length === 0) {
+          const concernNames = parentRun && isContractRun(parentRun) ? parentRun.ask.categories.filter((c) => c.section !== 'decisions').map((c) => c.name) : [];
+          const sample = concernNames.length > 0 ? concernNames.join(',') : 'injection,guards';
+          return finish(
+            2,
+            withAgentPointer(`✖ --expect: name the concerns this change should fix → sidewise change --parent SW-#### --compare <before>..<after> --expect ${sample}`, command),
+          );
+        }
         text = stringify({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount('change', positionals, 1, 1);

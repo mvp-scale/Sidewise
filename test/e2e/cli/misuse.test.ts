@@ -151,6 +151,12 @@ describe('change: bad flag combinations', () => {
     }
   });
 
+  it('--expect is required in the flag form too — it never defaults to the parent\'s own concerns', () => {
+    expect(expectCleanStop(unchanged(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree']), 2)).toBe(
+      '✖ --expect: name the concerns this change should fix → sidewise change --parent SW-#### --compare <before>..<after> --expect injection,access,leaks',
+    );
+  });
+
   // A valid <before>..<after> shape (e.g. "worktree..worktree") passing the CLI's own check and reaching
   // runChange is exercised end to end in cli.test.ts's "change: the flag form..." test (--dry-run and a real run).
 });

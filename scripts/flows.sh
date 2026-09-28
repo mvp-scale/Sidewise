@@ -187,7 +187,7 @@ flow_done "06-drill-subject"
 
 # ---- 7. class -> change --parent <id> --compare <c1>..<c2> -------------------------------------------------
 flow_start
-run change --parent SW-0001 --compare "$C1..$C2"
+run change --parent SW-0001 --compare "$C1..$C2" --expect injection
 need_exit "07-change" "change --parent --compare" 0
 need_has "07-change" "change --parent --compare" "regressed:"
 need_has "07-change" "change --parent --compare" "fixed:"

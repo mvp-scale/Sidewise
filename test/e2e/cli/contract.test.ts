@@ -23,7 +23,7 @@ describe('the contract, end to end, through the built CLI', () => {
     expect(sidewise(root, ['class', 'class.yaml']).status).toBe(0);
     expect(sidewise(root, ['outcome', 'SW-0001', 'held', '--by', 'owner']).status).toBe(0);
 
-    const change = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree']);
+    const change = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection']);
     expect(change.status).toBe(0);
     expect(change.stdout).toContain('wise: {recorded: [parent]}');
 

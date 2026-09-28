@@ -69,11 +69,11 @@ describe('sidewise CLI (built): the six verbs, template, outcome, budget', () =>
   it('change: the flag form and the file form both work; --dry-run spends nothing [C-066]', () => {
     const root = project();
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
-    const dry = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--dry-run']);
+    const dry = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection', '--dry-run']);
     expect(dry.status).toBe(0);
     expect(dry.stdout).toMatch(/^plan:\n {2}calls: \d+\n {2}questions: \d+\n {2}reused: \d+\n {2}route: \w+\nnotes: \["dry run: no call, no spend"\]\n$/);
     expect(sidewise(root, ['budget']).stdout).toContain('1 of 500 runs'); // only the class run counted; the dry run spent nothing
-    const real = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree']);
+    const real = sidewise(root, ['change', '--parent', 'SW-0001', '--compare', 'worktree..worktree', '--expect', 'injection']);
     expect(real.status).toBe(0);
     expect(real.stdout).toContain('wise: {recorded: [parent]}');
     // [C-066] the flag form's goal is the parent's own goal (src/cli.ts), not the "The change works"
