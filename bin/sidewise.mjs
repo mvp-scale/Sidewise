@@ -1507,7 +1507,7 @@ var require_stringify = __commonJS({
         props.push(doc.directives.tagString(tag));
       return props.join(" ");
     }
-    function stringify2(item, ctx, onComment, onChompKeep) {
+    function stringify3(item, ctx, onComment, onChompKeep) {
       if (identity.isPair(item))
         return item.toString(ctx, onComment, onChompKeep);
       if (identity.isAlias(item)) {
@@ -1536,7 +1536,7 @@ var require_stringify = __commonJS({
 ${ctx.indent}${str}`;
     }
     exports.createStringifyContext = createStringifyContext;
-    exports.stringify = stringify2;
+    exports.stringify = stringify3;
   }
 });
 
@@ -1546,7 +1546,7 @@ var require_stringifyPair = __commonJS({
     "use strict";
     var identity = require_identity();
     var Scalar = require_Scalar();
-    var stringify2 = require_stringify();
+    var stringify3 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyPair({ key: key2, value }, ctx, onComment, onChompKeep) {
       const { allNullValues, doc, indent: indent3, indentStep, options: { commentString, indentSeq, simpleKeys } } = ctx;
@@ -1568,7 +1568,7 @@ var require_stringifyPair = __commonJS({
       });
       let keyCommentDone = false;
       let chompKeep = false;
-      let str = stringify2.stringify(key2, ctx, () => keyCommentDone = true, () => chompKeep = true);
+      let str = stringify3.stringify(key2, ctx, () => keyCommentDone = true, () => chompKeep = true);
       if (!explicitKey && !ctx.inFlow && str.length > 1024) {
         if (simpleKeys)
           throw new Error("With simple keys, single line scalar must not span more than 1024 characters");
@@ -1620,7 +1620,7 @@ ${indent3}:`;
         ctx.indent = ctx.indent.substring(2);
       }
       let valueCommentDone = false;
-      const valueStr = stringify2.stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
+      const valueStr = stringify3.stringify(value, ctx, () => valueCommentDone = true, () => chompKeep = true);
       let ws = " ";
       if (keyComment || vsb || vcb) {
         ws = vsb ? "\n" : "";
@@ -1761,7 +1761,7 @@ var require_addPairToJSMap = __commonJS({
     "use strict";
     var log = require_log();
     var merge = require_merge();
-    var stringify2 = require_stringify();
+    var stringify3 = require_stringify();
     var identity = require_identity();
     var toJS = require_toJS();
     function addPairToJSMap(ctx, map, { key: key2, value }) {
@@ -1797,7 +1797,7 @@ var require_addPairToJSMap = __commonJS({
       if (typeof jsKey !== "object")
         return String(jsKey);
       if (identity.isNode(key2) && ctx?.doc) {
-        const strCtx = stringify2.createStringifyContext(ctx.doc, {});
+        const strCtx = stringify3.createStringifyContext(ctx.doc, {});
         strCtx.anchors = /* @__PURE__ */ new Set();
         for (const node of ctx.anchors.keys())
           strCtx.anchors.add(node.anchor);
@@ -1864,12 +1864,12 @@ var require_stringifyCollection = __commonJS({
   "node_modules/yaml/dist/stringify/stringifyCollection.js"(exports) {
     "use strict";
     var identity = require_identity();
-    var stringify2 = require_stringify();
+    var stringify3 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyCollection(collection, ctx, options) {
       const flow2 = ctx.inFlow ?? collection.flow;
-      const stringify3 = flow2 ? stringifyFlowCollection : stringifyBlockCollection;
-      return stringify3(collection, ctx, options);
+      const stringify4 = flow2 ? stringifyFlowCollection : stringifyBlockCollection;
+      return stringify4(collection, ctx, options);
     }
     function stringifyBlockCollection({ comment, items }, ctx, { blockItemPrefix, flowChars, itemIndent, onChompKeep, onComment }) {
       const { indent: indent3, options: { commentString } } = ctx;
@@ -1894,7 +1894,7 @@ var require_stringifyCollection = __commonJS({
           }
         }
         chompKeep = false;
-        let str2 = stringify2.stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
+        let str2 = stringify3.stringify(item, itemCtx, () => comment2 = null, () => chompKeep = true);
         if (comment2)
           str2 += stringifyComment.lineComment(str2, itemIndent, commentString(comment2));
         if (chompKeep && comment2)
@@ -1961,7 +1961,7 @@ ${indent3}${line3}` : "\n";
         }
         if (comment)
           reqNewline = true;
-        let str = stringify2.stringify(item, itemCtx, () => comment = null);
+        let str = stringify3.stringify(item, itemCtx, () => comment = null);
         reqNewline || (reqNewline = lines.length > linesAtValue || str.includes("\n"));
         if (i < items.length - 1) {
           str += ",";
@@ -3322,7 +3322,7 @@ var require_stringifyDocument = __commonJS({
   "node_modules/yaml/dist/stringify/stringifyDocument.js"(exports) {
     "use strict";
     var identity = require_identity();
-    var stringify2 = require_stringify();
+    var stringify3 = require_stringify();
     var stringifyComment = require_stringifyComment();
     function stringifyDocument(doc, options) {
       const lines = [];
@@ -3337,7 +3337,7 @@ var require_stringifyDocument = __commonJS({
       }
       if (hasDirectives)
         lines.push("---");
-      const ctx = stringify2.createStringifyContext(doc, options);
+      const ctx = stringify3.createStringifyContext(doc, options);
       const { commentString } = ctx.options;
       if (doc.commentBefore) {
         if (lines.length !== 1)
@@ -3359,7 +3359,7 @@ var require_stringifyDocument = __commonJS({
           contentComment = doc.contents.comment;
         }
         const onChompKeep = contentComment ? void 0 : () => chompKeep = true;
-        let body = stringify2.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
+        let body = stringify3.stringify(doc.contents, ctx, () => contentComment = null, onChompKeep);
         if (contentComment)
           body += stringifyComment.lineComment(body, "", commentString(contentComment));
         if ((body[0] === "|" || body[0] === ">") && lines[lines.length - 1] === "---") {
@@ -3367,7 +3367,7 @@ var require_stringifyDocument = __commonJS({
         } else
           lines.push(body);
       } else {
-        lines.push(stringify2.stringify(doc.contents, ctx));
+        lines.push(stringify3.stringify(doc.contents, ctx));
       }
       if (doc.directives?.docEnd) {
         if (doc.comment) {
@@ -5503,7 +5503,7 @@ var require_cst_scalar = __commonJS({
 var require_cst_stringify = __commonJS({
   "node_modules/yaml/dist/parse/cst-stringify.js"(exports) {
     "use strict";
-    var stringify2 = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
+    var stringify3 = (cst) => "type" in cst ? stringifyToken(cst) : stringifyItem(cst);
     function stringifyToken(token) {
       switch (token.type) {
         case "block-scalar": {
@@ -5556,7 +5556,7 @@ var require_cst_stringify = __commonJS({
         res += stringifyToken(value);
       return res;
     }
-    exports.stringify = stringify2;
+    exports.stringify = stringify3;
   }
 });
 
@@ -7286,7 +7286,7 @@ var require_public_api = __commonJS({
       }
       return doc.toJS(Object.assign({ reviver: _reviver }, options));
     }
-    function stringify2(value, replacer, options) {
+    function stringify3(value, replacer, options) {
       let _replacer = null;
       if (typeof replacer === "function" || Array.isArray(replacer)) {
         _replacer = replacer;
@@ -7311,7 +7311,7 @@ var require_public_api = __commonJS({
     exports.parse = parse;
     exports.parseAllDocuments = parseAllDocuments;
     exports.parseDocument = parseDocument3;
-    exports.stringify = stringify2;
+    exports.stringify = stringify3;
   }
 });
 
@@ -7629,7 +7629,8 @@ var BudgetError = class extends Error {
 var iso = (now) => new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z");
 var money = (n) => `$${n.toFixed(2)}`;
 var fresh = (now, caps = DEFAULT_BUDGET) => ({ capUsd: caps.capUsd, capRuns: caps.capRuns, spentUsd: 0, runs: 0, resetAt: iso(now) });
-var corrupt = (code) => new BudgetError(`\u2716 budget: .sidewise/budget.json is unreadable${code ? ` (${code})` : ""} \u2192 the owner runs "sidewise budget reset" to start a fresh budget`);
+var AGENT_POINTER = "\n\u2192 see: sidewise agent budget";
+var corrupt = (code) => new BudgetError(`\u2716 budget: .sidewise/budget.json is unreadable${code ? ` (${code})` : ""} \u2192 the owner runs "sidewise budget reset" to start a fresh budget${AGENT_POINTER}`);
 function isState(v) {
   if (!v || typeof v !== "object") return false;
   const s = v;
@@ -7683,7 +7684,7 @@ function checkBudget(s) {
   const usdCapped = s.spentUsd >= s.capUsd;
   if (runsCapped || usdCapped) {
     const hint = runsCapped && !usdCapped ? 'the owner runs "sidewise budget set --runs <n>"' : 'the owner runs "sidewise budget reset"';
-    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 ${hint}` };
+    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 ${hint}${AGENT_POINTER}` };
   }
   return { ok: true };
 }
@@ -7712,7 +7713,7 @@ function resetBudget(paths, now = Date.now()) {
 }
 function setBudget(paths, caps, now = Date.now()) {
   for (const [name, v] of Object.entries(caps)) {
-    if (v !== void 0 && !(Number.isFinite(v) && v > 0)) throw new BudgetError(`\u2716 budget: ${name} must be a positive number, got ${v} \u2192 e.g. --usd 5 --runs 500`);
+    if (v !== void 0 && !(Number.isFinite(v) && v > 0)) throw new BudgetError(`\u2716 budget: ${name} must be a positive number, got ${v} \u2192 e.g. --usd 5 --runs 500${AGENT_POINTER}`);
   }
   return withLock(paths.lock, () => {
     const s = read(paths) ?? fresh(now);
@@ -7975,7 +7976,7 @@ var PATTERNS = [
   /-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----(?:[\s\S]*?-----END [A-Z ]{0,40}PRIVATE KEY-----|[\s\S]*)/g
 ];
 var EMAIL = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
-var KEY_VALUE = /(?<![A-Za-z0-9])([A-Za-z0-9_]{0,64}(?:api[_-]?key|token|secret|password|passwd)[A-Za-z0-9_]{0,64})(['"]?)(\s*[:=]\s*)(['"]?)[^\s'"]{8,}\4/gi;
+var KEY_VALUE = /(?<![A-Za-z0-9])([A-Za-z0-9_]{0,64}(?:api[_-]?key|token|secret|password|passwd)[A-Za-z0-9_]{0,64})(['"]?)(\s*[:=]\s*)(['"]?)(?![{[])[^\s'"]{8,}\4/gi;
 var BEARER = /\b(Bearer)\s+[A-Za-z0-9._~+/=-]{8,}/gi;
 function redactSecrets(text) {
   let out = text.replace(KEY_VALUE, (_m, key2, quote, sep) => `${key2}${quote}${sep}[redacted]`);
@@ -9163,10 +9164,12 @@ function appendFailedLocked(paths, failed, now = Date.now()) {
 function appendOutcome(paths, of, outcome, by, now = Date.now()) {
   return withLock(paths.lock, () => {
     const run = findRun(paths, of);
-    if (!run) throw new LedgerError(`\u2716 outcome: ${of} is not in the ledger \u2192 check the id with "sidewise view ${of}"`, 2);
+    if (!run) throw new LedgerError(`\u2716 outcome: ${of} is not in the ledger \u2192 check the id with "sidewise view ${of}"
+\u2192 see: sidewise agent outcome`, 2);
     const who = redactSecrets(by);
     if (outcome === "held" && who === run.actor) {
-      throw new LedgerError(`\u2716 outcome: ${who} asked ${of}, so it can't mark it held \u2192 another agent or the owner records "held"`);
+      throw new LedgerError(`\u2716 outcome: ${who} asked ${of}, so it can't mark it held \u2192 another agent or the owner records "held"
+\u2192 see: sidewise agent outcome`);
     }
     onStore(paths.log, "read", () => {
       const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));
@@ -10194,11 +10197,12 @@ var Out = class {
     this.stops.push({ cls: "schema", text: `\u2716 ${field}: ${problem} \u2192 ${fix}` });
   }
 };
+var MAX_QUESTION_CHARS = 160;
 function lineProblem(v) {
   if (typeof v !== "string") return `${show(v)} is not text`;
   if (v.includes("\n")) return "has a line break";
   if (len(v) < 3) return "is too short";
-  if (len(v) > 160) return "is longer than 160 characters";
+  if (len(v) > MAX_QUESTION_CHARS) return `is longer than ${MAX_QUESTION_CHARS} characters`;
   return void 0;
 }
 function checkTagKeys(o, field, what, out) {
@@ -11377,6 +11381,28 @@ function dryRunText(plan, extraNotes = []) {
     )
   );
 }
+var MAX_PROBE_WARNINGS = 3;
+function allQuestions(side) {
+  return [...side.categories, ...side.layers.flatMap((l) => l.categories)].flatMap((c) => c.questions);
+}
+function probeWarnings(side) {
+  const warnings = [];
+  for (const q of allQuestions(side)) {
+    const marks = q.text.match(/\?/g)?.length ?? 0;
+    if (marks >= 2 || / and /.test(q.text)) {
+      warnings.push(`probe: "${clip(q.text, 60)}" reads as two questions joined into one \u2014 split it`);
+    }
+    if (side.where.length > 0) {
+      for (const m2 of q.text.matchAll(/`([^`]+)`/g)) {
+        const named = m2[1];
+        if (!side.where.includes(named) && !side.where.some((w) => w.startsWith(`${named}:`))) {
+          warnings.push(`probe: "${clip(named, 60)}" is named in a question but not in where: \u2014 it has nothing to answer from`);
+        }
+      }
+    }
+  }
+  return warnings.length > MAX_PROBE_WARNINGS ? [...warnings.slice(0, MAX_PROBE_WARNINGS), `probe: ${warnings.length - MAX_PROBE_WARNINGS} more question warning(s) not shown`] : warnings;
+}
 var COST_ESTIMATED_NOTE = "cost estimated from tokens (no live pricing reported)";
 function sweepEntry(g) {
   const catEntries = [];
@@ -11606,7 +11632,10 @@ async function runClass(text, ctx) {
     }
     return {
       exit: 0,
-      text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }, capNote)
+      text: dryRunText(
+        { calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL },
+        [...capNote, ...probeWarnings(request.side)]
+      )
     };
   }
   const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
@@ -12243,20 +12272,23 @@ async function runSweep(ctx, verb, plan) {
   if (!asked2.ok) return asked2;
   return { ok: true, value: { answers: { ...plan.answers, ...asked2.value.answers }, costUsd: asked2.value.costUsd, costEstimated: asked2.value.costEstimated, statusOf } };
 }
-function sweepDryRun(plan, identity) {
+function sweepDryRun(plan, identity, extraNotes = []) {
   const calls = plan.planned.filter((p) => p.call !== null).length;
   const askedItems = plan.planned.reduce((n, p) => n + p.itemIds.length, 0);
   const skippedItems = plan.planned.reduce((n, p) => n + p.skipped.length, 0);
   return {
     exit: 0,
-    text: dryRunText({
-      calls,
-      questions: plan.askedQuestions,
-      items: plan.items.length,
-      reused: plan.items.length - askedItems - skippedItems,
-      route: identity.route,
-      baseURL: identity.baseURL
-    })
+    text: dryRunText(
+      {
+        calls,
+        questions: plan.askedQuestions,
+        items: plan.items.length,
+        reused: plan.items.length - askedItems - skippedItems,
+        route: identity.route,
+        baseURL: identity.baseURL
+      },
+      extraNotes
+    )
   };
 }
 function recordSweep(ctx, calls, costUsd, run) {
@@ -12295,7 +12327,13 @@ async function runOneSubjectProof(ctx, loaded, request, where, changeParent, evi
   const reusedFrom = {};
   const toAsk = splitReuse(keyed, reused, answers, reusedFrom);
   if (ctx.dryRun) {
-    return { exit: 0, text: dryRunText({ calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL }) };
+    return {
+      exit: 0,
+      text: dryRunText(
+        { calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL },
+        probeWarnings(request.side)
+      )
+    };
   }
   const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
   if (!pre.ok) return pre.result;
@@ -12374,21 +12412,29 @@ async function runDrill(text, ctx) {
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const parent = findRun(ctx.paths, request.side.parent);
-  if (!parent) return { exit: 2, text: `\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id` };
-  if (!isContractRun(parent)) return { exit: 2, text: `\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class or scan again` };
+  if (!parent) return { exit: 2, text: stopText([`\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id`], "drill") };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class or scan again`], "drill") };
   if (parent.items !== null) {
     const itemRec = parent.items[request.side.from];
     if (!itemRec) {
       return {
         exit: 2,
-        text: `\u2716 side.from: "${clip(request.side.from, 40)}" is not an item ${parent.id} listed \u2192 use one of: ${clip(Object.keys(parent.items).join(", "), 80)}`
+        text: stopText(
+          [`\u2716 side.from: "${clip(request.side.from, 40)}" is not an item ${parent.id} listed \u2192 use one of: ${clip(Object.keys(parent.items).join(", "), 80)}`],
+          "drill"
+        )
       };
     }
     if (!request.side.over) {
       if (!itemRec.unit) {
         return {
           exit: 2,
-          text: `\u2716 side.from: "${clip(request.side.from, 40)}" has no code \u2192 add over: with the next layer down, or drill an item scan found (sidewise template drill --parent ${parent.id} --from ${request.side.from})`
+          text: stopText(
+            [
+              `\u2716 side.from: "${clip(request.side.from, 40)}" has no code \u2192 add over: with the next layer down, or drill an item scan found (sidewise template drill --parent ${parent.id} --from ${request.side.from})`
+            ],
+            "drill"
+          )
         };
       }
       return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, { stopOnOversize: false });
@@ -12399,7 +12445,7 @@ async function runDrill(text, ctx) {
     let itemText = name;
     if (itemRec.unit) {
       const read2 = readUnit(ctx.paths.root, itemRec.unit);
-      if (!read2.ok) return { exit: 2, text: `\u2716 side.from: the code has changed since ${parent.id} (${read2.error}) \u2192 run scan again` };
+      if (!read2.ok) return { exit: 2, text: stopText([`\u2716 side.from: the code has changed since ${parent.id} (${read2.error}) \u2192 run scan again`], "drill") };
       itemText = read2.text;
     }
     const root = { id: from, layer: itemRec.layer, name, parent: parentId, fill: itemRec.fill, text: itemText, ...itemRec.unit ? { unit: itemRec.unit } : {} };
@@ -12408,7 +12454,10 @@ async function runDrill(text, ctx) {
       if (badLayer) {
         return {
           exit: 2,
-          text: `\u2716 side.over.${badLayer}: "${clip(from, 40)}" is an idea, not code \u2192 give ${badLayer} as a list of items (there is nothing to split with each)`
+          text: stopText(
+            [`\u2716 side.over.${badLayer}: "${clip(from, 40)}" is an idea, not code \u2192 give ${badLayer} as a list of items (there is nothing to split with each)`],
+            "drill"
+          )
         };
       }
     }
@@ -12416,7 +12465,7 @@ async function runDrill(text, ctx) {
     const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
     const identity = providerIdentity(ctx.env);
     const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
-    if (ctx.dryRun) return sweepDryRun(plan, identity);
+    if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
     const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
     if (!pre.ok) return pre.result;
     const swept = await runSweep(ctx, "drill", plan);
@@ -12476,11 +12525,14 @@ async function runDrill(text, ctx) {
     };
     return recordSweep(ctx, calls, costUsd, run);
   }
-  if (request.side.over) return { exit: 2, text: `\u2716 side.over: ${parent.id} wasn't a sweep \u2192 remove over` };
+  if (request.side.over) return { exit: 2, text: stopText([`\u2716 side.over: ${parent.id} wasn't a sweep \u2192 remove over`], "drill") };
   if (!parent.ask.categories.some((c) => c.name === request.side.from)) {
     return {
       exit: 2,
-      text: `\u2716 side.from: "${clip(request.side.from, 40)}" is not a category of ${parent.id} \u2192 use one of: ${parent.ask.categories.map((c) => c.name).join(", ")}`
+      text: stopText(
+        [`\u2716 side.from: "${clip(request.side.from, 40)}" is not a category of ${parent.id} \u2192 use one of: ${parent.ask.categories.map((c) => c.name).join(", ")}`],
+        "drill"
+      )
     };
   }
   return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent);
@@ -12494,7 +12546,7 @@ async function runLoop(text, ctx) {
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env);
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
-  if (ctx.dryRun) return sweepDryRun(plan, identity);
+  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
   const ran = await runSweep(ctx, "loop", plan);
@@ -12659,8 +12711,8 @@ function reportHistory(paths) {
 }
 function runReport(view, ctx) {
   const target = view?.trim() || "hits";
-  if (hasControlChars(target)) return { exit: 2, text: "\u2716 report: the view name has control characters \u2192 use hits, patterns or history" };
-  if (!isView(target)) return { exit: 2, text: `\u2716 report: "${clip(target, 40)}" is not a view \u2192 use hits, patterns or history` };
+  if (hasControlChars(target)) return { exit: 2, text: stopText(["\u2716 report: the view name has control characters \u2192 use hits, patterns or history"], "report") };
+  if (!isView(target)) return { exit: 2, text: stopText([`\u2716 report: "${clip(target, 40)}" is not a view \u2192 use hits, patterns or history`], "report") };
   if (target === "hits") return reportHits(ctx.paths);
   if (target === "patterns") return reportPatterns(ctx.paths);
   return reportHistory(ctx.paths);
@@ -12685,7 +12737,7 @@ async function runScan(text, ctx) {
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env);
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
-  if (ctx.dryRun) return sweepDryRun(plan, identity);
+  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
   const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
   if (entrypointNote) notes.push(entrypointNote);
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
@@ -12769,6 +12821,53 @@ function drillSampleFile(parent, paths) {
   if (run && isContractRun(run) && run.items === null) return "drill-subject.yaml";
   return "drill.yaml";
 }
+function questionToWire(q) {
+  if (q.kind === "yesno") return q.text;
+  if (q.kind === "scale") return { scale: q.text, levels: q.levels };
+  return { choice: q.text, options: q.options };
+}
+function categoryToWire(c) {
+  const out = { pass: c.pass };
+  if (c.need !== "all") out.need = c.need;
+  if (c.tags.length) out.tags = c.tags;
+  for (const q of c.questions) out[String(q.n)] = questionToWire(q);
+  return out;
+}
+function askToWire(run) {
+  if (run.ask.layers.length) {
+    const out2 = {};
+    for (const layer of run.ask.layers) {
+      const cats = {};
+      for (const c of layer.categories) cats[c.name] = categoryToWire(c);
+      out2[layer.name] = cats;
+    }
+    return out2;
+  }
+  const out = {};
+  for (const c of run.ask.categories) out[c.name] = categoryToWire(c);
+  return out;
+}
+function fromRunId(id, flags, paths) {
+  if (!paths) return { exit: 2, text: `\u2716 template: --from "${id}" needs a project to look up the ledger \u2192 run inside one, or point --from at a request file` };
+  const run = findRun(paths, id);
+  if (!run) return { exit: 2, text: `\u2716 template: --from "${id}" is not in the ledger \u2192 check the id, or point --from at a request file` };
+  if (!isContractRun(run)) return { exit: 2, text: `\u2716 template: --from "${id}" predates the YAML contract \u2192 point --from at a request file instead` };
+  const side = run.verb === "change" ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare } : {
+    verb: run.verb,
+    goal: run.goal,
+    ...run.depth ? { depth: run.depth } : {},
+    ...run.where.length ? { where: run.where } : {},
+    ...run.parent ? { parent: run.parent } : {},
+    ...run.from ? { from: run.from } : {},
+    ...run.compare ? { compare: run.compare } : {},
+    ...run.over ? { over: run.over } : {},
+    ask: askToWire(run)
+  };
+  const doc = (0, import_yaml2.parseDocument)((0, import_yaml2.stringify)({ side, ...run.wise ? { wise: run.wise } : {} }));
+  if (flags.goal !== void 0) doc.setIn(["side", "goal"], flags.goal);
+  if (flags.where !== void 0) doc.setIn(["side", "where"], flags.where);
+  return { exit: 0, text: doc.toString() };
+}
 function fromFile(from, flags) {
   let raw;
   try {
@@ -12806,7 +12905,7 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
     doc.setIn(["side", "from"], flags.from);
     return { exit: 0, text: doc.toString() };
   }
-  if (flags.from !== void 0) return fromFile(flags.from, flags);
+  if (flags.from !== void 0) return RUN_ID.test(flags.from) ? fromRunId(flags.from, flags, paths) : fromFile(flags.from, flags);
   if (flags.where !== void 0 || flags.goal !== void 0) {
     return { exit: 2, text: `\u2716 template: --where/--goal need --from \u2192 sidewise template ${target} --from <request.yaml>` };
   }
@@ -12832,10 +12931,12 @@ function whereMatches(r, place) {
   return isContractRun(r) && !!r.items && Object.values(r.items).some((it) => !!it.unit && pathMatches(it.unit.path, place));
 }
 function toPlace(target, root) {
-  if (hasControlChars(target)) return { stop: "\u2716 view: the target has control characters \u2192 use a folder, a tag, or SW-####" };
+  if (hasControlChars(target)) return { stop: stopText(["\u2716 view: the target has control characters \u2192 use a folder, a tag, or SW-####"], "view") };
   if (!path18.isAbsolute(target) && !target.split(/[\\/]/).includes("..")) return { place: target.replace(/^\.\//, "").replace(/\/+$/, "") || "." };
   const rel = path18.relative(root, path18.resolve(root, target));
-  if (rel.startsWith("..") || path18.isAbsolute(rel)) return { stop: `\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or SW-####` };
+  if (rel.startsWith("..") || path18.isAbsolute(rel)) {
+    return { stop: stopText([`\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or SW-####`], "view") };
+  }
   return { place: rel.split(path18.sep).join("/") || "." };
 }
 function renderPlace(place, hits, outcomeOf, limit) {
@@ -12933,7 +13034,7 @@ function byId(id, paths, level, limit) {
     paths,
     (handle) => {
       const self = runAt(paths, handle, id);
-      if (!self) return { exit: 2, text: `\u2716 view: ${id} is not in the ledger \u2192 "sidewise view <folder>" lists recent runs` };
+      if (!self) return { exit: 2, text: stopText([`\u2716 view: ${id} is not in the ledger \u2192 "sidewise view <folder>" lists recent runs`], "view") };
       const up = [];
       let cursor = self.parent ? runAt(paths, handle, self.parent) : void 0;
       while (cursor && up.length < limit) {
@@ -13096,6 +13197,26 @@ var PATTERNS2 = [
     catchable: true,
     bad: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    file: src/checkout/*.ts\n  ask:\n    file:\n      done:\n        pass: yes\n        1: Does {file} own one clear responsibility?\n",
     good: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part: [gateway, payments, ledger]\n  ask:\n    part:\n      done:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n"
+  },
+  // Round-4 finding: `agent drill`/`agent change` had no patterns section at all — the two pairs below close
+  // that gap, one each, both caught outright by validate.ts's NEEDS/NEVER cross-validator checks. [C-193]
+  {
+    rule: "`drill` needs `from:` \u2014 the item or category of the parent run to go down into \u2014 without it there's nothing to drill from.",
+    why: "Drill needs from: which item or category",
+    verb: "drill",
+    in: ["drill"],
+    catchable: true,
+    bad: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  ask:\n    source:\n      pass: no\n      1: Is the value concatenated straight into the string?\n",
+    good: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  from: access\n  ask:\n    source:\n      pass: no\n      1: Is the value concatenated straight into the string?\n"
+  },
+  {
+    rule: "`change` replays the parent run's own questions \u2014 it never takes `ask:`; write new questions with `class` instead.",
+    why: "Change replays parent's questions; never ask:",
+    verb: "change",
+    in: ["change"],
+    catchable: true,
+    bad: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  ask:\n    injection:\n      pass: no\n      1: Does it still concatenate the value into the query?\n",
+    good: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n"
   }
 ];
 var indent = (text, pad) => text.trimEnd().split("\n").map((l) => `${pad}${l}`);
@@ -13234,6 +13355,14 @@ var RULES = [
     in: ["card", "authoring", "class", "scan", "loop"]
   },
   { text: `where: at most 5 path entries \u2014 this is all the code a run sees`, in: ["card", "authoring", "class", "view"] },
+  {
+    // Round-4 finding: a cold agent hit `✖ question 1: is longer than 160 characters` with zero prior warning
+    // in `agent view`/`agent probe` — this is Sidewise's own hard validator cap (schema-check.ts's
+    // MAX_QUESTION_CHARS), not TypeSafe guidance, so it lives here rather than in PROBE_RULES below; tagged
+    // 'probe' too so `agent probe`/`help probe` carry it alongside TypeSafe's own question-shape rules. [C-194]
+    text: `a question (or the goal) is at most ${MAX_QUESTION_CHARS} characters, one line \u2014 longer text is rejected outright`,
+    in: ["card", "authoring", "class", "scan", "drill", "loop", "view", "probe"]
+  },
   { text: `pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between is unsure`, in: ["card", "verdict"] },
   { text: `every question in a category must point the same way as its pass:`, in: ["authoring"] },
   { text: `wise.why is one of ${list2(WHYS)}`, in: ["wise"] },
@@ -13279,6 +13408,19 @@ var PROBE_RULES = [
     text: 'Add the visible-scope probe as a recommended extra question: "Can this be answered from the code shown?"',
     cite: "concepts/how-to-build-with-system-one.md"
   }
+];
+var VERDICT_FACTS = [
+  "`need:` on a category: `all` (default, every answer clears the bar) \xB7 `most` (>= 2/3 clear, none a clear miss) \xB7 `any` (at least one clears)",
+  "the gate passes only when the goal and every category pass; in a sweep, an item passes only when its own categories and every child does too",
+  "`consensus` (STRONG \xB7 SPLIT \xB7 WEAK): whether the yes/no answers agree with each other \u2014 shown on `class`, and `drill` on a one-subject parent; a sweep or `change` response never computes it",
+  "`escalate: true` on non-STRONG consensus, `depth: thorough`, or a goal that reads as irreversible (delete, deploy, drop, pay, migrate, secret, credential) \u2014 don't act on this alone",
+  "a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes \u2014 that's exactly why it lands in `unsure` rather than a weak pass",
+  "the answer's shape is guaranteed (a number in range, a level that's really one of yours) \u2014 whether it's the RIGHT number is what consensus, escalate and your own reading are for, not the schema",
+  "`change`'s per-category grade: `fixed` (failed or unsure before, passes now), `still` (failed or unsure before, still doesn't), `regressed` (passed before, not any more \u2014 regressed alone fails the gate even when every `after` category passes)",
+  "`reused: [SW-####]` names prior runs an answer's evidence and question text matched exactly \u2014 free, not a new call",
+  "`sidewise report hits` flags a one-subject answer `stale` once the code at its own `where` has changed since \u2014 re-run it rather than trust it",
+  "a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) \u2014 read which one you got before treating a stop as `unsure`",
+  "a stop always reads `\u2716 field: problem \u2192 fix`; run `sidewise help <verb>` when one doesn't make sense"
 ];
 
 // src/help/verbs.ts
@@ -13358,6 +13500,7 @@ var VERB_LINE = {
 };
 function verbHelp(verb) {
   return [
+    `Agents: sidewise agent ${verb}`,
     `## ${verb}`,
     PURPOSE[verb],
     `When: ${WHEN[verb]}`,
@@ -13388,6 +13531,7 @@ function noKeyRunLine(env, deps) {
   if (hasKey(config)) return [];
   return [inPluginContext(env) ? `run: no key (sample answers only) \u2192 ${NO_KEY_PLUGIN_HINT}` : "run: no key \u2192 sidewise init to add one"];
 }
+var PROJECT_SCOPE_RULE = "- where: resolves against the MCP `project` argument or `SIDEWISE_HOME` (CLI), never your session cwd \u2014 pass `project` (or set `SIDEWISE_HOME`) when you started elsewhere.";
 function overview(env, deps) {
   return renderCard(
     [
@@ -13396,23 +13540,27 @@ function overview(env, deps) {
       "tools:",
       ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`)
     ],
-    ruleLines("card"),
+    [...ruleLines("card"), PROJECT_SCOPE_RULE],
     [],
     [
       "run: sidewise agent <verb|tool> \u2014 before writing that request",
       "run: sidewise agent probe \u2014 before writing questions: how to phrase one",
+      "run: sidewise agent verdict \u2014 before reading a response: how to read it",
       ...noKeyRunLine(env, deps)
     ]
   );
 }
 function verbCard(verb) {
-  return renderCard([`verb: ${verb}`], ruleLines(verb), terseLines(verb));
+  return renderCard([`verb: ${verb}`], [...SHARP[verb].map((s) => `- ${s}.`), ...ruleLines(verb)], terseLines(verb));
 }
 function probeCard() {
   return renderCard(
     ["tool: probe"],
-    PROBE_RULES.map((r) => `- ${r.text}`)
+    [...PROBE_RULES.map((r) => `- ${r.text}`), ...ruleLines("probe")]
   );
+}
+function verdictCard() {
+  return renderCard(["tool: verdict"], [...ruleLines("verdict"), ...VERDICT_FACTS.map((f) => `- ${f}`)]);
 }
 function outcomeCard() {
   return renderCard(
@@ -13488,6 +13636,7 @@ function templateCard() {
 }
 var AGENT_TOPICS = {
   probe: probeCard,
+  verdict: verdictCard,
   outcome: outcomeCard,
   budget: budgetCard,
   report: reportCard,
@@ -13504,10 +13653,13 @@ function runAgent(target, env = {}, deps = {}) {
 }
 
 // src/help/card.ts
+var PITCH_LINE_1 = "Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict \u2014 evidence,";
+var PITCH_LINE_2 = "never a command. Think of it as a citable second opinion, not a linter.";
+var PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2}`;
 function card() {
   return [
-    "Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict \u2014 evidence,",
-    "never a command. Think of it as a citable second opinion, not a linter.",
+    PITCH_LINE_1,
+    PITCH_LINE_2,
     "",
     "## Invoke it",
     'In Claude Code: call the `sidewise` MCP tool directly \u2014 same args as the CLI (e.g. args: ["class", "-"]),',
@@ -13541,6 +13693,9 @@ function card() {
     `- template: ${TOOL_LINE.template}`
   ].join("\n");
 }
+function agentFrontDoorLines() {
+  return ['Agents: run "sidewise agent" first', "new here? \u2192 sidewise init", PITCH, ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`)];
+}
 
 // src/help/topics.ts
 var TOPICS = ["authoring", "verdict", "wise", "reuse", "probe"];
@@ -13566,14 +13721,7 @@ function verdict() {
     "## verdict",
     "How to read what comes back:",
     ...ruleLines("verdict"),
-    "- `need:` on a category: `all` (default, every answer clears the bar) \xB7 `most` (>= 2/3 clear, none a clear miss) \xB7 `any` (at least one clears).",
-    "- the gate passes only when the goal and every category pass; in a sweep, an item passes only when its own categories and every child does too.",
-    "- `consensus` (STRONG \xB7 SPLIT \xB7 WEAK): whether the yes/no answers agree with each other \u2014 shown on `class`, and `drill` on a one-subject parent; a sweep or `change` response never computes it.",
-    "- `escalate: true` on non-STRONG consensus, `depth: thorough`, or a goal that reads as irreversible (delete, deploy, drop, pay, migrate, secret, credential) \u2014 don't act on this alone.",
-    "- a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes \u2014 that's exactly why it lands in `unsure` rather than a weak pass.",
-    "- the answer's shape is guaranteed (a number in range, a level that's really one of yours) \u2014 whether it's the RIGHT number is what consensus, escalate and your own reading are for, not the schema.",
-    "- a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) \u2014 read which one you got before treating a stop as `unsure`.",
-    "- a stop always reads `\u2716 field: problem \u2192 fix`; run `sidewise help <verb>` when one doesn't make sense."
+    ...VERDICT_FACTS.map((f) => `- ${f}.`)
   ].join("\n");
 }
 function wise() {
@@ -13617,6 +13765,7 @@ function probe() {
     "source page cited.",
     "",
     ...PROBE_RULES.map((r) => `- ${r.text} (TypeSafe: ${r.cite})`),
+    ...ruleLines("probe"),
     "",
     'Round 3 smoke testing found this directly: a goal phrased as the vulnerability ("runs request input as code")',
     "read pass/fail backwards, and its probability stayed at p 0.98 before AND after the fix that removed the",
@@ -13671,13 +13820,16 @@ var LINES3 = {
   uninstall: "sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]",
   mcp: "sidewise mcp"
 };
-var USAGE = `new here? \u2192 sidewise init
+var USAGE = `${agentFrontDoorLines().join("\n")}
 usage:
 ${Object.values(LINES3).map((l) => `  ${l}`).join("\n")}`;
 var isCommand = (c) => Object.hasOwn(LINES3, c);
+var AGENT_POINTABLE = /* @__PURE__ */ new Set([...VERBS, "report", "outcome", "budget", "template"]);
+var withAgentPointer = (text, command) => AGENT_POINTABLE.has(command) ? `${text}
+\u2192 see: sidewise agent ${command}` : text;
 var UsageStop = class extends Error {
   constructor(command, problem) {
-    super(`\u2716 args: ${problem} \u2192 ${LINES3[command]}`);
+    super(withAgentPointer(`\u2716 args: ${problem} \u2192 ${LINES3[command]}`, command));
     this.name = "UsageStop";
   }
 };
@@ -13738,11 +13890,11 @@ var RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop }
 var providerExit = (e) => e instanceof JevConfigError ? e.exit : 1;
 async function runSweptVerb(command, rest, paths, ctx) {
   const twice = givenTwice(rest, ["dry-run"]);
-  if (twice) return finish(2, twice);
+  if (twice) return finish(2, withAgentPointer(twice, command));
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { "dry-run": { type: "boolean", default: false } } });
   positionalCount(command, positionals, 1, 1);
   const read2 = readRequest(positionals[0], ctx.stdin);
-  if ("stop" in read2) return finish(2, read2.stop);
+  if ("stop" in read2) return finish(2, withAgentPointer(read2.stop, command));
   let provider;
   try {
     provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json") });
@@ -13773,7 +13925,7 @@ async function dispatch(argv, ctx) {
   }
   if (command === "template") {
     const twice = givenTwice(rest, ["parent", "from", "goal"]);
-    if (twice) return finish(2, twice);
+    if (twice) return finish(2, withAgentPointer(twice, command));
     const { values, positionals } = args("template", {
       args: rest,
       allowPositionals: true,
@@ -13899,18 +14051,20 @@ async function dispatch(argv, ctx) {
     return finish(r.exit, r.text);
   }
   const paths = resolvePaths(ctx.cwd, ctx.env);
-  if (!paths) return finish(2, NO_PROJECT);
+  if (!paths) return finish(2, withAgentPointer(NO_PROJECT, command));
   switch (command) {
     case "view": {
       const twice = givenTwice(rest, ["level"]);
-      if (twice) return finish(2, twice);
+      if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args("view", {
         args: rest,
         allowPositionals: true,
         options: { level: { type: "string", default: "1" }, summary: { type: "boolean", default: false } }
       });
       positionalCount("view", positionals, 1, 1);
-      if (!["1", "2", "3"].includes(values.level)) return finish(2, `\u2716 --level: "${clip(values.level, 20)}" is not a level \u2192 use --level 1, 2 or 3`);
+      if (!["1", "2", "3"].includes(values.level)) {
+        return finish(2, withAgentPointer(`\u2716 --level: "${clip(values.level, 20)}" is not a level \u2192 use --level 1, 2 or 3`, command));
+      }
       const arg = positionals[0];
       let content;
       if (arg === "-") {
@@ -13937,7 +14091,7 @@ async function dispatch(argv, ctx) {
       return runSweptVerb(command, rest, paths, ctx);
     case "change": {
       const twice = givenTwice(rest, ["dry-run", "parent", "compare"]);
-      if (twice) return finish(2, twice);
+      if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args("change", {
         args: rest,
         allowPositionals: true,
@@ -13947,12 +14101,12 @@ async function dispatch(argv, ctx) {
       let text;
       if (usingFlags) {
         if (values.parent === void 0 || values.compare === void 0) {
-          return finish(2, "\u2716 --parent/--compare: give both, or neither \u2192 sidewise change --parent SW-#### --compare <before>..<after>");
+          return finish(2, withAgentPointer("\u2716 --parent/--compare: give both, or neither \u2192 sidewise change --parent SW-#### --compare <before>..<after>", command));
         }
         positionalCount("change", positionals, 0, 0);
         const sep = values.compare.indexOf("..");
         if (sep <= 0 || sep >= values.compare.length - 2) {
-          return finish(2, `\u2716 --compare: "${clip(values.compare, 60)}" is not <before>..<after> \u2192 e.g. --compare main..HEAD`);
+          return finish(2, withAgentPointer(`\u2716 --compare: "${clip(values.compare, 60)}" is not <before>..<after> \u2192 e.g. --compare main..HEAD`, command));
         }
         const parentRun = findRun(paths, values.parent);
         const goal = parentRun && isContractRun(parentRun) ? parentRun.goal : "The change works";
@@ -13960,7 +14114,7 @@ async function dispatch(argv, ctx) {
       } else {
         positionalCount("change", positionals, 1, 1);
         const read2 = readRequest(positionals[0], ctx.stdin);
-        if ("stop" in read2) return finish(2, read2.stop);
+        if ("stop" in read2) return finish(2, withAgentPointer(read2.stop, command));
         text = read2.text;
       }
       let provider;
@@ -13974,14 +14128,18 @@ async function dispatch(argv, ctx) {
     }
     case "outcome": {
       const twice = givenTwice(rest, ["by"]);
-      if (twice) return finish(2, twice);
+      if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args("outcome", { args: rest, allowPositionals: true, options: { by: { type: "string" } } });
       positionalCount("outcome", positionals, 2, 2);
       const [id = "", outcome = ""] = positionals;
-      if (!RUN_ID.test(id)) return finish(2, `\u2716 outcome: "${clip(id, 40)}" is not a run id \u2192 use the SW-#### that class printed, e.g. SW-0001`);
-      if (!OUTCOMES.includes(outcome)) return finish(2, `\u2716 outcome: "${clip(outcome, 40)}" is not an outcome \u2192 use held, overruled or failed`);
+      if (!RUN_ID.test(id)) {
+        return finish(2, withAgentPointer(`\u2716 outcome: "${clip(id, 40)}" is not a run id \u2192 use the SW-#### that class printed, e.g. SW-0001`, command));
+      }
+      if (!OUTCOMES.includes(outcome)) {
+        return finish(2, withAgentPointer(`\u2716 outcome: "${clip(outcome, 40)}" is not an outcome \u2192 use held, overruled or failed`, command));
+      }
       const by = values.by?.trim();
-      if (!by) return finish(2, "\u2716 --by: missing \u2192 add --by <who judged the run>");
+      if (!by) return finish(2, withAgentPointer("\u2716 --by: missing \u2192 add --by <who judged the run>", command));
       const { record: record2, repeat } = appendOutcome(paths, id, outcome, by);
       return finish(0, `sidewise outcome ${record2.of} ${record2.outcome} \xB7 ${repeat ? "already recorded " : ""}by ${record2.by}`);
     }
@@ -13994,13 +14152,13 @@ async function dispatch(argv, ctx) {
       }
       if (sub !== "set") throw new UsageStop("budget", `"${clip(sub, 40)}" is not show, reset or set`);
       const twice = givenTwice(more, ["usd", "runs"]);
-      if (twice) return finish(2, twice);
+      if (twice) return finish(2, withAgentPointer(twice, command));
       const { usd, runs } = args("budget", { args: more, options: { usd: { type: "string" }, runs: { type: "string" } } }).values;
-      if (usd === void 0 && runs === void 0) return finish(2, `\u2716 budget: set needs --usd or --runs \u2192 ${BUDGET_EXAMPLE}`);
+      if (usd === void 0 && runs === void 0) return finish(2, withAgentPointer(`\u2716 budget: set needs --usd or --runs \u2192 ${BUDGET_EXAMPLE}`, command));
       const capUsd = usd === void 0 ? void 0 : cap("usd", usd);
       const capRuns = runs === void 0 ? void 0 : cap("runs", runs);
       const stops = [capUsd, capRuns].filter((v) => typeof v === "string");
-      if (stops.length) return finish(2, stops.join("\n"));
+      if (stops.length) return finish(2, withAgentPointer(stops.join("\n"), command));
       const caps = {
         ...typeof capUsd === "number" ? { capUsd } : {},
         ...typeof capRuns === "number" ? { capRuns } : {}
