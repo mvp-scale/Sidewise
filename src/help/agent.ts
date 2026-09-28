@@ -236,6 +236,22 @@ function templateCard(): string {
   );
 }
 
+/** `sidewise agent config`'s card (plan 2c B1): `sidewise config` is free, never writes, and works with or
+ *  without a project. Terse like every other tool card here — the full key list lives in `sidewise config`'s
+ *  own output (it prints every effective value plus its source), not repeated here. */
+function configCard(): string {
+  return renderCard(
+    ['tool: config'],
+    [
+      '- syntax: sidewise config',
+      '- free: never writes, never spends, works with or without a project',
+      '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, wise) and which of default/config/env it came from',
+      '- reads .sidewise/config.yaml if present — sparse overrides only, precedence env > config > default',
+      '- a bad config.yaml shows its ✖ problems here too, then the rest of the effective table underneath',
+    ],
+  );
+}
+
 /** `sidewise agent wise`'s legend card (plan 2c A5) — deliberately NOT built through `renderCard`: it has its
  *  own fixed shape (FIELDS/ARCHITECTURE/WRITE IT FLAT/EXAMPLE, no `rules:`/`patterns:`/`run:`), spelled out
  *  verbatim by the plan, so it's exempt from the "every card follows the same key order" invariant
@@ -312,6 +328,7 @@ const AGENT_TOPICS: Record<string, () => string> = {
   report: reportCard,
   template: templateCard,
   wise: wiseCard,
+  config: configCard,
 };
 const agentExtras = (): string[] => Object.keys(AGENT_TOPICS);
 /** Re-exported for the CLI's own usage line, the same way help/index.ts's HELP_EXTRAS already is. */

@@ -226,7 +226,7 @@ describe('runAgent: the overview\'s no-key hint', () => {
 // line(s) first, then `rules:`, then `patterns:` (only when the target has any), then `run:` (only when it
 // points further). [C-187]
 describe('every agent card follows the same key order', () => {
-  const NON_VERBS = ['probe', 'verdict', 'outcome', 'budget', 'report', 'template'] as const;
+  const NON_VERBS = ['probe', 'verdict', 'outcome', 'budget', 'report', 'template', 'config'] as const;
 
   /** 0 = an identifier line (verb:/verbs:/tool:/tools:, including the overview's "verbs (pick by goal):"
    *  header), 1 = rules:, 2 = patterns:, 3 = run: — undefined for any other line (a purpose/rule/pattern

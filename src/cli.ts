@@ -20,6 +20,8 @@ import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './b
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
 import { JevConfigError } from './classifier/typesafe/config.ts';
+import { runConfig } from './config/config.ts';
+import { classifierFileConfig, resolveConfig } from './config/load.ts';
 import { RUN_ID } from './ledger/ids.ts';
 import { LockError, StoreError } from './ledger/lock.ts';
 import { appendOutcome, findRun, isContractRun, LedgerError, type Outcome } from './ledger/log.ts';
@@ -76,6 +78,7 @@ const LINES = {
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
   doctor: 'sidewise doctor',
+  config: 'sidewise config',
   init: 'sidewise init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]',
   uninstall: 'sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]',
   mcp: 'sidewise mcp',
@@ -90,8 +93,10 @@ const USAGE = `${agentFrontDoorLines().join('\n')}\nusage:\n${Object.values(LINE
 const isCommand = (c: string): c is Command => Object.hasOwn(LINES, c);
 
 // The six verbs plus the four tools `sidewise agent` also carries a card for (report/outcome/budget/template) —
-// every other command (help, agent, doctor, init, uninstall, mcp) has no agent card to point at, so a stop from
-// one of those never gets the pointer below. Every stop a REQUEST can trigger already ends with this same
+// every other command (help, agent, doctor, config, init, uninstall, mcp) has no agent card to point at, so a
+// stop from one of those never gets the pointer below (config's own runConfig hand-writes its own "→ see:
+// sidewise agent config" line instead, the same way budget.ts's own errors do — see config/config.ts). Every
+// stop a REQUEST can trigger already ends with this same
 // pointer via verbs/request.ts's `stopText` (C-153); the additions here close the remaining gaps that never run
 // through that path — a bare CLI usage mistake, a request file cli.ts itself couldn't even read, a missing
 // project, and outcome/budget's own argument checks.
@@ -109,8 +114,12 @@ class UsageStop extends Error {
 
 const OUTCOMES: readonly string[] = ['held', 'overruled', 'failed'];
 const NO_PROJECT = '✖ project: no .sidewise or .git folder here or above → run inside a project, or "mkdir .sidewise" to start one here';
-const MAX_REQUEST_BYTES = 1_048_576;
-const TOO_BIG = '✖ request: larger than 1 MB → a request is a short text file; point "where:" at the code instead';
+// plan 2c B1: the default lives in config/defaults.ts's requestMaxBytes now (still 1_048_576) — a project can
+// lower or raise it via config.yaml; readRequest below takes the effective value as a parameter rather than
+// reading this constant directly, so every call site stays honest about where its own cap came from.
+const DEFAULT_REQUEST_MAX_BYTES = 1_048_576;
+const tooBig = (maxBytes: number): string =>
+  `✖ request: larger than ${maxBytes === DEFAULT_REQUEST_MAX_BYTES ? '1 MB' : `${maxBytes} bytes`} → a request is a short text file; point "where:" at the code instead`;
 
 /** Every existing call site prints text with no trailing newline (USAGE, a stop, budgetLine, the outcome
  *  confirmation); every contract response already ends in one (respondText/dryRunText). Add it only when
@@ -149,7 +158,7 @@ function givenTwice(argv: readonly string[], names: readonly string[]): string |
 /** The request text, or a stop: a folder, a missing file, over 1 MB, or binary. `stdinSource` stands in for fd
  *  0 when `file === '-'` — the real CLI reads real stdin; the MCP path hands back the tool call's own `stdin`
  *  string instead, so a `-` positional means the same thing either way. */
-function readRequest(file: string, stdinSource: () => Buffer): { text: string } | { stop: string } {
+function readRequest(file: string, stdinSource: () => Buffer, maxBytes: number = DEFAULT_REQUEST_MAX_BYTES): { text: string } | { stop: string } {
   if (hasControlChars(file)) return { stop: '✖ request: the file name has control characters → pass a plain path, or - to read stdin' };
   const shown = clip(file, 60);
   let bytes: Buffer;
@@ -157,7 +166,7 @@ function readRequest(file: string, stdinSource: () => Buffer): { text: string } 
     if (file !== '-') {
       const st = statSync(file);
       if (st.isDirectory()) return { stop: `✖ request: ${shown} is a folder → pass a request file, or - to read stdin` };
-      if (st.size > MAX_REQUEST_BYTES) return { stop: TOO_BIG };
+      if (st.size > maxBytes) return { stop: tooBig(maxBytes) };
     }
     bytes = file === '-' ? stdinSource() : readFileSync(file);
   } catch (e) {
@@ -165,7 +174,7 @@ function readRequest(file: string, stdinSource: () => Buffer): { text: string } 
     if (code === 'ENOENT') return { stop: `✖ request: ${shown} not found → check the path, or pass - to read stdin` };
     return { stop: `✖ request: cannot read ${shown} (${code ?? 'error'}) → check the path and its permissions` };
   }
-  if (bytes.length > MAX_REQUEST_BYTES) return { stop: TOO_BIG };
+  if (bytes.length > maxBytes) return { stop: tooBig(maxBytes) };
   if (bytes.includes(0)) return { stop: `✖ request: ${file === '-' ? 'stdin' : shown} is binary, not text → write the request as YAML, starting "side:"` };
   return { text: bytes.toString('utf8') };
 }
@@ -216,11 +225,12 @@ async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths
   if (twice) return finish(2, withAgentPointer(twice, command));
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { 'dry-run': { type: 'boolean', default: false } } });
   positionalCount(command, positionals, 1, 1);
-  const read = readRequest(positionals[0]!, ctx.stdin);
+  const fileConfig = resolveConfig(paths, ctx.env);
+  const read = readRequest(positionals[0]!, ctx.stdin, fileConfig.config.requestMaxBytes);
   if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
   let provider: ClassifierPort;
   try {
-    provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json'), resolveStored: resolveStoredFor(ctx) });
+    provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json'), resolveStored: resolveStoredFor(ctx), fileConfig: classifierFileConfig(fileConfig.config) });
   } catch (e) {
     return finish(providerExit(e), (e as Error).message);
   }
@@ -238,15 +248,15 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, config, init, uninstall or mcp (sidewise --help)`);
   }
 
   // "<command> --help"/"-h" is answered here, generically, for every command, before that command's own
   // parseArgs ever sees it — otherwise a command with no --help option of its own (every one of them; none
   // defines a -h shorthand) would reject it as an unknown flag (this is what "doctor --help" used to do).
   // Only the six verbs have a deeper per-verb page (help <verb> / agent <verb> — see src/help/index.ts and
-  // src/help/agent.ts); every other command (help, agent, report, outcome, budget, doctor, init, uninstall,
-  // mcp, template) has no such page today, so it gets just its usage line, not a pointer to a page that
+  // src/help/agent.ts); every other command (help, agent, report, outcome, budget, doctor, config, init,
+  // uninstall, mcp, template) has no such page today, so it gets just its usage line, not a pointer to a page that
   // doesn't exist. Runs ahead of the Node-version guard below: like the bare --help/-h above, this never
   // spends or touches the ledger, so it's free even on too old a Node.
   if (rest.includes('--help') || rest.includes('-h')) {
@@ -313,6 +323,17 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       runner: ctx.runner,
       platform: ctx.platform,
     });
+    return finish(r.exit, r.text);
+  }
+
+  // config: free, like doctor — works with or without a project (no project just means every value shown is a
+  // default, since there's nowhere for config.yaml to live). Never spends or writes.
+  if (command === 'config') {
+    const { positionals } = args('config', { args: rest, allowPositionals: true, options: {} });
+    positionalCount('config', positionals, 0, 0);
+    const configPaths = resolvePaths(ctx.cwd, ctx.env);
+    const projectLine = configPaths ? path.relative(ctx.cwd, configPaths.root) || '.' : 'none';
+    const r = runConfig(ctx.env, configPaths, projectLine);
     return finish(r.exit, r.text);
   }
 
@@ -510,13 +531,17 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         text = stringify({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount('replay', positionals, 1, 1);
-        const read = readRequest(positionals[0]!, ctx.stdin);
+        const read = readRequest(positionals[0]!, ctx.stdin, resolveConfig(paths, ctx.env).config.requestMaxBytes);
         if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
         text = read.text;
       }
       let provider: ClassifierPort;
       try {
-        provider = selectProvider(ctx.env, { chaosState: path.join(paths.dir, 'chaos.json'), resolveStored: resolveStoredFor(ctx) });
+        provider = selectProvider(ctx.env, {
+          chaosState: path.join(paths.dir, 'chaos.json'),
+          resolveStored: resolveStoredFor(ctx),
+          fileConfig: classifierFileConfig(resolveConfig(paths, ctx.env).config),
+        });
       } catch (e) {
         return finish(providerExit(e), (e as Error).message);
       }
