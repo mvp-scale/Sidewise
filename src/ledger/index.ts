@@ -128,8 +128,11 @@ export interface PatternRow {
 /** One row of a future `sidewise report families`: a concern `family`, how many categories (across every run)
  *  carried it, how many distinct runs that touched, and those categories' own pass/fail/unsure split — plan
  *  2b's "family per category as queryable". Counted per CATEGORY, not per run: a run with two categories of the
- *  same family (rare, but the schema allows it) counts twice, since each category has its own gate. */
-export interface FamilyRow {
+ *  same family (rare, but the schema allows it) counts twice, since each category has its own gate. Not exported:
+ *  the report command that would consume this is explicitly out of scope for this plan ("the report re-key on
+ *  family" — lab/plans/2026-09-28-plan-2b-unified-contract.md's own "Out of scope" list); `familyCounts()`
+ *  itself stays, proven correct (both index engines agree) so that future command has real, tested data to read. */
+interface FamilyRow {
   family: string;
   categories: number;
   runs: number;
