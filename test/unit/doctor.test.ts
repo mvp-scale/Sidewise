@@ -166,6 +166,21 @@ describe('doctor (P5)', () => {
       expect(r.text).toContain('key: no  → run "sidewise init" to add one');
     });
 
+    // [C-190] Inside the plugin's own bundled MCP server (CLAUDE_PLUGIN_ROOT set), "sidewise init" isn't
+    // reachable from here, so the hint points at the config dialog instead.
+    it('no key, inside the plugin (CLAUDE_PLUGIN_ROOT set): points at /plugin → Sidewise → Configure', () => {
+      const r = runDoctor({ CLAUDE_PLUGIN_ROOT: '/plugins/sidewise' }, undefined);
+      expect(r.text).toContain(
+        'key: none (sample answers only) → /plugin → Sidewise → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration',
+      );
+      expect(r.text).not.toContain('run "sidewise init" to add one');
+    });
+
+    it('no key, CLAUDE_PLUGIN_ROOT blank: still the terminal hint, not the plugin one', () => {
+      const r = runDoctor({ CLAUDE_PLUGIN_ROOT: '' }, undefined);
+      expect(r.text).toContain('key: no  → run "sidewise init" to add one');
+    });
+
     it('an env key, with no deps.resolveStored injected: named by its env var, no "(overrides stored)"', () => {
       const key = 'sk-' + 'C'.repeat(24);
       const r = runDoctor({ TYPESAFE_API_KEY: key }, undefined);

@@ -279,7 +279,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (command === 'agent') {
     const { positionals } = args('agent', { args: rest, allowPositionals: true, options: {} });
     positionalCount('agent', positionals, 0, 1);
-    const r = runAgent(positionals[0]);
+    const r = runAgent(positionals[0], ctx.env, { resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env) });
     return finish(r.exit, r.text);
   }
 

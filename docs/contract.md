@@ -876,12 +876,23 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   doing so would attribute the call to whoever's git identity is configured there, typically the human owner,
   not the agent making the call. An explicit `SIDEWISE_ACTOR` always wins over this default, and `sidewise
   doctor` shows the actor that will actually be used. [C-143]
-- The plugin's own configuration (`userConfig`) offers two masked, optional fields — a TypeSafe API key and an
-  AI Gateway key. Leaving both empty means the free fake provider, exactly as on the terminal path. [C-104]
-- An empty string substituted for either key (Claude Code's own behaviour for a blank optional value is
+- The plugin's own configuration (`userConfig`) offers one masked, optional field — a TypeSafe API key. Leaving
+  it empty means the free fake provider, exactly as on the terminal path. The AI Gateway route is env-only for
+  the plugin: `AI_GATEWAY_API_KEY` stays a CLI-level environment variable (C-097), but the plugin's own config
+  no longer exposes a field for it or maps it into the bundled MCP server's environment — a plugin user who
+  wants the gateway route sets `AI_GATEWAY_API_KEY` in their own environment instead. [C-104]
+- An empty string substituted for the key (Claude Code's own behaviour for a blank optional value is
   undocumented — it may substitute `""` or omit the variable entirely) counts as no key everywhere key
   resolution happens, and resolution still falls through to the OS keychain or the user credentials file
-  rather than treating the empty string as a real, empty key. [C-105]
+  rather than treating the empty string as a real, empty key. The same rule applies to `AI_GATEWAY_API_KEY`
+  when a plugin user sets it directly in their own environment, even though it no longer comes from the
+  plugin's own `userConfig` substitution. [C-105]
+- With no key configured, `doctor`'s `key:` line and `sidewise agent`'s overview (one extra `run:` line at the
+  end, only when there is no key) both say how to add one, from the same plugin-context check: inside the
+  plugin's own bundled MCP server (`CLAUDE_PLUGIN_ROOT` set in the process environment — present there and
+  nowhere else, per Claude Code's plugins-reference docs) the hint is `/plugin → Sidewise → Configure → press
+  Enter on "TypeSafe API key", paste, Enter, Save configuration`; outside it (a bare terminal, or another MCP
+  client) the hint stays `sidewise init` to add one. [C-190]
 - Node ≥ 22.13 is a hard requirement, checked once at the top of the CLI's whole dispatch —
   before any command does anything real, and again inside `sidewise mcp` for every `tools/call`. On an older
   Node, every command exits 2 with exactly `✖ node: v<version> is too old → install Node 22.13 or newer (it

@@ -95,7 +95,11 @@ Requires Node 22.13 or newer — it's what the ledger's `node:sqlite` index runs
 /plugin install sidewise@mvp-scale
 ```
 
-Claude prompts for a TypeSafe API key and an AI Gateway key (both masked, both optional — leave them empty to use the free fake provider). The plugin bundles its own CLI and its own MCP tool; nothing else to install, no npm, no PATH. Testing from a clone of this repo: `/plugin marketplace add /path/to/your/clone` instead of the GitHub form.
+Claude prompts for a TypeSafe API key (masked, optional — leave it empty to use the free fake provider):
+
+1. Press Enter on "TypeSafe API key", paste your key, press Enter, then choose "Save configuration".
+
+The plugin bundles its own CLI and its own MCP tool; nothing else to install, no npm, no PATH. Want the AI Gateway route instead? The plugin's config only offers the TypeSafe key — set `AI_GATEWAY_API_KEY` in your own environment; the CLI reads it the same way it always has. Testing from a clone of this repo: `/plugin marketplace add /path/to/your/clone` instead of the GitHub form.
 
 `/plugin` defaults to installing at **user** scope (every project); Sidewise is scoped per project, so pick **project** scope in the prompt if you can, or run `sidewise init --scope project` afterward to fix it — `sidewise doctor` names the scope it finds and nudges you if it's user-only.
 

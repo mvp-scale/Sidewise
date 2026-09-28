@@ -27,7 +27,7 @@ import type { SidewisePaths } from '../ledger/paths.ts';
 import { envFilePath, looseFileModeWarning, readEnvFile } from '../setup/env-file.ts';
 import { readInstallRecord } from '../setup/install-record.ts';
 import { findOnPath } from '../setup/npm-info.ts';
-import { pluginStatus } from '../setup/plugin.ts';
+import { inPluginContext, NO_KEY_PLUGIN_HINT, pluginStatus } from '../setup/plugin.ts';
 import type { Runner } from '../setup/runner.ts';
 import { doctorNodeValue, DOCTOR_INDEX_TOO_OLD, nodeVersionOk } from '../util/node-version.ts';
 import type { VerbResult } from './types.ts';
@@ -70,11 +70,18 @@ function actorLine(env: Record<string, string | undefined>): string {
 // Each of these builds the VALUE half only — emit()'s m() already renders "key: <value>" from the map entry,
 // so a literal "key: " here would double up (caught by doctor.test.ts before this file ever shipped it).
 
+/** The no-key hint: inside the plugin's own MCP server (CLAUDE_PLUGIN_ROOT set — see setup/plugin.ts's
+ *  `inPluginContext`), `sidewise init` isn't reachable from here, so point at the config dialog instead; a bare
+ *  terminal (or another MCP client) keeps the original hint. */
+function noKeyHint(env: Record<string, string | undefined>): string {
+  return inPluginContext(env) ? `none (sample answers only) → ${NO_KEY_PLUGIN_HINT}` : 'no  → run "sidewise init" to add one';
+}
+
 /** The `key:` value, plus, when the env file's mode is looser than 0600 or it has an ignored line, a matching
  *  note. `deps.resolveStored` omitted (the default for every caller but cli.ts) never looks past env — see the
  *  module doc. */
 function keyLine(env: Record<string, string | undefined>, config: JevConfig, deps: { resolveStored?: ResolveStored }): { value: string; note?: string } {
-  if (!config.apiKey) return { value: 'no  → run "sidewise init" to add one' };
+  if (!config.apiKey) return { value: noKeyHint(env) };
   if (config.keySource === 'keychain') {
     return { value: 'yes · from OS keychain (encrypted, per user)' };
   }

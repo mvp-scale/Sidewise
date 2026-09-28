@@ -1,8 +1,10 @@
-// The plugin's userConfig substitutes an empty string into TYPESAFE_API_KEY/AI_GATEWAY_API_KEY's env when a
-// user leaves either field blank (Claude Code's own substitution behaviour for an unset sensitive value is
-// undocumented — could be "" or the key simply omitted — so this pins the defensive, working case). [C-104]
-// An empty string must count as "no key" everywhere key resolution happens, and still fall through to a stored
-// key (the OS keychain or the user credentials file) rather than being treated as a real, empty key. [C-105]
+// The plugin's userConfig substitutes an empty string into TYPESAFE_API_KEY's env when the user leaves the
+// field blank (Claude Code's own substitution behaviour for an unset sensitive value is undocumented — could
+// be "" or the key simply omitted — so this pins the defensive, working case). [C-104] AI_GATEWAY_API_KEY is
+// env-only for the plugin now (no userConfig field maps it in), but the CLI still reads it directly, and the
+// same empty-string handling applies whenever a caller sets it that way. An empty string must count as "no
+// key" everywhere key resolution happens, and still fall through to a stored key (the OS keychain or the user
+// credentials file) rather than being treated as a real, empty key. [C-105]
 import { describe, expect, it } from 'vitest';
 import { hasKey, resolveJevConfig, type StoredKey } from '../../src/classifier/typesafe/config.ts';
 

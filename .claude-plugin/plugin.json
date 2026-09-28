@@ -11,15 +11,8 @@
   "userConfig": {
     "typesafe_api_key": {
       "type": "string",
-      "title": "TypeSafe API key",
-      "description": "From TypeSafe; leave empty to use the free fake provider.",
-      "sensitive": true,
-      "required": false
-    },
-    "ai_gateway_api_key": {
-      "type": "string",
-      "title": "AI Gateway API key",
-      "description": "From TypeSafe via the AI Gateway; leave empty to use the free fake provider.",
+      "title": "TypeSafe API key: press Enter here, then paste",
+      "description": "Press Enter, paste your key, press Enter, then choose \"Save configuration\". Stored masked in Claude Code's secure storage. No key: sample answers only.",
       "sensitive": true,
       "required": false
     }

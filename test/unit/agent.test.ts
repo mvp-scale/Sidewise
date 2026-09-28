@@ -125,6 +125,35 @@ describe('runAgent', () => {
   });
 });
 
+// [C-190] The overview's own no-key hint: one extra `run:` line, only when no key is configured, using the
+// same plugin-context detection doctor's `key:` line uses.
+describe('runAgent: the overview\'s no-key hint', () => {
+  it('with a key configured: no hint line at all', () => {
+    const text = runAgent(undefined, { TYPESAFE_API_KEY: 'sk-real-key' }).text;
+    expect(text).not.toContain('run: no key');
+  });
+
+  it('no key, outside the plugin: points at "sidewise init"', () => {
+    const text = runAgent(undefined, {}).text;
+    expect(text).toContain('run: no key → sidewise init to add one');
+    expect(text).not.toContain('/plugin');
+  });
+
+  it('no key, inside the plugin (CLAUDE_PLUGIN_ROOT set): points at /plugin → Sidewise → Configure', () => {
+    const text = runAgent(undefined, { CLAUDE_PLUGIN_ROOT: '/plugins/sidewise' }).text;
+    expect(text).toContain('run: no key (sample answers only) → /plugin → Sidewise → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration');
+  });
+
+  it('a verb card is never affected by env — no key info leaks into it', () => {
+    const text = runAgent('class', {}).text;
+    expect(text).not.toContain('run: no key');
+  });
+
+  it('a bad SIDEWISE_BASE_URL never crashes the overview — it just skips the hint', () => {
+    expect(() => runAgent(undefined, { SIDEWISE_BASE_URL: 'not a url' })).not.toThrow();
+  });
+});
+
 // Every card `agent` prints — the overview and each verb/tool — is built in one fixed shape: identifier
 // line(s) first, then `rules:`, then `patterns:` (only when the target has any), then `run:` (only when it
 // points further). [C-187]

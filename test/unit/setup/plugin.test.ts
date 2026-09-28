@@ -6,8 +6,10 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   addMarketplace,
+  inPluginContext,
   installPlugin,
   marketplaceExists,
+  NO_KEY_PLUGIN_HINT,
   pluginCacheDir,
   pluginStatus,
   type PluginStatus,
@@ -67,6 +69,20 @@ describe('the exact commands (spec-literal)', () => {
       { cmd: 'claude', args: ['plugin', 'uninstall', 'sidewise@mvp-scale', '--scope', 'project'] },
       { cmd: 'claude', args: ['plugin', 'marketplace', 'remove', 'mvp-scale'] },
     ]);
+  });
+});
+
+// [C-190] doctor's key: line and agent's overview no-key hint both branch on this.
+describe('inPluginContext', () => {
+  it('true only when CLAUDE_PLUGIN_ROOT is set to a non-blank value', () => {
+    expect(inPluginContext({ CLAUDE_PLUGIN_ROOT: '/some/plugin/dir' })).toBe(true);
+    expect(inPluginContext({})).toBe(false);
+    expect(inPluginContext({ CLAUDE_PLUGIN_ROOT: '' })).toBe(false);
+    expect(inPluginContext({ CLAUDE_PLUGIN_ROOT: '   ' })).toBe(false);
+  });
+
+  it('NO_KEY_PLUGIN_HINT names the exact config-dialog keystrokes', () => {
+    expect(NO_KEY_PLUGIN_HINT).toBe('/plugin → Sidewise → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration');
   });
 });
 

@@ -19,6 +19,11 @@
  * `TOOL_LINE` are the one shared source `help`'s own one-screen card (card.ts) renders too, so the two views
  * can't state a different purpose for the same command. [C-189]
  *
+ * The overview also carries one extra `run:` line, appended only when no key is configured: inside the
+ * plugin's own MCP server it points at `/plugin → Sidewise → Configure`, everywhere else at `sidewise init` —
+ * the same detection and the same wording `doctor`'s `key:` line uses (setup/plugin.ts's `inPluginContext` and
+ * `NO_KEY_PLUGIN_HINT`), so the two views can't drift on how to add a key.
+ *
  * `probe`/`outcome`/`budget`/`report`/`template` are recognized non-verb targets too
  * (round 3 smoke testing: `outcome` was undocumented in both `help` and `agent`, round3-findings.md's
  * "PRODUCT, confirmed" finding; `budget`/`report` got the same treatment for consistency; `template` — a real
@@ -31,7 +36,9 @@
  * `args[0]` in the same dispatch — and the tool's own description (src/mcp/protocol.ts) now tells a cold agent
  * to call this first, before anything else.
  */
+import { hasKey, resolveJevConfig, type ResolveStored } from '../classifier/typesafe/client.ts';
 import { VERBS, type Verb } from '../contract/types.ts';
+import { inPluginContext, NO_KEY_PLUGIN_HINT } from '../setup/plugin.ts';
 import type { VerbResult } from '../verbs/types.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { terseLines } from './patterns.ts';
@@ -53,10 +60,26 @@ function renderCard(id: readonly string[], rules: readonly string[], patterns: r
  *  topic, not a "tool" a request calls out to, so it's pointed at with its own `run:` line instead (below). */
 export const AGENT_TOOLS = ['report', 'outcome', 'budget', 'template'] as const;
 
+/** One extra `run:` line, appended only when no key is configured: the same plugin-context detection doctor's
+ *  `key:` line uses (setup/plugin.ts's `inPluginContext`), so a cold agent reading the overview sees how to add
+ *  one without a separate `doctor` call. `resolveJevConfig` can throw on a bad `SIDEWISE_BASE_URL` — that's
+ *  `doctor`'s stop to report, not this free card's, so a bad config here just skips the hint rather than
+ *  crashing the overview. */
+function noKeyRunLine(env: Record<string, string | undefined>, deps: { resolveStored?: ResolveStored }): string[] {
+  let config;
+  try {
+    config = resolveJevConfig(env, deps);
+  } catch {
+    return [];
+  }
+  if (hasKey(config)) return [];
+  return [inPluginContext(env) ? `run: no key (sample answers only) → ${NO_KEY_PLUGIN_HINT}` : 'run: no key → sidewise init to add one'];
+}
+
 /** `verbs (pick by goal):` then `tools:`, each followed by one `- name: purpose` bullet per entry, from the
  *  same VERB_LINE/TOOL_LINE text `help`'s card renders (verbs.ts, report.ts) — never a second, divergent
  *  copy. [C-189] */
-function overview(): string {
+function overview(env: Record<string, string | undefined>, deps: { resolveStored?: ResolveStored }): string {
   return renderCard(
     [
       'verbs (pick by goal):',
@@ -66,7 +89,11 @@ function overview(): string {
     ],
     ruleLines('card'),
     [],
-    ['run: sidewise agent <verb|tool> — before writing that request', 'run: sidewise agent probe — before writing questions: how to phrase one'],
+    [
+      'run: sidewise agent <verb|tool> — before writing that request',
+      'run: sidewise agent probe — before writing questions: how to phrase one',
+      ...noKeyRunLine(env, deps),
+    ],
   );
 }
 
@@ -169,8 +196,15 @@ const agentExtras = (): string[] => Object.keys(AGENT_TOPICS);
 /** Re-exported for the CLI's own usage line, the same way help/index.ts's HELP_EXTRAS already is. */
 export const AGENT_EXTRAS: readonly string[] = Object.keys(AGENT_TOPICS);
 
-export function runAgent(target?: string): VerbResult {
-  if (target === undefined || target === '') return { exit: 0, text: overview() };
+/** `env`/`deps` default to an empty environment (no key, not inside the plugin) so every existing caller that
+ *  doesn't care about the no-key hint — every verb/tool card is unaffected by either — keeps working
+ *  unchanged; cli.ts's real wiring passes `ctx.env` and the same `resolveStored` doctor uses. */
+export function runAgent(
+  target?: string,
+  env: Record<string, string | undefined> = {},
+  deps: { resolveStored?: ResolveStored } = {},
+): VerbResult {
+  if (target === undefined || target === '') return { exit: 0, text: overview(env, deps) };
   if (hasControlChars(target)) return { exit: 2, text: '✖ agent: the target has control characters → use a verb name' };
   if (isVerb(target)) return { exit: 0, text: verbCard(target) };
   if (Object.hasOwn(AGENT_TOPICS, target)) return { exit: 0, text: AGENT_TOPICS[target]!() };

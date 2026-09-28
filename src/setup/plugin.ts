@@ -5,6 +5,12 @@
  * here is deliberately lenient: it walks whatever JSON comes back looking for an entry naming "sidewise", and
  * falls back to "not installed" rather than guessing at a shape. Every command below goes through the injected
  * Runner — nothing here ever shells out for real inside a test.
+ *
+ * `inPluginContext`/`NO_KEY_PLUGIN_HINT` are a separate, narrower concern: not "is the plugin installed"
+ * (above), but "is *this call* running as the plugin's own bundled MCP server" — the only place a no-key hint
+ * pointing at `/plugin → Sidewise → Configure` makes sense, as opposed to a bare terminal, where the hint is
+ * `sidewise init`. Both `doctor` and `agent` (src/verbs/doctor.ts, src/help/agent.ts) share this one check so
+ * neither can drift from the other on what "inside Claude Code" means.
  */
 import { existsSync, rmSync } from 'node:fs';
 import os from 'node:os';
@@ -75,3 +81,19 @@ export function removePluginCacheDir(homeDir: string = os.homedir()): boolean {
   rmSync(dir, { recursive: true, force: true });
   return true;
 }
+
+/** Whether this process is the plugin's own bundled MCP server (`sidewise mcp`, launched by Claude Code from
+ *  `.mcp.json`'s `${CLAUDE_PLUGIN_ROOT}/bin/sidewise.mjs`) rather than a bare terminal or another MCP client.
+ *  Claude Code exports `CLAUDE_PLUGIN_ROOT` into an MCP stdio server's own process environment (Claude Code's
+ *  plugins-reference docs, "Environment variables" table) — no other launch path sets it, so its mere presence
+ *  is the signal a no-key hint needs: pointing at `/plugin → Sidewise → Configure` only makes sense when
+ *  that's actually where the call came from. */
+export function inPluginContext(env: Record<string, string | undefined>): boolean {
+  return Boolean(env.CLAUDE_PLUGIN_ROOT?.trim());
+}
+
+/** The keystrokes for the plugin's one config field (userConfig has no placeholder/prompt-text field — see
+ *  plugin.json's own `typesafe_api_key.description`, which spells the same sequence out in full for the
+ *  config dialog itself). Shared verbatim by doctor's `key:` line and agent's no-key `run:` line so the two
+ *  views can't drift on the exact steps. */
+export const NO_KEY_PLUGIN_HINT = '/plugin → Sidewise → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration';
