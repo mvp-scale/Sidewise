@@ -8241,12 +8241,12 @@ function selectProvider(env = process.env, deps = {}) {
   if (wanted) throw new Error(`\u2716 provider: "${wanted}" is not a provider \u2192 use fake, chaos or typesafe`);
   return hasKey(resolveJevConfig(env, deps)) ? createTypesafeAdapter(env, deps) : createFakeAdapter();
 }
-function providerIdentity(env = process.env) {
+function providerIdentity(env = process.env, deps = {}) {
   const wanted = env.SIDEWISE_PROVIDER?.trim();
   if (wanted === "fake") return { adapter: "fake", model: FAKE_MODEL, route: "fake", baseURL: null };
   if (wanted === "chaos") return { adapter: "chaos", model: CHAOS_MODEL, route: "chaos", baseURL: null };
   try {
-    const config = resolveJevConfig(env);
+    const config = resolveJevConfig(env, deps);
     if (wanted === "typesafe" || hasKey(config)) return { adapter: "typesafe", model: config.model, route: routeLabel(config), baseURL: config.baseURL };
   } catch {
     return { adapter: "typesafe", model: "unknown", route: "custom", baseURL: null };
@@ -11448,7 +11448,7 @@ async function runChange(text, ctx) {
   if (parent.items !== null) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} was a sweep \u2192 run the sweep again (unchanged items are reused for free)`], "change") };
   const categories = parent.ask.categories;
   const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const compare = request.side.compare;
   const before = readGitEvidence(ctx.paths.root, compare.before, "before", paths);
   const after = readGitEvidence(ctx.paths.root, compare.after, "after", paths);
@@ -11615,7 +11615,7 @@ async function runClass(text, ctx) {
   const { request } = loaded;
   const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "class") };
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
@@ -12317,7 +12317,7 @@ var REDRILL_NEXT = "fix it, then run this drill again (unchanged items are reuse
 async function runOneSubjectProof(ctx, loaded, request, where, changeParent, evidenceOpts) {
   const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "drill") };
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
@@ -12463,7 +12463,7 @@ async function runDrill(text, ctx) {
     }
     const notes = [];
     const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-    const identity = providerIdentity(ctx.env);
+    const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
     const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
     if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
     const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
@@ -12544,7 +12544,7 @@ async function runLoop(text, ctx) {
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
@@ -12735,7 +12735,7 @@ async function runScan(text, ctx) {
   const { request } = loaded;
   const notes = [];
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
-  const identity = providerIdentity(ctx.env);
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
   const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
@@ -12848,10 +12848,10 @@ function askToWire(run) {
   return out;
 }
 function fromRunId(id, flags, paths) {
-  if (!paths) return { exit: 2, text: `\u2716 template: --from "${id}" needs a project to look up the ledger \u2192 run inside one, or point --from at a request file` };
+  if (!paths) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" needs a project to look up the ledger \u2192 run inside one, or point --from at a request file`], "template") };
   const run = findRun(paths, id);
-  if (!run) return { exit: 2, text: `\u2716 template: --from "${id}" is not in the ledger \u2192 check the id, or point --from at a request file` };
-  if (!isContractRun(run)) return { exit: 2, text: `\u2716 template: --from "${id}" predates the YAML contract \u2192 point --from at a request file instead` };
+  if (!run) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" is not in the ledger \u2192 check the id, or point --from at a request file`], "template") };
+  if (!isContractRun(run)) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" predates the YAML contract \u2192 point --from at a request file instead`], "template") };
   const side = run.verb === "change" ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare } : {
     verb: run.verb,
     goal: run.goal,
@@ -12875,28 +12875,34 @@ function fromFile(from, flags) {
   } catch (e) {
     const code = e.code;
     const shown2 = clip(from, 60);
-    return { exit: 2, text: `\u2716 template: --from "${shown2}" ${code === "ENOENT" ? "not found" : "cannot be read"} \u2192 check the path` };
+    return { exit: 2, text: stopText([`\u2716 template: --from "${shown2}" ${code === "ENOENT" ? "not found" : "cannot be read"} \u2192 check the path`], "template") };
   }
   let doc;
   try {
     doc = (0, import_yaml2.parseDocument)(raw);
   } catch {
-    return { exit: 2, text: `\u2716 template: --from "${clip(from, 60)}" is not valid YAML \u2192 point at a Sidewise request file` };
+    return { exit: 2, text: stopText([`\u2716 template: --from "${clip(from, 60)}" is not valid YAML \u2192 point at a Sidewise request file`], "template") };
   }
-  if (!doc.has("side")) return { exit: 2, text: `\u2716 template: --from "${clip(from, 60)}" has no side: block \u2192 point at a Sidewise request file` };
+  if (!doc.has("side")) return { exit: 2, text: stopText([`\u2716 template: --from "${clip(from, 60)}" has no side: block \u2192 point at a Sidewise request file`], "template") };
   if (flags.goal !== void 0) doc.setIn(["side", "goal"], flags.goal);
   if (flags.where !== void 0) doc.setIn(["side", "where"], flags.where);
   return { exit: 0, text: doc.toString() };
 }
 function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR) {
-  if (!VERBS.includes(target)) return { exit: 2, text: `\u2716 template: "${clip(target, 30)}" is not a verb \u2192 one of ${VERBS.join(", ")}` };
+  if (!VERBS.includes(target)) return { exit: 2, text: stopText([`\u2716 template: "${clip(target, 30)}" is not a verb \u2192 one of ${VERBS.join(", ")}`], "template") };
   if (flags.parent !== void 0) {
-    if (target !== "drill") return { exit: 2, text: `\u2716 template: --parent only applies to drill \u2192 sidewise template ${target}` };
+    if (target !== "drill") return { exit: 2, text: stopText([`\u2716 template: --parent only applies to drill \u2192 sidewise template ${target}`], "template") };
     if (flags.from === void 0) {
-      return { exit: 2, text: "\u2716 template drill: needs both --parent and --from, or neither \u2192 sidewise template drill --parent SW-#### --from <item or category>" };
+      return {
+        exit: 2,
+        text: stopText(["\u2716 template drill: needs both --parent and --from, or neither \u2192 sidewise template drill --parent SW-#### --from <item or category>"], "template")
+      };
     }
     if (flags.where !== void 0 || flags.goal !== void 0) {
-      return { exit: 2, text: "\u2716 template: --where/--goal don't apply with --parent \u2192 they overlay a checklist read from --from <request.yaml> instead" };
+      return {
+        exit: 2,
+        text: stopText(["\u2716 template: --where/--goal don't apply with --parent \u2192 they overlay a checklist read from --from <request.yaml> instead"], "template")
+      };
     }
     const file = drillSampleFile(flags.parent, paths);
     const raw = readFileSync13(path17.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
@@ -12907,7 +12913,7 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
   }
   if (flags.from !== void 0) return RUN_ID.test(flags.from) ? fromRunId(flags.from, flags, paths) : fromFile(flags.from, flags);
   if (flags.where !== void 0 || flags.goal !== void 0) {
-    return { exit: 2, text: `\u2716 template: --where/--goal need --from \u2192 sidewise template ${target} --from <request.yaml>` };
+    return { exit: 2, text: stopText([`\u2716 template: --where/--goal need --from \u2192 sidewise template ${target} --from <request.yaml>`], "template") };
   }
   return { exit: 0, text: readFileSync13(path17.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
 }
@@ -13112,7 +13118,7 @@ function runRequestMode(text, ctx) {
     const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
     const evidenceStr = subjectEvidence(evidence.evidence.files);
     const keys = questions.map((q) => answerKey(evidenceStr, q));
-    const who = providerIdentity(ctx.env);
+    const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
     reuse2 = exactReuse(ctx.paths, who, keys);
   }
   const next = reuse2 ? `sidewise view ${reuse2}` : "sidewise class";
@@ -13887,6 +13893,7 @@ function cap(flag, raw) {
   return raw.trim() !== "" && Number.isFinite(n) && n > 0 ? n : `\u2716 budget: --${flag} must be a positive number, got "${raw}" \u2192 ${BUDGET_EXAMPLE}`;
 }
 var RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop };
+var resolveStoredFor = (c) => () => resolveStoredKey(c.runner, c.platform, c.env);
 var providerExit = (e) => e instanceof JevConfigError ? e.exit : 1;
 async function runSweptVerb(command, rest, paths, ctx) {
   const twice = givenTwice(rest, ["dry-run"]);
@@ -13897,11 +13904,11 @@ async function runSweptVerb(command, rest, paths, ctx) {
   if ("stop" in read2) return finish(2, withAgentPointer(read2.stop, command));
   let provider;
   try {
-    provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json") });
+    provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json"), resolveStored: resolveStoredFor(ctx) });
   } catch (e) {
     return finish(providerExit(e), e.message);
   }
-  const r = await RUNNERS[command](read2.text, { paths, provider, env: ctx.env, dryRun: values["dry-run"] });
+  const r = await RUNNERS[command](read2.text, { paths, provider, env: ctx.env, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
   return finish(r.exit, r.text);
 }
 async function dispatch(argv, ctx) {
@@ -14075,7 +14082,7 @@ async function dispatch(argv, ctx) {
         } catch {
         }
       }
-      const r = runView(arg, Number(values.level), { paths, env: ctx.env }, content, values.summary);
+      const r = runView(arg, Number(values.level), { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary);
       return finish(r.exit, r.text);
     }
     case "report": {
@@ -14119,11 +14126,11 @@ async function dispatch(argv, ctx) {
       }
       let provider;
       try {
-        provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json") });
+        provider = selectProvider(ctx.env, { chaosState: path19.join(paths.dir, "chaos.json"), resolveStored: resolveStoredFor(ctx) });
       } catch (e) {
         return finish(providerExit(e), e.message);
       }
-      const r = await runChange(text, { paths, provider, env: ctx.env, dryRun: values["dry-run"] });
+      const r = await runChange(text, { paths, provider, env: ctx.env, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case "outcome": {
