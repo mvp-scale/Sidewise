@@ -7,6 +7,7 @@ import type { Answer, Category } from '../../src/contract/types.ts';
 const yes = (p: number): Answer => ({ kind: 'yesno', p });
 const cat = (name: string, pass: Category['pass'], nums: number[], need: Category['need'] = 'all'): Category => ({
   name,
+  section: 'concerns',
   pass,
   need,
   tags: [],
@@ -22,7 +23,7 @@ describe('the bar', () => {
   });
 
   it('scale and choice: the total probability of the passing levels or options [C-027]', () => {
-    const sev: Category = { name: 'sev', pass: ['none', 'low'], need: 'all', tags: [], questions: [{ n: 11, kind: 'scale', text: 'How bad?', levels: ['none', 'low', 'high'] }] };
+    const sev: Category = { name: 'sev', section: 'decisions', pass: ['none', 'low'], need: 'all', tags: [], questions: [{ n: 11, kind: 'scale', text: 'How bad?', levels: ['none', 'low', 'high'] }] };
     expect(passingProbability(sev, { kind: 'scale', dist: { none: 0.4, low: 0.35, high: 0.25 } })).toBeCloseTo(0.75, 12);
     expect(markOf(passingProbability(sev, { kind: 'scale', dist: { none: 0.3, low: 0.3, high: 0.4 } }))).toBe('mid');
     expect(markOf(passingProbability(sev, { kind: 'scale', dist: { none: 0.05, low: 0.05, high: 0.9 } }))).toBe('miss');
@@ -93,6 +94,7 @@ describe('gradeItems (the contract loop example)', () => {
 describe('worstFirst: a scale question ranks by severity (level × p), not just fail/unsure counts [C-145]', () => {
   const severity: Category = {
     name: 'severity',
+    section: 'decisions',
     pass: ['none', 'low'],
     need: 'all',
     tags: [],
@@ -117,7 +119,7 @@ describe('worstFirst: a scale question ranks by severity (level × p), not just 
   });
 
   it('a yes/no-only sweep (no scale question) keeps the original fail/unsure-count ordering unchanged', () => {
-    const yesnoOnly = { name: 'x', pass: 'no' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'bad?' }] };
+    const yesnoOnly = { name: 'x', section: 'concerns' as const, pass: 'no' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'bad?' }] };
     const answers: Record<string, Answer> = { 'b#1': yes(0.9), 'a#1': yes(0.9) };
     const grades = gradeItems(flatItems, () => [yesnoOnly], () => 'asked', answers);
     expect(worstFirst(grades.values()).map((g) => g.id)).toEqual(['b', 'a']); // unchanged: original order

@@ -6,7 +6,7 @@ import { appendContractRun } from '../../src/ledger/log.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleContractRun } from '../helpers/runs.ts';
 
-const GUARDS = { name: 'guards', pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Is it guarded?' }] };
+const GUARDS = { name: 'guards', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Is it guarded?' }] };
 
 describe('staleNotes', () => {
   it('dedupes by origin: several reuse copies of one run produce exactly one stale note, not one each', () => {

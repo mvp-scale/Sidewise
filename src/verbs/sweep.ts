@@ -11,7 +11,7 @@
  * sweepDryRun/recordSweep are the two bits of a sweep verb's own wiring (its --dry-run reply and its
  * paid/free ledger epilogue) that don't vary by verb at all — loop, scan and drill share them verbatim.
  */
-import { DEPTH_COUNT } from '../contract/types.ts';
+import { SWEEP_ITEM_CAP } from '../contract/types.ts';
 import type { Answer, Request, Verb } from '../contract/types.ts';
 import { expand, type ExpandOptions, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, itemQuestions, itemsState, type AskedQuestion } from '../contract/translate.ts';
@@ -103,7 +103,7 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
   // One lookup for every key collected above — not one per item.
   const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun });
 
-  const cap = DEPTH_COUNT[request.side.depth ?? 'quick'];
+  const cap = SWEEP_ITEM_CAP[request.side.depth ?? 'quick'];
   const keys = new Map<string, string>();
   const reusedFrom = new Map<string, string>();
   const answers: Record<string, Answer> = {};

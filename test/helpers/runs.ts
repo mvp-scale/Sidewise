@@ -36,7 +36,7 @@ export function sampleContractRun(over: Partial<NewContractRun> = {}): NewContra
     from: null,
     compare: null,
     wise: { why: 'validate', area: 'api' },
-    ask: { categories: [{ name: 'injection', pass: 'no', need: 'all', tags: ['sql'], questions: [{ n: 1, kind: 'yesno', text: 'Is request text in the query?' }] }], layers: [] },
+    ask: { categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: ['sql'], questions: [{ n: 1, kind: 'yesno', text: 'Is request text in the query?' }] }], layers: [] },
     over: null,
     items: null,
     answers: { goal: { kind: 'yesno', p: 0.2 }, 1: { kind: 'yesno', p: 0.9 } },

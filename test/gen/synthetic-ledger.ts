@@ -109,6 +109,7 @@ function buildContractRun(
   }
   const category: Category = {
     name: tag,
+    section: 'concerns',
     pass: pick(rand, ['yes', 'no'] as const),
     need: 'all',
     tags: [tag],

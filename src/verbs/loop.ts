@@ -73,7 +73,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
     goal: request.side.goal,
     depth: request.side.depth ?? null,
     where: request.side.where,
-    parent: null,
+    parent: request.side.parent ?? request.wise?.parent ?? null,
     from: null,
     compare: null,
     wise: request.wise,

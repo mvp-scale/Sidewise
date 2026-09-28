@@ -181,6 +181,7 @@ export function summarize(count: number): string {
 
 const categoryOf = (c: Case): Category => ({
   name: c.name,
+  section: 'concerns',
   pass: c.pass,
   need: 'all',
   tags: [],

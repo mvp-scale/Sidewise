@@ -53,7 +53,7 @@ describe('runReport', () => {
     const { root, paths } = tempProject({ 'src/user.ts': 'original code' });
     const run = sampleContractRun({
       where: ['src/user.ts'],
-      ask: { categories: [{ name: 'guards', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'Is it guarded?' }] }], layers: [] },
+      ask: { categories: [{ name: 'guards', section: 'concerns', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'Is it guarded?' }] }], layers: [] },
       categories: { guards: 'pass' },
       keys: { goal: 'k-goal', '1': 'k-1-on-original-code' }, // deliberately not the real hash: forces a mismatch below
     });
@@ -74,7 +74,7 @@ describe('runReport', () => {
         paths,
         sampleContractRun({
           where: [`src/f${i}.ts`],
-          ask: { categories: [{ name: `cat${i}`, pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: `q${i}?` }] }], layers: [] },
+          ask: { categories: [{ name: `cat${i}`, section: 'concerns', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: `q${i}?` }] }], layers: [] },
           categories: { [`cat${i}`]: i === 0 ? 'fail' : 'pass' }, // f0 sorts first (worst gate) — inside the cap
           keys: { goal: 'k-goal', '1': 'k-1-on-original-code' },
         }),
@@ -115,7 +115,7 @@ describe('runReport', () => {
   it('[C-165] history: no events yet says so plainly, else merges change results and outcomes newest first', () => {
     const { paths } = tempProject({});
     expect(runReport('history', { paths }).text).toBe('sidewise report history · nothing yet → run "change" or "outcome" to start one');
-    const oneQuestion = { name: 'guards', pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'q1?' }] };
+    const oneQuestion = { name: 'guards', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'q1?' }] };
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { guards: 'fail' } }), Date.now(), 'b'); // SW-0001
     appendContractRun(
       paths,
@@ -138,6 +138,7 @@ describe('runReport', () => {
     // stored after-gate is 'pass'.
     const threeQuestions = {
       name: 'guards',
+      section: 'concerns' as const,
       pass: 'yes' as const,
       need: 'any' as const,
       tags: [],
@@ -198,7 +199,7 @@ describe('runReport', () => {
         paths,
         sampleContractRun({
           where: [`src/f${i}.ts`],
-          ask: { categories: [{ name: `cat${i}`, pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: `question ${i}?` }] }], layers: [] },
+          ask: { categories: [{ name: `cat${i}`, section: 'concerns', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: `question ${i}?` }] }], layers: [] },
           categories: { [`cat${i}`]: 'pass' },
         }),
         Date.now(),

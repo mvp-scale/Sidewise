@@ -19,12 +19,12 @@ import {
   wiseRecorded,
 } from '../../src/verbs/respond.ts';
 
-const cat = (name: string, pass: Category['pass'], nums: number[]): Category => ({ name, pass, need: 'all', tags: [], questions: nums.map((n) => ({ n, kind: 'yesno' as const, text: `Is ${n}?` })) });
+const cat = (name: string, pass: Category['pass'], nums: number[]): Category => ({ name, section: 'concerns', pass, need: 'all', tags: [], questions: nums.map((n) => ({ n, kind: 'yesno' as const, text: `Is ${n}?` })) });
 
 /** A minimal one-subject Side: only `categories`/`where` vary per test; every other field is a fixed filler. */
 const side = (categories: Category[], where: string[] = []): Side => ({ goal: 'x', where, categories, layers: [] });
 /** One category, one yes/no question with the given text — everything probeWarnings' own tests vary. */
-const oneQuestion = (text: string): Category => ({ name: 'a', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text }] });
+const oneQuestion = (text: string): Category => ({ name: 'a', section: 'concerns', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text }] });
 
 describe('respondText / subjectSide / categoryEntry (the contract class golden, minus consensus/escalate wiring)', () => {
   it("matches Task 10's golden shape", () => {

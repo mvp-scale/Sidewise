@@ -26,6 +26,9 @@ function corpus(): { file: string; value: Record<string, unknown> }[] {
 }
 
 const agree = (value: unknown): boolean => ajvValid(value) === (checkSchema(value).length === 0);
+/** The verb a corpus file's own directory/name implies (agents/haiku/class-1.yaml → class, valid/class.yaml →
+ *  class) — used only to word checkSchema's flat-ask fix text the way a real caller would see it. */
+const verbOf = (file: string): Verb => path.basename(file).split(/[-.]/)[0] as Verb;
 
 describe('schema agreement (TS checks ⇔ JSON Schema)', () => {
   const docs = corpus();
@@ -35,7 +38,11 @@ describe('schema agreement (TS checks ⇔ JSON Schema)', () => {
     expect(docs.filter((d) => d.file.startsWith('valid/')).map((d) => path.basename(d.file)).sort()).toEqual(['change.yaml', 'class.yaml', 'drill.yaml', 'loop.yaml', 'scan.yaml', 'view.yaml']);
   });
 
-  it.each(docs.map((d) => [d.file, d.value] as const))('%s: both accept it', (_file, value) => {
+  // agents/** predates plan 2b's ask sections (concerns:/decisions:) — real transcripts from an earlier round,
+  // kept for the mutation fuzzer's realism corpus below (which only needs agreement, never acceptance), but no
+  // longer expected to validate under the current contract. Only valid/** (this plan's own worked examples)
+  // must still be accepted by both checkers; see "none of the agents' requests validate any more" below.
+  it.each(docs.filter((d) => d.file.startsWith('valid/')).map((d) => [d.file, d.value] as const))('%s: both accept it', (_file, value) => {
     expect(ajvValid(value)).toBe(true);
     expect(checkSchema(value)).toEqual([]);
   });
@@ -65,16 +72,12 @@ describe('schema agreement (TS checks ⇔ JSON Schema)', () => {
     expect(failures).toEqual([]);
   });
 
-  it("the agents' requests pass validation, except the change that sent its own questions", () => {
-    const results = docs
-      .filter((d) => d.file.startsWith('agents/'))
-      .map((d) => {
-        const verb = path.basename(d.file).split('-')[0] as Verb;
-        const v = validateRequest(d.value, verb);
-        return [d.file, v.ok ? 'ok' : v.stops.map((s) => s.text).join(' | ')];
-      });
-    expect(results.filter(([, r]) => r !== 'ok')).toEqual([
-      ['agents/haiku/change-1.yaml', "✖ side.ask: change replays the parent's questions → remove ask; for new questions, use class"],
-    ]);
+  // Plan 2b's ask sections (concerns:/decisions:) are a breaking shape change from the flat ask: these agents
+  // wrote before it existed — none of them can validate any more (the whole point of "nothing is published on
+  // this contract yet"). This replaces the old, narrower "all but one pass" assertion; a fresh corpus of
+  // 2b-shaped agent transcripts is what the smoke round (lab/plans/2026-09-28-plan-2b-unified-contract.md) is for.
+  it("none of the agents' requests validate any more (they predate ask's concerns:/decisions: sections)", () => {
+    const results = docs.filter((d) => d.file.startsWith('agents/')).map((d) => validateRequest(d.value, verbOf(d.file)).ok);
+    expect(results.every((ok) => ok === false)).toBe(true);
   });
 });

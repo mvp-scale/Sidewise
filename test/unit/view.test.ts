@@ -307,7 +307,7 @@ describe('view: fix #2, a sweep run is indexed by its own item places and catego
       where: [],
       ask: {
         categories: [],
-        layers: [{ name: 'file', categories: [{ name: 'injection', pass: 'no', need: 'all', tags: ['sql-risk'], questions: [{ n: 1, kind: 'yesno', text: 'q?' }] }] }],
+        layers: [{ name: 'file', categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: ['sql-risk'], questions: [{ n: 1, kind: 'yesno', text: 'q?' }] }] }],
       },
       items: {
         'src/a.ts': { layer: 'file', fill: {}, unit: { path: 'src/a.ts', kind: 'file', name: 'src/a.ts', lines: '1-2' }, status: 'asked', gate: 'fail', categories: { injection: 'fail' } },

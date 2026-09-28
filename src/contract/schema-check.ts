@@ -2,18 +2,25 @@
  * The request schema (skills/sidewise/references/request.schema.json), checked by hand so the runtime needs no
  * schema library. Each check mirrors one schema rule, worded as a help-first stop; test/contract/
  * schema-agreement.test.ts proves the two agree on a corpus (these checks find nothing exactly when the schema
- * accepts). Rules the schema can't express live in validate.ts.
+ * accepts). Rules the schema can't express (counts, per-section kind restrictions) live in validate.ts, same
+ * split as before plan 2b: this file is shape only.
  */
 import { clip } from '../util/text.ts';
-import { AREAS, CHANGES, DEPTHS, RISKS, STAGES, VERBS, WHYS, type Stop } from './types.ts';
+import { AREAS, BLASTS, CHANGES, DEPTHS, FAMILIES, RISKS, STAGES, VERBS, WHYS, type Stop, type Verb } from './types.ts';
 
 const TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
 const RUN_ID = /^SW-\d{4,}$/u;
 const PATH = /^[^\s:]+(:\d+(-\d+)?)?$/u;
 const QNUM = /^[1-9][0-9]*$/u;
-const SIDE_KEYS = ['goal', 'depth', 'where', 'parent', 'ask', 'over', 'from', 'compare', 'verb'];
-const CATEGORY_KEYS = ['pass', 'need', 'tags'];
+const SIDE_KEYS = ['goal', 'depth', 'where', 'parent', 'ask', 'over', 'from', 'compare', 'verb', 'expect'];
+const CATEGORY_KEYS = ['pass', 'need', 'tags', 'family'];
+const SECTION_NAMES = ['concerns', 'decisions'];
 const NOT_QUESTIONS = /^(yes|no|true|false|on|off|y|n)$/iu;
+/** A node in wise.nodes: level:name, level ∈ person|system|container|component|code, name is path/id-shaped. */
+const NODE_LEVELS = ['person', 'system', 'container', 'component', 'code'];
+const NODE = `(?:${NODE_LEVELS.join('|')}):[A-Za-z0-9._/-]+`;
+const CHAIN = `${NODE}(?: -> ${NODE})*`;
+const NODES_RE = new RegExp(`^${CHAIN}(?:; ${CHAIN})*$`, 'u');
 
 type Obj = Record<string, unknown>;
 export const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -92,45 +99,66 @@ function checkCategory(v: Obj, field: string, out: Out): void {
       out.add(`${field}.tags`, `${show(t)}`, 'give up to 3 tags, lowercase kebab-case, ≤ 20 characters');
     }
   }
+  if ('family' in v && !(FAMILIES as readonly unknown[]).includes(v.family)) out.add(`${field}.family`, show(v.family), `use ${list(FAMILIES)}`);
   for (const [k, q] of Object.entries(v)) {
     if (CATEGORY_KEYS.includes(k)) continue;
     if (!QNUM.test(k)) {
-      out.add(`${field}.${clip(k, 20)}`, 'not a question number or category key', /^0+$/u.test(k) ? 'number questions from 1' : 'a category holds pass, need, tags and numbered questions');
+      out.add(`${field}.${clip(k, 20)}`, 'not a question number or category key', /^0+$/u.test(k) ? 'number questions from 1' : 'a category holds pass, need, tags, family and numbered questions');
       continue;
     }
     checkQuestion(q, k, out);
   }
 }
 
-function checkAsk(ask: unknown, out: Out): void {
-  if (!isObj(ask)) return out.add('side.ask', 'is not a mapping', 'write categories under ask:, each with pass: and numbered questions');
-  if (Object.keys(ask).length === 0) return out.add('side.ask', 'is empty', 'add a category with pass: and numbered questions');
-  checkTagKeys(ask, 'side.ask', 'category or layer', out);
-  for (const [name, v] of Object.entries(ask)) {
-    const field = `side.ask.${clip(name, 20)}`;
-    if (!isObj(v)) {
-      out.add(field, 'is not a category', 'give it pass: and numbered questions');
+function checkCategoriesMap(categories: unknown, field: string, out: Out): void {
+  if (!isObj(categories)) return out.add(field, 'is not a mapping', 'give each category pass: and numbered questions');
+  if (Object.keys(categories).length === 0) return out.add(field, 'is empty', 'add a category with pass: and numbered questions');
+  checkTagKeys(categories, field, 'category', out);
+  for (const [name, c] of Object.entries(categories)) {
+    const cfield = `${field}.${clip(name, 20)}`;
+    if (!isObj(c) || !('pass' in c)) out.add(cfield, 'is not a category', 'give it pass: and numbered questions');
+    else checkCategory(c, cfield, out);
+  }
+}
+
+/** concerns:/decisions: under ask (one subject) or under a layer (a sweep) — both optional at this shape
+ *  level; validate.ts's cross-check enforces which verb needs what, and the exact counts. */
+function checkSectionsBlock(v: Record<string, unknown>, field: string, out: Out): void {
+  for (const k of Object.keys(v)) {
+    if (!SECTION_NAMES.includes(k)) out.add(`${field}.${clip(k, 20)}`, 'not concerns or decisions', 'use concerns: or decisions:');
+  }
+  if ('concerns' in v) checkCategoriesMap(v.concerns, `${field}.concerns`, out);
+  if ('decisions' in v) checkCategoriesMap(v.decisions, `${field}.decisions`, out);
+}
+
+/** side.ask: one subject is {concerns:, decisions:} straight under ask; a sweep keys those by layer instead
+ *  (ask: {<layer>: {concerns:, decisions:}}). A legacy flat category directly under ask (plan 2a's shape, no
+ *  concerns:/decisions: wrapper) is refused outright — nothing is published on the old contract yet. */
+function checkAsk(ask: unknown, verb: Verb | undefined, out: Out): void {
+  const templateHint = `sidewise template ${verb ?? '<verb>'}`;
+  if (!isObj(ask)) return out.add('side.ask', 'is not a mapping', `add concerns: and decisions: (${templateHint})`);
+  if (Object.keys(ask).length === 0) return out.add('side.ask', 'is empty', `add concerns: and decisions: (${templateHint})`);
+
+  if ('concerns' in ask || 'decisions' in ask) {
+    checkSectionsBlock(ask, 'side.ask', out);
+    return;
+  }
+
+  const looksFlat = Object.values(ask).some((v) => isObj(v) && 'pass' in v);
+  if (looksFlat) return out.add('side.ask', 'put categories under concerns: (yes/no) and decisions: (scale/choice)', templateHint);
+
+  checkTagKeys(ask, 'side.ask', 'layer', out);
+  for (const [layer, v] of Object.entries(ask)) {
+    const field = `side.ask.${clip(layer, 20)}`;
+    if (layer === 'concerns' || layer === 'decisions') {
+      out.add(field, '"concerns"/"decisions" are reserved for ask sections', 'use a different layer name');
       continue;
     }
-    if ('pass' in v) {
-      checkCategory(v, field, out);
+    if (!isObj(v) || Object.keys(v).length === 0) {
+      out.add(field, 'is empty', 'give it concerns: and/or decisions:');
       continue;
     }
-    // No pass: a layer (a sweep), whose values are categories. A numbered key holding a question means a missing pass.
-    if (Object.entries(v).some(([k, x]) => QNUM.test(k) && !isObj(x))) {
-      out.add(field, 'has questions but no pass', 'add "pass: yes" or "pass: no"');
-      continue;
-    }
-    if (Object.keys(v).length === 0) {
-      out.add(field, 'is empty', 'give it pass: and numbered questions');
-      continue;
-    }
-    checkTagKeys(v, field, 'category', out);
-    for (const [cname, c] of Object.entries(v)) {
-      const cfield = `${field}.${clip(cname, 20)}`;
-      if (!isObj(c) || !('pass' in c)) out.add(cfield, 'is not a category', 'give it pass: and numbered questions');
-      else checkCategory(c, cfield, out);
-    }
+    checkSectionsBlock(v, field, out);
   }
 }
 
@@ -138,13 +166,24 @@ function checkOverShape(over: unknown, out: Out): void {
   if (!isObj(over) || Object.keys(over).length === 0) return out.add('side.over', 'is not a mapping of layers', 'write over: with a layer name and its items, e.g. part: [a, b]');
   checkTagKeys(over, 'side.over', 'layer', out);
   for (const [layer, v] of Object.entries(over)) {
+    if (layer === 'concerns' || layer === 'decisions') out.add(`side.over.${layer}`, '"concerns"/"decisions" are reserved for ask sections', 'use a different layer name');
     if (typeof v === 'string') continue;
     if (!Array.isArray(v)) out.add(`side.over.${clip(layer, 20)}`, 'is not a list or a pattern', 'write a list of items, a file pattern, or each');
     else if (v.length < 1 || v.length > 30) out.add(`side.over.${clip(layer, 20)}`, `${v.length} items`, 'give 1–30 items');
   }
 }
 
-function checkSide(side: unknown, out: Out): void {
+function checkTouches(v: unknown, out: Out): void {
+  if (!Array.isArray(v)) return out.add('wise.touches', 'must be a list', 'write [a, b]');
+  if (v.length > 5) out.add('wise.touches', `${v.length} entries`, 'give up to 5');
+  v.forEach((x, i) => {
+    if (typeof x !== 'string' || x.includes('\n') || len(x) < 1 || len(x) > 40) {
+      out.add(`wise.touches[${i}]`, show(x), 'each entry is 1–40 characters, one line');
+    }
+  });
+}
+
+function checkSide(side: unknown, verb: Verb | undefined, out: Out): void {
   if (!isObj(side)) return out.add('side', 'is not a mapping', 'put goal: and the other fields under side:');
   for (const k of Object.keys(side)) {
     if (!SIDE_KEYS.includes(k)) out.add(`side.${clip(k, 20)}`, 'not a field', `use ${list(SIDE_KEYS)}`);
@@ -167,12 +206,20 @@ function checkSide(side: unknown, out: Out): void {
     const ok = isObj(c) && typeof c.before === 'string' && typeof c.after === 'string' && Object.keys(c).every((k) => k === 'before' || k === 'after');
     if (!ok) out.add('side.compare', show(c), 'write compare: {before: main, after: HEAD}');
   }
+  if ('expect' in side) {
+    const e = side.expect;
+    if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === 'string' && isTag(x))) {
+      out.add('side.expect', show(e), 'give 1–9 concern names, lowercase kebab-case, ≤ 20 characters');
+    } else if (new Set(e).size !== e.length) {
+      out.add('side.expect', 'repeated concern name', 'make each one different');
+    }
+  }
   if ('verb' in side && !(VERBS as readonly unknown[]).includes(side.verb)) out.add('side.verb', show(side.verb), `use ${list(VERBS)}, or leave it out`);
-  if ('ask' in side) checkAsk(side.ask, out);
+  if ('ask' in side) checkAsk(side.ask, verb, out);
   if ('over' in side) checkOverShape(side.over, out);
 }
 
-const WISE_KEYS = ['why', 'area', 'stage', 'change', 'risk', 'parent'];
+const WISE_KEYS = ['why', 'area', 'stage', 'change', 'risk', 'parent', 'problem', 'nodes', 'touches', 'blast'];
 
 function checkWise(wise: unknown, out: Out): void {
   if (!isObj(wise)) return out.add('wise', 'is not a mapping', 'write why:, area: or parent: under wise:, or leave wise out');
@@ -183,10 +230,26 @@ function checkWise(wise: unknown, out: Out): void {
   if ('change' in wise && !(CHANGES as readonly unknown[]).includes(wise.change)) out.add('wise.change', show(wise.change), `use ${list(CHANGES)}`);
   if ('risk' in wise && !(RISKS as readonly unknown[]).includes(wise.risk)) out.add('wise.risk', show(wise.risk), `use ${list(RISKS)}`);
   if ('parent' in wise && !(typeof wise.parent === 'string' && RUN_ID.test(wise.parent))) out.add('wise.parent', `${show(wise.parent)} is not a run id`, 'use SW-####');
+  if ('problem' in wise) {
+    const bad = lineProblem(wise.problem);
+    if (bad) out.add('wise.problem', bad, "write one line of 3–160 characters: what you're solving now");
+  }
+  if ('nodes' in wise) {
+    const n = wise.nodes;
+    if (typeof n !== 'string') out.add('wise.nodes', show(n), 'write a level:name chain, e.g. container:api -> component:dao');
+    else if (len(n) > MAX_QUESTION_CHARS) out.add('wise.nodes', `is longer than ${MAX_QUESTION_CHARS} characters`, 'shorten the chain');
+    else if (!NODES_RE.test(n)) {
+      out.add('wise.nodes', `${show(n)} is not a level:name chain`, `use level:name ( -> level:name)*, joined by "; " (level: ${list(NODE_LEVELS)})`);
+    }
+  }
+  if ('touches' in wise) checkTouches(wise.touches, out);
+  if ('blast' in wise && !(BLASTS as readonly unknown[]).includes(wise.blast)) out.add('wise.blast', show(wise.blast), `use ${list(BLASTS)}`);
 }
 
-/** Every schema violation in a parsed request, as schema-class stops. Empty when the schema accepts it. */
-export function checkSchema(value: unknown): Stop[] {
+/** Every schema violation in a parsed request, as schema-class stops. Empty when the schema accepts it.
+ *  `verb` is used only to word the flat-ask/empty-ask fix text ("sidewise template <verb>"); every other check
+ *  here is verb-agnostic, matching the published schema (which has no concept of verb either). */
+export function checkSchema(value: unknown, verb?: Verb): Stop[] {
   const out = new Out();
   if (!isObj(value)) {
     out.add('request', 'is not a mapping', 'start with side:');
@@ -196,7 +259,7 @@ export function checkSchema(value: unknown): Stop[] {
     if (k !== 'side' && k !== 'wise') out.add(clip(k, 20), 'not a block', 'the request holds only side: and wise:; put fields under side:');
   }
   if (!('side' in value)) out.add('side', 'missing', 'start with side: and a goal');
-  else checkSide(value.side, out);
+  else checkSide(value.side, verb, out);
   if ('wise' in value) checkWise(value.wise, out);
   return out.stops;
 }

@@ -188,7 +188,7 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
           categories: { injection: 'fail' },
         },
       },
-      ask: { categories: [], layers: [{ name: 'function', categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'is it unsafe?' }] }] }] },
+      ask: { categories: [], layers: [{ name: 'function', categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'is it unsafe?' }] }] }] },
       over: { file: 'src/*.ts', function: 'each' },
     });
     appendContractRun(paths, parent, T, 'b'); // SW-0001

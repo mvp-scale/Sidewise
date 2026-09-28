@@ -6,10 +6,10 @@ import type { Category } from '../../src/contract/types.ts';
 
 const GH_TOKEN = 'gh' + 'p_' + 'z'.repeat(30);
 const cats: Category[] = [
-  { name: 'b', pass: 'yes', need: 'all', tags: [], questions: [{ n: 2, kind: 'yesno', text: 'Can {part} ship alone?' }] },
-  { name: 'a', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'Does {part} mix jobs?' }] },
-  { name: 's', pass: ['low'], need: 'all', tags: [], questions: [{ n: 3, kind: 'scale', text: 'How risky is {part}?', levels: ['low', 'high'] }] },
-  { name: 'c', pass: ['ship'], need: 'all', tags: [], questions: [{ n: 4, kind: 'choice', text: 'Where does {part} go?', options: ['ship', 'fix'] }] },
+  { name: 'b', section: 'concerns', pass: 'yes', need: 'all', tags: [], questions: [{ n: 2, kind: 'yesno', text: 'Can {part} ship alone?' }] },
+  { name: 'a', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'Does {part} mix jobs?' }] },
+  { name: 's', section: 'decisions', pass: ['low'], need: 'all', tags: [], questions: [{ n: 3, kind: 'scale', text: 'How risky is {part}?', levels: ['low', 'high'] }] },
+  { name: 'c', section: 'decisions', pass: ['ship'], need: 'all', tags: [], questions: [{ n: 4, kind: 'choice', text: 'Where does {part} go?', options: ['ship', 'fix'] }] },
 ];
 const item: Item = { id: 'payments', layer: 'part', name: 'payments', parent: null, fill: { part: 'payments' }, text: 'payments' };
 

@@ -110,6 +110,9 @@ export function mapLayers(over: Record<string, unknown>): LayerMap {
   };
   for (const l of chain) walk(l, over[l]);
   if (layers.length > MAX_LAYERS) problems.push(`✖ side.over: ${layers.length} layers → at most ${MAX_LAYERS}; split the request`);
+  // "concerns"/"decisions" are reserved for ask's own sections (plan 2b): a layer named either would make
+  // ask: {<layer>: {concerns:, decisions:}} ambiguous with ask's one-subject shape.
+  for (const l of layers) if (l === 'concerns' || l === 'decisions') problems.push(`✖ side.over.${l}: "${l}" is reserved for ask sections → use a different layer name`);
   return { layers, chain, ancestors, problems: [...new Set(problems)] };
 }
 

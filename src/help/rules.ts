@@ -5,7 +5,7 @@
  * apart again. test/unit/help.test.ts asserts every entry's text appears verbatim in the `help` output it names.
  */
 import { MAX_QUESTION_CHARS } from '../contract/schema-check.ts';
-import { AREAS, CHANGES, DEPTH_COUNT, MAX_EXTRAS, RISKS, STAGES, WHYS } from '../contract/types.ts';
+import { AREAS, CHANGES, DECISIONS_MAX, DECISIONS_MIN, DEPTH_COUNT, RISKS, STAGES, SWEEP_ITEM_CAP, WHYS } from '../contract/types.ts';
 
 /** Oxford-ish "a, b or c" — matches schema-check.ts's own `list()` wording in stop text. */
 const list = (xs: readonly string[]): string => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}` : xs[0]!);
@@ -18,7 +18,9 @@ interface Rule {
 
 export const RULES: readonly Rule[] = [
   {
-    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions (a sweep: at most that many items per layer)`,
+    // TODO(phase-2b crew C): extend this card with the probe skill's role tables and family list once
+    // skills/sidewise-probe/SKILL.md lands — this rule list only carries the counting rule for now.
+    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories (a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer)`,
     in: ['card', 'authoring', 'class', 'scan', 'loop'],
   },
   { text: `where: at most 5 path entries — this is all the code a run sees`, in: ['card', 'authoring', 'class', 'view'] },
@@ -37,7 +39,7 @@ export const RULES: readonly Rule[] = [
   { text: `wise.stage is one of ${list(STAGES)}`, in: ['wise'] },
   { text: `wise.change is one of ${list(CHANGES)}`, in: ['wise'] },
   { text: `wise.risk is one of ${list(RISKS)}`, in: ['wise'] },
-  { text: `at most ${MAX_EXTRAS} scale or choice questions per request`, in: ['authoring'] },
+  { text: `decisions: ${DECISIONS_MIN}–${DECISIONS_MAX} categories, scale or choice only, at least one scale and one choice`, in: ['authoring'] },
 ];
 
 /** Every rule text tagged for a given card/verb/topic, one per line, "- <text>." */

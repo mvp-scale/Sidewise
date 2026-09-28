@@ -3,10 +3,11 @@ side:
   depth: quick
   where: [src/user.ts:1-3]
   ask:
-    injection:
-      pass: no
-      1: Is request text placed directly into the SQL query?
-      2: Could a caller change what the query does?
+    concerns:
+      injection:
+        pass: no
+        1: Is request text placed directly into the SQL query?
+        2: Could a caller change what the query does?
 wise:
   why: validate
   area: data

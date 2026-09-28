@@ -16,8 +16,8 @@ const ENGINES = [false, true]; // real SQLite, then the linear fallback
 
 describe('patternFingerprint', () => {
   it('is stable for the same question set regardless of category order, and differs for a different one', () => {
-    const a = { name: 'injection', pass: 'no' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Is X?' }] };
-    const b = { name: 'guards', pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 2, kind: 'yesno' as const, text: 'Is Y?' }] };
+    const a = { name: 'injection', section: 'concerns' as const, pass: 'no' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Is X?' }] };
+    const b = { name: 'guards', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 2, kind: 'yesno' as const, text: 'Is Y?' }] };
     const run1 = sampleContractRun({ ask: { categories: [a, b], layers: [] } });
     const run2 = sampleContractRun({ ask: { categories: [b, a], layers: [] } }); // reordered
     const run3 = sampleContractRun({ ask: { categories: [a], layers: [] } }); // fewer questions
@@ -52,7 +52,7 @@ describe('report views', () => {
     appendContractRun(
       paths,
       sampleContractRun({
-        ask: { categories: [{ name: 'guards', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'Is Y checked?' }] }], layers: [] },
+        ask: { categories: [{ name: 'guards', section: 'concerns', pass: 'yes', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'Is Y checked?' }] }], layers: [] },
         categories: { guards: 'pass' },
         gate: 'pass',
       }),

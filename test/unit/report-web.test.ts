@@ -26,7 +26,7 @@ function card(win: WindowData, place: string) {
 }
 
 /** A one-category, one-question one-subject category shape, so fixtures below only ever vary place/gate/text. */
-const oneQuestion = (name: string, text: string) => ({ name, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text }] });
+const oneQuestion = (name: string, text: string) => ({ name, section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text }] });
 
 describe('report-web: buildViewerData (the ported place x concern consensus)', () => {
   it('[C-204] STRONG when independent runs agree, SINGLE for one run alone, CONFLICT when gates differ — with the same-checklist flag on a CONFLICT', () => {

@@ -130,6 +130,7 @@ describe('change', () => {
         categories: [
           {
             name: 'injection',
+            section: 'concerns',
             pass: 'no',
             need: 'all',
             tags: [],
@@ -170,6 +171,7 @@ describe('change', () => {
         categories: [
           {
             name: 'injection',
+            section: 'concerns',
             pass: 'no',
             need: 'any', // only one question needs to pass for the category itself to pass
             tags: [],
@@ -222,6 +224,7 @@ describe('change', () => {
         categories: [
           {
             name: 'injection',
+            section: 'concerns',
             pass: 'no',
             need: 'all',
             tags: [],
@@ -310,7 +313,7 @@ describe('change', () => {
     const { paths } = tempProject({ 'src/a.ts': a, 'src/b.ts': b });
     const parent = sampleContractRun({
       where: ['src/a.ts:1-10', 'src/a.ts:20-30', 'src/a.ts:40-50', 'src/b.ts'], // 3 ranges on a.ts, deduped to one file read
-      ask: { categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
+      ask: { categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
       answers: { goal: { kind: 'yesno', p: 0.1 }, '1': { kind: 'yesno', p: 0.05 } },
       keys: { goal: 'k-goal', '1': 'k-1' },
       categories: { injection: 'pass' },
@@ -392,7 +395,7 @@ describe('change', () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
     const parent = sampleContractRun({
       where: ['src/a.ts'],
-      ask: { categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
+      ask: { categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
       answers: { goal: { kind: 'yesno', p: 0.1 }, '1': { kind: 'yesno', p: 0.05 } },
       keys: { goal: 'k-goal', '1': 'k-1' },
       categories: { injection: 'pass' },
@@ -412,7 +415,7 @@ describe('change', () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
     const parent = sampleContractRun({
       where: ['src/a.ts'],
-      ask: { categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
+      ask: { categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
       answers: { goal: { kind: 'yesno', p: 0.1 }, '1': { kind: 'yesno', p: 0.05 } },
       keys: { goal: 'k-goal', '1': 'k-1' },
       categories: { injection: 'pass' },
@@ -429,7 +432,7 @@ describe('change', () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
     const parent = sampleContractRun({
       where: ['src/a.ts'],
-      ask: { categories: [{ name: 'injection', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
+      ask: { categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },
       answers: { goal: { kind: 'yesno', p: 0.1 }, '1': { kind: 'yesno', p: 0.05 } },
       keys: { goal: 'k-goal', '1': 'k-1' },
       categories: { injection: 'pass' },

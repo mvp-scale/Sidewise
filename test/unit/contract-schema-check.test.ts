@@ -7,7 +7,7 @@ const base = (): Record<string, any> => ({
     goal: 'This login handler is safe to merge',
     depth: 'quick',
     where: ['src/user.ts:1-3'],
-    ask: { injection: { pass: 'no', 1: 'Is request text placed directly into the SQL query?' } },
+    ask: { concerns: { injection: { pass: 'no', 1: 'Is request text placed directly into the SQL query?' } } },
   },
   wise: { why: 'validate', area: 'data' },
 });
@@ -27,10 +27,10 @@ describe('checkSchema', () => {
     expect(texts({ ...base(), focus: 'x' })).toEqual(['✖ focus: not a block → the request holds only side: and wise:; put fields under side:']);
   });
 
-  it('side fields: unknown, goal, depth, where, parent, compare, verb, from [C-010] [C-012]', () => {
+  it('side fields: unknown, goal, depth, where, parent, compare, verb, from, expect [C-010] [C-012]', () => {
     const r = base();
     r.side.level = 1;
-    expect(texts(r)).toEqual(['✖ side.level: not a field → use goal, depth, where, parent, ask, over, from, compare or verb']);
+    expect(texts(r)).toEqual(['✖ side.level: not a field → use goal, depth, where, parent, ask, over, from, compare, verb or expect']);
     const g = base();
     delete g.side.goal;
     expect(texts(g)).toEqual(['✖ side.goal: missing → add one line: what you want to be true']);
@@ -59,12 +59,18 @@ describe('checkSchema', () => {
     const v = base();
     v.side.verb = 'judge';
     expect(texts(v)).toEqual(['✖ side.verb: "judge" → use view, class, change, scan, drill or loop, or leave it out']);
+    const e = base();
+    e.side.expect = [];
+    expect(texts(e)).toEqual(['✖ side.expect: [] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters']);
+    const e2 = base();
+    e2.side.expect = ['Not A Tag'];
+    expect(texts(e2)).toEqual(['✖ side.expect: ["Not A Tag"] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters']);
   });
 
   it('questions: not a question, no "?", too long, a broken scale or choice [C-021] [C-022]', () => {
     const at = (q: unknown): string[] => {
       const r = base();
-      r.side.ask.injection[1] = q;
+      r.side.ask.concerns.injection[1] = q;
       return texts(r);
     };
     expect(at('no')).toEqual(['✖ question 1: is not a question → write it as text']);
@@ -78,43 +84,59 @@ describe('checkSchema', () => {
     expect(at({ ask: 'x?' })).toEqual(['✖ question 1: is not a question → write "N: <question>?", or scale: + levels:, or choice: + options:']);
   });
 
-  it('categories: pass, need, tags, keys, names [C-019]', () => {
+  it('categories: pass, need, tags, family, keys, names [C-019]', () => {
     const r = base();
-    r.side.ask.injection.pass = 'maybe';
-    expect(texts(r)).toEqual(['✖ side.ask.injection.pass: "maybe" → use yes, no, or a list of the passing levels or options']);
+    r.side.ask.concerns.injection.pass = 'maybe';
+    expect(texts(r)).toEqual(['✖ side.ask.concerns.injection.pass: "maybe" → use yes, no, or a list of the passing levels or options']);
     const n = base();
-    n.side.ask.injection.need = 'some';
-    expect(texts(n)).toEqual(['✖ side.ask.injection.need: "some" → use all, most or any']);
+    n.side.ask.concerns.injection.need = 'some';
+    expect(texts(n)).toEqual(['✖ side.ask.concerns.injection.need: "some" → use all, most or any']);
     const k = base();
-    k.side.ask.injection.description = 'x';
-    expect(texts(k)).toEqual(['✖ side.ask.injection.description: not a question number or category key → a category holds pass, need, tags and numbered questions']);
+    k.side.ask.concerns.injection.description = 'x';
+    expect(texts(k)).toEqual(['✖ side.ask.concerns.injection.description: not a question number or category key → a category holds pass, need, tags, family and numbered questions']);
     const z = base();
-    z.side.ask.injection[0] = 'Is it?';
-    expect(texts(z)).toEqual(['✖ side.ask.injection.0: not a question number or category key → number questions from 1']);
+    z.side.ask.concerns.injection[0] = 'Is it?';
+    expect(texts(z)).toEqual(['✖ side.ask.concerns.injection.0: not a question number or category key → number questions from 1']);
+    const fam = base();
+    fam.side.ask.concerns.injection.family = 'nonsense';
+    expect(texts(fam)).toEqual(['✖ side.ask.concerns.injection.family: "nonsense" → use access, injection, secrets, input, output, availability, correctness, design, design-risk, done or other']);
     const name = base();
-    name.side.ask = { SQL: { pass: 'no', 1: 'Is it?' } };
-    expect(texts(name)).toEqual(['✖ side.ask.SQL: "SQL" is not a category or layer name → use lowercase letters and digits, one word or kebab-case, ≤ 20 characters']);
+    name.side.ask = { concerns: { SQL: { pass: 'no', 1: 'Is it?' } } };
+    expect(texts(name)).toEqual(['✖ side.ask.concerns.SQL: "SQL" is not a category name → use lowercase letters and digits, one word or kebab-case, ≤ 20 characters']);
     const nopass = base();
-    nopass.side.ask = { injection: { 1: 'Is it?' } };
-    expect(texts(nopass)).toEqual(['✖ side.ask.injection: has questions but no pass → add "pass: yes" or "pass: no"']);
+    nopass.side.ask = { concerns: { injection: { 1: 'Is it?' } } };
+    expect(texts(nopass)).toEqual(['✖ side.ask.concerns.injection: is not a category → give it pass: and numbered questions']);
   });
 
-  it('a sweep: layer → categories; over holds lists or patterns [C-013]', () => {
+  it('ask: a legacy flat category (no concerns:/decisions: wrapper) is refused outright', () => {
+    const flat = base();
+    flat.side.ask = { injection: { pass: 'no', 1: 'Is it?' } };
+    expect(texts(flat)).toEqual(['✖ side.ask: put categories under concerns: (yes/no) and decisions: (scale/choice) → sidewise template <verb>']);
+  });
+
+  it('ask: a sweep keys concerns:/decisions: by layer, and "concerns"/"decisions" can\'t be a layer name [C-013]', () => {
     const r = base();
+    r.side.ask = { part: { concerns: { boundaries: { pass: 'yes', 1: 'Does {part} own one thing?' } } } };
     r.side.over = { part: ['a', 'b'] };
-    r.side.ask = { part: { boundaries: { pass: 'yes', 1: 'Does {part} own one thing?' } } };
+    delete r.side.depth;
+    delete r.side.where;
     expect(checkSchema(r)).toEqual([]);
     r.side.over = { part: 3 };
     expect(texts(r)).toEqual(['✖ side.over.part: is not a list or a pattern → write a list of items, a file pattern, or each']);
     r.side.over = { part: [] };
     expect(texts(r)).toEqual(['✖ side.over.part: 0 items → give 1–30 items']);
+
+    const reserved = base();
+    reserved.side.over = { concerns: ['a'] };
+    reserved.side.ask = { concerns: { boundaries: { pass: 'yes', 1: 'Does {concerns} own one thing?' } } };
+    expect(texts(reserved)).toContain('✖ side.over.concerns: "concerns"/"decisions" are reserved for ask sections → use a different layer name');
   });
 
-  it('wise: only why, area, stage, change, risk, parent [C-016] [C-017]', () => {
+  it('wise: only why, area, stage, change, risk, parent, problem, nodes, touches, blast [C-016] [C-017]', () => {
     const r = base();
     r.wise = { why: 'explore', area: 'backend', mood: 'x' };
     expect(texts(r)).toEqual([
-      '✖ wise.mood: not a field → use why, area, stage, change, risk or parent',
+      '✖ wise.mood: not a field → use why, area, stage, change, risk, parent, problem, nodes, touches or blast',
       '✖ wise.why: "explore" → use validate, find or debug',
       '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests',
     ]);
@@ -133,5 +155,23 @@ describe('checkSchema', () => {
       '✖ wise.change: "rewrite" → use feature, fix, refactor, dependency or config',
       '✖ wise.risk: "severe" → use low, medium or high',
     ]);
+  });
+
+  it('wise: problem, nodes, touches, blast (the new knowledge fields)', () => {
+    const r = base();
+    r.wise = { problem: 'x', nodes: 'a:b', touches: [] };
+    expect(texts(r)).toEqual(['✖ wise.problem: is too short → write one line of 3–160 characters: what you\'re solving now', '✖ wise.nodes: "a:b" is not a level:name chain → use level:name ( -> level:name)*, joined by "; " (level: person, system, container, component or code)']);
+
+    const ok = base();
+    ok.wise = { problem: 'Fixing the SQL injection in findUser', nodes: 'container:api -> component:contributions-dao -> container:db; container:api -> component:views', touches: ['userId'], blast: 'component' };
+    expect(texts(ok)).toEqual([]);
+
+    const badTouch = base();
+    badTouch.wise = { touches: ['a'.repeat(41)] };
+    expect(texts(badTouch)).toEqual([`✖ wise.touches[0]: "${'a'.repeat(38)}… → each entry is 1–40 characters, one line`]);
+
+    const badBlast = base();
+    badBlast.wise = { blast: 'process' };
+    expect(texts(badBlast)).toEqual(['✖ wise.blast: "process" → use code, component, container, system or person']);
   });
 });

@@ -2,6 +2,7 @@ side:
   goal: The injection fix works
   parent: SW-0042
   compare: {before: main, after: HEAD}
+  expect: [injection]
 wise:
   why: validate
   area: data

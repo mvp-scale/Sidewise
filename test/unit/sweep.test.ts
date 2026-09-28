@@ -87,7 +87,7 @@ describe('planSweep + runSweep (the contract loop example)', () => {
   it('items still needing an answer beyond the depth cap are skipped; reuse frees a slot instead of using one', async () => {
     const { paths } = tempProject({});
     const provider = stubProvider({ yes: () => 0.9 });
-    const category = { name: 'boundaries', pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Does {part} own one clear responsibility?' }] };
+    const category = { name: 'boundaries', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Does {part} own one clear responsibility?' }] };
     const names = Array.from({ length: 15 }, (_, i) => `part${i}`);
     const makeRequest = (over: string[]): Request => ({
       side: { goal: 'The parts are sound', depth: 'quick', where: [], categories: [], layers: [{ name: 'part', categories: [category] }], over: { part: over } },
