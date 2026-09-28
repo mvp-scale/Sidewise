@@ -12,22 +12,24 @@ import type { Category } from '../contract/types.ts';
 import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun } from '../ledger/log.ts';
+import { reusedAgeNotes } from '../ledger/reuse.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
-import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
-import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, reusedIds, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { itemRecords, planNeedsBudget, plannedCallCount, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResult> {
   // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, 'loop', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false);
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, {}, { sweep: cfg.sweep, reuse: cfg.reuse });
 
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
 
@@ -55,9 +57,10 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const graded = [...grades.values()].filter((g) => g.status === 'asked' || g.status === 'reused');
   const worst = worstFirst(graded);
 
-  const calls = plan.planned.filter((p) => p.call).length;
+  const calls = plannedCallCount(plan);
 
   const items = itemRecords(plan.items, grades);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(Object.fromEntries(plan.reusedFrom)));
 
   const response = (id: string, budget: string): string =>
     respondText(
@@ -65,7 +68,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
       wiseRecorded(request.wise),
       sweepNext(id, gate, worst, graded, 'act on it'),
       commonNotes(
-        [...loaded.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        [...loaded.notes, ...plan.splitNotes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
         ctx.provider.adapter,
       ),

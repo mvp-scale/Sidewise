@@ -24,12 +24,12 @@ import { currentCommitSha } from '../evidence/git.ts';
 import { createCodeResolver, readUnit } from '../evidence/units.ts';
 import { findRun, isContractRun, type ItemRecord, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
-import { lookupAnswers } from '../ledger/reuse.ts';
+import { lookupAnswers, reusedAgeNotes, type ReuseLimits } from '../ledger/reuse.ts';
 import { clip } from '../util/text.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
 import { commonNotes, consensusAndEscalate, COST_ESTIMATED_NOTE, dryRunText, probeWarnings, reusedIds, respondText, subjectSide, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
-import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
+import { itemRecords, planNeedsBudget, plannedCallCount, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 /** A sweep parent's fail/unsure next: fix the worst item, then re-run this drill — cheap, since sweep.ts
@@ -60,6 +60,7 @@ async function runOneSubjectProof(
   request: Request,
   where: readonly string[],
   replayParent: (id: string) => string,
+  reuseLimits: ReuseLimits | undefined,
   evidenceOpts?: ReadCodeEvidenceOptions,
 ): Promise<VerbResult> {
   const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
@@ -71,8 +72,9 @@ async function runOneSubjectProof(
   const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
   // Reuse is resolved before preflight/dry-run, same as class.ts: a fully-reused drill's free call is never
-  // blocked by an already-reached budget cap, and a dry run can predict how much reuses.
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
+  // blocked by an already-reached budget cap, and a dry run can predict how much reuses. plan 2c B, item 5:
+  // reuse.maxAgeDays/maxCommits apply here too, not just view's own exact-reuse.
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: reuseLimits });
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
@@ -120,6 +122,7 @@ async function runOneSubjectProof(
 
   // Which prior runs this drill's answers came from, when any were reused.
   const reusedRunIds = reusedIds(reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
   const response = (id: string, budget: string): string =>
     respondText(
       subjectSide(id, subject.gate, subject, [
@@ -130,7 +133,7 @@ async function runOneSubjectProof(
       wiseRecorded(request.wise),
       oneSubjectNext(subject.gate, id),
       commonNotes(
-        [...loaded.notes, ...evidence.evidence.notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        [...loaded.notes, ...evidence.evidence.notes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         budget,
         ctx.provider.adapter,
       ),
@@ -177,7 +180,8 @@ async function runOneSubjectProof(
 
 export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResult> {
   // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, 'drill', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
@@ -215,7 +219,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       }
       // C-171: this range is the item's own whole-file/function/call span, chosen by scan/loop's own resolver,
       // never typed by a user — an oversized one still gets truncated with a note, not stopped.
-      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, { stopOnOversize: false });
+      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, cfg.reuse, { stopOnOversize: false });
     }
 
     const from = request.side.from!;
@@ -249,7 +253,14 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     const notes: string[] = [];
     const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
     const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-    const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root });
+    const plan = planSweep(
+      request,
+      who,
+      ctx.paths,
+      ctx.dryRun ?? false,
+      itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root },
+      { sweep: cfg.sweep, reuse: cfg.reuse },
+    );
 
     if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
 
@@ -273,9 +284,10 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
     const failing = m(...worst.map((g) => sweepEntry(g)));
     const passing = graded.filter((g) => g.ownGate === 'pass').length;
 
-    const calls = plan.planned.filter((p) => p.call !== null).length;
+    const calls = plannedCallCount(plan);
 
     const items = itemRecords(plan.items, grades);
+    const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(Object.fromEntries(plan.reusedFrom)));
 
     // Combines sweepNext's own never-drill-a-passing-item edge cases (goal-only-missed, everything skipped)
     // with drill's own rule: when there IS a worst item to fix, say so and re-run — never drill further.
@@ -285,7 +297,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
         wiseRecorded(request.wise),
         worst.length ? REDRILL_NEXT : sweepNext(id, gate, worst, graded, 'act on it'),
         commonNotes(
-          [...loaded.notes, ...notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+          [...loaded.notes, ...notes, ...plan.splitNotes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
           `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
           ctx.provider.adapter,
         ),
@@ -340,5 +352,5 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       ),
     };
   }
-  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent!);
+  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent!, cfg.reuse);
 }

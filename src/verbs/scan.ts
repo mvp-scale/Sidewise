@@ -15,10 +15,11 @@ import { expandGlob } from '../evidence/glob.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import { createCodeResolver } from '../evidence/units.ts';
 import type { NewContractRun } from '../ledger/log.ts';
+import { reusedAgeNotes } from '../ledger/reuse.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
-import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
-import { itemRecords, planNeedsBudget, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, reusedIds, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { itemRecords, planNeedsBudget, plannedCallCount, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 // A scan only ever looks at what over: names — nothing says so if that misses the file most likely
@@ -53,7 +54,8 @@ function unlookedEntrypoints(root: string, items: readonly { unit?: { path: stri
 
 export async function runScan(text: string, ctx: VerbContext): Promise<VerbResult> {
   // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, 'scan', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
@@ -61,7 +63,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) });
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) }, { sweep: cfg.sweep, reuse: cfg.reuse });
 
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
 
@@ -92,9 +94,10 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
   const reused = graded.filter((g) => g.status === 'reused').length;
   const scanned = m(...plan.layers.map((l): [string, Value] => [l, plan.items.filter((i) => i.layer === l).length]));
 
-  const calls = plan.planned.filter((p) => p.call !== null).length;
+  const calls = plannedCallCount(plan);
 
   const items = itemRecords(plan.items, grades);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedIds(Object.fromEntries(plan.reusedFrom)));
 
   const response = (id: string, budget: string): string =>
     respondText(
@@ -110,7 +113,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
       wiseRecorded(request.wise),
       sweepNext(id, gate, worst, graded, 'act on it'),
       commonNotes(
-        [...loaded.notes, ...notes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        [...loaded.notes, ...notes, ...plan.splitNotes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
         ctx.provider.adapter,
       ),

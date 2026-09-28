@@ -109,6 +109,17 @@ describe('loop', () => {
     expect(r.exit).toBe(0);
   });
 
+  // plan 2c B, item 5: a sweep's fully-reused second run shows each reused origin's age, not just that reuse
+  // happened — the same reusedAgeNotes line class.ts/drill.ts/replay.ts now show, wired here into the shared
+  // sweep engine's own response.
+  it('a fully-reused second run names the origin run and its age in notes', async () => {
+    const { paths } = tempProject({});
+    await runLoop(LOOP, { paths, provider: stubProvider({ yes: () => 0.9 }), env: {} }); // SW-0001
+    const r2 = await runLoop(LOOP, { paths, provider: stubProvider(), env: {} }); // fully reused, no call needed
+    expect(r2.exit).toBe(0);
+    expect(r2.text).toContain('reused: SW-0001 (0d)');
+  });
+
   it('notes when the cost was estimated from tokens (fix #4), same as class.ts', async () => {
     const { paths } = tempProject({});
     const provider = withEstimatedCost(stubProvider({ yes: () => 0.9 }));

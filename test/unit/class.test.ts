@@ -4,10 +4,11 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadBudget, recordSpend, setBudget } from '../../src/budget/budget.ts';
 import { EVIDENCE_LIMITS } from '../../src/evidence/code.ts';
+import { hasGit } from '../../src/evidence/git.ts';
 import { isContractRun, readLedger } from '../../src/ledger/log.ts';
 import type { Stub } from '../helpers/stub-provider.ts';
 import { runClass } from '../../src/verbs/class.ts';
-import { tempProject } from '../helpers/project.ts';
+import { gitCommit, gitInit, tempProject } from '../helpers/project.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
 
 /** Wraps a stub so its answer reports an estimated cost, without changing stub-provider.ts (shared by other crews). */
@@ -176,5 +177,31 @@ describe('class', () => {
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
+  });
+
+  // plan 2c B, item 5: reuse.maxAgeDays/maxCommits now apply to every verb's reuse lookup, not just view's own
+  // exact-reuse — class.ts stands in for the one-subject verbs here. maxCommits is used (not maxAgeDays) so the
+  // test is deterministic without mocking the clock: git itself proves how far HEAD has moved.
+  it('reuse.maxCommits: an answer further behind HEAD than the cap is re-asked, not reused [plan 2c B3/B]', async () => {
+    if (!hasGit()) return;
+    const { root, paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
+    gitInit(root);
+    gitCommit(root, 'seed');
+    const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
+    await runClass(CLASS_YAML, { paths, provider, env }); // SW-0001, answers this exact evidence
+    expect(provider.calls).toHaveLength(1);
+
+    // Move HEAD 2 commits past the run that answered it, with no change to src/user.ts itself (same evidence).
+    writeFileSync(path.join(root, 'unrelated.txt'), 'a');
+    gitCommit(root, 'unrelated 1');
+    writeFileSync(path.join(root, 'unrelated.txt'), 'b');
+    gitCommit(root, 'unrelated 2');
+
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.config, 'reuse:\n  maxCommits: 1\n');
+    const r2 = await runClass(CLASS_YAML, { paths, provider, env });
+    expect(r2.exit).toBe(0);
+    expect(provider.calls).toHaveLength(2); // the stale answer was skipped: a real second call was made
+    expect(r2.text).not.toContain('reused');
   });
 });

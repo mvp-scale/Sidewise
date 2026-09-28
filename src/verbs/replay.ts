@@ -14,7 +14,7 @@ import { effectiveWiseFields } from '../contract/wise-fields.ts';
 import { readGitEvidence, resolveRefSha, WHOLE_FILE_NOTE } from '../evidence/git.ts';
 import { findRun, isContractRun, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
-import { lookupAnswers, type Reusable } from '../ledger/reuse.ts';
+import { lookupAnswers, reusedAgeNotes, type Reusable } from '../ledger/reuse.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
@@ -87,7 +87,8 @@ export function gradeReplay(categories: readonly Category[], answers: Record<str
 
 export async function runReplay(text: string, ctx: VerbContext): Promise<VerbResult> {
   // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, 'replay', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
@@ -135,8 +136,8 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)] as const);
   // Reuse is resolved before preflight/dry-run, same as class.ts: a fully-reused replay's free run is never
   // blocked by an already-reached budget cap, and a dry run can predict how much reuses.
-  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
-  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
+  const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
+  const afterReused = lookupAnswers(ctx.paths, who, afterKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
@@ -222,6 +223,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
 
   // Which prior runs this run's answers came from, when any were reused.
   const reusedRunIds = reusedIds(reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
   const response = (id: string, budget: string): string =>
     respondText(
       m(
@@ -242,7 +244,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
         ? regressionNext(id, regressed, categories)
         : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
       commonNotes(
-        [...loaded.notes, ...evidenceNotes, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        [...loaded.notes, ...evidenceNotes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         `2 states · ${budget}`,
         ctx.provider.adapter,
       ),

@@ -47,7 +47,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import type { Answer } from '../contract/types.ts';
 import { readRecordAt, withIndex, type IndexHandle } from './index.ts';
-import { isContractRun, type ContractRun } from './log.ts';
+import { findRun, isContractRun, type ContractRun } from './log.ts';
 import { onStore } from './lock.ts';
 import type { SidewisePaths } from './paths.ts';
 
@@ -109,6 +109,27 @@ export function reuseAge(paths: SidewisePaths, r: Pick<Reusable, 'ts' | 'commit'
   const parsed = Date.parse(r.ts);
   const ageDays = Number.isFinite(parsed) ? Math.max(0, Math.floor((now - parsed) / 86_400_000)) : 0;
   return { ageDays, commitsSince: commitsSince(paths.root, r.commit, r.where) };
+}
+
+/** plan 2c B, item 5: every verb that reuses answers shows each reused run's age/commits-since, not just
+ *  view's own exact-reuse (which already renders it structurally as reuseAge:). This is the smaller-format-change
+ *  option the plan allows for the other verbs (class/drill/replay/sweeps): their existing `reused: [ids]` list
+ *  stays exactly as it was: one extra notes: line names each distinct id's own age, so nothing that already reads
+ *  that field breaks. Capped at MAX_REUSED_AGE_NOTES ids (a big sweep can reuse from many distinct origins); empty
+ *  when `ids` is empty. */
+const MAX_REUSED_AGE_NOTES = 5;
+export function reusedAgeNotes(paths: SidewisePaths, ids: readonly string[]): string[] {
+  if (!ids.length) return [];
+  const shown = ids.slice(0, MAX_REUSED_AGE_NOTES);
+  const parts = shown.map((id) => {
+    const run = findRun(paths, id);
+    if (!run || !isContractRun(run)) return `${id} (age unknown)`;
+    const age = reuseAge(paths, { ts: run.ts, commit: run.commit ?? null, where: run.where });
+    const commits = age.commitsSince !== null ? `, ${age.commitsSince} commit${age.commitsSince === 1 ? '' : 's'}` : '';
+    return `${id} (${age.ageDays}d${commits})`;
+  });
+  const more = ids.length > shown.length ? `, +${ids.length - shown.length} more` : '';
+  return [`reused: ${parts.join(', ')}${more}`];
 }
 
 /** Whether `r` is too old/too far behind to reuse under `limits` — either bound only applies when it's

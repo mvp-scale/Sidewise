@@ -17,17 +17,32 @@ import { expand, type ExpandOptions, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, itemQuestions, itemsState, type AskedQuestion } from '../contract/translate.ts';
 import type { ItemGrade, ItemStatus } from '../contract/grade.ts';
 import type { ClassifierState } from '../classifier/port.ts';
+import { DEFAULT_CONFIG, type SidewiseConfig } from '../config/defaults.ts';
 import type { ItemRecord, NewContractRun, TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
-import { lookupAnswers, type Who } from '../ledger/reuse.ts';
+import { lookupAnswers, type ReuseLimits, type Who } from '../ledger/reuse.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { askAll, record, recordFree, type PlannedCall, type Step } from './pay.ts';
 import { dryRunText } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
+/** planSweep's optional project settings (plan 2c B, item 4/5) — sourced from a caller's own
+ *  `resolveConfig(ctx.paths, ctx.env).config`; omitted (every pre-existing 4-arg call site, including this
+ *  file's own unit tests) keeps the code's own defaults: no extra item cap beyond the depth ceiling, no
+ *  question-per-call split, no reuse age/commit limit. */
+export interface SweepLimits {
+  sweep?: SidewiseConfig['sweep'];
+  reuse?: ReuseLimits;
+}
+
 interface PlannedLayer {
   layer: string;
   call: PlannedCall | null;
+  /** Extra calls beyond `call`, when this layer's questions exceeded `sweep.maxQuestionsPerCall` and had to be
+   *  split (plan 2c B, item 4) — empty in the common case (well under the default 500). `call` (chunk 0, which
+   *  carries the goal when this layer has it) plus `extraCalls`, in order, is the full list of calls this layer
+   *  makes; runSweep/sweepDryRun/plannedCallCount all read it that way rather than assuming one call per layer. */
+  extraCalls: PlannedCall[];
   /** Items this layer's call asks about (pushed into state.items), in item order. */
   itemIds: string[];
   /** Items over the depth cap this layer: not asked, not reused. */
@@ -49,6 +64,10 @@ interface SweepPlan {
   answers: Record<string, Answer>;
   /** Item questions actually placed into a call; the goal is never counted here. */
   askedQuestions: number;
+  /** One line per layer whose questions exceeded sweep.maxQuestionsPerCall and had to be split into more than
+   *  one call (plan 2c B, item 4) — empty when nothing was split. Callers fold this into their own response
+   *  notes (and sweepDryRun's own extraNotes) so a split is visible, not silent. */
+  splitNotes: string[];
 }
 
 interface LayerAsk {
@@ -81,16 +100,32 @@ function groupByLayer(items: readonly Item[]): Map<string, Item[]> {
   return out;
 }
 
+/** Splits `arr` into chunks of at most `size` (size <= 0 means "no limit": one chunk). */
+function chunk<T>(arr: readonly T[], size: number): T[][] {
+  if (size <= 0 || arr.length <= size) return [[...arr]];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 /**
- * planSweep(request, who, paths, dryRun, opts) — pure except for the one batched ledger read (lookupAnswers).
- * No resolver: loop's over: is always plain arrays (checkOver's 'none' rule), so expand never needs one.
- * `dryRun`: threaded into lookupAnswers as `readOnly` — a sweep verb's --dry-run reply (sweepDryRun) is built
- * from THIS plan, so a plan built for a dry run must never persist a catch-up/rebuild of index.db to disk
- * (dry runs and free reads write nothing); a real run's plan self-heals as before.
+ * planSweep(request, who, paths, dryRun, opts, limits) — pure except for the one batched ledger read
+ * (lookupAnswers). No resolver: loop's over: is always plain arrays (checkOver's 'none' rule), so expand never
+ * needs one. `dryRun`: threaded into lookupAnswers as `readOnly` — a sweep verb's --dry-run reply (sweepDryRun)
+ * is built from THIS plan, so a plan built for a dry run must never persist a catch-up/rebuild of index.db to
+ * disk (dry runs and free reads write nothing); a real run's plan self-heals as before. `limits` (plan 2c B,
+ * items 4/5): a caller's own `resolveConfig(ctx.paths, ctx.env).config` sweep/reuse settings — omitted (every
+ * pre-existing call site until this round, and this file's own unit tests), the code's own defaults apply: the
+ * depth's compiled-in item cap, no question-per-call split, no reuse staleness limit.
  */
-export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryRun: boolean, opts: ExpandOptions = {}): SweepPlan {
+export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryRun: boolean, opts: ExpandOptions = {}, limits: SweepLimits = {}): SweepPlan {
   const { layers, items } = expand(request.side.over!, opts);
   const itemsByLayer = groupByLayer(items);
+  const reuseLimits = limits.reuse;
+  // Lower-only (defaults.ts's own doc on sweep.maxItems): a project may tighten the depth's compiled-in item
+  // ceiling, never raise past it — Math.min can only ever move the effective cap down from SWEEP_ITEM_CAP.
+  const projectMaxItems = limits.sweep?.maxItems;
+  const maxQuestionsPerCall = limits.sweep?.maxQuestionsPerCall ?? DEFAULT_CONFIG.sweep.maxQuestionsPerCall;
 
   // Pass 1: every ask, flat, grouped by item so pass 2 can look a whole item's asks up at once. The goal's own
   // key isn't known yet (plan 2c B11 — it depends on which items pass 2 ends up ASKING), so it isn't collected
@@ -107,9 +142,9 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
   const goalQ = goalQuestion(request.side.goal);
 
   // One lookup for every item key collected above — not one per item.
-  const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun });
+  const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun, reuse: reuseLimits });
 
-  const cap = SWEEP_ITEM_CAP[request.side.depth ?? 'quick'];
+  const cap = projectMaxItems !== undefined ? Math.min(SWEEP_ITEM_CAP[request.side.depth ?? 'quick'], projectMaxItems) : SWEEP_ITEM_CAP[request.side.depth ?? 'quick'];
   const keys = new Map<string, string>();
   const reusedFrom = new Map<string, string>();
   const answers: Record<string, Answer> = {};
@@ -173,7 +208,7 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
   const goalKey = answerKey(resolvedText, goalQ);
   // A second, separate ledger READ (never a paid provider call — this doesn't touch the "one call per layer"
   // rule) now that the key is finally known; readOnly matches the item lookup above.
-  const goalReused = lookupAnswers(paths, who, [goalKey], { readOnly: dryRun });
+  const goalReused = lookupAnswers(paths, who, [goalKey], { readOnly: dryRun, reuse: reuseLimits });
 
   // The goal: one reuse key for the whole run, resolved once. Unreused, it rides the first layer (in order):
   // that layer either already has item questions (the goal joins them) or gets a call just to carry the goal.
@@ -190,15 +225,28 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
     }
   }
 
+  // plan 2c B, item 4: a layer's questions past sweep.maxQuestionsPerCall split into several calls, each with
+  // only the evidence its own chunk's questions actually reference (never the whole layer's items repeated in
+  // every chunk) — chunk 0 still carries the goal, since callQuestions always puts it first when present.
+  const splitNotes: string[] = [];
   const planned: PlannedLayer[] = work.map(({ layer, callItems, callQuestions, itemIds, skipped }) => {
-    if (!callQuestions.length) return { layer, call: null, itemIds, skipped };
-    const notes: string[] = []; // truncation notes from itemsState: not surfaced by this engine (SweepPlan carries none)
+    if (!callQuestions.length) return { layer, call: null, extraCalls: [], itemIds, skipped };
     const hasGoal = callQuestions[0] === goalQ;
-    const state: ClassifierState = { ...(hasGoal ? { goal: redact(request.side.goal) } : {}), items: itemsState(callItems, notes) };
-    return { layer, call: { state, questions: callQuestions }, itemIds, skipped };
+    const chunks = chunk(callQuestions, maxQuestionsPerCall);
+    if (chunks.length > 1) {
+      splitNotes.push(`${layer}: ${callQuestions.length} questions split into ${chunks.length} calls (over sweep.maxQuestionsPerCall: ${maxQuestionsPerCall})`);
+    }
+    const calls = chunks.map((qs, i) => {
+      const notes: string[] = []; // truncation notes from itemsState: not surfaced by this engine (SweepPlan carries none)
+      const wanted = new Set(qs.map((q) => q.item).filter((id): id is string => id !== undefined));
+      const chunkItems = wanted.size ? callItems.filter((it) => wanted.has(it.id)) : callItems;
+      const state: ClassifierState = { ...(i === 0 && hasGoal ? { goal: redact(request.side.goal) } : {}), items: itemsState(chunkItems, notes) };
+      return { state, questions: qs };
+    });
+    return { layer, call: calls[0]!, extraCalls: calls.slice(1), itemIds, skipped };
   });
 
-  return { layers, items, planned, keys, reusedFrom, answers, askedQuestions };
+  return { layers, items, planned, keys, reusedFrom, answers, askedQuestions, splitNotes };
 }
 
 /** Whether a real run of this plan would make any call at all — the one thing preflight's own budget
@@ -206,6 +254,18 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
  *  by an already-reached cap it will never touch. Pass as `preflight(ctx, { needsBudget: planNeedsBudget(plan) })`. */
 export function planNeedsBudget(plan: SweepPlan): boolean {
   return plan.planned.some((p) => p.call !== null);
+}
+
+/** Every call this plan would actually make, in layer order: a layer's own call (chunk 0, or none) then its
+ *  extraCalls (plan 2c B, item 4's split) — the one flat list askAll/telemetry/dryRunText all count against. */
+function plannedCalls(plan: SweepPlan): PlannedCall[] {
+  return plan.planned.flatMap((p) => (p.call ? [p.call, ...p.extraCalls] : []));
+}
+
+/** How many real provider calls this plan would make — a layer split into several calls counts each one, not
+ *  just the layer itself. loop/scan/drill each use this for their own `calls`/budget-note count. */
+export function plannedCallCount(plan: SweepPlan): number {
+  return plannedCalls(plan).length;
 }
 
 /** runSweep(ctx, verb, plan): pays for whatever planSweep queued, merged with the answers already free. */
@@ -228,7 +288,7 @@ export async function runSweep(
     return 'none';
   };
 
-  const calls = plan.planned.map((p) => p.call).filter((c): c is PlannedCall => c !== null);
+  const calls = plannedCalls(plan);
   if (calls.length === 0) return { ok: true, value: { answers: plan.answers, costUsd: 0, costEstimated: false, telemetry: [], statusOf } };
 
   const asked = await askAll(ctx, verb, calls);
@@ -244,7 +304,7 @@ export async function runSweep(
  *  `extraNotes` (item F): each caller's own `probeWarnings(request.side)`, so a sweep's dry run warns on the
  *  same mechanically-checkable authoring issues a one-subject dry run does. */
 export function sweepDryRun(plan: SweepPlan, identity: { route: string; baseURL: string | null }, extraNotes: readonly string[] = []): VerbResult {
-  const calls = plan.planned.filter((p) => p.call !== null).length;
+  const calls = plannedCallCount(plan);
   const askedItems = plan.planned.reduce((n, p) => n + p.itemIds.length, 0);
   const skippedItems = plan.planned.reduce((n, p) => n + p.skipped.length, 0);
   return {
@@ -258,7 +318,7 @@ export function sweepDryRun(plan: SweepPlan, identity: { route: string; baseURL:
         route: identity.route,
         baseURL: identity.baseURL,
       },
-      extraNotes,
+      [...extraNotes, ...plan.splitNotes],
     ),
   };
 }

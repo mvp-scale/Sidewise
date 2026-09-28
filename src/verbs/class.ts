@@ -19,7 +19,7 @@ import { readCodeEvidence } from '../evidence/code.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun, TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
-import { lookupAnswers } from '../ledger/reuse.ts';
+import { lookupAnswers, reusedAgeNotes } from '../ledger/reuse.ts';
 import { staleNotes } from '../ledger/stale.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
@@ -30,7 +30,8 @@ const CAP_NOTE = 'would be blocked: the budget cap is already reached';
 
 export async function runClass(text: string, ctx: VerbContext): Promise<VerbResult> {
   // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
+  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const wiseFields = effectiveWiseFields(cfg.wise);
   const loaded = loadRequest(text, 'class', wiseFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
@@ -46,7 +47,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
   // readOnly on a dry run (dry runs and free reads write nothing): never persists a catch-up
   // or rebuild of index.db just to predict what a real run would do.
-  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false });
+  const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
 
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
@@ -106,6 +107,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
 
   // Which prior runs this run's answers came from, when any were reused — not just that reuse happened.
   const reusedRunIds = reusedIds(reusedFrom);
+  const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
   const response = (id: string, budget: string): string =>
     respondText(
       subjectSide(id, subject.gate, subject, [
@@ -116,7 +118,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
       wiseRecorded(request.wise),
       outcomeNext(id, subject.gate, subject.categories, request.side.categories, 'act on it'),
       commonNotes(
-        [...loaded.notes, ...evidence.evidence.notes, ...stale, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
+        [...loaded.notes, ...evidence.evidence.notes, ...stale, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         budget,
         ctx.provider.adapter,
       ),

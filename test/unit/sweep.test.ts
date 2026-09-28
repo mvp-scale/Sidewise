@@ -1,6 +1,6 @@
 // The shared sweep engine: depth-cap skipping, per-question reuse, one call per layer that needs one.
 import { describe, expect, it } from 'vitest';
-import { planNeedsBudget, planSweep, runSweep } from '../../src/verbs/sweep.ts';
+import { planNeedsBudget, plannedCallCount, planSweep, runSweep } from '../../src/verbs/sweep.ts';
 import { runLoop } from '../../src/verbs/loop.ts';
 import { validateRequest } from '../../src/contract/validate.ts';
 import { readRequestText } from '../../src/contract/read.ts';
@@ -112,5 +112,75 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     expect(p.itemIds).toHaveLength(10);
     expect(p.itemIds[0]).toBe('part3'); // part0-2 were reused, not asked
     expect(p.skipped).toEqual(['part13', 'part14']);
+  });
+
+  // plan 2c B, item 4: sweep.maxItems is LOWER-only — a project may tighten the depth's compiled-in item
+  // ceiling, never raise past it.
+  describe('sweep.maxItems (lower-only vs the depth cap)', () => {
+    const category = { name: 'boundaries', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Does {part} own one clear responsibility?' }] };
+    const names = Array.from({ length: 15 }, (_, i) => `part${i}`);
+    const makeRequest = (): Request => ({
+      side: { goal: 'The parts are sound', depth: 'quick', where: [], categories: [], layers: [{ name: 'part', categories: [category] }], over: { part: names } },
+      wise: null,
+    });
+
+    it('a project maxItems below the depth cap (10 for quick) tightens it', () => {
+      const { paths } = tempProject({});
+      const plan = planSweep(makeRequest(), WHO, paths, false, {}, { sweep: { maxQuestionsPerCall: 500, maxItems: 5 } });
+      expect(plan.planned[0]!.itemIds).toHaveLength(5);
+      expect(plan.planned[0]!.skipped).toHaveLength(10); // 15 items total, only the first 5 fit under the tightened cap
+    });
+
+    it('a project maxItems ABOVE the depth cap never raises it — the cap stays at the code ceiling', () => {
+      const { paths } = tempProject({});
+      const plan = planSweep(makeRequest(), WHO, paths, false, {}, { sweep: { maxQuestionsPerCall: 500, maxItems: 999 } });
+      expect(plan.planned[0]!.itemIds).toHaveLength(10); // unchanged: quick's own compiled-in ceiling
+    });
+
+    it('omitting sweep entirely behaves exactly as before (no limits config at all)', () => {
+      const { paths } = tempProject({});
+      const plan = planSweep(makeRequest(), WHO, paths, false);
+      expect(plan.planned[0]!.itemIds).toHaveLength(10);
+    });
+  });
+
+  // plan 2c B, item 4: a layer's questions past sweep.maxQuestionsPerCall split into several calls, each
+  // carrying only the evidence its own chunk's questions reference; every call still lands in telemetry.
+  describe('sweep.maxQuestionsPerCall (splitting one layer into several calls)', () => {
+    it('a small limit splits the part layer into more than one call, noted in splitNotes', async () => {
+      const { paths } = tempProject({});
+      const plan = planSweep(req(), WHO, paths, false, {}, { sweep: { maxQuestionsPerCall: 3 } });
+      const partPlan = plan.planned.find((p) => p.layer === 'part')!;
+      expect(partPlan.extraCalls.length).toBeGreaterThan(0);
+      expect(plan.splitNotes.some((n) => n.includes('part') && n.includes('maxQuestionsPerCall'))).toBe(true);
+
+      // Every question from the unsplit plan is still present, split across call + extraCalls, none lost.
+      const unsplit = planSweep(req(), WHO, paths, false);
+      const unsplitPart = unsplit.planned.find((p) => p.layer === 'part')!;
+      const splitQuestionCount = partPlan.call!.questions.length + partPlan.extraCalls.reduce((n, c) => n + c.questions.length, 0);
+      expect(splitQuestionCount).toBe(unsplitPart.call!.questions.length);
+
+      // Each split call's own evidence only names items its own questions actually reference.
+      for (const call of [partPlan.call!, ...partPlan.extraCalls]) {
+        const itemIds = new Set(call.questions.map((q) => q.item).filter((x): x is string => x !== undefined));
+        if (itemIds.size) expect(new Set(Object.keys(call.state.items ?? {}))).toEqual(itemIds);
+      }
+
+      // plannedCallCount and runSweep/telemetry both count every split call, not just one per layer.
+      const totalCalls = plannedCallCount(plan);
+      expect(totalCalls).toBeGreaterThan(plan.planned.length); // more calls than layers, thanks to the split
+      const provider = stubProvider({ yes: () => 0.9 });
+      const r = await runSweep({ paths, provider, env: {} }, 'loop', plan);
+      expect(r.ok).toBe(true);
+      expect(provider.calls.length).toBe(totalCalls);
+      expect(r.ok && r.value.telemetry.length).toBe(totalCalls);
+    });
+
+    it('the default 500 never splits a small sweep (this fixture asks far fewer than 500 per layer)', () => {
+      const { paths } = tempProject({});
+      const plan = planSweep(req(), WHO, paths, false, {}, { sweep: { maxQuestionsPerCall: 500 } });
+      expect(plan.planned.every((p) => p.extraCalls.length === 0)).toBe(true);
+      expect(plan.splitNotes).toEqual([]);
+    });
   });
 });
