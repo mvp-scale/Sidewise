@@ -10,7 +10,7 @@ import { combine, gradeSubject, goalGate, type Mark } from '../contract/grade.ts
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions, type AskedQuestion } from '../contract/translate.ts';
 import type { Answer, Category, Gate } from '../contract/types.ts';
 import { readGitEvidence, resolveRefSha, WHOLE_FILE_NOTE } from '../evidence/git.ts';
-import { findRun, isContractRun, type NewContractRun } from '../ledger/log.ts';
+import { findRun, isContractRun, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type Reusable } from '../ledger/reuse.ts';
 import { m, type Value } from '../contract/emit.ts';
@@ -151,12 +151,14 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
 
   let costUsd: number | undefined = 0;
   let costEstimated = false;
+  let telemetry: TelemetryEntry[] = [];
   if (calls.length > 0) {
     const asked = await askAll(ctx, 'replay', calls);
     if (!asked.ok) return asked.result;
     Object.assign(answers, asked.value.answers);
     costUsd = asked.value.costUsd;
     costEstimated = asked.value.costEstimated;
+    telemetry = asked.value.telemetry;
   }
 
   const keys: Record<string, string> = {};
@@ -282,6 +284,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
     baseURL: identity.baseURL,
     commit: afterSha,
     commits: { before: beforeSha, after: afterSha },
+    telemetry,
   };
 
   const rec = calls.length === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);

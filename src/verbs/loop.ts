@@ -33,7 +33,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
 
   const ran = await runSweep(ctx, 'loop', plan);
   if (!ran.ok) return ran.result;
-  const { answers, costUsd, costEstimated, statusOf } = ran.value;
+  const { answers, costUsd, costEstimated, telemetry, statusOf } = ran.value;
 
   const categoriesOf = (layer: string): readonly Category[] => request.side.layers.find((l) => l.name === layer)!.categories;
   const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
@@ -98,6 +98,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
     calls,
     route: identity.route,
     baseURL: identity.baseURL,
+    telemetry,
   };
 
   return recordSweep(ctx, calls, costUsd, run);

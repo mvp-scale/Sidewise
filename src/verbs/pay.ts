@@ -7,11 +7,12 @@
  * or a junk answer becomes a `failed` record in the same lock section as its spend.
  */
 import { BudgetError, budgetLine, checkBudget, loadBudget, type BudgetState } from '../budget/budget.ts';
+import { providerIdentity } from '../classifier/select.ts';
 import type { ClassifierAnswer, ClassifierResult, ClassifierState } from '../classifier/port.ts';
 import { toClassifierQuestion, type AskedQuestion } from '../contract/translate.ts';
 import type { Answer, Verb } from '../contract/types.ts';
 import { LockError, StoreError } from '../ledger/lock.ts';
-import { appendContractRun, checkLedger, LedgerError, type ContractRun, type NewContractRun } from '../ledger/log.ts';
+import { appendContractRun, checkLedger, LedgerError, type ContractRun, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { recordCall } from '../ledger/record.ts';
 import { redact } from '../ledger/redact.ts';
 import type { Reusable } from '../ledger/reuse.ts';
@@ -143,37 +144,68 @@ function logFailed(ctx: VerbContext, verb: Verb, costUsd: number | undefined, re
   return fail(1, `✖ classifier: ${reason} → retry; the call was counted against the budget`);
 }
 
+/** One provider call's own telemetry (plan 2c B2) — `latencyMs` measured locally around the call, never trusted
+ *  from the provider; `retries`/`baseURL` come along for free from what this call site already has (an
+ *  `identity` lookup every verb already does before calling askAll — cheap and pure, no extra I/O). */
+function telemetryOf(model: string, identity: { baseURL: string | null }, call: PlannedCall, result: ClassifierResult, latencyMs: number): TelemetryEntry {
+  // The call itself didn't throw (that's askAll's own catch, above), but a rehearsal/fake/broken provider can
+  // still return junk (null, a bare string, a shape missing `usage`) — readAnswers is what actually validates
+  // the answer shape, AFTER this runs, so every field here must tolerate `result` being anything.
+  const r = (result ?? {}) as Partial<ClassifierResult>;
+  return {
+    source: 'provider',
+    model,
+    ...(identity.baseURL !== null ? { baseURL: identity.baseURL } : {}),
+    questions: call.questions.length,
+    ...(r.usage?.inputTokens !== undefined ? { inputTokens: r.usage.inputTokens } : {}),
+    ...(r.usage?.outputTokens !== undefined ? { outputTokens: r.usage.outputTokens } : {}),
+    latencyMs,
+    ...(r.retries !== undefined ? { retries: r.retries } : {}),
+    status: 'ok',
+    evidenceBytes: Buffer.byteLength(JSON.stringify(call.state)),
+    ...(usableCost(r.costUsd) !== undefined ? { costUsd: usableCost(r.costUsd) } : {}),
+    ...(r.costEstimated ? { costEstimated: true } : {}),
+  };
+}
+
 /** The calls in order. Answers are merged by question id; the cost is their sum, or undefined if any call didn't
  *  report one. `costEstimated` is true when ANY summed call's cost came from a token-based estimate
- *  (typesafe/answers.ts) rather than the provider's own reported figure, so the total can be marked as such. */
+ *  (typesafe/answers.ts) rather than the provider's own reported figure, so the total can be marked as such.
+ *  `telemetry` (plan 2c B2): one entry per call actually made — never per reused answer (see ledger/reuse.ts for
+ *  the separate `source: 'cache'` shape, not built here). */
 export async function askAll(
   ctx: VerbContext,
   verb: Verb,
   calls: readonly PlannedCall[],
-): Promise<Step<{ answers: Record<string, Answer>; costUsd: number | undefined; costEstimated: boolean }>> {
+): Promise<Step<{ answers: Record<string, Answer>; costUsd: number | undefined; costEstimated: boolean; telemetry: TelemetryEntry[] }>> {
   const answers: Record<string, Answer> = {};
   let costUsd: number | undefined = 0;
   let costEstimated = false;
   let paid = 0;
+  const telemetry: TelemetryEntry[] = [];
+  const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   for (const [i, call] of calls.entries()) {
     let result: ClassifierResult;
+    const startedAt = Date.now();
     try {
       result = await ctx.provider.ask(call.questions.map(toClassifierQuestion), call.state);
     } catch (e) {
       if (paid === 0) return fail(1, `✖ classifier: ${oneLine(e)} → retry later, or set SIDEWISE_PROVIDER=fake to check the request`);
       return logFailed(ctx, verb, costUsd, `call ${i + 1} of ${calls.length}: ${oneLine(e)}`);
     }
+    const latencyMs = Date.now() - startedAt;
     paid += 1;
     const c = usableCost((result as Partial<ClassifierResult> | null | undefined)?.costUsd);
     costUsd = costUsd === undefined || c === undefined ? undefined : costUsd + c;
     if (c !== undefined && (result as Partial<ClassifierResult> | null | undefined)?.costEstimated) costEstimated = true;
+    telemetry.push(telemetryOf(ctx.provider.model, identity, call, result, latencyMs));
     try {
       Object.assign(answers, readAnswers(call.questions, result));
     } catch (e) {
       return logFailed(ctx, verb, costUsd, (e as Error).message);
     }
   }
-  return { ok: true, value: { answers, costUsd, costEstimated } };
+  return { ok: true, value: { answers, costUsd, costEstimated, telemetry } };
 }
 
 /** A paid run: its spend and its ledger line in one lock section. */

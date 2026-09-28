@@ -15,7 +15,7 @@ import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../c
 import type { Answer } from '../contract/types.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import { currentCommitSha } from '../evidence/git.ts';
-import type { NewContractRun } from '../ledger/log.ts';
+import type { NewContractRun, TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers } from '../ledger/reuse.ts';
 import { staleNotes } from '../ledger/stale.ts';
@@ -78,6 +78,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   let costUsd: number | undefined;
   let costEstimated = false;
   let calls: number;
+  let telemetry: TelemetryEntry[] = [];
   if (toAsk.length === 0) {
     costUsd = 0;
     calls = 0;
@@ -88,6 +89,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     Object.assign(answers, asked.value.answers);
     costUsd = asked.value.costUsd;
     costEstimated = asked.value.costEstimated;
+    telemetry = asked.value.telemetry;
     calls = 1;
   }
 
@@ -147,6 +149,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
     calls,
     route: identity.route,
     baseURL: identity.baseURL,
+    telemetry,
   };
 
   const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);

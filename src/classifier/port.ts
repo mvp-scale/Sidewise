@@ -63,6 +63,11 @@ export interface ClassifierResult {
   readonly costUsd: number | undefined;
   /** True when `costUsd` was estimated from tokens (a published rate), not reported by the provider. */
   readonly costEstimated?: boolean;
+  /** Plan 2c B2: token usage for this one call, when the provider reports it (typesafe only; fake/chaos/stub
+   *  omit it) — read by pay.ts's askAll to build the run's own `telemetry` entries. */
+  readonly usage?: { inputTokens?: number; outputTokens?: number };
+  /** Plan 2c B2: how many retries this one call took beyond its first attempt (typesafe only). */
+  readonly retries?: number;
 }
 
 export interface ClassifierPort {

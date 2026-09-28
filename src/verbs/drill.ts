@@ -20,7 +20,7 @@ import type { Answer, Category, Request } from '../contract/types.ts';
 import { readCodeEvidence, type ReadCodeEvidenceOptions } from '../evidence/code.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import { createCodeResolver, readUnit } from '../evidence/units.ts';
-import { findRun, isContractRun, type ItemRecord, type NewContractRun } from '../ledger/log.ts';
+import { findRun, isContractRun, type ItemRecord, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers } from '../ledger/reuse.ts';
 import { clip } from '../util/text.ts';
@@ -92,6 +92,7 @@ async function runOneSubjectProof(
   let costUsd: number | undefined;
   let costEstimated = false;
   let calls: number;
+  let telemetry: TelemetryEntry[] = [];
   if (toAsk.length === 0) {
     costUsd = 0;
     calls = 0;
@@ -102,6 +103,7 @@ async function runOneSubjectProof(
     Object.assign(answers, asked.value.answers);
     costUsd = asked.value.costUsd;
     costEstimated = asked.value.costEstimated;
+    telemetry = asked.value.telemetry;
     calls = 1;
   }
 
@@ -163,6 +165,7 @@ async function runOneSubjectProof(
     calls,
     route: identity.route,
     baseURL: identity.baseURL,
+    telemetry,
   };
 
   const rec = calls === 0 ? recordFree(ctx, run) : record(ctx, costUsd, run);
@@ -252,7 +255,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
 
     const swept = await runSweep(ctx, 'drill', plan);
     if (!swept.ok) return swept.result;
-    const { answers, costUsd, costEstimated, statusOf } = swept.value;
+    const { answers, costUsd, costEstimated, telemetry, statusOf } = swept.value;
 
     const categoriesOf = (layer: string): readonly Category[] => request.side.layers.find((l) => l.name === layer)?.categories ?? [];
     const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
@@ -316,6 +319,7 @@ export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResu
       calls,
       route: identity.route,
       baseURL: identity.baseURL,
+      telemetry,
     };
 
     return recordSweep(ctx, calls, costUsd, run);

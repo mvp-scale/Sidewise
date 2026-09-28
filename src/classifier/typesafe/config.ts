@@ -2,6 +2,7 @@
  * Errors and env-to-config resolution for the `/v1/systemone` client (client.ts). Route selection, the
  * pinned model and the base URL all come from here; nothing here makes a network call.
  */
+import { DEFAULT_CONFIG, type PricingRate } from '../../config/defaults.ts';
 
 export class JevConfigError extends Error {
   /** 1 (default): a provider problem (no key) — bucketed with other provider errors. 2: a config value the
@@ -65,6 +66,12 @@ export interface JevConfig {
    *  its own hardcoded defaults (MAX_RETRIES/BASE_BACKOFF_MS) when this is undefined. */
   retries?: number;
   backoffMs?: number;
+  /** Plan 2c B2: the effective config's per-model rate table (`.sidewise/config.yaml`'s `pricing:`, merged over
+   *  `DEFAULT_CONFIG.pricing` — see resolveJevConfig below), threaded to `createJevClient`/`answers.ts`'s
+   *  `costOf` so an estimate uses the project's own rates. `resolveJevConfig` always populates it from a real
+   *  config; optional only so a hand-built `JevConfig` fixture (tests) need not supply one — `costOf` already
+   *  treats an absent table the same as an empty one (no estimate for any model). */
+  pricing?: Record<string, PricingRate>;
 }
 
 /** The middle layer between env and the hardcoded defaults below (plan 2c B1: env > config > default) — a
@@ -77,6 +84,7 @@ export interface JevFileConfig {
   timeoutMs?: number;
   retries?: number;
   backoffMs?: number;
+  pricing?: Record<string, PricingRate>;
 }
 
 const DIRECT_BASE_URL = 'https://api.typesafe.ai';
@@ -180,6 +188,7 @@ export function resolveJevConfig(env: Env = process.env, deps: { resolveStored?:
     timeoutMs: resolveTimeoutMs(env, deps.fileConfig),
     ...(deps.fileConfig?.retries !== undefined ? { retries: deps.fileConfig.retries } : {}),
     ...(deps.fileConfig?.backoffMs !== undefined ? { backoffMs: deps.fileConfig.backoffMs } : {}),
+    pricing: deps.fileConfig?.pricing ?? DEFAULT_CONFIG.pricing,
   };
 }
 

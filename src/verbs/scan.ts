@@ -70,7 +70,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
 
   const swept = await runSweep(ctx, 'scan', plan);
   if (!swept.ok) return swept.result;
-  const { answers, costUsd, costEstimated, statusOf } = swept.value;
+  const { answers, costUsd, costEstimated, telemetry, statusOf } = swept.value;
 
   // The `?? []`, not a bang-assertion: a layer nobody asked about (like the contract example's `file`) has no
   // entry in side.layers at all, and must still grade as 'none' rather than throw.
@@ -144,6 +144,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
     calls,
     route: identity.route,
     baseURL: identity.baseURL,
+    telemetry,
   };
 
   return recordSweep(ctx, calls, costUsd, run);

@@ -17,7 +17,7 @@ import { expand, type ExpandOptions, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, itemQuestions, itemsState, type AskedQuestion } from '../contract/translate.ts';
 import type { ItemGrade, ItemStatus } from '../contract/grade.ts';
 import type { ClassifierState } from '../classifier/port.ts';
-import type { ItemRecord, NewContractRun } from '../ledger/log.ts';
+import type { ItemRecord, NewContractRun, TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type Who } from '../ledger/reuse.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
@@ -213,7 +213,7 @@ export async function runSweep(
   ctx: VerbContext,
   verb: Verb,
   plan: SweepPlan,
-): Promise<Step<{ answers: Record<string, Answer>; costUsd: number | undefined; costEstimated: boolean; statusOf: (id: string) => ItemStatus }>> {
+): Promise<Step<{ answers: Record<string, Answer>; costUsd: number | undefined; costEstimated: boolean; telemetry: TelemetryEntry[]; statusOf: (id: string) => ItemStatus }>> {
   const skippedIds = new Set(plan.planned.flatMap((p) => p.skipped));
   const askedIds = new Set(plan.planned.flatMap((p) => p.itemIds));
   const reusedItemIds = new Set<string>();
@@ -229,11 +229,14 @@ export async function runSweep(
   };
 
   const calls = plan.planned.map((p) => p.call).filter((c): c is PlannedCall => c !== null);
-  if (calls.length === 0) return { ok: true, value: { answers: plan.answers, costUsd: 0, costEstimated: false, statusOf } };
+  if (calls.length === 0) return { ok: true, value: { answers: plan.answers, costUsd: 0, costEstimated: false, telemetry: [], statusOf } };
 
   const asked = await askAll(ctx, verb, calls);
   if (!asked.ok) return asked;
-  return { ok: true, value: { answers: { ...plan.answers, ...asked.value.answers }, costUsd: asked.value.costUsd, costEstimated: asked.value.costEstimated, statusOf } };
+  return {
+    ok: true,
+    value: { answers: { ...plan.answers, ...asked.value.answers }, costUsd: asked.value.costUsd, costEstimated: asked.value.costEstimated, telemetry: asked.value.telemetry, statusOf },
+  };
 }
 
 /** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. `identity` is the route/base

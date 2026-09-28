@@ -66,8 +66,10 @@ export function createJevClient(config: JevConfig, deps: { fetch?: typeof fetch;
       for (let attempt = 1; ; attempt++) {
         try {
           const { body, requestId } = await postSystemOne(config, doFetch, key, payload, opts);
-          const parsed = parseAnswers(body, request.questions);
-          return requestId ? { ...parsed, requestId } : parsed;
+          const parsed = parseAnswers(body, request.questions, config.pricing);
+          // plan 2c B2: how many retries this ask() took (0 = first attempt succeeded) — surfaced in the
+          // run's own telemetry (pay.ts), never trusted for cost/latency, just call-shape.
+          return { ...parsed, ...(requestId ? { requestId } : {}), retries: attempt - 1 };
         } catch (e) {
           if (!(e instanceof JevApiError) || !e.retryable || attempt > maxRetries) throw e;
           const waitMs = e.retryAfterMs !== undefined ? Math.min(e.retryAfterMs, MAX_BACKOFF_MS) : backoffMs(attempt, base0);

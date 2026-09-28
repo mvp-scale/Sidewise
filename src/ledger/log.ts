@@ -74,6 +74,37 @@ export interface ItemRecord {
 }
 
 /** One run of any verb under the YAML contract v1. */
+/** One provider call's own telemetry (plan 2c B2): additive detail alongside the run's aggregate `costUsd`/
+ *  `calls` — a run's own `telemetry` array holds one entry per HTTP call actually made (never per reused
+ *  answer). The `source: 'cache'` shape (a reused answer's prorated saving) is declared here for the future
+ *  piece that populates it (ledger/reuse.ts's own territory) — nothing in this codebase constructs one yet. */
+export type TelemetryEntry =
+  | {
+      source: 'provider';
+      layer?: string;
+      model: string;
+      baseURL?: string | null;
+      questions: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      /** Measured locally (Date.now() around the call), never trusted from the provider. */
+      latencyMs: number;
+      retries?: number;
+      status: 'ok' | 'error';
+      evidenceBytes: number;
+      rate?: { inputPerMTok?: number; outputPerMTok?: number; perSecond?: number; perCall?: number };
+      costUsd?: number;
+      costEstimated?: boolean;
+    }
+  | {
+      source: 'cache';
+      from: string;
+      questions: number;
+      original: { inputTokens?: number; costUsd?: number };
+      savedUsd?: number;
+      estimated: boolean;
+    };
+
 export interface ContractRun {
   kind: 'run';
   v: 2;
@@ -131,6 +162,9 @@ export interface ContractRun {
    *  distinct from `commit` above (replay's `commit` is the AFTER ref's resolved sha). Optional for the same
    *  reason as `commit`. */
   commits?: { before: string | null; after: string | null };
+  /** Plan 2c B2: one entry per provider call actually made (never per reused answer). Optional/additive — an
+   *  older record simply lacks it. */
+  telemetry?: TelemetryEntry[];
 }
 
 /** What a verb hands the ledger: the response is built inside the lock, once the id and the budget are known. */

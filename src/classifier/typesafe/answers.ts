@@ -6,6 +6,7 @@
  * One request may mix all three in its questions map; answers come back under the same keys. `instructions`
  * may be text or structured JSON ({item, question} for a sweep item).
  */
+import { DEFAULT_CONFIG, type PricingRate } from '../../config/defaults.ts';
 import { JevApiError } from './config.ts';
 import { isRecord, num, readUsageAndCost, type JsonValue } from './wire.ts';
 
@@ -45,27 +46,40 @@ export interface JevResponse {
   answers: Record<string, JevAnswer>;
   usage: { inputTokens: number; outputTokens: number };
   costUsd?: number;
-  /** true when `costUsd` came from RATE_PER_INPUT_TOKEN below, not from the server's own reported cost. */
+  /** true when `costUsd` came from the caller's own `pricing` table (costOf below), not the server's own reported cost. */
   costEstimated?: boolean;
   requestId?: string;
+  /** Set by client.ts (plan 2c B2), not by parseAnswers itself: how many retries this ask() took beyond the
+   *  first attempt (0 = succeeded first try). Undefined here; always present once client.ts returns it. */
+  retries?: number;
 }
 
-/**
- * Published per-input-token rates (docs.typesafe.ai/models.md); output tokens are free there. TypeSafe's
- * direct route never reports a cost at all (only provider_metadata.gateway.cost, on the gateway route, does —
- * see wire.ts's readUsageAndCost), so without this a direct-route run always showed $0.00. Only a model TypeSafe
- * has actually published a rate for appears here — an unlisted model's cost stays unreported, never guessed.
- */
-const RATE_PER_INPUT_TOKEN: Record<string, number> = {
-  'jev-1.13.0': 42 / 1_000_000_000, // $42 per Btok = $0.042 per Mtok
-};
-
-/** The reported cost, or — when none was reported and the answering model has a published rate — an estimate
- *  from its input tokens (output tokens are free), marked as such. Undefined when neither is available. */
-function costOf(model: string, usage: { inputTokens: number }, reported: number | undefined): { costUsd?: number; costEstimated?: boolean } {
+/** Per-model pricing (plan 2c B2) now lives in `src/config/defaults.ts`'s `DEFAULT_CONFIG.pricing`, sparsely
+ *  overridable per project via `.sidewise/config.yaml`'s `pricing:` key — this module no longer owns a rate
+ *  table of its own. `PricingRate.inputPerMTok`/`outputPerMTok` are dollars per MILLION tokens (not per token);
+ *  `perCall` is a flat per-request add-on. TypeSafe's direct route never reports a cost at all (only
+ *  provider_metadata.gateway.cost, on the gateway route, does — see wire.ts's readUsageAndCost), so without an
+ *  estimate a direct-route run always showed $0.00. Only a model the caller's `pricing` table actually names
+ *  gets an estimate; an unlisted model's cost stays unreported, never guessed. */
+function costOf(model: string, usage: { inputTokens: number; outputTokens: number }, reported: number | undefined, pricing?: Record<string, PricingRate>): { costUsd?: number; costEstimated?: boolean } {
   if (reported !== undefined) return { costUsd: reported };
-  const rate = RATE_PER_INPUT_TOKEN[model];
-  return rate === undefined ? {} : { costUsd: usage.inputTokens * rate, costEstimated: true };
+  const rate = pricing?.[model];
+  if (!rate) return {};
+  let costUsd = 0;
+  let has = false;
+  if (rate.inputPerMTok !== undefined) {
+    costUsd += (usage.inputTokens / 1_000_000) * rate.inputPerMTok;
+    has = true;
+  }
+  if (rate.outputPerMTok !== undefined) {
+    costUsd += (usage.outputTokens / 1_000_000) * rate.outputPerMTok;
+    has = true;
+  }
+  if (rate.perCall !== undefined) {
+    costUsd += rate.perCall;
+    has = true;
+  }
+  return has ? { costUsd, costEstimated: true } : {};
 }
 
 const malformed = (message: string, body: unknown): JevApiError => new JevApiError(`malformed response: ${message}`, { retryable: false, body });
@@ -117,8 +131,10 @@ function readScore(raw: Record<string, unknown>, id: string, n: number): JevAnsw
   return { type: 'score', score, distribution, confidence: confidenceOr(raw, (n * Math.max(...distribution) - 1) / (n - 1)) };
 }
 
-/** Parse a /v1/systemone body against the questions that were sent. Throws JevApiError (non-retryable) if malformed. */
-export function parseAnswers(raw: unknown, questions: Record<string, JevQuestion>): Omit<JevResponse, 'requestId'> {
+/** Parse a /v1/systemone body against the questions that were sent. Throws JevApiError (non-retryable) if malformed.
+ *  `pricing` (plan 2c B2, optional): the effective config's per-model rate table, used only when the server
+ *  itself reports no cost (see costOf above) — omitted, every model's cost stays unreported, same as before B2. */
+export function parseAnswers(raw: unknown, questions: Record<string, JevQuestion>, pricing: Record<string, PricingRate> = DEFAULT_CONFIG.pricing): Omit<JevResponse, 'requestId'> {
   if (!isRecord(raw) || !isRecord(raw.answers)) throw malformed('missing `answers`', raw);
   const answers: Record<string, JevAnswer> = {};
   for (const [id, q] of Object.entries(questions)) {
@@ -129,5 +145,5 @@ export function parseAnswers(raw: unknown, questions: Record<string, JevQuestion
   }
   const model = typeof raw.model === 'string' ? raw.model : '';
   const { usage, costUsd } = readUsageAndCost(raw);
-  return { model, answers, usage, ...costOf(model, usage, costUsd) };
+  return { model, answers, usage, ...costOf(model, usage, costUsd, pricing) };
 }
