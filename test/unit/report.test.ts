@@ -24,7 +24,7 @@ describe('runReport', () => {
     expect(r.text).toContain('sidewise report hits');
     const bad = runReport('nonsense', { paths });
     expect(bad.exit).toBe(2);
-    expect(bad.text).toBe('✖ report: "nonsense" is not a view → use hits, patterns, history or web\n→ see: sidewise agent report');
+    expect(bad.text).toBe('✖ report: "nonsense" is not a view → use hits, patterns, history, web, graph, problems, wise, calls or fields\n→ see: sidewise agent report');
   });
 
   it('hits: no runs yet says so plainly', () => {

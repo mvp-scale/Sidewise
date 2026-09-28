@@ -649,6 +649,67 @@ export function callStats(paths: SidewisePaths, opts: { sinceIso?: string; limit
   return [...agg.values()];
 }
 
+export interface UndeclaredField {
+  key: string;
+  /** How many runs' own `wise.extras` carried this key (once per run, regardless of a list value). */
+  count: number;
+  /** Up to MAX_SAMPLES_PER_KEY raw values, for a card/report to show. */
+  samples: string[];
+  /** Every distinct raw value seen, capped at MAX_VALUES_PER_KEY — classification (closed/pattern/reference) is
+   *  presentation logic and belongs to the caller (report.ts), not this tier. */
+  values: string[];
+}
+
+const MAX_UNDECLARED_KEYS = 50;
+const MAX_VALUES_PER_KEY = 200;
+const MAX_SAMPLES_PER_KEY = 5;
+
+/** `sidewise report fields` (plan 2c C3): every `wise.extras` key across the hot tier's own `runs.wise` JSON
+ *  column (see index.ts's `wiseJson`: `{wise, categories}`, the same column `wiseRows` above already reads)
+ *  that ISN'T one of `opts.knownKeys` — the caller passes the built-in wise catalog keys plus whatever a
+ *  project's own `config.wise` already declares. Bounded on both axes (distinct keys, and distinct values per
+ *  key) so a large ledger with many one-off custom keys can't turn this into an unbounded scan — "foundational
+ *  only," per this piece's own instructions, not a general-purpose analytics query. */
+export function undeclaredFieldSamples(paths: SidewisePaths, opts: { knownKeys: readonly string[] }): UndeclaredField[] {
+  if (!existsSync(paths.index)) return [];
+  const db = openGraphDb(paths.index);
+  try {
+    const known = new Set(opts.knownKeys);
+    const rows = db.prepare('SELECT wise FROM runs WHERE wise IS NOT NULL').all();
+    const byKey = new Map<string, { count: number; values: string[] }>();
+    for (const row of rows) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(String(row.wise));
+      } catch {
+        continue;
+      }
+      const extras = (parsed as { wise?: { extras?: Record<string, unknown> } } | null)?.wise?.extras;
+      if (!extras || typeof extras !== 'object') continue;
+      for (const [key, rawValue] of Object.entries(extras)) {
+        if (known.has(key)) continue;
+        let entry = byKey.get(key);
+        if (!entry) {
+          if (byKey.size >= MAX_UNDECLARED_KEYS) continue; // cap distinct keys, not just values per key
+          entry = { count: 0, values: [] };
+          byKey.set(key, entry);
+        }
+        entry.count += 1;
+        const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+        for (const v of values) {
+          const s = String(v);
+          if (entry.values.length < MAX_VALUES_PER_KEY && !entry.values.includes(s)) entry.values.push(s);
+        }
+      }
+    }
+    return [...byKey.entries()].map(([key, e]) => ({ key, count: e.count, samples: e.values.slice(0, MAX_SAMPLES_PER_KEY), values: e.values }));
+  } catch {
+    return [];
+  } finally {
+    db.close();
+  }
+}
+
 export interface TraversalHit {
   path: string[];
   nodes: GraphNode[];

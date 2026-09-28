@@ -831,11 +831,13 @@ A fully-reused loop is never blocked by an already-reached budget cap (see the d
 
 ## report
 
-`sidewise report [hits|patterns|history]` is the one way knowledge leaves the ledger besides a run's own
-response: free, read-only, never calls a provider, never writes to the ledger, and takes no options beyond the
-view name (default `hits`). It is not a seventh verb — it sits outside the Know/Judge/Prove grid, reading
-across every place at once rather than proving one thing. It works unchanged with no on-disk index present
-(the same linear-fallback engine `view` already falls back to). [C-162]
+`sidewise report [hits|patterns|history|web|graph|problems|wise|calls|fields]` is the one way knowledge leaves
+the ledger besides a run's own response: free, read-only, never calls a provider, never writes to the ledger
+(except `fields`'s own `--accept`, which writes only `.sidewise/config.yaml`, never the ledger), and takes no
+options beyond the view name (default `hits`) and `fields`'s own `--accept <field>`. It is not a seventh verb —
+it sits outside the Know/Judge/Prove grid, reading across every place at once rather than proving one thing. It
+works unchanged with no on-disk index present (the same linear-fallback engine `view` already falls back to).
+[C-162]
 `sidewise report hits` (or no argument) shows the newest run's own gate per place x category, worst gate first
 (`fail`, then `unsure`, then `pass`), each row naming the run it came from. A one-subject run's row is marked
 `stale` once the code at that place has changed since — re-derived live, on the bounded set of rows actually
@@ -862,6 +864,27 @@ value reaches the page as JSON inside a `<script type="application/json">` block
 calls a provider and never writes to the ledger itself (it reads the whole log directly, never the id index);
 it tries to open the file in the user's browser (`xdg-open`, `open`, or `cmd /c start`, depending on the OS) and
 always prints the file's path either way, whether or not that succeeds. [C-204]
+`sidewise report graph <kind>:<label>` shows a small neighborhood (depth 2) around one graph-tier node — nodes
+and edges as `kind:label --predicate--> kind:label` lines. With no target it names how to give one
+(`sidewise report graph <kind>:<label>`, e.g. `category:injection`) rather than dumping the whole graph, and an
+unknown target is a plain "not found," never an empty crash. [C-219]
+`sidewise report problems` ranks every family x place pair by gate counts (fail, then unsure, then pass), worst
+first — the ranked, agent-facing knowledge pull an agent can act on directly, capped and counted like every
+other view. [C-220]
+`sidewise report wise` lists every run's own wise fields (why/area/stage/change/risk/blast/problem), newest
+first. [C-221]
+`sidewise report calls` rolls up telemetry by day, verb, model and source (calls, tokens, cost, amount saved by
+reuse), over its own default window (the last 30 days) unless the graph tier is asked otherwise. `graph`,
+`problems`, `wise` and `calls` all refresh the graph tier (ledger/graph.ts) before reading — readers refresh, the
+paid path never does — and report a plain message naming `sidewise doctor`, never a stack trace, when the graph
+tier needs `node:sqlite` and it isn't available. [C-222]
+`sidewise report fields` lists every `wise.extras` key no run's project has declared yet (not a base wise field,
+not already in `config.wise`), with its sample values and a suggested type: `closed` (≤8 distinct values across
+≥5 runs), `pattern` (every value matches one fixed regex shape), `reference` (every value looks like a
+where/route path), or "no suggestion yet" when none of those fit. `--accept <field>` re-runs the same discovery
+and, when that field has a suggestion, writes it into `.sidewise/config.yaml`'s `wise:` block and prints exactly
+what it wrote; naming a field that isn't undeclared, or one with no suggestion yet, is a clean stop, never a
+silent no-op. [C-223]
 
 ---
 

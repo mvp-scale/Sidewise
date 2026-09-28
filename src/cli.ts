@@ -492,9 +492,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       return finish(r.exit, r.text);
     }
     case 'report': {
-      const { positionals } = args('report', { args: rest, allowPositionals: true, options: {} });
-      positionalCount('report', positionals, 0, 1);
-      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform });
+      const twice = givenTwice(rest, ['accept']);
+      if (twice) return finish(2, withAgentPointer(twice, command));
+      const { values, positionals } = args('report', { args: rest, allowPositionals: true, options: { accept: { type: 'string' } } });
+      // 0-2 positionals: the view name, then an optional target — only meaningful for `report graph <kind:label>`.
+      positionalCount('report', positionals, 0, 2);
+      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform }, positionals[1], values.accept);
       return finish(r.exit, r.text);
     }
     case 'class':
