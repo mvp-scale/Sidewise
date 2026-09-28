@@ -126,6 +126,14 @@ describe('runHelp', () => {
     expect(text.toLowerCase()).toContain('needs --usd or --runs');
   });
 
+  it('[plan 2c B1b] help doctor: documents both the bare report and the <file|-> form', () => {
+    const text = runHelp('doctor').text;
+    expect(text).toContain('## doctor');
+    expect(text).toContain('sidewise doctor my-request.yaml');
+    expect(text).toContain('sidewise doctor -');
+    expect(text.toLowerCase()).toContain('config.yaml');
+  });
+
   it('an unknown target names every extra ("report", "outcome", "budget") too', () => {
     const r = runHelp('nope');
     for (const extra of HELP_EXTRAS) expect(r.text).toContain(`"${extra}"`);

@@ -16,12 +16,26 @@
  * does), they read conservatively (env-only key, "not on PATH", "not installed") rather than ever touching a
  * real keychain, npm or claude. Only cli.ts's own production call wires the real implementations
  * (setup/keystore.ts, setup/npm-info.ts, setup/plugin.ts).
+ *
+ * plan 2c B1b: bare `sidewise doctor` also validates `.sidewise/config.yaml` when present (free, offline,
+ * reusing `config/load.ts`'s own `resolveConfig` — the exact same stops `sidewise config` would show). Given a
+ * file or stdin (`runDoctorFile`, wired by cli.ts as `sidewise doctor <file|->`), doctor instead checks ONE
+ * document and detects its kind: a `side:` top-level key means a REQUEST, checked with the same
+ * read+validate pipeline `--dry-run` uses (verbs/request.ts's `loadRequest` — no ledger, reuse or budget
+ * lookups, since those happen later, inside each verb function, never inside `loadRequest`/`validateRequest`
+ * themselves); anything else is checked as a CONFIG file, via `config/validate.ts`'s `validateConfig` directly
+ * (no project needed at all for this path — it only validates YAML text, never touches `.sidewise/`).
  */
 import path from 'node:path';
+import { parseDocument } from 'yaml';
 import { CHAOS_MODEL } from '../classifier/chaos.ts';
 import { FAKE_MODEL } from '../classifier/fake.ts';
 import { hasKey, JevConfigError, resolveJevConfig, routeLabel, type JevConfig, type ResolveStored } from '../classifier/typesafe/client.ts';
 import { emit, m, type Value } from '../contract/emit.ts';
+import { VERBS, type Verb } from '../contract/types.ts';
+import type { ConfigSource } from '../config/defaults.ts';
+import { resolveConfig } from '../config/load.ts';
+import { validateConfig } from '../config/validate.ts';
 import { sqliteAvailable } from '../ledger/index.ts';
 import type { SidewisePaths } from '../ledger/paths.ts';
 import { envFilePath, looseFileModeWarning, readEnvFile } from '../setup/env-file.ts';
@@ -30,6 +44,7 @@ import { findOnPath } from '../setup/npm-info.ts';
 import { inPluginContext, NO_KEY_PLUGIN_HINT, pluginStatus } from '../setup/plugin.ts';
 import type { Runner } from '../setup/runner.ts';
 import { doctorNodeValue, DOCTOR_INDEX_TOO_OLD, nodeVersionOk } from '../util/node-version.ts';
+import { loadRequest } from './request.ts';
 import type { VerbResult } from './types.ts';
 
 interface Identity {
@@ -143,6 +158,84 @@ function projectLine(root: string, deps: { runner?: Runner }): string {
   return `${root} · plugin enabled here: ${enabled ? 'yes' : 'no'}`;
 }
 
+/** How many top-level config keys a project's own config.yaml actually overrides — derived from
+ *  `resolveConfig`'s per-leaf `sources` map (no separate file read needed): any leaf whose source is 'config'
+ *  contributes its top-level key (`budget.usd` → `budget`) to the count, deduped. */
+function overrideCount(sources: Record<string, ConfigSource>): number {
+  const tops = new Set<string>();
+  for (const [dotted, src] of Object.entries(sources)) if (src === 'config') tops.add(dotted.split('.')[0]!);
+  return tops.size;
+}
+
+/** The `config:` field (plan 2c B1b): a bad config.yaml shows every problem in one pass, same
+ *  `✖ config.<path>: problem → fix` shape `sidewise config`/`doctor <file>` use; a clean or absent one shows
+ *  just how many top-level keys it overrides, or "defaults" when none. */
+function configField(paths: SidewisePaths | undefined, env: Record<string, string | undefined>): Value {
+  const resolved = resolveConfig(paths, env);
+  if (resolved.stops.length) return resolved.stops.map((s) => s.text);
+  const n = overrideCount(resolved.sources);
+  return n === 0 ? '✔ config: defaults' : `✔ config: ${n} override${n === 1 ? '' : 's'}`;
+}
+
+const MAX_DOCTOR_STOPS = 5;
+
+/** The same "at most 5 stops, then an agent pointer" shape `verbs/request.ts`'s `stopText` uses for every other
+ *  command — duplicated in miniature here rather than imported, since `doctor` isn't in that function's
+ *  `AgentTarget` union and this module otherwise has no reason to depend on verbs/request.ts's own type. */
+function doctorStops(lines: readonly string[]): string {
+  const capped = lines.length <= MAX_DOCTOR_STOPS ? [...lines] : [...lines.slice(0, MAX_DOCTOR_STOPS), `✖ request: ${lines.length - MAX_DOCTOR_STOPS} more problems → fix the ones above, then run again`];
+  return [...capped, '→ see: sidewise agent doctor'].join('\n');
+}
+
+/** A document's own top-level `side:` key names it a REQUEST (`wise:` alone, with no `side:`, is never valid on
+ *  its own per the schema, so this one check is enough); anything else is checked as CONFIG. A plain regex, not
+ *  a full parse: kind detection must work even on YAML `loadRequest`/`validateConfig` will themselves reject —
+ *  the actual validator, not this sniff, is what reports the real problem either way. */
+const isRequestShaped = (text: string): boolean => /^side\s*:/mu.test(text);
+
+/** Best-effort `side.verb` sniff for picking which verb to validate a standalone request file against — never
+ *  the source of truth (loadRequest's own schema/cross checks are), just a hint so `doctor <file>` doesn't have
+ *  to guess blindly when the file already names its verb. Any parse failure here is silently ignored: the real
+ *  parse error is `loadRequest`'s to report, against the 'class' fallback. */
+function sniffVerb(text: string): Verb {
+  try {
+    const doc = parseDocument(text, { version: '1.2', schema: 'core', uniqueKeys: true });
+    if (doc.errors.length) return 'class';
+    const value = doc.toJS({ maxAliasCount: 50 }) as { side?: { verb?: unknown } } | null;
+    const verb = value?.side?.verb;
+    return typeof verb === 'string' && (VERBS as readonly string[]).includes(verb) ? (verb as Verb) : 'class';
+  } catch {
+    return 'class';
+  }
+}
+
+/** `sidewise doctor <file>` / `sidewise doctor -` (plan 2c B1b): checks ONE document, offline, and never writes
+ *  anything — works with no project at all. See the module doc for the kind-detection rule. */
+export function runDoctorFile(text: string): VerbResult {
+  if (isRequestShaped(text)) {
+    const verb = sniffVerb(text);
+    const loaded = loadRequest(text, verb);
+    if (!loaded.ok) return loaded.result;
+    return { exit: 0, text: `✔ request: valid → checked as ${verb}` };
+  }
+  let raw: unknown;
+  try {
+    const doc = parseDocument(text, { version: '1.2', schema: 'core', uniqueKeys: true });
+    const first = doc.errors[0];
+    if (first) {
+      const line = first.linePos?.[0]?.line ?? 1;
+      return { exit: 2, text: doctorStops([`✖ config: line ${line} does not parse → fix the YAML syntax`]) };
+    }
+    raw = doc.toJS({ maxAliasCount: 50 });
+  } catch {
+    return { exit: 2, text: doctorStops(['✖ config: too many aliases (*) → write it out in full']) };
+  }
+  if (raw === null || raw === undefined) return { exit: 0, text: '✔ config: valid' };
+  const { stops } = validateConfig(raw);
+  if (stops.length) return { exit: 2, text: doctorStops(stops.map((s) => s.text)) };
+  return { exit: 0, text: '✔ config: valid' };
+}
+
 export function runDoctor(
   env: Record<string, string | undefined>,
   paths: SidewisePaths | undefined,
@@ -182,6 +275,7 @@ export function runDoctor(
         ['index', nodeVersionOk(nodeVersion) ? (sqliteAvailable() ? 'node:sqlite' : 'unavailable (unexpected on Node 22.13+)') : DOCTOR_INDEX_TOO_OLD],
         ['cli', cliLine(env, deps.platform ?? process.platform)],
         ['plugin', pluginLine(deps)],
+        ['config', configField(paths, env)],
       ),
     ],
     ['notes', notes],

@@ -1,14 +1,14 @@
 // doctor: plumbing, not a verb (owner ruling, P5) — free (no call, no budget, no ledger write). Reports the
 // resolved provider/route/base URL, whether a key is set (never its value), project/ledger location and the
 // Node/node:sqlite runtime; exit 2 with a ✖ line when the config itself is invalid.
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { envFilePath, setEnvFileValue } from '../../src/setup/env-file.ts';
 import { writeInstallRecord } from '../../src/setup/install-record.ts';
 import type { RunResult, Runner } from '../../src/setup/runner.ts';
-import { runDoctor } from '../../src/verbs/doctor.ts';
+import { runDoctor, runDoctorFile } from '../../src/verbs/doctor.ts';
 import { tempProject } from '../helpers/project.ts';
 
 function tmpXdg(): { XDG_CONFIG_HOME: string } {
@@ -248,5 +248,88 @@ describe('doctor (P5)', () => {
       expect(r.text).toContain('plugin: sidewise@mvp-scale · project scope');
       expect(r.text).not.toContain('sidewise init --scope project');
     });
+  });
+
+  // plan 2c B1b: bare `sidewise doctor` also validates .sidewise/config.yaml when present.
+  describe('the config: field [plan 2c B1b]', () => {
+    it('no project at all: config: defaults', () => {
+      const r = runDoctor({}, undefined);
+      expect(r.text).toContain('config: "✔ config: defaults"');
+    });
+
+    it('a project with no config.yaml: config: defaults', () => {
+      const { paths } = tempProject({});
+      const r = runDoctor({}, paths);
+      expect(r.text).toContain('config: "✔ config: defaults"');
+    });
+
+    it('a clean override file: config: N overrides', () => {
+      const { paths } = tempProject({ '.sidewise/config.yaml': 'budget:\n  usd: 10\nprovider: fake\n' });
+      const r = runDoctor({}, paths);
+      expect(r.text).toContain('config: "✔ config: 2 overrides"');
+    });
+
+    it('a broken config.yaml: every problem in one pass, same ✖ config.<path> shape sidewise config uses', () => {
+      const { paths } = tempProject({ '.sidewise/config.yaml': 'budget:\n  usd: -1\nnope: true\n' });
+      const r = runDoctor({}, paths);
+      expect(r.exit).toBe(0); // a bad config.yaml is reported, not fatal to the rest of the doctor report
+      expect(r.text).toContain('✖ config.budget.usd:');
+      expect(r.text).toContain('✖ config.nope:');
+    });
+  });
+});
+
+const VALID_CLASS_REQUEST = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
+
+describe('runDoctorFile [plan 2c B1b]', () => {
+  it('a request-shaped document (side:) is checked the same way --dry-run would', () => {
+    const r = runDoctorFile(VALID_CLASS_REQUEST);
+    expect(r.exit).toBe(0);
+    expect(r.text).toBe('✔ request: valid → checked as class');
+  });
+
+  it('an explicit side.verb is honored over the class default', () => {
+    const r = runDoctorFile('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: a, after: b}\n  expect: none\n  verb: replay\n');
+    expect(r.exit).toBe(0);
+    expect(r.text).toBe('✔ request: valid → checked as replay');
+  });
+
+  it('an invalid request: the same ✖ field: problem → fix shape, pointed at the inferred verb\'s own agent card', () => {
+    const r = runDoctorFile('side:\n  goal: x\n');
+    expect(r.exit).toBe(2);
+    expect(r.text).toContain('✖ side.goal:');
+    // loadRequest's own stopText points at the verb it validated against (class, the fallback here) — the
+    // same pointer every other class-verb stop gets, not a doctor-specific one.
+    expect(r.text).toContain('→ see: sidewise agent class');
+  });
+
+  it('never touches the ledger/reuse/budget: a valid request with no project at all still just validates', () => {
+    // no project/ledger exists at all here — if this reached ledger lookups it would throw, not stop cleanly.
+    const r = runDoctorFile(VALID_CLASS_REQUEST);
+    expect(r.exit).toBe(0);
+  });
+
+  it('anything without a top-level side: is checked as a config file', () => {
+    const r = runDoctorFile('budget:\n  usd: 10\n');
+    expect(r).toEqual({ exit: 0, text: '✔ config: valid' });
+  });
+
+  it('a bad config file: every problem in one pass', () => {
+    const r = runDoctorFile('budget:\n  usd: -1\nnope: true\n');
+    expect(r.exit).toBe(2);
+    expect(r.text).toContain('✖ config.budget.usd:');
+    expect(r.text).toContain('✖ config.nope:');
+    expect(r.text).toContain('→ see: sidewise agent doctor');
+  });
+
+  it('a YAML syntax error in a config-shaped file: the line number, not a crash', () => {
+    const r = runDoctorFile('budget:\n  usd: [1, 2\n');
+    expect(r.exit).toBe(2);
+    expect(r.text).toMatch(/✖ config: line \d+ does not parse/);
+  });
+
+  it('an empty document is valid config (nothing to override)', () => {
+    const r = runDoctorFile('');
+    expect(r).toEqual({ exit: 0, text: '✔ config: valid' });
   });
 });

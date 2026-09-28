@@ -123,6 +123,30 @@ export function outcomeHelp(): string {
   ].join('\n');
 }
 
+/** plan 2c B1b: `doctor` gained a second form (`doctor <file|->`) alongside its original bare system report —
+ *  documented here the same way outcome/budget are, since neither is a `side:`-YAML verb. */
+export function doctorHelp(): string {
+  return [
+    '## doctor',
+    'Free, offline, no key needed. Not a side:-YAML verb: it never calls a provider. Bare `doctor` reports which ' +
+      'provider/key/project would answer a real call, plus the Node/node:sqlite runtime and, when a project is ' +
+      'found, whether `.sidewise/config.yaml` is valid. `doctor <file>` (or `-` for stdin) instead checks just that ' +
+      'one document, with no project needed at all: a `side:` key means a request, checked the same way --dry-run ' +
+      "would; anything else is checked as a config.yaml-shaped file.",
+    '',
+    'Example:',
+    'sidewise doctor                    # the full system report',
+    'sidewise doctor .sidewise/config.yaml',
+    'sidewise doctor my-request.yaml',
+    'cat my-request.yaml | sidewise doctor -',
+    '',
+    'Sharp rules:',
+    '- exit 0 clean, exit 2 with every problem found in one pass — never calls the classifier, never writes anything.',
+    '- `doctor <file|->` never touches the ledger, reuse or budget, even from inside a real project.',
+    '- kind is auto-detected (a top-level `side:` key means a request); it is never guessed from the file name or extension.',
+  ].join('\n');
+}
+
 export function budgetHelp(): string {
   return [
     '## budget',

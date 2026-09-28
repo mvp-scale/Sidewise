@@ -58,7 +58,7 @@ describe('sidewise <command> --help/-h [C-179]', () => {
 
   it('exits 0 for "doctor --help" even on a too-old Node (free, like doctor itself)', async () => {
     const r = await runCli(['doctor', '--help'], fakeCtx({ nodeVersion: 'v20.11.0' }));
-    expect(r).toEqual({ exit: 0, text: 'sidewise doctor\n' });
+    expect(r).toEqual({ exit: 0, text: 'sidewise doctor [<file> | -]\n' });
   });
 
   it('a genuinely unknown flag is still rejected as before (only --help/-h are special-cased)', async () => {

@@ -196,6 +196,22 @@ function budgetCard(): string {
   );
 }
 
+/** `sidewise agent doctor`'s card (plan 2c B1b). Bare `doctor` is the full system report (provider/key/project/
+ *  node/config); `doctor <file|->` is a narrower, standalone check — no project, no ledger, no classifier — of
+ *  ONE document, auto-detecting whether it's a request (`side:`) or a `.sidewise/config.yaml`-shaped file. */
+function doctorCard(): string {
+  return renderCard(
+    ['tool: doctor'],
+    [
+      '- syntax: sidewise doctor  ·  or: sidewise doctor <file | ->',
+      '- free: no call, no spend, never writes',
+      '- bare form: reports provider/route/key/project/node/config in one pass — also validates .sidewise/config.yaml when present',
+      '- <file|-> form: checks ONE document, no project needed — a side: key means a request (same checks as --dry-run); anything else is checked as config',
+      '- <file|-> never touches the ledger, reuse or budget, even inside a project',
+    ],
+  );
+}
+
 function reportCard(): string {
   return renderCard(
     ['tool: report'],
@@ -329,6 +345,7 @@ const AGENT_TOPICS: Record<string, () => string> = {
   template: templateCard,
   wise: wiseCard,
   config: configCard,
+  doctor: doctorCard,
 };
 const agentExtras = (): string[] => Object.keys(AGENT_TOPICS);
 /** Re-exported for the CLI's own usage line, the same way help/index.ts's HELP_EXTRAS already is. */

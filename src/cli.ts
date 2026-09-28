@@ -36,7 +36,7 @@ import type { PromptIO } from './setup/prompt.ts';
 import { runUninstall, type UninstallFlags } from './setup/uninstall.ts';
 import { runReplay } from './verbs/replay.ts';
 import { runClass } from './verbs/class.ts';
-import { runDoctor } from './verbs/doctor.ts';
+import { runDoctor, runDoctorFile } from './verbs/doctor.ts';
 import { runDrill } from './verbs/drill.ts';
 import { runLoop } from './verbs/loop.ts';
 import { runReport } from './verbs/report.ts';
@@ -77,7 +77,7 @@ const LINES = {
   report: 'sidewise report [hits|patterns|history]',
   outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
   budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
-  doctor: 'sidewise doctor',
+  doctor: 'sidewise doctor [<file> | -]',
   config: 'sidewise config',
   init: 'sidewise init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]',
   uninstall: 'sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]',
@@ -92,15 +92,17 @@ type Command = keyof typeof LINES;
 const USAGE = `${agentFrontDoorLines().join('\n')}\nusage:\n${Object.values(LINES).map((l) => `  ${l}`).join('\n')}`;
 const isCommand = (c: string): c is Command => Object.hasOwn(LINES, c);
 
-// The six verbs plus the four tools `sidewise agent` also carries a card for (report/outcome/budget/template) —
-// every other command (help, agent, doctor, config, init, uninstall, mcp) has no agent card to point at, so a
+// The six verbs plus the five tools `sidewise agent` also carries a card for (report/outcome/budget/template/
+// doctor) — every other command (help, agent, config, init, uninstall, mcp) has no agent card to point at, so a
 // stop from one of those never gets the pointer below (config's own runConfig hand-writes its own "→ see:
-// sidewise agent config" line instead, the same way budget.ts's own errors do — see config/config.ts). Every
+// sidewise agent config" line instead, the same way budget.ts's own errors do — see config/config.ts; doctor's
+// own `doctor <file|->` stops hand-write "→ see: sidewise agent doctor" the same way — see verbs/doctor.ts's
+// `doctorStops` — this set only matters for doctor's OWN usage-mistake stops, e.g. an unreadable file). Every
 // stop a REQUEST can trigger already ends with this same
 // pointer via verbs/request.ts's `stopText` (C-153); the additions here close the remaining gaps that never run
 // through that path — a bare CLI usage mistake, a request file cli.ts itself couldn't even read, a missing
 // project, and outcome/budget's own argument checks.
-const AGENT_POINTABLE = new Set<Command>([...VERBS, 'report', 'outcome', 'budget', 'template']);
+const AGENT_POINTABLE = new Set<Command>([...VERBS, 'report', 'outcome', 'budget', 'template', 'doctor']);
 const withAgentPointer = (text: string, command: Command): string => (AGENT_POINTABLE.has(command) ? `${text}\n→ see: sidewise agent ${command}` : text);
 
 /** A usage mistake: exit 2 with "✖ args: <problem> → <that command's usage line>", plus the same agent pointer
@@ -317,7 +319,17 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   // never spends or writes — free, so it never has to wait for preflight's own project/budget/ledger checks.
   if (command === 'doctor') {
     const { positionals } = args('doctor', { args: rest, allowPositionals: true, options: {} });
-    positionalCount('doctor', positionals, 0, 0);
+    positionalCount('doctor', positionals, 0, 1);
+    // plan 2c B1b: `doctor <file|->` checks ONE document (a request or a config file, kind auto-detected) —
+    // free, offline, no project needed at all, so this branch never calls resolvePaths/runDoctor's own project
+    // report. Reuses the same file/stdin reader every request-taking command already uses, at the code default
+    // max size (a standalone doctor check has no project config to size it against).
+    if (positionals.length === 1) {
+      const read = readRequest(positionals[0]!, ctx.stdin);
+      if ('stop' in read) return finish(2, withAgentPointer(read.stop, 'doctor'));
+      const r = runDoctorFile(read.text);
+      return finish(r.exit, r.text);
+    }
     const r = runDoctor(ctx.env, resolvePaths(ctx.cwd, ctx.env), ctx.nodeVersion, {
       resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
       runner: ctx.runner,
