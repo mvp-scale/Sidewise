@@ -8,8 +8,10 @@ const MAX_STOPS = 5;
 
 /** `stopText` also serves the four tools beyond the six verbs (report/outcome/budget/template) — none of them
  *  is a `Verb` (none takes `ask:`, none calls the classifier), so this widens just enough to name them too,
- *  without `verbs/` importing `help/agent.ts`'s `AGENT_TOOLS` just for a type. */
-export type AgentTarget = Verb | 'report' | 'outcome' | 'budget' | 'template';
+ *  without `verbs/` importing `help/agent.ts`'s `AGENT_TOOLS` just for a type. Not exported: every caller passes
+ *  a plain verb/tool-name string literal and relies on structural typing, so nothing outside this file needs
+ *  the type by name. */
+type AgentTarget = Verb | 'report' | 'outcome' | 'budget' | 'template';
 
 /** At most 5 stops, then one line saying how many more (pasted junk must not flood an agent's context), then a
  *  pointer at that verb/tool's own agent card — every stop is a knowledge gap `sidewise agent <target>` can

@@ -16,9 +16,10 @@ import { VERB_LINE } from './verbs.ts';
 
 const PITCH_LINE_1 = 'Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence,';
 const PITCH_LINE_2 = 'never a command. Think of it as a citable second opinion, not a linter.';
-/** The same two sentences above, unwrapped to one line — cli.ts's usage header reuses this verbatim rather
- *  than hand-typing a shorter pitch of its own. */
-export const PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2}`;
+/** The same two sentences above, unwrapped to one line — `agentFrontDoorLines` below (cli.ts's usage header)
+ *  reuses this verbatim rather than hand-typing a shorter pitch of its own. Not exported: nothing outside this
+ *  file needs the pitch on its own, only through `card()` or `agentFrontDoorLines()`. */
+const PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2}`;
 
 export function card(): string {
   return [
