@@ -61,10 +61,13 @@ describe('checkSchema', () => {
     expect(texts(v)).toEqual(['✖ side.verb: "judge" → use view, class, replay, scan, drill or loop, or leave it out']);
     const e = base();
     e.side.expect = [];
-    expect(texts(e)).toEqual(['✖ side.expect: [] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters']);
+    expect(texts(e)).toEqual(['✖ side.expect: [] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters, or the word "none"']);
     const e2 = base();
     e2.side.expect = ['Not A Tag'];
-    expect(texts(e2)).toEqual(['✖ side.expect: ["Not A Tag"] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters']);
+    expect(texts(e2)).toEqual(['✖ side.expect: ["Not A Tag"] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters, or the word "none"']);
+    const e3 = base();
+    e3.side.expect = 'none';
+    expect(texts(e3)).toEqual([]); // plan 2c N4: "none" predicts no flips at all
   });
 
   it('questions: not a question, no "?", too long, a broken scale or choice [C-021] [C-022]', () => {
@@ -132,39 +135,93 @@ describe('checkSchema', () => {
     expect(texts(reserved)).toContain('✖ side.over.concerns: "concerns"/"decisions" are reserved for ask sections → use a different layer name');
   });
 
-  it('wise: only why, area, stage, change, risk, parent, problem, nodes, touches, blast [C-016] [C-017]', () => {
+  it('wise: only why, area, stage, change, risk, parent, problem, uses, touches, blast, or a valid custom key [C-016] [C-017]', () => {
     const r = base();
-    r.wise = { why: 'explore', area: 'backend', mood: 'x' };
+    r.wise = { why: 'explore', area: 'backend', Mood: 'x' };
     expect(texts(r)).toEqual([
-      '✖ wise.mood: not a field → use why, area, stage, change, risk, parent, problem, nodes, touches or blast',
+      '✖ wise.Mood: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters',
       '✖ wise.why: "explore" → use validate, find or debug',
-      '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests',
+      '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests, or a list of ≤2',
     ]);
   });
 
-  // [C-108] wise.stage is one of design, build, review, pre-merge, post-fix, release
+  it('wise: unknown key stops always precede catalog-field value stops, regardless of object order', () => {
+    const r = base();
+    r.wise = { area: 'backend', Mood: 'x', why: 'explore' };
+    expect(texts(r)).toEqual([
+      '✖ wise.Mood: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters',
+      '✖ wise.why: "explore" → use validate, find or debug',
+      '✖ wise.area: "backend" → use data, api, ui, auth, hosting, build or tests, or a list of ≤2',
+    ]);
+  });
+
+  it('wise: a custom (non-catalog) key is accepted when lower-kebab and short enough', () => {
+    const r = base();
+    r.wise = { why: 'validate', 'ticket-id': 'SW-1', tags: ['a', 'b'] };
+    expect(texts(r)).toEqual([]);
+    const bad = base();
+    bad.wise = { 'ticket-id': 'x'.repeat(161) };
+    expect(texts(bad)).toEqual([`✖ wise.ticket-id: "${'x'.repeat(38)}… → write one line ≤160 characters, or a list of ≤5`]);
+    const tooLong = base();
+    tooLong.wise = { ['a'.repeat(21)]: 'x' };
+    expect(texts(tooLong)).toEqual([`✖ wise.${'a'.repeat(19)}…: not a field → use why, area, stage, change, risk, problem, uses, blast, touches or parent, or a lower-kebab key ≤20 characters`]);
+  });
+
+  // [C-108] wise.stage is one of design, build, review, pre-merge, post-fix, release, operate
   // [C-109] wise.change is one of feature, fix, refactor, dependency, config
   // [C-110] wise.risk is one of low, medium, high
   it('wise: stage, change and risk are optional and closed [C-108] [C-109] [C-110]', () => {
     const r = base();
     r.wise = { stage: 'pre-merge', change: 'fix', risk: 'high' };
     expect(texts(r)).toEqual([]);
+    r.wise = { stage: 'operate' };
+    expect(texts(r)).toEqual([]);
     r.wise = { stage: 'staging', change: 'rewrite', risk: 'severe' };
     expect(texts(r)).toEqual([
-      '✖ wise.stage: "staging" → use design, build, review, pre-merge, post-fix or release',
+      '✖ wise.stage: "staging" → use design, build, review, pre-merge, post-fix, release or operate',
       '✖ wise.change: "rewrite" → use feature, fix, refactor, dependency or config',
       '✖ wise.risk: "severe" → use low, medium or high',
     ]);
   });
 
-  it('wise: problem, nodes, touches, blast (the new knowledge fields)', () => {
+  it('wise: every closed field also accepts "unknown"', () => {
     const r = base();
-    r.wise = { problem: 'x', nodes: 'a:b', touches: [] };
-    expect(texts(r)).toEqual(['✖ wise.problem: is too short → write one line of 3–160 characters: what you\'re solving now', '✖ wise.nodes: "a:b" is not a level:name chain → use level:name ( -> level:name)*, joined by "; " (level: person, system, container, component or code)']);
+    r.wise = { why: 'unknown', area: 'unknown', stage: 'unknown', change: 'unknown', risk: 'unknown', blast: 'unknown' };
+    expect(texts(r)).toEqual([]);
+  });
+
+  it('wise: problem, uses, touches, blast (the knowledge fields)', () => {
+    const r = base();
+    r.wise = { problem: 'x', uses: 'a:b', touches: [] };
+    expect(texts(r)).toEqual([
+      '✖ wise.problem: is too short → write one line of 3–160 characters: what you\'re solving now',
+      '✖ wise.uses: "a:b" → write level:name, e.g. container:web-app',
+    ]);
 
     const ok = base();
-    ok.wise = { problem: 'Fixing the SQL injection in findUser', nodes: 'container:api -> component:contributions-dao -> container:db; container:api -> component:views', touches: ['userId'], blast: 'component' };
+    ok.wise = {
+      problem: 'Fixing the SQL injection in findUser',
+      uses: ['container:api -> component:contributions-dao -> container:db', 'container:api -> component:views'],
+      touches: ['userId'],
+      blast: 'component',
+    };
     expect(texts(ok)).toEqual([]);
+
+    const singleChain = base();
+    singleChain.wise = { uses: 'container:api -> component:dao' };
+    expect(texts(singleChain)).toEqual([]);
+
+    const guessed = base();
+    guessed.wise = { uses: 'system:email-service?' };
+    expect(texts(guessed)).toEqual([]);
+
+    const tooMany = base();
+    tooMany.wise = { uses: Array.from({ length: 6 }, (_, i) => `code:fn${i}`) };
+    expect(texts(tooMany)).toEqual(['✖ wise.uses: 6 chains → give 1–5']);
+
+    const empty = base();
+    empty.wise = { uses: [] };
+    expect(texts(empty)).toEqual(['✖ wise.uses: 0 chains → give 1–5']);
 
     const badTouch = base();
     badTouch.wise = { touches: ['a'.repeat(41)] };

@@ -170,12 +170,12 @@ describe('validateRequest', () => {
 
   it('depth: the concerns section must have exactly 3k categories [C-011] [C-086]', () => {
     const few = req({ ask: { concerns: { c1: concern(1), c2: concern(4) }, decisions: { severity: scaleDecision(7), route: choiceDecision(8) } } });
-    expect(stopsOf(few, 'class')).toEqual(['✖ side.ask.concerns: 2 categories → quick needs exactly 3']);
+    expect(stopsOf(few, 'class')).toEqual(['✖ side.ask.concerns: 2 categories → quick needs exactly 3 → see: sidewise agent probe']);
 
     const many = req({
       ask: { concerns: { c1: concern(1), c2: concern(4), c3: concern(7), c4: concern(10) }, decisions: { severity: scaleDecision(13), route: choiceDecision(14) } },
     });
-    expect(stopsOf(many, 'class')).toEqual(['✖ side.ask.concerns: 4 categories → quick needs exactly 3']);
+    expect(stopsOf(many, 'class')).toEqual(['✖ side.ask.concerns: 4 categories → quick needs exactly 3 → see: sidewise agent probe']);
 
     expect(validateRequest(req(), 'class').ok).toBe(true);
   });
@@ -195,13 +195,13 @@ describe('validateRequest', () => {
     (yesnoInDecisions.decisions as Obj).severity = singleYesNo(10);
     expect(stopsOf(req({ ask: yesnoInDecisions }), 'class')).toEqual([
       '✖ side.ask.decisions.severity: a decisions category must be scale or choice → use concerns: for yes/no',
-      '✖ side.ask.decisions: no scale question → add at least one scale: question',
+      '✖ side.ask.decisions: no scale question → add at least one scale: question → see: sidewise agent probe',
     ]);
 
     const twoQuestions = fullAsk(1);
     (twoQuestions.decisions as Obj).severity = { pass: ['none'], 10: { scale: 'How bad?', levels: ['none', 'high'] }, 11: { scale: 'How bad, really?', levels: ['none', 'high'] } };
     (twoQuestions.decisions as Obj).route = choiceDecision(12);
-    expect(stopsOf(req({ ask: twoQuestions }), 'class')).toEqual(['✖ side.ask.decisions.severity: 2 questions → give it exactly 1']);
+    expect(stopsOf(req({ ask: twoQuestions }), 'class')).toEqual(['✖ side.ask.decisions.severity: 2 questions → give it exactly 1 → see: sidewise agent probe']);
 
     const unknownLevel = fullAsk(1);
     (unknownLevel.decisions as Obj).severity = scaleDecision(10, ['severe']);
@@ -214,16 +214,16 @@ describe('validateRequest', () => {
 
   it('decisions: 2-5 categories, at least one scale and one choice', () => {
     const one = req({ ask: { concerns: fullAsk(1).concerns, decisions: { severity: scaleDecision(10) } } });
-    expect(stopsOf(one, 'class')).toEqual(['✖ side.ask.decisions: 1 category → give 2–5']);
+    expect(stopsOf(one, 'class')).toEqual(['✖ side.ask.decisions: 1 category → give 2–5 → see: sidewise agent probe']);
 
     const six = req({ ask: { concerns: fullAsk(1).concerns, decisions: manyDecisions(6, 10) } });
-    expect(stopsOf(six, 'class')).toEqual(['✖ side.ask.decisions: 6 categories → give 2–5']);
+    expect(stopsOf(six, 'class')).toEqual(['✖ side.ask.decisions: 6 categories → give 2–5 → see: sidewise agent probe']);
 
     const noChoice = req({ ask: { concerns: fullAsk(1).concerns, decisions: { s1: scaleDecision(10), s2: scaleDecision(11, ['low']) } } });
-    expect(stopsOf(noChoice, 'class')).toEqual(['✖ side.ask.decisions: no choice question → add at least one choice: question']);
+    expect(stopsOf(noChoice, 'class')).toEqual(['✖ side.ask.decisions: no choice question → add at least one choice: question → see: sidewise agent probe']);
 
     const noScale = req({ ask: { concerns: fullAsk(1).concerns, decisions: { c1: choiceDecision(10), c2: choiceDecision(11, ['block']) } } });
-    expect(stopsOf(noScale, 'class')).toEqual(['✖ side.ask.decisions: no scale question → add at least one scale: question']);
+    expect(stopsOf(noScale, 'class')).toEqual(['✖ side.ask.decisions: no scale question → add at least one scale: question → see: sidewise agent probe']);
   });
 
   it('a category may not use a word the answer uses (including "expected", replay\'s new grade key)', () => {

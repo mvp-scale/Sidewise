@@ -74,18 +74,23 @@ describe('wiseRecorded', () => {
     ]);
   });
 
-  it("plan 2b's four knowledge fields (problem/nodes/touches/blast) append last, in that order, extras after them", () => {
+  it("plan 2c's knowledge fields (problem/uses/touches/blast) append last, in that order, extras after them", () => {
     expect(wiseRecorded({ problem: 'fixing the injection in findUser' })).toEqual(['problem']);
-    expect(wiseRecorded({ nodes: 'container:api -> component:dao' })).toEqual(['nodes']);
+    expect(wiseRecorded({ uses: ['container:api -> component:dao'] })).toEqual(['uses']);
+    expect(wiseRecorded({ uses: [] })).toBe('none'); // an empty list is not "set"
     expect(wiseRecorded({ touches: ['userId'] })).toEqual(['touches']);
     expect(wiseRecorded({ touches: [] })).toBe('none'); // an empty list is not "set"
     expect(wiseRecorded({ blast: 'component' })).toEqual(['blast']);
     expect(
       wiseRecorded(
-        { why: 'validate', risk: 'high', problem: 'x', nodes: 'code:a', touches: ['y'], blast: 'system' },
+        { why: 'validate', risk: 'high', problem: 'x', uses: ['code:a'], touches: ['y'], blast: 'system' },
         ['parent'],
       ),
-    ).toEqual(['why', 'risk', 'problem', 'nodes', 'touches', 'blast', 'parent']);
+    ).toEqual(['why', 'risk', 'problem', 'uses', 'touches', 'blast', 'parent']);
+  });
+
+  it('a custom (non-catalog) wise key is recorded too, sorted, after the catalog fields', () => {
+    expect(wiseRecorded({ why: 'validate', extras: { 'ticket-id': 'SW-1', component: 'orders' } })).toEqual(['why', 'component', 'ticket-id']);
   });
 });
 
