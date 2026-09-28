@@ -41,11 +41,28 @@ describe('view: free lookup records', () => {
     expect(lookups[0]).toMatchObject({ hit: false, reused: null });
   });
 
-  it('a bare place or run-id lookup (not a request draft) logs nothing', () => {
+  // Plan 2c B4: a bare place ('.', a folder or a tag) or a real run id is logged too, free, same as a request
+  // draft's own cache check above — there's no exact-answer reuse concept for a plain browse, so hit/reused are
+  // always false/null; `goal` carries the place or id string itself, so the record still says what was searched.
+  it('a bare place lookup (not a request draft) logs one lookup per call, goal: the place itself', () => {
     const { paths } = tempProject();
     runView('.', 1, { paths, env: {} });
     runView('src', 1, { paths, env: {} });
-    expect(readLedger(paths).filter(isLookup)).toHaveLength(0);
+    const lookups = readLedger(paths).filter(isLookup);
+    expect(lookups).toHaveLength(2);
+    expect(lookups[0]).toMatchObject({ goal: '.', where: ['.'], hit: false, reused: null });
+    expect(lookups[1]).toMatchObject({ goal: 'src', where: ['src'], hit: false, reused: null });
+    expect(lookups.every((l) => !l.id.match(/^SW-/))).toBe(true); // never a run number
+  });
+
+  it('a run-id lookup logs on a hit, never on a miss (not in the ledger)', async () => {
+    const { paths } = tempProject();
+    await runClass(CLASS_TEXT, { paths, provider: createFakeAdapter(), env: {} }); // SW-0001
+    runView('SW-0001', 1, { paths, env: {} });
+    runView('SW-9999', 1, { paths, env: {} }); // not in the ledger: a stop, never logged
+    const lookups = readLedger(paths).filter(isLookup);
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0]).toMatchObject({ goal: 'SW-0001', where: [], hit: false, reused: null });
   });
 
   it('a request draft with no ask: (where-only) logs nothing — it never reaches the categories check', () => {

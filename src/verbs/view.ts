@@ -158,8 +158,15 @@ function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number, summ
   );
 }
 
+/** B4 (plan 2c): a place browse (a folder, a tag, or '.') is logged too, free — the same "what agents search
+ *  for" signal request mode's own draft check already gave (`kind: 'lookup'`, no SW-#### id, never counted
+ *  toward the budget or any run total). There's no exact-answer reuse to report for a bare place browse (that
+ *  concept only applies to a real draft check's own question set), so `hit`/`reused` are always false/null here
+ *  — `goal` carries the place string itself, so the record still says WHAT was searched for. */
 function byPlace(place: string, paths: SidewisePaths, limit: number, summary: boolean): VerbResult {
-  return place === '.' ? byPlaceFullScan(place, paths, limit, summary) : byPlaceIndexed(place, paths, limit, summary);
+  const result = place === '.' ? byPlaceFullScan(place, paths, limit, summary) : byPlaceIndexed(place, paths, limit, summary);
+  appendLookup(paths, { goal: place, where: [place], hit: false, reused: null });
+  return result;
 }
 
 /** The run at this id, from `handle`'s own offset — undefined for an id it doesn't have, or a stale offset whose
@@ -213,8 +220,12 @@ function detailLines(self: AnyRun, level: Level): string[] {
   return lines;
 }
 
+/** B4 (plan 2c): a run-id view is logged too, on a HIT only (same discipline as request mode: a validation
+ *  failure — here, `id` not in the ledger — never writes a lookup, mirroring loadRequest's own early return
+ *  before runRequestMode's appendLookup call). Called after withIndex returns (never nested inside its
+ *  callback): appendLookup takes its own lock, and this avoids any question of lock re-entrancy across the two. */
 function byId(id: string, paths: SidewisePaths, level: Level, limit: number): VerbResult {
-  return withIndex(
+  const result = withIndex<VerbResult>(
     paths,
     (handle) => {
       const self = runAt(paths, handle, id);
@@ -250,6 +261,8 @@ function byId(id: string, paths: SidewisePaths, level: Level, limit: number): Ve
     },
     { readOnly: true },
   );
+  if (result.exit === 0) appendLookup(paths, { goal: id, where: [], hit: false, reused: null });
+  return result;
 }
 
 /** One category's record here: `{runs: 0}` when it's never been asked, else counts and the newest run holding it. */
