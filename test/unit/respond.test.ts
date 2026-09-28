@@ -73,6 +73,20 @@ describe('wiseRecorded', () => {
       'parent',
     ]);
   });
+
+  it("plan 2b's four knowledge fields (problem/nodes/touches/blast) append last, in that order, extras after them", () => {
+    expect(wiseRecorded({ problem: 'fixing the injection in findUser' })).toEqual(['problem']);
+    expect(wiseRecorded({ nodes: 'container:api -> component:dao' })).toEqual(['nodes']);
+    expect(wiseRecorded({ touches: ['userId'] })).toEqual(['touches']);
+    expect(wiseRecorded({ touches: [] })).toBe('none'); // an empty list is not "set"
+    expect(wiseRecorded({ blast: 'component' })).toEqual(['blast']);
+    expect(
+      wiseRecorded(
+        { why: 'validate', risk: 'high', problem: 'x', nodes: 'code:a', touches: ['y'], blast: 'system' },
+        ['parent'],
+      ),
+    ).toEqual(['why', 'risk', 'problem', 'nodes', 'touches', 'blast', 'parent']);
+  });
 });
 
 describe('outcomeNext', () => {

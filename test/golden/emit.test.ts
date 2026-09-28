@@ -246,6 +246,64 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
+  it("change: expected: grades expect:'s prediction, right after the per-category lines, before regressed: (plan 2b)", () => {
+    const doc = m(
+      [
+        'side',
+        m(
+          ['id', 'SW-0053'],
+          ['gate', 'fail'],
+          ['goal', m(['gate', 'pass'], ['p', 0.84])],
+          ['injection', m(['before', 'fail'], ['after', 'pass'], ['fixed', [1, 2, 10]])],
+          ['guards', m(['before', 'pass'], ['after', 'pass'])],
+          ['access', m(['before', 'fail'], ['after', 'fail'], ['still', [4, 5]])],
+          ['expected', m(['fixed', ['injection']], ['still', ['access']])],
+          ['regressed', []],
+        ),
+      ],
+      ['wise', m(['recorded', ['why', 'parent']])],
+      ['next', 'sidewise template drill --parent SW-0053 --from access'],
+      ['notes', ['2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)']],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  id: SW-0053',
+        '  gate: fail',
+        '  goal: {gate: pass, p: 0.84}',
+        '  injection: {before: fail, after: pass, fixed: [1, 2, 10]}',
+        '  guards: {before: pass, after: pass}',
+        '  access: {before: fail, after: fail, still: [4, 5]}',
+        '  expected: {fixed: [injection], still: [access]}',
+        '  regressed: []',
+        'wise: {recorded: [why, parent]}',
+        'next: sidewise template drill --parent SW-0053 --from access',
+        'notes: [2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)]',
+      ),
+    );
+    roundTrip(doc);
+  });
+
+  it("wise: {recorded: [...]} carries plan 2b's four knowledge fields (problem/nodes/touches/blast), in that order, last", () => {
+    const doc = m(
+      ['side', m(['id', 'SW-0080'], ['gate', 'pass'])],
+      ['wise', m(['recorded', ['why', 'area', 'problem', 'nodes', 'touches', 'blast']])],
+      ['next', 'act on it'],
+      ['notes', ['free']],
+    );
+    expect(emit(doc)).toBe(
+      lines(
+        'side:',
+        '  id: SW-0080',
+        '  gate: pass',
+        'wise: {recorded: [why, area, problem, nodes, touches, blast]}',
+        'next: act on it',
+        'notes: [free]',
+      ),
+    );
+    roundTrip(doc);
+  });
+
   it('view: categories is a map of maps; wise records none', () => {
     const doc = m(
       [
