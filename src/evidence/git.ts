@@ -33,7 +33,7 @@ export function hasGit(deps?: { spawn?: Spawn }): boolean {
  *  the Sidewise project root — a monorepo package or a vendored project one level down is its own repo.
  *  `undefined` when `dir` isn't inside any repo at all (git itself is the source of truth here, not a
  *  `.git`-folder walk this module would have to duplicate and keep in sync with git's own rules). */
-function gitRootOf(dir: string, spawn: Spawn): string | undefined {
+export function gitRootOf(dir: string, spawn: Spawn): string | undefined {
   const result = spawn('git', ['rev-parse', '--show-toplevel'], { cwd: dir, encoding: 'utf8' });
   const out = typeof result.stdout === 'string' ? result.stdout.trim() : '';
   return result.status === 0 && out ? out : undefined;
@@ -73,6 +73,43 @@ export function resolveRefSha(root: string, ref: string, wherePaths: readonly st
  *  `wherePaths` defaults to `[]` (falls back to `root`'s own repo) for any caller with no file paths of its own. */
 export function currentCommitSha(root: string, wherePaths: readonly string[] = [], deps?: { spawn?: Spawn }): string | null {
   return resolveRefSha(root, 'worktree', wherePaths, deps);
+}
+
+/** The directory form of resolveRefSha's own "repo that actually contains this run's own files" rule (plan 2c
+ *  C2: a sweep-parent replay needs to run further git commands there itself — listing/reading files at a ref —
+ *  not just resolve one ref to a sha). Same fallback as resolveRefSha: `root` itself when `wherePaths` is empty
+ *  (nothing to resolve a containing repo from); undefined only when `wherePaths` is non-empty but isn't inside
+ *  any repo at all. */
+export function repoRootFor(root: string, wherePaths: readonly string[], deps?: { spawn?: Spawn }): string | undefined {
+  const spawn = deps?.spawn ?? spawnSync;
+  const dir = firstWhereDir(root, wherePaths);
+  return gitRootOf(dir, spawn) ?? (wherePaths.length ? undefined : root);
+}
+
+/** Every file `git` knows about at `ref`, repo-relative (`git ls-tree -r --name-only`) — the ref-aware mirror of
+ *  evidence/glob.ts's own directory walk, for units.ts's createCodeResolverAt (a sweep-parent replay reads two
+ *  git states instead of the working tree, plan 2c C2). A ref that looks like a git option must never reach git
+ *  (same `isGitOption` guard every other git-reading function here uses); a ref git can't resolve, a `repoRoot`
+ *  that isn't a repo, or no git at all, is an empty list — the caller notes it, never a stop (createCodeResolver's
+ *  own unreadable-file handling follows the same "a note, not a stop" discipline). */
+export function listFilesAtRef(repoRoot: string, ref: string, deps?: { spawn?: Spawn }): string[] {
+  if (isGitOption(ref)) return [];
+  const spawn = deps?.spawn ?? spawnSync;
+  const result = spawn('git', ['ls-tree', '-r', '--name-only', ref], { cwd: repoRoot, encoding: 'utf8' });
+  if (result.status !== 0 || typeof result.stdout !== 'string') return [];
+  return result.stdout.split('\n').filter(Boolean);
+}
+
+/** One file's content at `ref` in the repo rooted at `repoRoot` (`git show ref:path`), or undefined when the ref
+ *  or path can't be read there — same discipline as listFilesAtRef. `relPath` is already `repoRoot`-relative and
+ *  forward-slashed (git's own path form), same as readGitEvidence's own `gitRel`. */
+export function readFileAtRef(repoRoot: string, ref: string, relPath: string, deps?: { spawn?: Spawn }): string | undefined {
+  if (isGitOption(ref)) return undefined;
+  const spawn = deps?.spawn ?? spawnSync;
+  const result = spawn('git', ['show', `${ref}:${relPath}`], { cwd: repoRoot, encoding: 'utf8' });
+  const stderr = typeof result.stderr === 'string' ? result.stderr : '';
+  if (result.status !== 0 || FATAL.test(stderr)) return undefined;
+  return typeof result.stdout === 'string' ? result.stdout : undefined;
 }
 
 /** Redact, then cap per file and in total, exactly like evidence/code.ts's EVIDENCE_LIMITS. */

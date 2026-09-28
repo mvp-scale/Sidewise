@@ -55,6 +55,7 @@ export const SHARP: Record<Verb, string[]> = {
   replay: [
     'the files must be committed at the ref you name (or use "worktree" for the working tree) — replay runs git in the repo that actually holds them',
     'replay re-runs the parent\'s own questions; it never takes ask: (use class for new questions)',
+    'a sweep parent (scan, loop, drill\'s sweep form) is replayed too: it re-sweeps at both refs and reports fixed/still/regressed per item — only a drill sweep CONTINUATION (over: starting with "each") is refused',
   ],
   scan: ['add a scale question to a layer to rank findings by severity, worst first, instead of an unordered map', 'scan by file when the file itself is the unit that matters, not a function inside it'],
   drill: ['follow the `next:` line rather than hand-authoring parent/from — it already names the id and the category or item'],

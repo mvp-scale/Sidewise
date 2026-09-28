@@ -476,8 +476,9 @@ notes: [2 states · budget 2% used]
 
 `replay` never takes `ask`: it replays the parent's categories and questions; new questions go through
 `class`. [C-062]
-`replay`'s parent must be a one-subject run (class, replay, or drill's one-subject form) — a sweep parent is
-refused; run the sweep again instead, since unchanged items are reused there for free. [C-063]
+`replay`'s parent may be a one-subject run (class, replay, or drill's one-subject form) — the shape this
+section describes — or a sweep run (scan, loop, or drill's sweep form), replayed differently: see "A sweep
+parent" below. [C-063]
 A category's response shows `before`/`after` gates, `fixed` (questions failing or unsure before that pass
 after) and `still` (ones that don't), and a `probes: <fixed>/<total> fixed` count naming how many of the
 category's own questions cleared out of how many it has; anything in the run-wide `regressed` list (passing
@@ -526,6 +527,46 @@ changes nothing about what `view` shows for that category afterward — the same
 monorepo package, a vendored project) is no longer invisible to it. [C-147]
 Like `class`, `replay` names which prior runs its answers came from (`reused: [ids]`) when anything was
 reused, and its `--dry-run` predicts that reuse the same way `class`'s does. [C-152]
+
+**A sweep parent** (scan, loop, or drill's own sweep form — plan 2c C2): `replay` re-runs the parent's own
+sweep (`over:` and the `ask:` layers it recorded) twice, once per ref, over the SAME two `compare:` states as a
+one-subject parent — a ref-aware resolver reads git (or the working tree, for `worktree`) instead of always
+reading the current files, the way scan/drill's own resolver does. An unchanged unit's text is identical at
+both refs, so it reuses for free exactly like an unchanged scan/drill item always does — often straight from
+the parent's own original run, not just between this replay's own two calls. Only a drill sweep CONTINUATION
+(an `over:` whose first layer is the literal `each`, anchored on a root item stored only in the grandparent
+run) is refused: replaying it would need to rebuild that root, which this run has no way to do; a scan's or
+loop's own self-contained `over:` replays fine. [C-216]
+
+```yaml
+side:
+  id: SW-0099
+  gate: fail                        # src/a.ts regressed on question 3
+  goal: {gate: fail, p: 0.05}
+  items:
+    src/a.ts: {before: fail, after: fail, fixed: [1], still: [2], probes: 1/2 fixed}
+  passing: 1                        # src/b.ts (unchanged, always passing) says nothing new, so it's left out of items:
+  expected: {fixed: [], still: [injection]}
+  regressed: [src/a.ts#3]
+wise: {recorded: [parent]}
+next: sidewise template drill --parent SW-0099 --from src/a.ts
+notes: [reused: SW-0042 (0d, 1 commit), 2 refs · 2 calls · 11 questions · budget 2% used]
+```
+
+The response is item-shaped, not category-shaped: `items:` holds one entry per item whose own `before`/`after`
+wasn't a clean pass at both states — the same `{before, after, fixed, still, probes}` shape a one-subject
+category gets, just keyed by item id (an item that never changed and was already passing says nothing new, so
+it's left out, the same way scan's own `failing:` only lists what needs attention). `regressed` is `<item
+id>#<question number>` (not a bare number): several items can share the same question numbers, so the item id
+disambiguates which one actually regressed; a non-empty `regressed` fails the gate and wins `next:`'s own
+"which item is to blame?" search, exactly as it does for a one-subject parent. `expect:`/`expected:`/
+`unexpected:` name concern-section category names, same as a one-subject parent, but graded in AGGREGATE across
+every item that has that category (a sweep's own layers can repeat the same category at several depths): a
+concern counts as `fixed` only when EVERY one of its not-passing-before occurrences is passing after (a partial
+fix anywhere still reads as `still`), and `unexpected` fires when any unnamed concern flips at all, on any
+item. Every question id this run stores is item-qualified (`before:<item id>#<n>`, `before:goal`), since a
+sweep's own item ids repeat the same question numbers per item — unlike a one-subject parent's own bare
+`before:<n>`. [C-217]
 
 ---
 

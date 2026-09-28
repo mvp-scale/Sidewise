@@ -1,4 +1,7 @@
-// replay: re-runs a one-subject parent's questions on two states; fixed/still/regressed, a legacy or sweep parent stops.
+// replay: re-runs a parent's questions on two states; fixed/still/regressed. A one-subject parent (class,
+// replay, drill's one-subject form) is answered category-by-category; a sweep parent (scan, loop, drill's sweep
+// form) re-runs the sweep at both refs and answers item-by-item (plan 2c C2) — only a drill sweep CONTINUATION
+// (anchored on a root item this run can't rebuild) and a legacy (Plan 1) parent still stop.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -47,8 +50,40 @@ function markerProvider(): ClassifierPort {
   };
 }
 
+/** The sweep-shaped twin of markerProvider: answers by inspecting the SPECIFIC item's own text (state.items,
+ *  keyed by the classifier question's own `item` field — translate.ts's itemQuestions/toClassifierQuestion),
+ *  not the whole call's evidence — so two items sharing one call (one layer, one batch) are graded
+ *  independently, the same way real code content would be. */
+function sweepMarkerProvider(): ClassifierPort {
+  return {
+    adapter: 'stub',
+    model: 'stub-1',
+    async ask(questions, state: ClassifierState) {
+      const items = (state.items ?? {}) as Record<string, string>;
+      const answers: Record<string, ClassifierAnswer> = {};
+      for (const q of questions) {
+        if (q.type === 'score') {
+          const distribution = q.levels.map((_, i) => (i === 0 ? 0.9 : 0.1 / (q.levels.length - 1 || 1)));
+          answers[q.id] = { type: 'score', score: 0, distribution, confidence: 0.9 };
+          continue;
+        }
+        if (q.type === 'choice') {
+          const options = Object.keys(q.options);
+          const probabilities = Object.fromEntries(options.map((o, i) => [o, i === 0 ? 0.9 : 0.1 / (options.length - 1 || 1)]));
+          answers[q.id] = { type: 'choice', choice: options[0]!, probabilities, confidence: 0.9 };
+          continue;
+        }
+        const marker = /contain (\w+)\?/.exec(q.ask)?.[1];
+        const text = q.item !== undefined ? (items[q.item] ?? '') : Object.values(items).join('\n');
+        answers[q.id] = { type: 'noul', probability: marker && text.includes(marker) ? 0.9 : 0.05 };
+      }
+      return { answers, costUsd: 0 };
+    },
+  };
+}
+
 describe('replay', () => {
-  it('a class parent that has since been fixed on the worktree: fixed, no regression [C-060] [C-211]', async () => {
+  it('a class parent that has since been fixed on the worktree: fixed, no regression [C-060] [C-063] [C-211]', async () => {
     const { paths, root } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`SELECT * FROM t WHERE id = ${x}`); }\n' });
     const classText = `side:\n  goal: fix sql injection\n  depth: quick\n  where: [src/a.ts]\n${QUICK_ASK}`;
     await runClass(classText, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
@@ -65,16 +100,41 @@ describe('replay', () => {
     expect(run).toMatchObject({ verb: 'replay', parent: 'SW-0001' });
   });
 
-  it('a sweep parent stops, naming the fix [C-063]', async () => {
-    const { paths } = tempProject({});
-    appendContractRun(paths, sampleContractRun({ items: {} }), T, 'b'); // SW-0001: items !== null, a sweep
-    const r = await runReplay('side:\n  goal: check the fix\n  parent: SW-0001\n  compare: {before: worktree, after: worktree}\n  expect: [injection]\n', {
+  it('a scan (sweep) parent replays at two refs: fixed/still/regressed per item, an unchanged item reuses straight from the parent itself, and a clean item is left out of items: [C-063] [C-216] [C-217]', async (ctx) => {
+    if (!hasGit()) return ctx.skip();
+    const { paths, root } = tempProject({
+      'src/a.ts': 'export function f(x) {\n  return db.query(`SELECT * FROM t WHERE id = ${x}`); // VULN STILL_BAD\n}\n',
+      'src/b.ts': 'export const STABLE = 1;\n',
+    });
+    gitInit(root);
+    const beforeRef = gitCommit(root, 'vulnerable');
+
+    const scanReq =
+      'side:\n  goal: check handlers\n  depth: quick\n  over:\n    file: src/*.ts\n  ask:\n    file:\n      concerns:\n        injection:\n          pass: no\n          1: Does the file contain VULN?\n          2: Does the file contain STILL_BAD?\n          3: Does the file contain NEW_BUG?\n        access:\n          pass: no\n          4: q4?\n          5: q5?\n          6: q6?\n        leaks:\n          pass: no\n          7: q7?\n          8: q8?\n          9: q9?\n      decisions:\n        severity:\n          pass: [none, low]\n          10:\n            scale: How bad?\n            levels: [none, low, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where to?\n            options: [ship, block]\n';
+    // SW-0001: scan reads the current working tree, which is beforeRef's own content (nothing's been touched yet).
+    await runScan(scanReq, { paths, provider: sweepMarkerProvider(), env });
+
+    // A partial fix on a.ts only: VULN is gone (fixed), STILL_BAD remains (still), a refactor adds NEW_BUG
+    // (regressed). b.ts never changes at all.
+    writeFileSync(path.join(root, 'src/a.ts'), 'export function f(x) {\n  return db.query("SELECT * FROM t WHERE id = ?", [x]); // STILL_BAD NEW_BUG\n}\n');
+    const afterRef = gitCommit(root, 'partial fix, new bug');
+
+    const r = await runReplay(`side:\n  goal: verify the partial fix\n  parent: SW-0001\n  compare: {before: ${beforeRef}, after: ${afterRef}}\n  expect: [injection]\n`, {
       paths,
-      provider: stubProvider(),
+      provider: sweepMarkerProvider(),
       env,
     });
-    expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0001 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent replay');
+
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('items:\n    src/a.ts: {before: fail, after: fail, fixed: [1], still: [2], probes: 1/2 fixed}');
+    expect(r.text).not.toContain('src/b.ts'); // unchanged and always-passing: nothing to say, left out of items:
+    expect(r.text).toContain('regressed: [src/a.ts#3]');
+    expect(r.text).toContain('gate: fail');
+    expect(r.text).toContain('expected: {fixed: [], still: [injection]}');
+    expect(r.text).toContain('reused: [SW-0001]'); // b.ts (both states) and a.ts's own "before" all reuse SW-0001 directly
+    const [run] = readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'replay');
+    expect(run).toMatchObject({ verb: 'replay', parent: 'SW-0001', where: ['src/a.ts', 'src/b.ts'] });
+    expect(run && isContractRun(run) ? Object.keys(run.items ?? {}) : null).toEqual(['src/a.ts', 'src/b.ts']);
   });
 
   // Round 3 smoke test root cause (STOPS.md #1, .sidewise/QUESTION-DETAIL.md #3): the confirming run was
@@ -85,7 +145,7 @@ describe('replay', () => {
   // and replay refuses it regardless of how many items the sweep actually found. Reproduced end to end here
   // through a real scan (SW-0001, one file item) then a real drill (SW-0002, exactly one function item) —
   // not a hand-built ledger record — with the item count asserted directly off the ledger, not inferred.
-  it('a drill sweep with exactly one item is still a sweep parent, and replay still refuses it', async () => {
+  it('a drill sweep CONTINUATION (over: starts with "each", anchored on a root item this run cannot rebuild) is refused, even with exactly one item', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function onlyFn(req) { return db.query(`x ${req.id}`); }\n' });
     const scanReq =
       'side:\n  goal: check handlers\n  depth: quick\n  over:\n    file: src/a.ts\n  ask:\n    file:\n      concerns:\n        injection:\n          pass: no\n          1: is {file} unsafe?\n          2: q2?\n          3: q3?\n        access:\n          pass: no\n          4: q4?\n          5: q5?\n          6: q6?\n        leaks:\n          pass: no\n          7: q7?\n          8: q8?\n          9: q9?\n      decisions:\n        severity:\n          pass: [none, low]\n          10:\n            scale: How bad?\n            levels: [none, low, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where to?\n            options: [ship, block]\n';
@@ -103,7 +163,9 @@ describe('replay', () => {
       env,
     });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0002 was a sweep → run the sweep again (unchanged items are reused for free)\n→ see: sidewise agent replay');
+    expect(r.text).toBe(
+      '✖ side.parent: SW-0002 is a drill continuation (over: starts with "each") → replay can\'t rebuild its root item; run the sweep again instead\n→ see: sidewise agent replay',
+    );
   });
 
   it('a legacy (Plan 1) parent stops', async () => {

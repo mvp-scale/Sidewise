@@ -10,7 +10,8 @@
 import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import type { Item, Resolved, Resolver, UnitRef } from '../contract/layers.ts';
-import { expandGlob, MAX_FILES } from './glob.ts';
+import { listFilesAtRef, readFileAtRef, repoRootFor } from './git.ts';
+import { expandGlob, globToRegExp, MAX_FILES } from './glob.ts';
 import { isOutside } from './paths.ts';
 import { splitCalls, splitFunctions } from './split.ts';
 
@@ -80,6 +81,64 @@ function readCalls(parent: Item): Resolved[] {
 export function createCodeResolver(root: string, notes: string[]): Resolver {
   return (_layer: string, spec: string, parent: Item | null): Resolved[] => {
     if (parent === null) return readFiles(root, spec, notes);
+    if (parent.unit!.kind === 'file') return readFunctions(parent);
+    return readCalls(parent);
+  };
+}
+
+/** The ref-aware mirror of readFiles: lists and reads files at `ref` instead of the working tree (plan 2c C2 —
+ *  a sweep-parent replay re-runs the parent's own file layer at two git states). `root` resolves to its own
+ *  containing git repo once (git.ts's repoRootFor, the same "repo that actually contains the run's own files"
+ *  rule the rest of this codebase already applies via C-147 — `wherePaths` is the caller's own equivalent of a
+ *  run's `where`, here the sweep-parent's own item paths). Paths from `git ls-tree` come back repo-relative;
+ *  they're translated to root-relative before being matched against `spec` with the SAME glob semantics
+ *  expandGlob uses (globToRegExp), so a pattern written the usual way (relative to the project root) still
+ *  works whether or not the containing repo IS the project root. A repo that can't be found, or a ref git can't
+ *  read there, yields no files — a note, never a stop, same as readFiles' own unreadable-file handling. */
+function readFilesAt(root: string, ref: string, spec: string, notes: string[], wherePaths: readonly string[]): Resolved[] {
+  const clean = spec.replace(/^\.\//u, '');
+  if (path.isAbsolute(clean) || clean.split('/').includes('..')) return [];
+  const repoRoot = repoRootFor(root, wherePaths);
+  if (!repoRoot) {
+    notes.push(`${spec}: not inside a git repo, matched no files`);
+    return [];
+  }
+  const re = globToRegExp(clean);
+  const matched: string[] = [];
+  for (const gitRel of listFilesAtRef(repoRoot, ref)) {
+    const rel = path.relative(root, path.resolve(repoRoot, gitRel)).split(path.sep).join('/');
+    if (isOutside(rel)) continue;
+    if (re.test(rel)) matched.push(rel);
+  }
+  matched.sort();
+  const truncated = matched.length > MAX_FILES;
+  if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
+  const files = truncated ? matched.slice(0, MAX_FILES) : matched;
+
+  const out: Resolved[] = [];
+  for (const rel of files) {
+    const gitRel = path.relative(repoRoot, path.resolve(root, rel)).split(path.sep).join('/');
+    const text = readFileAtRef(repoRoot, ref, gitRel);
+    if (text === undefined) {
+      notes.push(`${rel}: could not read at ${ref}, skipped`);
+      continue;
+    }
+    const lineCount = text ? text.split('\n').length : 1;
+    out.push({ name: rel, text, unit: { path: rel, kind: 'file', name: rel, lines: `1-${lineCount}` } });
+  }
+  return out;
+}
+
+/** One Resolver mirroring createCodeResolver, but reading a git ref instead of the working tree (plan 2c C2: a
+ *  sweep-parent replay reads the SAME layers — file -> function -> call — at two refs). Only the first layer
+ *  (file listing/reading) is ref-aware; function/call splitting is pure text parsing (splitFunctions/splitCalls),
+ *  ref-agnostic, so it's shared verbatim with createCodeResolver via readFunctions/readCalls. `wherePaths`
+ *  resolves the containing repo the same way resolveRefSha's own callers do — pass the sweep parent's own item
+ *  paths so a nested repo (a monorepo package, a vendored project) is found the same way C-147 already finds it
+ *  for one-subject replay. */
+export function createCodeResolverAt(root: string, ref: string, notes: string[], wherePaths: readonly string[] = []): Resolver {
+  return (_layer: string, spec: string, parent: Item | null): Resolved[] => {
+    if (parent === null) return readFilesAt(root, ref, spec, notes, wherePaths);
     if (parent.unit!.kind === 'file') return readFunctions(parent);
     return readCalls(parent);
   };
