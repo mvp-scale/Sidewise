@@ -77,7 +77,8 @@ describe('answer reuse', () => {
     appendContractRun(paths, sampleContractRun(), T, 'b');
     appendContractRun(paths, sampleContractRun({ adapter: 'fake', model: 'sidewise-fake-1', answers: { 1: { kind: 'yesno', p: 0.1 } }, keys: { 1: 'k-fake' } }), T, 'b');
     const found = lookupAnswers(paths, WHO, ['k-1', 'k-goal', 'k-none']);
-    expect(Object.fromEntries(found)).toEqual({
+    // plan 2c B3: a Reusable now also carries the origin's ts/commit/where (age/commits-since display).
+    expect(Object.fromEntries(found)).toMatchObject({
       'k-goal': { id: 'SW-0001', answer: { kind: 'yesno', p: 0.2 } },
       'k-1': { id: 'SW-0001', answer: { kind: 'yesno', p: 0.9 } },
     });

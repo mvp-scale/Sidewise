@@ -32,10 +32,12 @@ const scripted = (...results: unknown[]): ClassifierPort & { calls: number } => 
 };
 
 describe('preflight: stops before any call or spend', () => {
-  it('ok, and says when the budget file was just created', () => {
+  // plan 2c B1: a brand-new project (no legacy budget.json, no config.yaml) just runs on silent defaults now —
+  // `created` is true only when a legacy budget.json is found and migrated into config.yaml (see budget.test.ts).
+  it('ok, and reports no legacy migration when there is nothing to migrate', () => {
     const { paths } = tempProject({});
     const r = preflight(ctxOf(paths, stubProvider()));
-    expect(r.ok && r.value.created).toBe(true);
+    expect(r.ok && r.value.created).toBe(false);
   });
 
   it('the cap reached: exit 3', () => {
@@ -65,11 +67,14 @@ describe('preflight: stops before any call or spend', () => {
     expect(r).toMatchObject({ ok: false, result: { exit: 1 } });
   });
 
-  it('a corrupt budget: exit 3; a corrupt ledger or an unwritable one: exit 1', () => {
+  // plan 2c B1: budget.json is no longer the live authority (config.yaml is) — it's read at most once, purely
+  // to migrate its caps, and any problem reading it (missing, corrupt, wrong shape) is simply "nothing to
+  // migrate," never a fail-closed stop, since a stale legacy file must never block a real run.
+  it('a corrupt legacy budget.json is silently ignored; a corrupt ledger or an unwritable one still fails closed at exit 1', () => {
     const a = tempProject({}).paths;
     mkdirSync(a.dir, { recursive: true });
     writeFileSync(a.budget, '{"capUsd": 5, "runs": ');
-    expect(preflight(ctxOf(a, stubProvider()))).toMatchObject({ ok: false, result: { exit: 3 } });
+    expect(preflight(ctxOf(a, stubProvider()))).toMatchObject({ ok: true });
     const b = tempProject({}).paths;
     mkdirSync(b.dir, { recursive: true });
     writeFileSync(b.log, 'garbage\n');
@@ -215,13 +220,16 @@ describe('record: the spend and the run in one lock section', () => {
     expect(readLedger(paths)).toEqual([]);
   }, 15_000);
 
-  it('a ledger corrupted during the call: the spend is rolled back, exit 1, NOT counted', () => {
+  it('a ledger corrupted during the call: nothing to roll back (spend is ledger-derived), exit 1, NOT counted', () => {
     const { paths } = tempProject({});
     mkdirSync(paths.dir, { recursive: true });
     appendFileSync(paths.log, 'garbage\n');
     const r = record(ctxOf(paths, stubProvider()), 0.02, sampleContractRun());
     expect(!r.ok && r.result.text).toBe('✖ ledger: line 1 of .sidewise/log.jsonl is not valid JSON → fix or remove that line (the call was NOT counted against the budget)');
-    expect(loadBudget(paths).state.runs).toBe(0);
+    // plan 2c B1: budget state is derived from the ledger itself, so a corrupted ledger can no longer answer
+    // "what's the current spend/run count" at all — loadBudget correctly fails closed here too, same as every
+    // other ledger read on corrupt log.jsonl; there is no separate budget.json counter left to check instead.
+    expect(() => loadBudget(paths)).toThrow(/not valid JSON/);
   });
 
   it('recordFree logs a run that made no call, without spending', () => {

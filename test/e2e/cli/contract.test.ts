@@ -5,11 +5,13 @@ import { describe, expect, it } from 'vitest';
 import { sidewise } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
 
+// Plan 2c B1: budget is ledger-derived now (no budget.json) — read the run count straight off the built
+// `sidewise budget` line instead, e.g. "budget 0% used ($0.00 of $5.00 · 7 of 500 runs)".
 function ledgerAgreesWithBudget(root: string): void {
   const lines = readFileSync(path.join(root, '.sidewise', 'log.jsonl'), 'utf8').trimEnd().split('\n').filter(Boolean).map((l) => JSON.parse(l));
-  const budget = JSON.parse(readFileSync(path.join(root, '.sidewise', 'budget.json'), 'utf8'));
   const counted = lines.filter((l) => (l.kind === 'run' && l.calls > 0) || l.kind === 'failed').length;
-  expect(budget.runs).toBe(counted);
+  const m = /· (\d+) of \d+ runs\)/.exec(sidewise(root, ['budget']).stdout);
+  expect(m && Number(m[1])).toBe(counted);
 }
 
 describe('the contract, end to end, through the built CLI', () => {

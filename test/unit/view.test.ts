@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it, afterEach } from 'vitest';
+import { loadBudget } from '../../src/budget/budget.ts';
 import { createFakeAdapter } from '../../src/classifier/fake.ts';
 import { __testOnly } from '../../src/ledger/index.ts';
 import { appendContractRun, appendOutcome, appendRun, readLedger } from '../../src/ledger/log.ts';
@@ -180,7 +180,9 @@ describe('view: request mode', () => {
     const classResult = await runClass(text, { paths, provider: createFakeAdapter(), env: {} });
     expect(classResult.exit).toBe(0);
     const linesBefore = readLedger(paths).length;
-    const budgetBefore = readFileSync(paths.budget, 'utf8');
+    // plan 2c B1: budget state is ledger-derived now (no budget.json bytes to diff) — compare the computed
+    // state before/after instead, proving the free lookup spent/counted nothing.
+    const budgetBefore = loadBudget(paths).state;
     // The SAME request text: same goal, same categories/questions, same where.
     const r = runView(text, 1, { paths, env: {} });
     expect(r.text).toContain('reuse: SW-0001');
@@ -190,7 +192,7 @@ describe('view: request mode', () => {
     // Plan 2b: a real draft check (a full ask, not just a bare place/id lookup) is logged, free — one new
     // "lookup" record, never a run: it carries no SW-#### id and never touches the budget (checked below).
     expect(readLedger(paths).length).toBe(linesBefore + 1);
-    expect(readFileSync(paths.budget, 'utf8')).toBe(budgetBefore);
+    expect(loadBudget(paths).state).toEqual(budgetBefore);
   });
 
   it('a fixed-and-held category gets no hit ranking: view shows the plain per-category record, nothing else [C-052] [C-067]', async () => {

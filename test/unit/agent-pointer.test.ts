@@ -82,7 +82,9 @@ describe('every non-request-validation stop still points at its own "sidewise ag
           return { text: gate.message };
         }),
       },
-      { label: 'budget: a corrupt budget.json', target: 'budget', text: textOf(() => loadBudget(corruptPaths)) },
+      // plan 2c B1: a corrupt legacy budget.json no longer stops anything (silently ignored — config.yaml is
+      // the real authority now); the still-live budget stop is `set` given a non-positive cap.
+      { label: 'budget: set given a bad cap', target: 'budget', text: textOf(() => setBudget(corruptPaths, { capUsd: 0 })) },
       { label: 'outcome: an unknown run id', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'SW-9999', 'held', 'anyone')) },
       { label: 'outcome: the asking actor can\'t self-certify "held"', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'SW-0001', 'held', 'someone')) },
     ];
@@ -152,9 +154,11 @@ describe('every non-request-validation stop still points at its own "sidewise ag
       expectPointer(r.text, 'class');
     });
 
-    it('a non-pointable command (doctor) never gets a pointer — there is no "sidewise agent doctor"', async () => {
+    // plan 2c B1b: doctor now has its own agent card (`sidewise agent doctor`), so a usage mistake points at it
+    // like every other pointable command — this used to be the one exception.
+    it('doctor is now pointable too: a bad flag points at "sidewise agent doctor"', async () => {
       const r = await runCli(['doctor', '--bogus'], fakeCliCtx());
-      expect(r.text).not.toContain('→ see: sidewise agent');
+      expectPointer(r.text, 'doctor');
     });
   });
 });

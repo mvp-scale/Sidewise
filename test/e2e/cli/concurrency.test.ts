@@ -10,8 +10,10 @@ import { tempProject } from '../../helpers/project.ts';
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 // index.db (ledger/index.ts) is a disposable SQLite sidecar: a real run persists it only when node:sqlite is
-// actually available (Node >= 22.13); the Node < 22.13 fallback never writes one at all.
-const EXPECTED_FILES = ['.gitignore', 'budget.json', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
+// actually available (Node >= 22.13); the Node < 22.13 fallback never writes one at all. Plan 2c B1: there's no
+// budget.json any more (caps live in config.yaml, spend is ledger-derived) — a plain `class`/`outcome` flow
+// with no `budget set`/`reset` call never creates config.yaml either.
+const EXPECTED_FILES = ['.gitignore', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
 
 interface Line {
   kind: string;
@@ -19,17 +21,29 @@ interface Line {
   of?: string;
 }
 
-/** Every log line parsed (a line that doesn't parse fails the test), plus the budget file. */
+/** Reads the current run count straight off the built `sidewise budget` line (plan 2c B1: budget is
+ *  ledger-derived, no separate budget.json to read) — e.g. "budget 0% used ($0.00 of $5.00 · 3 of 500 runs)". */
+function budgetRunsOf(root: string): number {
+  const out = sidewise(root, ['budget']).stdout;
+  const m = /· (\d+) of \d+ runs\)/.exec(out);
+  if (!m) throw new Error(`could not read a run count from "sidewise budget": ${JSON.stringify(out)}`);
+  return Number(m[1]);
+}
+
+/** Every log line parsed (a line that doesn't parse fails the test), plus the ledger-derived budget run count.
+ *  `files` is snapshotted BEFORE the `sidewise budget` call this needs for `budgetRuns` — that call is itself a
+ *  real CLI invocation (it can self-heal/persist index.db, same as any other command), so reading the directory
+ *  after it would contaminate a caller that's asserting on `.files` alone (see the SIGKILL test below). */
 function state(root: string): { lines: Line[]; runIds: string[]; counted: number; budgetRuns: number; files: string[] } {
   const dir = path.join(root, '.sidewise');
   const lines = readFileSync(path.join(dir, 'log.jsonl'), 'utf8')
     .split('\n')
     .filter((l) => l.trim())
     .map((l) => JSON.parse(l) as Line);
-  const budget = JSON.parse(readFileSync(path.join(dir, 'budget.json'), 'utf8')) as { runs: number };
   const runIds = lines.filter((l) => l.kind === 'run').map((l) => l.id);
   const counted = runIds.length + lines.filter((l) => l.kind === 'failed').length;
-  return { lines, runIds, counted, budgetRuns: budget.runs, files: readdirSync(dir).sort() };
+  const files = readdirSync(dir).sort();
+  return { lines, runIds, counted, budgetRuns: budgetRunsOf(root), files };
 }
 
 const expectedIds = (n: number): string[] => Array.from({ length: n }, (_, i) => `SW-${String(i + 1).padStart(4, '0')}`);
@@ -130,6 +144,6 @@ describe('separate processes at once', () => {
     // when checkLedger/nextRunNumber first touch the index (design binding #7: no ledger yet, touch nothing on
     // disk), and appendLine only creates log.jsonl moments later, in the same command. So this one command never
     // persists index.db even with node:sqlite available; the next command would. See ledger/index.ts's withIndex.
-    expect(state(root).files).toEqual(['.gitignore', 'budget.json', 'log.jsonl']);
+    expect(state(root).files).toEqual(['.gitignore', 'log.jsonl']);
   }, 30_000);
 });

@@ -53,28 +53,29 @@ describe('a corrupt log', () => {
   });
 });
 
-describe('a corrupt budget', () => {
-  it('class and budget show exit 3 with the fix; view still works; reset recovers', () => {
+describe('a corrupt legacy budget.json', () => {
+  // Plan 2c B1: budget.json is no longer the live authority — it's read at most once, purely to migrate its
+  // caps into config.yaml, and any problem reading it (missing, corrupt, wrong shape) is simply "nothing to
+  // migrate," never a fail-closed stop; class/budget/view all proceed normally on the built-in defaults.
+  it('a corrupt legacy budget.json is silently ignored: class, budget and view all proceed on defaults', () => {
     const root = projectWithRun();
     writeFileSync(path.join(root, '.sidewise', 'budget.json'), '{"capUsd": 5, "runs": ');
-    const stop = '✖ budget: .sidewise/budget.json is unreadable → the owner runs "sidewise budget reset" to start a fresh budget';
-    expect(expectCleanStop(sidewise(root, ['class', 'req.yaml']), 3)).toBe(stop);
-    expect(expectCleanStop(sidewise(root, ['budget']), 3)).toBe(stop);
+    expect(sidewise(root, ['budget']).stdout).toMatch(/^budget 0% used \(\$0\.00 of \$5\.00 · 1 of 500 runs\)\n$/);
     expect(sidewise(root, ['view', 'src']).status).toBe(0);
-    expect(sidewise(root, ['budget', 'reset']).status).toBe(0);
     expect(sidewise(root, ['class', 'req.yaml']).stdout).toMatch(/^side:\n {2}id: SW-0002\n/);
   });
 });
 
 describe('a write failure', () => {
-  it('the log path is a directory: exit 1, one clean line, the budget is not counted', () => {
+  it('the log path is a directory: exit 1, one clean line; nothing is counted, and budget can no longer be shown either', () => {
     const { root } = tempProject();
     writeFileSync(path.join(root, 'req.yaml'), CLASS_YAML);
     mkdirSync(path.join(root, '.sidewise', 'log.jsonl'), { recursive: true });
-    expect(expectCleanStop(sidewise(root, ['class', 'req.yaml']), 1)).toBe(
-      '✖ files: cannot read .sidewise/log.jsonl (EISDIR) → make .sidewise/ a writable folder, with log.jsonl and budget.json as files',
-    );
-    expect(sidewise(root, ['budget']).stdout).toBe('budget 0% used ($0.00 of $5.00 · 0 of 500 runs)\n');
+    const stop = '✖ files: cannot read .sidewise/log.jsonl (EISDIR) → make .sidewise/ a writable folder, with log.jsonl and budget.json as files';
+    expect(expectCleanStop(sidewise(root, ['class', 'req.yaml']), 1)).toBe(stop);
+    // Plan 2c B1: budget is ledger-derived now — a broken log.jsonl means budget can't be computed either,
+    // the same clean stop as everything else that reads the ledger (no separate budget.json left to fall back on).
+    expect(expectCleanStop(sidewise(root, ['budget']), 1)).toBe(stop);
   });
 });
 

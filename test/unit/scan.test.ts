@@ -1,5 +1,5 @@
 // scan: a code sweep with per-function reuse. Review Focus #2: a second scan of unchanged code is free.
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { loadBudget, setBudget } from '../../src/budget/budget.ts';
@@ -240,8 +240,13 @@ describe('scan', () => {
     expect(r.text).toContain('adapter fake · not evidence');
   });
 
-  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+  // plan 2c B1: budget.json is no longer the source of truth (caps live in config.yaml, spend is ledger-derived)
+  // — a brand-new project with neither file runs on silent defaults. The "created" note now fires only once,
+  // the first time a legacy budget.json is found and migrated into config.yaml.
+  it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject(FILES);
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.budget, JSON.stringify({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z' }));
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
     const r = await runScan(REQUEST, { paths, provider, env });
     expect(r.exit).toBe(0);

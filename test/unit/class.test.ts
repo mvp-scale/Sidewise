@@ -1,6 +1,6 @@
 // class on the contract: request → evidence → (reuse or) one call → grade → the compact YAML response.
 import { describe, expect, it } from 'vitest';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { loadBudget, recordSpend, setBudget } from '../../src/budget/budget.ts';
 import { EVIDENCE_LIMITS } from '../../src/evidence/code.ts';
@@ -70,8 +70,12 @@ describe('class', () => {
     expect(r2.text).toContain(JSON.stringify('stale: SW-0001 answered "Is request text placed directly into the SQL quer…" on older code (p 0.94)'));
   });
 
-  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
+  it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.budget, JSON.stringify({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z' }));
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(0);

@@ -516,8 +516,12 @@ describe('replay', () => {
     expect(r.text).toContain('adapter fake · not evidence');
   });
 
-  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
+  it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.budget, JSON.stringify({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z' }));
     const parent = sampleContractRun({
       where: ['src/a.ts'],
       ask: { categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q1?' }] }], layers: [] },

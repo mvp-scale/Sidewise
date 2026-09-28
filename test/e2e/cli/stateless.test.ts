@@ -56,7 +56,9 @@ describe('statelessness', () => {
     expect(again.stdout).toContain('$0.00 of $5.00 · 1 of 500 runs');
   });
 
-  it('after runs finish, .sidewise/ holds only .gitignore, log.jsonl, budget.json and (with node:sqlite) index.db — no lock, no temp file', () => {
+  // Plan 2c B1: budget.json is gone — a `budget set` now writes .sidewise/config.yaml instead (caps live there;
+  // spend is ledger-derived).
+  it('after runs finish, .sidewise/ holds only .gitignore, log.jsonl, config.yaml and (with node:sqlite) index.db — no lock, no temp file', () => {
     const root = project();
     expect(sidewise(root, ['class', 'req.yaml']).status).toBe(0);
     expect(sidewise(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']).status).toBe(0);
@@ -65,7 +67,7 @@ describe('statelessness', () => {
     expect(sidewise(root, ['class', 'missing.txt']).status).toBe(2);
     // index.db is the disposable id-index sidecar (ledger/index.ts): expected here, unlike a lock or .tmp file —
     // but only when this test's own Node has node:sqlite; the Node < 22.13 fallback never writes one at all.
-    const expected = ['.gitignore', 'budget.json', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
+    const expected = ['.gitignore', 'config.yaml', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
     expect(readdirSync(path.join(root, '.sidewise')).sort()).toEqual(expected);
   });
 });

@@ -263,9 +263,12 @@ the depth cap, it says so instead of naming one. [C-046]
 A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, offline, canned) adds `adapter
 <name> · not evidence` to `notes:`, right before the budget line, on every verb that calls the classifier
 (class, scan, drill, loop, replay) — so a rehearsal answer is never mistaken for real evidence. [C-092]
-A missing `.sidewise/budget.json` is created with the defaults ($5.00, 500 runs) the first time any of those
-verbs preflights a call; that same run's `notes:` says so (`budget file created with defaults ($5.00 · 500
-runs)`), once, since every later run finds the file already there. [C-093]
+Budget caps (`usd`, `runs`) live in `.sidewise/config.yaml`'s `budget:` key; spend and run counts are derived
+from the ledger itself, never a separate counter. A project with neither `config.yaml` nor a legacy
+`.sidewise/budget.json` simply runs on the built-in defaults ($5.00, 500 runs), silently. A legacy
+`budget.json` (from before this) is migrated into `config.yaml` at most once, the first time any of those verbs
+preflights a call; that same run's `notes:` says so (`budget file created with defaults ($5.00 · 500 runs)`),
+once, since every later run finds `config.yaml` already holding its own `budget:` key. [C-093]
 On TypeSafe's direct route, which reports no cost of its own, a run whose answering model has a published
 rate (today, only `jev-1.13.0`, at $42 per billion input tokens; output tokens are free) is charged an
 estimate from its input tokens instead of showing $0.00, and `notes:` says `cost estimated from tokens (no

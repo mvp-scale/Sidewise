@@ -1,4 +1,5 @@
 // loop: the contract's own example end to end, tree order for failing: and passing:.
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { setBudget } from '../../src/budget/budget.ts';
 import { runLoop } from '../../src/verbs/loop.ts';
@@ -116,8 +117,12 @@ describe('loop', () => {
     expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
-  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
+  it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.budget, JSON.stringify({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z' }));
     const yes = (q: { id: string }) =>
       q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#6' ? 0.91 : q.id === 'payments/partial capture#6' ? 0.48 : /#(6|7|8)$/.test(q.id) ? 0.1 : 0.9;
     const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes }), env: {} });

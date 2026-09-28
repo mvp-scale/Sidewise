@@ -1,4 +1,5 @@
 // drill: down from one item (sweep shape) or one category (class shape), depending on the parent's own shape.
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
 import { setBudget } from '../../src/budget/budget.ts';
@@ -214,9 +215,12 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
-  it('a missing budget file is created with defaults (BRIEF §5) [C-093]', async () => {
+  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
+  it('a legacy budget.json is migrated into config.yaml (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
-    // Seeded directly (not run for real), so budget.json doesn't exist yet — drill's own preflight is the first.
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.budget, JSON.stringify({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z' }));
     const parent = sampleContractRun({
       items: {
         'src/a.ts/findUser': {
@@ -375,9 +379,12 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     expect(r.text).toContain('adapter fake · not evidence');
   });
 
-  it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
+  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
+  it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
-    // Seeded directly (not run for real), so budget.json doesn't exist yet — drill's own preflight is the first.
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.budget, JSON.stringify({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z' }));
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // SW-0001: the default "injection" category
     const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95 }), env });
     expect(r.exit).toBe(0);
