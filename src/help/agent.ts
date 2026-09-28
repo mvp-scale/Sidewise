@@ -111,10 +111,13 @@ function verbCard(verb: Verb): string {
   return renderCard([`verb: ${verb}`], [...SHARP[verb].map((s) => `- ${s}.`), ...ruleLines(verb)], terseLines(verb));
 }
 
+/** PROBE_RULES (TypeSafe's own published guidance, cited in `help probe`, bare here) then `ruleLines('probe')`
+ *  — Sidewise's own hard validator rules that also apply while writing a question (today: the per-question
+ *  character cap), tagged 'probe' in rules.ts so they reach this card without a second copy. [C-194] */
 function probeCard(): string {
   return renderCard(
     ['tool: probe'],
-    PROBE_RULES.map((r) => `- ${r.text}`),
+    [...PROBE_RULES.map((r) => `- ${r.text}`), ...ruleLines('probe')],
   );
 }
 

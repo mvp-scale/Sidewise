@@ -1,5 +1,6 @@
 // sidewise agent [verb]: free, no project needed — help's terse, agent-facing twin. [C-173]
 import { describe, expect, it } from 'vitest';
+import { MAX_QUESTION_CHARS } from '../../src/contract/schema-check.ts';
 import { VERBS } from '../../src/contract/types.ts';
 import { AGENT_TOOLS, runAgent } from '../../src/help/agent.ts';
 import { runHelp } from '../../src/help/index.ts';
@@ -81,6 +82,13 @@ describe('runAgent', () => {
     for (const r of PROBE_RULES) expect(text).toContain(r.text);
     expect(text).not.toContain('TypeSafe');
     expect(text).not.toMatch(/^##\s/mu);
+  });
+
+  // Round-4 finding: a cold agent hit `✖ question 1: is longer than 160 characters` with zero prior warning
+  // in `agent view`/`agent probe` — the cap is now a shared RULES entry, tagged 'probe' too.
+  it('[C-194] the 160-char question cap reaches agent probe and agent view (not just the validator)', () => {
+    expect(runAgent('probe').text).toContain(String(MAX_QUESTION_CHARS));
+    expect(runAgent('view').text).toContain(String(MAX_QUESTION_CHARS));
   });
 
   it.each(['outcome', 'budget', 'report'] as const)('[C-182] agent %s: a recognized non-verb target, bare, with a good/bad pair', (target) => {

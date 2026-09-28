@@ -1,7 +1,9 @@
 /**
  * `sidewise help <topic>`: cross-cutting rules that don't belong to one verb:
  * authoring (how to write a request), verdict (how to read one), wise (the ledger's own context fields),
- * reuse (what answers are free and why).
+ * reuse (what answers are free and why). `probe()` splices `ruleLines('probe')` in after `PROBE_RULES`, for
+ * facts that are Sidewise's own validator rules rather than TypeSafe guidance (schema-check.ts's per-question
+ * character cap). [C-194]
  */
 import { AREAS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
 import { proseLines } from './patterns.ts';
@@ -87,6 +89,7 @@ function probe(): string {
     'source page cited.',
     '',
     ...PROBE_RULES.map((r) => `- ${r.text} (TypeSafe: ${r.cite})`),
+    ...ruleLines('probe'),
     '',
     'Round 3 smoke testing found this directly: a goal phrased as the vulnerability ("runs request input as code")',
     'read pass/fail backwards, and its probability stayed at p 0.98 before AND after the fix that removed the',

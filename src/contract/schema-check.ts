@@ -30,11 +30,15 @@ class Out {
   }
 }
 
+/** Shared with help/rules.ts so the documented cap and the enforced one can't drift apart (round-4 finding:
+ *  a cold agent hit this stop with zero prior warning in `agent view`/`agent probe`). */
+export const MAX_QUESTION_CHARS = 160;
+
 function lineProblem(v: unknown): string | undefined {
   if (typeof v !== 'string') return `${show(v)} is not text`;
   if (v.includes('\n')) return 'has a line break';
   if (len(v) < 3) return 'is too short';
-  if (len(v) > 160) return 'is longer than 160 characters';
+  if (len(v) > MAX_QUESTION_CHARS) return `is longer than ${MAX_QUESTION_CHARS} characters`;
   return undefined;
 }
 

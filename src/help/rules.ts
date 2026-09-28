@@ -4,6 +4,7 @@
  * literal — so a future change to a closed list or a count shows up in `help` for free, and the two can't drift
  * apart again. test/unit/help.test.ts asserts every entry's text appears verbatim in the `help` output it names.
  */
+import { MAX_QUESTION_CHARS } from '../contract/schema-check.ts';
 import { AREAS, CHANGES, DEPTH_COUNT, MAX_EXTRAS, RISKS, STAGES, WHYS } from '../contract/types.ts';
 
 /** Oxford-ish "a, b or c" — matches schema-check.ts's own `list()` wording in stop text. */
@@ -21,6 +22,14 @@ export const RULES: readonly Rule[] = [
     in: ['card', 'authoring', 'class', 'scan', 'loop'],
   },
   { text: `where: at most 5 path entries — this is all the code a run sees`, in: ['card', 'authoring', 'class', 'view'] },
+  {
+    // Round-4 finding: a cold agent hit `✖ question 1: is longer than 160 characters` with zero prior warning
+    // in `agent view`/`agent probe` — this is Sidewise's own hard validator cap (schema-check.ts's
+    // MAX_QUESTION_CHARS), not TypeSafe guidance, so it lives here rather than in PROBE_RULES below; tagged
+    // 'probe' too so `agent probe`/`help probe` carry it alongside TypeSafe's own question-shape rules. [C-194]
+    text: `a question (or the goal) is at most ${MAX_QUESTION_CHARS} characters, one line — longer text is rejected outright`,
+    in: ['card', 'authoring', 'class', 'scan', 'drill', 'loop', 'view', 'probe'],
+  },
   { text: `pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between is unsure`, in: ['card', 'verdict'] },
   { text: `every question in a category must point the same way as its pass:`, in: ['authoring'] },
   { text: `wise.why is one of ${list(WHYS)}`, in: ['wise'] },
