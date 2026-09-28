@@ -25,7 +25,7 @@ export async function getUser(req, db) {
 }
 ```
 
-You ask: the full request, 10 yes/no questions plus a severity scale and a routing choice:
+You ask: the full request — 3 concerns categories (9 yes/no probes) plus a severity scale and a routing choice:
 
 ```yaml
 side:
@@ -33,36 +33,35 @@ side:
   depth: quick
   where: [src/user.ts:1-3]
   ask:
-    injection:
-      pass: no
-      1: Is request text placed directly into the SQL query?
-      2: Could a caller change what the query does?
-      10: Would a standard security scanner flag this code?
-    guards:
-      pass: yes
-      need: most
-      tags: [sql, backend]
-      3: Is the id checked to be a number before use?
-      6: Is the caller compared to the record owner?
-      9: Does the query select only needed columns?
-    access:
-      pass: no
-      4: Could one user read another user's record?
-      5: Can any caller read any record without a permission check?
-    leaks:
-      pass: no
-      7: Does the error sent back reveal the query?
-      8: Does the code log an email address?
-    severity:
-      pass: [none, low]
-      11:
-        scale: How severe is the worst issue?
-        levels: [none, low, medium, high, critical]
-    route:
-      pass: [ship]
-      12:
-        choice: Where should this go?
-        options: [ship, fix, block]
+    concerns:
+      injection:
+        pass: no
+        1: Is request text placed directly into the SQL query?
+        2: Is the query built with string concatenation instead of a bound parameter?
+        3: Does the query run with db.query on that concatenated string?
+      access:
+        pass: no
+        need: most
+        tags: [sql, backend]
+        4: Is the id checked to be a number before use?
+        5: Could one user read another user's record?
+        6: Can any caller read any record without a permission check?
+      leaks:
+        pass: no
+        7: Does the error sent back reveal the query?
+        8: Does the code log an email address?
+        9: Does the response include fields the caller didn't ask for?
+    decisions:
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst issue?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should this go?
+          options: [ship, fix, block]
 wise:
   why: validate
   area: data
@@ -75,12 +74,11 @@ side:
   id: SW-0001
   gate: fail
   goal: {gate: fail, p: 0.02}
-  injection: {gate: fail, 1: 0.98, 2: 0.93, 10: 0.95}
-  guards: {gate: fail, 3: 0.03, 6: 0.05, 9: 0.09}
-  access: {gate: fail, 4: 0.92, 5: 0.84}
-  leaks: {gate: unsure, 7: 0.48, 8: 0.01}
-  severity: {gate: fail, 11: {top: critical, p: 0.97}}
-  route: {gate: fail, 12: {top: fix, p: 0.55}}
+  injection: {gate: fail, 1: 0.98, 2: 0.93, 3: 0.95}
+  access:    {gate: fail, 4: 0.92, 5: 0.84, 6: 0.79}
+  leaks:     {gate: unsure, 7: 0.48, 8: 0.01, 9: 0.20}
+  severity:  {gate: fail, 10: {top: critical, p: 0.97}}
+  route:     {gate: fail, 11: {top: fix, p: 0.55}}
   consensus: STRONG
   escalate: false
 wise: {recorded: [why, area]}

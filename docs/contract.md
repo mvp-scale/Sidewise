@@ -14,7 +14,7 @@ agents all read the same file. [C-003]
 
 | Block | Holds | Required? | Sent to TypeSafe? |
 |---|---|---|---|
-| `side:` | **solve it now**: one `goal`, then plumbing. Questions grouped in **categories**, each with a **pass** | yes | yes |
+| `side:` | **solve it now**: one `goal`, then plumbing. `ask:` splits into **concerns** (yes/no, one path per category) and **decisions** (scale/choice) | yes | yes |
 | `wise:` | **get smarter**: why you're here, the area, and the run this follows | optional | no (ledger only) |
 
 `side:` is required, and its contents are what reaches TypeSafe. [C-004]
@@ -48,21 +48,34 @@ Drill goes down from one item, named by `from:`, in a parent run's own arrays. [
 | Block | Field | Rule |
 |---|---|---|
 | side | `goal` | one line, ≤ 160 chars; what you want to be true. Asked of TypeSafe outright |
-| side | `depth` | `quick` · `standard` · `thorough`. One subject: 10 · 20 · 30 yes/no questions in total. A sweep: at most 10 · 20 · 30 items per layer |
+| side | `depth` | `quick` · `standard` · `thorough` = k = 1 · 2 · 3. One subject's `concerns:` section: exactly 3k categories (9 · 18 · 27 yes/no questions). A sweep's finest layer: the same; every layer also caps at 10 · 20 · 30 items asked |
 | side | `where` | 1–5 project paths, optional `:start-end`. We read and redact the code |
-| side | `ask` | categories → `pass` + numbered questions. In a sweep: layer → categories |
+| side | `ask` | `concerns:` (yes/no categories) + `decisions:` (scale/choice categories) for one subject. In a sweep: layer → `{concerns:, decisions:}` |
 | side | `over` | sweeps only: nested arrays |
-| side | `from`, `parent`, `compare` | drill and change only |
+| side | `from` | drill only |
+| side | `compare` | change only |
+| side | `parent` | required by drill and change (what to build on); allowed on every verb otherwise, as lineage only |
+| side | `expect` | change only, required: which of the parent's concerns this change should turn to pass |
 | wise | `why` | `validate` · `find` · `debug` |
 | wise | `area` | `data` · `api` · `ui` · `auth` · `hosting` · `build` · `tests` |
 | wise | `stage` | `design` · `build` · `review` · `pre-merge` · `post-fix` · `release` |
 | wise | `change` | `feature` · `fix` · `refactor` · `dependency` · `config` |
 | wise | `risk` | `low` · `medium` · `high` |
-| wise | `parent` | the run this follows (lineage only) |
+| wise | `parent` | the run this follows (lineage only; an alias of `side.parent` for verbs that don't require it structurally) |
+| wise | `problem` | one line: what you're solving right now |
+| wise | `nodes` | a C4 chain: `level:name( -> level:name)*`, chains joined by `; ` (`level`: `person`/`system`/`container`/`component`/`code`) |
+| wise | `touches` | up to 5 short entities/objects the run touches |
+| wise | `blast` | `code` · `component` · `container` · `system` · `person` |
 
 `goal` is one line, at most 160 characters, and is the question asked of TypeSafe outright. [C-010]
-`depth` is `quick` · `standard` · `thorough` = 10 · 20 · 30: one subject asks exactly that many yes/no
-questions in total (scale/choice don't count); a sweep asks at most that many items per layer. [C-011]
+`depth` is `quick` · `standard` · `thorough` = k = 1 · 2 · 3: one subject's `ask.concerns` holds exactly 3k
+categories, each with exactly 3 yes/no probes (9 · 18 · 27 total); a sweep's finest layer (the last layer in
+`over`'s own order — e.g. scan's `function`, loop's `story`) is held to the same rule, and every layer also
+caps at 10 · 20 · 30 items asked (this cap kept its old 10/20/30 numbers even though the question-count numbers
+above moved — the two used to coincide and no longer do). These section and count rules are stops in `class`,
+`drill`, `scan` and `loop`; in `view` they're notes instead ("class will stop on this") — a partial draft is
+fine there. A sweep's non-finest layers are optional, and when present don't have their counts enforced either
+(a note if thin) — only their shape (well-formed `concerns:`/`decisions:`) has to hold. [C-011]
 `where` is 1–5 project paths, each optionally `:start-end`; the code there is read and redacted. [C-012]
 A `where:` entry over the per-file limit (20,000 chars, after redaction) is a stop, not a silent truncation: a
 whole file (no `:start-end`) names its own line count and asks for a range; a range that's already this big
@@ -72,22 +85,46 @@ doesn't fit — the same silent-cut problem, just across entries instead of with
 The one exception is evidence Sidewise itself picked, never a user-typed `where:` — today, only `drill`
 continuing flat from one coded sweep item with no further `over:` (its own whole-file/function/call range) —
 which still truncates with a note, since there's no `where:` for anyone to narrow. [C-171]
-`ask` holds categories → `pass` + numbered questions for one subject, or layer → categories for a sweep. [C-013]
-`over` is sweeps-only: nested arrays that define the layers. [C-014]
-`from`, `parent` and `compare` apply only to drill and change. [C-015]
+`ask` holds `concerns:` (yes/no categories) and `decisions:` (scale/choice categories) for one subject, or
+layer → `{concerns:, decisions:}` for a sweep. Nothing is published on a flat, unsectioned `ask` any more: a
+category with `pass:` straight under `ask:` (no `concerns:`/`decisions:` wrapper) is refused outright,
+`✖ side.ask: put categories under concerns: (yes/no) and decisions: (scale/choice) → sidewise template <verb>`.
+[C-013]
+`over` is sweeps-only: nested arrays that define the layers; `concerns` and `decisions` are reserved words
+there too, since a layer of either name would collide with `ask`'s own sections. [C-014]
+`from` applies only to drill; `compare` only to change. `parent` is required by drill and change (the run to
+build on); every other verb accepts it too now, purely as lineage (the same role `wise.parent` already played,
+which remains an accepted alias for it). [C-015]
 `wise.why` is one of `validate`, `find` or `debug`. [C-016]
 `wise.area` is one of `data`, `api`, `ui`, `auth`, `hosting`, `build` or `tests`. [C-017]
 `wise.parent` records the run this one follows, for lineage only. [C-018]
 `wise.stage` is one of `design`, `build`, `review`, `pre-merge`, `post-fix` or `release`. [C-108]
 `wise.change` is one of `feature`, `fix`, `refactor`, `dependency` or `config`. [C-109]
 `wise.risk` is one of `low`, `medium` or `high`. [C-110]
+`wise.problem`, `wise.nodes`, `wise.touches` and `wise.blast` are the newer knowledge fields: a one-line
+problem statement, a C4 dependency chain, up to 5 touched entities, and a blast-radius level. All four are
+optional, and none of them reach the classifier — like every other `wise` field, they only shape what the
+ledger learns. `wise.nodes` is a chain of `level:name` pairs (`level` one of `person`, `system`, `container`,
+`component` or `code`; `name` project-identifier-shaped), joined by ` -> ` within one chain and `; ` between
+chains — e.g. `container:api -> component:contributions-dao -> container:db`.
 
-A category is a lowercase name (one word or `kebab-case`, ≤ 20 chars), a `pass`, an optional `need`, optional
-`tags` (≤ 3), and numbered questions. [C-019]
-Questions are numbered 1…N, unique across all categories, with no gaps; the number is the priority. [C-020]
+A concerns category is a lowercase name (one word or `kebab-case`, ≤ 20 chars), `pass: yes` or `pass: no`, an
+optional `need`, optional `tags` (≤ 3), an optional `family`, and exactly 3 yes/no questions (each ending in
+`?`). [C-019]
+`family` is one of `access`, `injection`, `secrets`, `input`, `output`, `availability`, `correctness`,
+`design`, `design-risk`, `done` or `other` — optional, and meaningful only on a concerns category. Left out, it
+defaults to the category's own name when that name is itself one of the family values, else it stays unset;
+given explicitly, it always wins over the name default. It's ledger-only: never sent to the classifier, and
+never part of an answer key or a pattern fingerprint, so retagging a category's family never changes whether
+its answer is reused.
+A decisions category holds exactly one question, `scale:` + `levels:` (2–10 levels) or `choice:` + `options:`
+(2–8 options), and a `pass:` naming the passing levels/options. [C-022]
+The `decisions:` section as a whole holds 2–5 categories, with at least one `scale:` and at least one
+`choice:` among them — this, not a flat per-request cap, is what replaced the older "at most 5 scale/choice
+questions" rule.
+Questions are numbered 1…N, unique across every category (and, in a sweep, every layer), with no gaps: every
+concerns question is numbered before every decisions question in the same `ask:` block. [C-020]
 A yes/no question is text ending in `?`. [C-021]
-A scale is `scale:` + `levels:` (2–10 levels); a choice is `choice:` + `options:` (2–8 options); at most 5
-scale/choice questions total per request. [C-022]
 `id`, `ts`, `actor` and `task` are stamped by the engine and never sent to the classifier. [C-023]
 
 ### Grading: a simple bar, checked per question
@@ -222,15 +259,16 @@ the bar; the full numbers are in the ledger. [C-049]
 **When:** before any paid call; when entering an unfamiliar area; when looking for proven questions. [C-051]
 
 ```yaml
-side:                              # the class request you're about to send, unchanged
+side:                              # the class request you're about to send — a partial draft is fine
   goal: This login handler is safe to merge
   depth: quick
   where: [src/user.ts:1-3]
   ask:
-    injection:
-      pass: no
-      1: Is request text placed directly into the SQL query?
-      2: Could a caller change what the query does?
+    concerns:
+      injection:
+        pass: no
+        1: Is request text placed directly into the SQL query?
+        2: Could a caller change what the query does?
 wise:
   why: validate
   area: data
@@ -293,37 +331,36 @@ place" doesn't apply. [C-124]
 ```yaml
 side:
   goal: This login handler is safe to merge
-  depth: quick
+  depth: quick                     # k=1: exactly 3 concerns categories, 9 yes/no questions total
   where: [src/user.ts:1-3]
   ask:
-    injection:
-      pass: no
-      1: Is request text placed directly into the SQL query?
-      2: Could a caller change what the query does?
-      10: Would a standard security scanner flag this code?
-    guards:
-      pass: yes
-      3: Is the id checked to be a number before use?
-      6: Is the caller compared to the record owner?
-      9: Does the query select only needed columns?
-    access:
-      pass: no
-      4: Could one user read another user's record?
-      5: Can any caller read any record without a permission check?
-    leaks:
-      pass: no
-      7: Does the error sent back reveal the query?
-      8: Does the code log an email address?
-    severity:
-      pass: [none, low]
-      11:
-        scale: How severe is the worst issue?
-        levels: [none, low, medium, high, critical]
-    route:
-      pass: [ship]
-      12:
-        choice: Where should this go?
-        options: [ship, fix, block]
+    concerns:
+      injection:                   # family defaults to "injection" (the name is itself one)
+        pass: no
+        1: Is request text placed directly into the SQL query?
+        2: Is the query built with string concatenation instead of a bound parameter?
+        3: Does the query run with db.query on that concatenated string?
+      access:
+        pass: no
+        4: Is the id checked to be a number before use?
+        5: Is the caller compared to the record owner?
+        6: Could any caller read any record without a permission check?
+      leaks:
+        pass: no
+        7: Does the error sent back reveal the query?
+        8: Does the code log an email address?
+        9: Does the response include fields the caller didn't ask for?
+    decisions:
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst issue?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should this go?
+          options: [ship, fix, block]
 wise:
   why: validate
   area: data
@@ -334,12 +371,11 @@ side:
   id: SW-0042
   gate: fail
   goal: {gate: fail, p: 0.08}
-  injection: {gate: fail,   1: 0.94, 2: 0.91, 10: 0.90}
-  guards:    {gate: pass,   3: 0.88, 6: 0.81, 9: 0.75}
-  access:    {gate: fail,   4: 0.86, 5: 0.84}
-  leaks:     {gate: unsure, 7: 0.55, 8: 0.20}
-  severity:  {gate: fail,   11: {top: high, p: 0.81}}
-  route:     {gate: fail,   12: {top: block, p: 0.97}}
+  injection: {gate: fail,   1: 0.94, 2: 0.91, 3: 0.90}
+  access:    {gate: fail,   4: 0.86, 5: 0.84, 6: 0.79}
+  leaks:     {gate: unsure, 7: 0.55, 8: 0.20, 9: 0.31}
+  severity:  {gate: fail,   10: {top: high, p: 0.81}}
+  route:     {gate: fail,   11: {top: block, p: 0.97}}
   consensus: STRONG
   escalate: false
 wise: {recorded: [why, area]}
@@ -372,6 +408,7 @@ side:
   goal: The injection fix works
   parent: SW-0042                  # replay this run's categories and questions
   compare: {before: main, after: HEAD}
+  expect: [injection]              # required, ≥1: which of the parent's concerns this change should fix
 wise:
   why: validate
   area: data
@@ -382,10 +419,10 @@ side:
   id: SW-0051
   gate: fail                       # every category passes on "after", and nothing regressed
   goal: {gate: pass, p: 0.84}
-  injection: {before: fail, after: pass, fixed: [1, 2, 10]}
-  guards:    {before: pass, after: pass}
+  injection: {before: fail, after: pass, fixed: [1, 2, 3]}
   access:    {before: fail, after: fail, still: [4, 5]}
   leaks:     {before: unsure, after: pass, fixed: [7]}
+  expected: {fixed: [injection], still: []}
   regressed: []
 wise: {recorded: [why, area, parent]}
 next: sidewise template drill --parent SW-0051 --from access
@@ -399,6 +436,11 @@ refused; run the sweep again instead, since unchanged items are reused there for
 A category's response shows `before`/`after` gates, `fixed` (questions failing or unsure before that pass
 after) and `still` (ones that don't); anything in the run-wide `regressed` list (passing before, not after
 now) can alone fail the gate even when every `after` category passes on its own. [C-064]
+`expect:` is the agent's own prediction, checked before any call is made against the parent's own concern
+names — an entry that isn't one of them is a stop, `✖ side.expect: "x" is not a concern of SW-0042 → use one
+of injection, access, leaks`. The response's `expected:` grades that prediction against what the run actually
+found, after the per-category lines: `fixed` (a predicted concern that did turn to pass) and `still` (one that
+didn't) — grading the yardstick itself, not just the code, over time.
 On `fixed`, record `outcome held` on the parent; on `still`, keep working; anything in `regressed`, revert or
 drill into it. [C-065]
 
@@ -407,10 +449,10 @@ side:
   id: SW-0052
   gate: fail                       # access regressed even though it (and the goal) grade pass on their own
   goal: {gate: pass, p: 0.81}
-  injection: {before: fail, after: pass, fixed: [1, 2, 10]}
-  guards:    {before: pass, after: pass}
+  injection: {before: fail, after: pass, fixed: [1, 2, 3]}
   access:    {before: pass, after: pass}
   leaks:     {before: unsure, after: pass, fixed: [7]}
+  expected: {fixed: [injection], still: []}
   regressed: [5]
 wise: {recorded: [why, area, parent]}
 next: sidewise template drill --parent SW-0052 --from access
@@ -444,18 +486,39 @@ reused, and its `--dry-run` predicts that reuse the same way `class`'s does. [C-
 ```yaml
 side:
   goal: Handlers don't trust request input
-  depth: quick                     # at most 10 items per layer
+  depth: quick                     # function is the finest layer: exactly 3 concerns categories, at most 10 items
   over:
     file: src/handlers/*.ts        # we expand the pattern and read each file
     function: each                 # we split each file into its functions
   ask:
     function:
-      injection:
-        pass: no
-        1: Does {function} put request text straight into a query?
-      access:
-        pass: no
-        2: Does {function} return a record without checking its owner?
+      concerns:
+        injection:
+          pass: no
+          1: Does {function} put request text straight into a query?
+          2: Is the query built by string concatenation instead of a bound parameter?
+          3: Does {function} run the query with db.query on that string?
+        access:
+          pass: no
+          4: Does {function} return a record without checking its owner?
+          5: Is the caller's id compared to the record's owner id?
+          6: Could {function} be called without any permission check?
+        output:
+          pass: no
+          7: Does {function} send back a raw database error message?
+          8: Does {function} log the full request body?
+          9: Does {function}'s response include fields the caller didn't ask for?
+      decisions:
+        severity:
+          pass: [none, low]
+          10:
+            scale: How severe is the worst issue in {function}?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [ship]
+          11:
+            choice: Where should {function} go?
+            options: [ship, fix, block]
 wise:
   why: find
   area: api
@@ -468,9 +531,9 @@ side:
   goal: {gate: fail, p: 0.21}
   scanned: {file: 6, function: 23}
   failing:                         # worst first; only questions that didn't clear the bar
-    src/handlers/user.ts/findUser:    {injection: fail, access: fail, 1: 0.93, 2: 0.88}
-    src/handlers/order.ts/getOrder:   {access: fail, 2: 0.79}
-    src/handlers/order.ts/listOrders: {access: unsure, 2: 0.52}
+    src/handlers/user.ts/findUser:    {injection: fail, access: fail, 1: 0.93, 4: 0.88}
+    src/handlers/order.ts/getOrder:   {access: fail, 4: 0.79}
+    src/handlers/order.ts/listOrders: {access: unsure, 4: 0.52}
   passing: 20                      # counted, not listed
   reused: 14                       # unchanged functions answered from the ledger for free
 wise: {recorded: [why, area]}
@@ -517,15 +580,38 @@ side:
   goal: Find exactly where request text reaches the query
   parent: SW-0060
   from: src/handlers/user.ts/findUser    # an item id or a category from the parent run
-  depth: quick
+  depth: quick                     # call is the finest (and only) layer here: exactly 3 concerns categories
   over:
     call: each                     # the next layer down: each call inside findUser
   ask:
     call:
-      injection:
-        pass: no
-        1: Does {call} pass request text into SQL?
-        2: Is {call}'s argument built by string concatenation?
+      concerns:
+        reach:
+          pass: no
+          1: Does {call} pass request text into SQL?
+          2: Is {call}'s argument built by string concatenation?
+          3: Is {call} reachable from an unauthenticated route?
+        guard:
+          pass: yes
+          4: Is {call}'s argument parsed to a number before use?
+          5: Is {call}'s argument bound as a parameter instead of concatenated?
+          6: Is {call}'s argument validated against an allow-list?
+        sink:
+          pass: no
+          7: Does {call} hit db.query directly?
+          8: Does {call} run inside a transaction with no timeout?
+          9: Does {call}'s result get returned to the caller unfiltered?
+      decisions:
+        severity:
+          pass: [none, low]
+          10:
+            scale: How severe is {call}'s worst issue?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [ship]
+          11:
+            choice: What should happen to {call} next?
+            options: [ship, fix, block]
 wise:
   why: debug
   area: data
@@ -537,7 +623,7 @@ side:
   gate: fail
   goal: {gate: pass, p: 0.77}
   failing:
-    src/handlers/user.ts/findUser/db.query: {injection: fail, 1: 0.96, 2: 0.94}
+    src/handlers/user.ts/findUser/db.query: {reach: fail, sink: fail, 1: 0.96, 2: 0.94, 7: 0.91}
   passing: 3
 wise: {recorded: [why, area]}
 next: fix it, then run this drill again (unchanged items are reused, so it is nearly free)
@@ -574,7 +660,7 @@ blocked by an already-reached budget cap when fully reused. [C-144] [C-149]
 ```yaml
 side:
   goal: The checkout redesign is sound
-  depth: quick
+  depth: quick                     # story is the finest layer: exactly 3 concerns categories there
   where: [src/checkout/]           # optional: the code the ideas are checked against
   over:                            # nested arrays = layers; an item's children are the next layer
     part:
@@ -584,24 +670,46 @@ side:
         story: [refunds, retries, partial capture]
       - ledger                     # an item with no children is just its name
   ask:                             # per layer; {part} and {story} are filled in per item
-    part:
-      boundaries:
-        pass: yes
-        1: Does {part} own one clear responsibility?
-        2: Can {part} be deployed without the others?
+    part:                          # not the finest layer: thin and optional (a note, not a stop)
+      concerns:
+        boundaries:
+          pass: yes
+          1: Does {part} own one clear responsibility?
+          2: Can {part} be deployed without the others?
     story:
-      done:
-        pass: yes
-        3: Is "{story}" testable against {part} as written?
-      risk:
-        pass: no
-        4: Does "{story}" need data {part} doesn't own?
+      concerns:
+        done:
+          pass: yes
+          3: Is "{story}" testable against {part} as written?
+          4: Does "{story}" have a named owner?
+          5: Is "{story}" small enough to ship on its own?
+        risk:
+          pass: no
+          6: Does "{story}" need data {part} doesn't own?
+          7: Does "{story}" depend on another part's release order?
+          8: Could "{story}" fail silently in production?
+        fit:
+          pass: yes
+          9: Does "{story}" match how {part} is meant to be used?
+          10: Would "{story}" survive {part} being replaced later?
+          11: Is "{story}" covered by an existing test today?
+      decisions:
+        risk-level:
+          pass: [none, low]
+          12:
+            scale: How risky is "{story}"?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [build-now]
+          13:
+            choice: What should happen to "{story}" next?
+            options: [build-now, rework, redesign]
 wise:
   why: validate
   area: api
 ```
-The expansion: 3 parts + 5 stories = 8 items, and 4 written questions become 16 asked, in 2 calls (one per
-layer).
+The expansion: 3 parts + 5 stories = 8 items; `part`'s 2 written questions become 4 asked (thin, not the
+finest layer), `story`'s 13 become 39, in 2 calls (one per layer).
 
 ```yaml
 side:
@@ -610,12 +718,12 @@ side:
   goal: {gate: pass, p: 0.74}
   failing:                         # an item fails if it or any child fails
     payments:                  {boundaries: fail, 2: 0.18}
-    payments/refunds:          {done: fail, risk: fail, 3: 0.22, 4: 0.91}
-    payments/partial capture:  {risk: unsure, 4: 0.48}
+    payments/refunds:          {done: fail, risk: fail, 3: 0.22, 6: 0.91}
+    payments/partial capture:  {risk: unsure, 6: 0.48}
   passing: [gateway, gateway/guest checkout, gateway/saved cards, payments/retries, ledger]
 wise: {recorded: [why, area]}
 next: sidewise template drill --parent SW-0070 --from payments/refunds
-notes: [2 calls · 16 questions · budget 3% used]
+notes: [2 calls · 43 questions · budget 3% used]
 ```
 
 loop's response shows `failing:` and `passing:` in the order the request was written (tree order), unlike
@@ -844,7 +952,15 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
 ## Setup, keys and the MCP tool
 
 - `side.verb` is optional. The tool name wins, and a mismatch is sent back. [C-085]
-- `depth` counts yes/no questions only; scale and choice don't count. [C-086]
+- `depth` counts `concerns:` categories only (exactly 3k of them); `decisions:` questions never count toward
+  it. [C-086]
+- The ledger stores a category's `section` and `family`/`familySource` alongside its usual fields, the run's
+  git HEAD sha (`commit`, or `null` outside a repo) at the time it ran, `expect` for a `change` run, and
+  `where` for every verb (a sweep derives it from its items' own code paths). None of this changes an answer
+  key or a pattern fingerprint — the same question on the same evidence still reuses for free regardless of
+  which family tag or commit sha it was asked under. A `view` request-mode check (the free draft-against-the-
+  ledger lookup shown above) is itself logged too, as a free record that never takes a run number and never
+  counts toward the budget.
 - Nested items use `- name: <item>` plus child layers beside it, which is what agents write naturally.
   Different items may have different child layers. [C-087]
 - `sidewise --version` and `sidewise -v` print the installed package's version, one line, exit 0 — free, no
