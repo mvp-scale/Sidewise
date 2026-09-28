@@ -1,13 +1,17 @@
 /**
  * Measures the SQLite ledger index (src/ledger/index.ts, Task 29 revised) at scale: rebuild time, db size vs
  * log size, per-call catch-up after 1/50 new lines, reuse hit/miss, run-by-id, an outcome append, broad/narrow
- * place lookups, a dynamic Wise json_extract query without/with an expression index, and one real end-to-end
- * paid `class` call through the fake provider. Not part of `npm test` — 10k/100k ledgers take real time and
- * real disk; run by hand (`npx tsx scripts/bench-ledger.ts`) or `npm run bench:ledger`, into a throwaway temp
- * project per size, never the repo. The Wise query needs node:sqlite for real (Node >= 22.13); on a host without
- * it, that row is skipped with a note, everything else still runs against the linear fallback (slower, correct).
- * Exports runLedgerBench/renderBenchTable so docs/evidence/ledger-scale.md can be regenerated without duplicating
- * this file (test/unit/ledger-scale-doc.test.ts checks the doc's structure stays current against a small run).
+ * place lookups, a dynamic Wise json_extract query without/with an expression index, one real end-to-end paid
+ * `class` call through the fake provider, and (plan 2c "Before C3") the graph tier (src/ledger/graph.ts): a
+ * full graph rebuild, graph catch-up after 50 new lines, `problemCounts` top-20, and a depth-4 `traverse` —
+ * see lab/research/2026-09-28-graph-index-scale.md §5 for the targets these are measured against. Not part of
+ * `npm test` — 10k/100k ledgers take real time and real disk; run by hand (`npx tsx scripts/bench-ledger.ts`)
+ * or `npm run bench:ledger`, into a throwaway temp project per size, never the repo. The Wise query and every
+ * graph-tier row need node:sqlite for real (Node >= 22.13); on a host without it, those rows are skipped with
+ * a note (graph.ts throws GraphUnavailableError, caught here), everything else still runs against the linear
+ * fallback (slower, correct). Exports runLedgerBench/renderBenchTable so docs/evidence/ledger-scale.md can be
+ * regenerated without duplicating this file (test/unit/ledger-scale-doc.test.ts checks the doc's structure
+ * stays current against a small run).
  */
 import { closeSync, copyFileSync, existsSync, fsyncSync, mkdirSync, mkdtempSync, openSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -16,6 +20,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import type { Answer } from '../src/contract/types.ts';
 import { createFakeAdapter } from '../src/classifier/fake.ts';
+import { GraphUnavailableError, problemCounts, refreshGraph, traverse } from '../src/ledger/graph.ts';
 import { formatRunId } from '../src/ledger/ids.ts';
 import { appendOutcome, findRun, isContractRun, nextRunNumber } from '../src/ledger/log.ts';
 import { pathsFor, type SidewisePaths } from '../src/ledger/paths.ts';
@@ -72,6 +77,21 @@ const TAGS = ['injection', 'guards', 'timeouts', 'retries', 'validation', 'permi
 const BROAD_AREA = AREAS[0];
 const NARROW_PATH = `src/${BROAD_AREA}/file0.ts`;
 
+// Graph-tier fixture (plan 2c "Before C3" bench task, research doc §5: "a few hundred components, heavy-tailed").
+// A bounded component/entity pool so `wise.uses`/`wise.touches` labels recur across runs the way a real
+// project's would — without this the graph tier would have too few non-trivial edges for `traverse` below to
+// be a meaningful depth-4 measurement (just a handful of disjoint one-hop chains).
+const COMPONENT_POOL_SIZE = 300;
+const ENTITY_POOL_SIZE = 40;
+const GRAPH_HUB_COMPONENT = 'hub-component';
+const BLAST_LEVELS = ['code', 'component', 'container', 'system', 'person'] as const;
+
+/** Heavy-tailed pick within [0, size): squaring a uniform draw skews toward the low end, so a handful of pool
+ *  entries absorb most of the reuse (a shared "hub" module a real repo's own graph would also show). */
+function pickHeavyTail(rand: () => number, size: number): number {
+  return Math.min(size - 1, Math.floor(rand() ** 2 * size));
+}
+
 interface GenResult {
   text: string;
   logBytes: number;
@@ -112,6 +132,20 @@ function generateRealisticLedger(seed: string, n: number): GenResult {
       answers[qid] = { kind: 'yesno', p: Math.round(rand() * 100) / 100 };
     }
     const gate = rand() < 0.34 ? 'pass' : rand() < 0.5 ? 'fail' : 'unsure';
+
+    // wise.uses: a 2-4-edge C4 chain always starting at one fixed hub component (guarantees the graph-tier
+    // traverse bench below always has a real, heavily-reused start node to walk from), then 1-3 more parts
+    // drawn from the bounded, heavy-tailed pool above so mid/leaf labels also recur across runs.
+    const chainEdges = 2 + Math.floor(rand() * 3); // 2-4 edges -> 3-5 parts, reaching the traverse bench's depth-4 cap
+    const chainParts = [`component:${GRAPH_HUB_COMPONENT}`];
+    for (let c = 1; c <= chainEdges; c++) {
+      const level = c === chainEdges ? 'code' : 'component';
+      chainParts.push(`${level}:comp-${pickHeavyTail(rand, COMPONENT_POOL_SIZE)}`);
+    }
+    const uses = [chainParts.join(' -> ')];
+    const touches = [`entity-${pickHeavyTail(rand, ENTITY_POOL_SIZE)}`];
+    const blast = BLAST_LEVELS[Math.floor(rand() * BLAST_LEVELS.length)]!;
+
     const record = {
       kind: 'run',
       v: 2,
@@ -127,7 +161,7 @@ function generateRealisticLedger(seed: string, n: number): GenResult {
       parent: null,
       from: null,
       compare: null,
-      wise: { area, why: 'defect' },
+      wise: { area, why: 'defect', uses, touches, blast },
       ask: { categories: [], layers: [] },
       over: null,
       items: null,
@@ -260,6 +294,55 @@ function benchCatchUp(fixture: { logPath: string; dbPath: string; extraText: str
   return toRow(`catchup${extraLines}`, durations);
 }
 
+/** Runs one graph-tier op (graph.ts's exported query/refresh surface) and times it, the same
+ *  timeCalls/toRow shape every hot-tier point-op row already uses. graph.ts throws GraphUnavailableError
+ *  synchronously on its very first internal call when node:sqlite isn't real (Node < 22.13) — that always
+ *  surfaces on sample 0 here, so the whole row is reported as "not available" (undefined), never a crash. */
+function benchGraphOp<T>(op: string, fn: () => T, samples: number): BenchRow | undefined {
+  try {
+    return toRow(op, timeCalls(samples, () => void fn()));
+  } catch (e) {
+    if (e instanceof GraphUnavailableError) return undefined;
+    throw e;
+  }
+}
+
+/** Mirrors benchCatchUp above exactly (same fixture-copy-then-time pattern, same timing-trap avoidance: the
+ *  timer wraps ONLY `refreshGraph`, never the copy/append/fsync/cleanup around it) but times the GRAPH tier's
+ *  own incremental catch-up instead of the hot tier's. `fixture.dbPath` must already be a graph-caught-up
+ *  index.db (i.e. `refreshGraph` already ran once against it) so this measures a genuine incremental catch-up,
+ *  not a first-ever rebuild disguised as one. */
+function benchGraphCatchUp(fixture: { logPath: string; dbPath: string; extraText: string }, extraLines: number, samples: number): BenchRow | undefined {
+  const durations: number[] = [];
+  try {
+    for (let i = 0; i < samples; i++) {
+      const dir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-bench-graph-catchup-'));
+      try {
+        const paths = pathsFor(dir);
+        mkdirSync(paths.dir, { recursive: true });
+        copyFileSyncFlushed(fixture.logPath, paths.log);
+        if (existsSync(fixture.dbPath)) copyFileSyncFlushed(fixture.dbPath, paths.index);
+        writeFileSync(paths.log, fixture.extraText, { flag: 'a' });
+        const fd = openSync(paths.log, 'r+');
+        try {
+          fsyncSync(fd);
+        } finally {
+          closeSync(fd);
+        }
+        const t0 = performance.now();
+        refreshGraph(paths, {});
+        durations.push(performance.now() - t0);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    }
+  } catch (e) {
+    if (e instanceof GraphUnavailableError) return undefined;
+    throw e;
+  }
+  return toRow(`graphCatchup${extraLines}`, durations);
+}
+
 /** The Wise dynamic-field query (design binding: runs.wise is a small JSON blob so json_extract can group/filter
  *  on it) — opened directly against the already-built index.db, since IndexHandle's public surface only exposes
  *  the bounded queries every verb actually needs. Only meaningful with real node:sqlite; undefined otherwise. */
@@ -368,6 +451,23 @@ async function benchOne(paths: SidewisePaths, n: number, gen: GenResult): Promis
   rows.push(toRow('placeNarrow', timeCalls(VIEW_SAMPLES, () => runView(NARROW_PATH, 1, { paths, env: {} }))));
 
   const wise = await benchWiseQuery(paths.index);
+
+  // Graph tier (plan 2c "Before C3" bench task): rebuild first (this paths' index.db has never had a graph
+  // ingest before now, so this is a genuine first-ever full ingest, not a repeat), then — only if that worked,
+  // i.e. node:sqlite is real — catch-up/read ops against the now-caught-up graph. Inserted before benchClassCall
+  // below so these numbers reflect exactly `n` runs, not n+1 after that call appends one more ledger line.
+  const graphRebuildRow = benchGraphOp('graphRebuild', () => refreshGraph(paths, {}), 1);
+  if (graphRebuildRow) {
+    rows.push(graphRebuildRow);
+    const graphFifty = { logPath: paths.log, dbPath: paths.index, extraText: fifty.extraText };
+    const graphCatchupRow = benchGraphCatchUp(graphFifty, 50, CATCHUP_SAMPLES);
+    if (graphCatchupRow) rows.push(graphCatchupRow);
+    const problemsRow = benchGraphOp('problemCountsTop20', () => problemCounts(paths, { limit: 20 }), POINT_SAMPLES);
+    if (problemsRow) rows.push(problemsRow);
+    const traverseRow = benchGraphOp('traverseDepth4', () => traverse(paths, { kind: 'component', label: GRAPH_HUB_COMPONENT, maxDepth: 4 }), POINT_SAMPLES);
+    if (traverseRow) rows.push(traverseRow);
+  }
+
   const classCall = await benchClassCall(paths, n);
 
   return { rows, wise, classCall };
@@ -398,7 +498,22 @@ export async function runLedgerBench(sizes: readonly number[], opts: { seed?: st
   return results;
 }
 
-const OP_ORDER = ['rebuild', 'catchup1', 'catchup50', 'reuseHit', 'reuseMiss', 'exactReuseMiss', 'findRunById', 'appendOutcome', 'placeBroad', 'placeNarrow'];
+const OP_ORDER = [
+  'rebuild',
+  'catchup1',
+  'catchup50',
+  'reuseHit',
+  'reuseMiss',
+  'exactReuseMiss',
+  'findRunById',
+  'appendOutcome',
+  'placeBroad',
+  'placeNarrow',
+  'graphRebuild',
+  'graphCatchup50',
+  'problemCountsTop20',
+  'traverseDepth4',
+];
 
 export function renderBenchTable(results: readonly BenchResult[]): string {
   const lines: string[] = [];
