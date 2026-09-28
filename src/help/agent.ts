@@ -53,7 +53,7 @@ import type { VerbResult } from '../verbs/types.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { terseLines } from './patterns.ts';
 import { TOOL_LINE } from './report.ts';
-import { PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
+import { BAD_PROBE_EXAMPLE, FAMILY_ROLES, PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
 import { SHARP, VERB_LINE } from './verbs.ts';
 
 const isVerb = (s: string): s is Verb => (VERBS as readonly string[]).includes(s);
@@ -99,6 +99,10 @@ function noKeyRunLine(env: Record<string, string | undefined>, deps: { resolveSt
 const PROJECT_SCOPE_RULE =
   "- where: resolves against the MCP `project` argument or `SIDEWISE_HOME` (CLI), never your session cwd — pass `project` (or set `SIDEWISE_HOME`) when you started elsewhere.";
 
+/** Plan 2b: the overview points at the probe-writing skill in its first lines (the first bullet under
+ *  `rules:`, right after the verb/tool lists) — before an agent writes a single probe, not after it fails one. */
+const PROBE_SKILL_RULE = '- before writing or editing any request, read the sidewise-probe skill (or run `sidewise agent probe`): what makes a probe worth asking.';
+
 function overview(env: Record<string, string | undefined>, deps: { resolveStored?: ResolveStored }): string {
   return renderCard(
     [
@@ -107,7 +111,7 @@ function overview(env: Record<string, string | undefined>, deps: { resolveStored
       'tools:',
       ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`),
     ],
-    [...ruleLines('card'), PROJECT_SCOPE_RULE],
+    [PROBE_SKILL_RULE, ...ruleLines('card'), PROJECT_SCOPE_RULE],
     [],
     [
       'run: sidewise agent <verb|tool> — before writing that request',
@@ -133,7 +137,14 @@ function verbCard(verb: Verb): string {
 function probeCard(): string {
   return renderCard(
     ['tool: probe'],
-    [...PROBE_RULES.map((r) => `- ${r.text}`), ...ruleLines('probe')],
+    [
+      ...PROBE_RULES.map((r) => `- ${r.text}`),
+      ...ruleLines('probe'),
+      ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(' · ')}`),
+      `- bad: "${BAD_PROBE_EXAMPLE.bad}" — ${BAD_PROBE_EXAMPLE.why}`,
+      ...BAD_PROBE_EXAMPLE.good.map((g) => `- good: ${g}`),
+      '- see: the sidewise-probe skill for the full model and worked examples',
+    ],
   );
 }
 

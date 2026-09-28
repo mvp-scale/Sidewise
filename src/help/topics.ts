@@ -7,9 +7,9 @@
  * facts that are Sidewise's own validator rules rather than TypeSafe guidance (schema-check.ts's per-question
  * character cap). [C-194] [C-196]
  */
-import { AREAS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
+import { AREAS, BLASTS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
 import { proseLines } from './patterns.ts';
-import { PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
+import { BAD_PROBE_EXAMPLE, FAMILY_ROLES, PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
 
 export const TOPICS = ['authoring', 'verdict', 'wise', 'reuse', 'probe'] as const;
 export type Topic = (typeof TOPICS)[number];
@@ -53,6 +53,10 @@ function wise(): string {
     `| stage  | ${STAGES.join(', ')} | where in the workflow it landed |`,
     `| change | ${CHANGES.join(', ')} | what kind of change was under review |`,
     `| risk   | ${RISKS.join(', ')} | how risky the change looked going in |`,
+    `| problem | free text, one line, 3–160 chars | what the agent was solving, in its own words |`,
+    `| nodes  | a C4 chain: level:name ( -> level:name)*, "; "-joined | which parts of the system this run touches |`,
+    `| touches | up to 5 short entries | the entities/objects this run is about |`,
+    `| blast  | ${BLASTS.join(', ')} | how far a fix's blast radius reaches |`,
     '',
     ...ruleLines('wise'),
     '- every field is optional; the response always echoes back which ones were recorded as `wise: {recorded: [...]}`, or `{recorded: none}`.',
@@ -89,6 +93,18 @@ function probe(): string {
     'Round 3 smoke testing found this directly: a goal phrased as the vulnerability ("runs request input as code")',
     'read pass/fail backwards, and its probability stayed at p 0.98 before AND after the fix that removed the',
     "vulnerability — the wording, not the classifier, was wrong. That's rule 7 above.",
+    '',
+    '## Angles: a concern is one path; its ~3 probes are three angles on it',
+    "This part is Sidewise's own model, not TypeSafe's — pick the family that matches the category's path,",
+    'then write one probe per role:',
+    '',
+    ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(' · ')}`),
+    '',
+    `A bad probe: "${BAD_PROBE_EXAMPLE.bad}" — ${BAD_PROBE_EXAMPLE.why}. Rewritten as three angles:`,
+    ...BAD_PROBE_EXAMPLE.good.map((g) => `- ${g}`),
+    '',
+    'See the sidewise-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),',
+    'wise\'s problem/nodes/touches/blast fields, and one recipe per verb.',
   ].join('\n');
 }
 

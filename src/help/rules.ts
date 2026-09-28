@@ -5,7 +5,7 @@
  * apart again. test/unit/help.test.ts asserts every entry's text appears verbatim in the `help` output it names.
  */
 import { MAX_QUESTION_CHARS } from '../contract/schema-check.ts';
-import { AREAS, CHANGES, DECISIONS_MAX, DECISIONS_MIN, DEPTH_COUNT, RISKS, STAGES, SWEEP_ITEM_CAP, WHYS } from '../contract/types.ts';
+import { AREAS, CHANGES, DECISIONS_MAX, DECISIONS_MIN, DEPTH_COUNT, FAMILIES, RISKS, STAGES, SWEEP_ITEM_CAP, WHYS } from '../contract/types.ts';
 
 /** Oxford-ish "a, b or c" — matches schema-check.ts's own `list()` wording in stop text. */
 const list = (xs: readonly string[]): string => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}` : xs[0]!);
@@ -18,9 +18,11 @@ interface Rule {
 
 export const RULES: readonly Rule[] = [
   {
-    // TODO(phase-2b crew C): extend this card with the probe skill's role tables and family list once
-    // skills/sidewise-probe/SKILL.md lands — this rule list only carries the counting rule for now.
-    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories (a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer)`,
+    // Plan 2b resolution: each concerns category's 3 probes plays a distinct role, named by the category's
+    // family (given, or defaulted from the category name — see FAMILIES below); the role table itself (3 named
+    // roles per family) is too wide for one dense-card bullet, so it lives in `sidewise agent probe`/`help
+    // probe` (FAMILY_ROLES below, same file, one source) and the sidewise-probe skill, both pointed at here.
+    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories, each with 3 probes in a distinct role — family: ${list(FAMILIES)} (role table: sidewise agent probe) — a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer`,
     in: ['card', 'authoring', 'class', 'scan', 'loop'],
   },
   { text: `where: at most 5 path entries — this is all the code a run sees`, in: ['card', 'authoring', 'class', 'view'] },
@@ -59,6 +61,34 @@ interface ProbeRule {
   /** Terse citation of the TypeSafe source page, e.g. "primitives/noul.md". */
   readonly cite: string;
 }
+
+/** The family role table (Sidewise's own model, not TypeSafe's — skills/sidewise-probe/SKILL.md has the full
+ *  explanation and worked examples): a concern's ~3 probes are 3 angles through one path. Shared by
+ *  `agent probe` (bare) and `help probe` (its own framing), same discipline as PROBE_RULES/VERDICT_FACTS. */
+export const FAMILY_ROLES: readonly { family: string; roles: readonly [string, string, string] }[] = [
+  { family: 'injection', roles: ['reach', 'guard', 'sink'] },
+  { family: 'access', roles: ['actor', 'check', 'resource'] },
+  { family: 'secrets', roles: ['store', 'transport', 'exposure'] },
+  { family: 'input', roles: ['source', 'validate', 'reject'] },
+  { family: 'output', roles: ['source', 'encode', 'render'] },
+  { family: 'availability', roles: ['trigger', 'limit', 'recovery'] },
+  { family: 'correctness', roles: ['input', 'rule', 'result'] },
+  { family: 'design', roles: ['responsibility', 'dependency', 'testability'] },
+  { family: 'design-risk', roles: ['abuse', 'failure', 'data'] },
+  { family: 'done', roles: ['concrete', 'testable', 'owned'] },
+];
+
+/** One bad probe and the same path rewritten as three angles — Sidewise's own worked example, shared the same
+ *  way as FAMILY_ROLES above. */
+export const BAD_PROBE_EXAMPLE = {
+  bad: 'Is this method secure?',
+  why: 'a yes means nothing: no mechanism, no angle, no place',
+  good: [
+    'Is `id` from `req.query` concatenated into the SQL string? (reach)',
+    'Is `id` bound as a parameter instead? (guard)',
+    'Does the query run with `db.query` on that string? (sink)',
+  ] as readonly string[],
+};
 
 export const PROBE_RULES: readonly ProbeRule[] = [
   {
