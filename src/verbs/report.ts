@@ -5,11 +5,15 @@
  * `withIndex(..., {readOnly:true})`, exactly like `view.ts`, so they work unchanged on the linear-fallback path
  * too (no on-disk index, or Node < 22.13's own test hook); `web` (report-web.ts) reads the whole ledger directly
  * instead (it needs every run, not a capped index-backed view) and is the one view that writes something — a
- * self-contained `.sidewise/viewer.html`. graph/problems/wise/calls (plan 2c C3) read the graph tier
- * (ledger/graph.ts) — each calls `refreshGraph` first (readers refresh; the paid path never does), and reports a
- * clean message rather than a stack trace when `GraphUnavailableError` fires (Node < 22.13). `fields` (plan 2c
- * C3) reads undeclared `wise.extras` keys straight off the hot tier's own `runs.wise` column and suggests a
- * shape to promote one into `config.wise` with `--accept`.
+ * self-contained `.sidewise/viewer.html`. graph/problems/wise/calls/fields (plan 2c C3) read the graph tier
+ * and/or the hot tier's own raw tables straight off disk (ledger/graph.ts) — each calls `ensureHotIndexFresh`
+ * (a real, non-readOnly `withIndex` catch-up/rebuild of the HOT tier) and, for graph/problems/wise/calls,
+ * `refreshGraph` after it (readers refresh both tiers; the paid path never does), so these always reflect the
+ * ledger even with no index.db yet or a stale one — see `ensureHotIndexFresh`'s own comment for why raw-SQL
+ * readers need this and hits/patterns/history don't. A clean message replaces a stack trace when
+ * `GraphUnavailableError` fires (Node < 22.13). `fields` (plan 2c C3) reads undeclared `wise.extras` keys
+ * straight off the hot tier's own `runs.wise` column and suggests a shape to promote one into `config.wise`
+ * with `--accept`.
  *   hits     — the newest run's own gate per place x category, worst first, flagging a one-subject answer
  *              whose code has since changed (re-derived live, on the bounded set of rows actually shown —
  *              never a full-ledger scan; see isStale below).
@@ -38,6 +42,7 @@ import { readCodeEvidence } from '../evidence/code.ts';
 import {
   callStats,
   graphAround,
+  type GraphEdge,
   GraphUnavailableError,
   problemCounts,
   refreshGraph,
@@ -206,18 +211,36 @@ function reportHistory(paths: SidewisePaths): VerbResult {
   return { exit: 0, text: [heading('history', rows.length, 'event'), ...withCap(rows.map((r) => r.text), rows.length)].join('\n') };
 }
 
-/** graph/problems/wise/calls are readers of the graph tier (ledger/graph.ts): each calls `refreshGraph` first
- *  (never the paid path's job), and this is the one, shared, plain message shown instead of a stack trace when
- *  `GraphUnavailableError` fires (Node < 22.13) — same idiom as this module's own "no runs yet" empty states. */
+/** graph/problems/wise/calls/fields are readers of the graph tier (ledger/graph.ts) and/or the hot tier's own
+ *  raw tables (ledger/index.ts's `runs`/`categories`/`places`), read straight off disk via `ledger/graph.ts`'s
+ *  own SQL — unlike hits/patterns/history (which go through `withIndex(..., {readOnly:true})`'s `IndexHandle`
+ *  and so can never be wrong, only slow, when the on-disk index is stale: a stale check falls back to a full
+ *  in-memory scan), these five have no such fallback. A caller that skipped this and opened `paths.index`
+ *  directly would show whatever the hot tier last happened to have on disk — missing entirely (no index.db
+ *  yet: every one of these tables, not just the graph tier's, is absent) or short by however many runs landed
+ *  since the last write-path catch-up (nothing about a `class`/`scan`/etc. call guarantees a report reader will
+ *  run again before the ledger grows further). `ensureHotIndexFresh` below is the fix: the exact same
+ *  self-heal/catch-up a real writer already gets (`withIndex`, non-readOnly), just triggered from a read
+ *  command instead — so "the ledger is always the truth" holds for every `report` view, not only the three
+ *  that happened to go through `IndexHandle` already. */
+function ensureHotIndexFresh(paths: SidewisePaths): void {
+  withIndex(paths, () => undefined);
+}
+
 function graphUnavailableText(view: ReportView): string {
   return `sidewise report ${view} · graph needs node:sqlite (Node ≥ 22.13) → see "sidewise doctor"`;
 }
 
-/** Runs `fn` after a `refreshGraph` catch-up, turning `GraphUnavailableError` into the shared plain message
+/** Runs `fn` after ensuring BOTH tiers are fresh, turning `GraphUnavailableError` into the shared plain message
  *  above rather than letting it propagate as a stack trace. Any other error still propagates (a real bug, never
- *  swallowed). */
+ *  swallowed). Order matters: `ensureHotIndexFresh` runs FIRST — a hot-tier rebuild replaces the whole
+ *  `index.db` file (ledger/index.ts's `rebuildToDisk`), which would silently wipe an already-fresh graph tier's
+ *  own `nodes`/`triples` tables if it ran after `refreshGraph`; running it first means `refreshGraph` always
+ *  gets the last word, self-healing from byte 0 if that just happened (exactly the "harmless" case its own
+ *  header comment already documents), never leaving the graph tier stale behind a hot-tier rebuild it can't see. */
 function withGraphView(paths: SidewisePaths, env: Record<string, string | undefined>, view: ReportView, fn: () => VerbResult): VerbResult {
   try {
+    ensureHotIndexFresh(paths);
     refreshGraph(paths, env);
   } catch (e) {
     if (e instanceof GraphUnavailableError) return { exit: 0, text: graphUnavailableText(view) };
@@ -260,6 +283,69 @@ function reportCalls(paths: SidewisePaths, env: Record<string, string | undefine
   });
 }
 
+/** The inverse of `graph.ts`'s own `gateScore` (pass/fail/unsure → 1/0/0.5), for display on a `judged` edge.
+ *  undefined for any other score (including null: an edge with no score at all, e.g. `checks`). */
+function gateWord(score: number | null): string | undefined {
+  if (score === 0) return 'fail';
+  if (score === 0.5) return 'unsure';
+  if (score === 1) return 'pass';
+  return undefined;
+}
+
+interface EdgeGroup {
+  p: string;
+  s: number;
+  o: number;
+  score: number | null;
+  provenance: string;
+  runs: string[];
+}
+
+/** Aggregates duplicate edges — the same (s, p, o, score, provenance) witnessed by more than one run — into one
+ *  group, so `report graph` shows one line with a `×N` run count rather than N near-identical lines (controller
+ *  fix, 2026-09-28). `score` is part of the grouping key on purpose: two runs that judged the same
+ *  category×place pair DIFFERENTLY (a fix landed between them) are a genuine disagreement worth keeping as
+ *  separate lines, never silently merged into one "average" verdict. */
+function groupEdges(edges: readonly GraphEdge[]): EdgeGroup[] {
+  const byKey = new Map<string, EdgeGroup>();
+  for (const e of edges) {
+    const key = `${e.p}\u0000${e.s}\u0000${e.o}\u0000${e.score ?? ''}\u0000${e.provenance}`;
+    let g = byKey.get(key);
+    if (!g) {
+      g = { p: e.p, s: e.s, o: e.o, score: e.score, provenance: e.provenance, runs: [] };
+      byKey.set(key, g);
+    }
+    if (!g.runs.includes(e.run)) g.runs.push(e.run);
+  }
+  return [...byKey.values()];
+}
+
+/** Up to 3 run ids shown in full; more than that, a sorted first..last range — "the list/first-last of runs"
+ *  the controller fix asked for. */
+function runsLabel(runs: readonly string[]): string {
+  const sorted = [...runs].sort();
+  return sorted.length <= 3 ? sorted.join(', ') : `${sorted[0]}..${sorted[sorted.length - 1]}`;
+}
+
+/** One `report graph` line: `s --p[ gate (p score[, ×N])]--> o (provenance) [runs]`. A `judged` edge shows its
+ *  gate word and score; any edge witnessed by more than one run shows a `×N` count; every edge — not only an
+ *  `inferred` one — always shows its own provenance (extracted | declared | inferred) and witnessing run(s). */
+function renderEdge(byId: Map<number, string>, g: EdgeGroup): string {
+  const sLabel = byId.get(g.s) ?? String(g.s);
+  const oLabel = byId.get(g.o) ?? String(g.o);
+  const word = gateWord(g.score);
+  const count = g.runs.length;
+  const pred =
+    word !== undefined
+      ? count > 1
+        ? `${g.p} ${word} (p ${g.score}, ×${count})`
+        : `${g.p} ${word} (p ${g.score})`
+      : count > 1
+        ? `${g.p} (×${count})`
+        : g.p;
+  return `${sLabel} --${pred}--> ${oLabel} (${g.provenance}) [${runsLabel(g.runs)}]`;
+}
+
 function reportGraph(paths: SidewisePaths, env: Record<string, string | undefined>, target: string | undefined): VerbResult {
   return withGraphView(paths, env, 'graph', () => {
     const t = target?.trim();
@@ -273,9 +359,10 @@ function reportGraph(paths: SidewisePaths, env: Record<string, string | undefine
     const { nodes, edges } = graphAround(paths, { kind, label, depth: 2 });
     if (!nodes.length) return { exit: 0, text: `sidewise report graph ${t} · not found → run "sidewise class <request>" first, or check the kind:label spelling` };
     const byId = new Map(nodes.map((n) => [n.id, `${n.kind}:${n.label}`]));
-    const lines = edges.map((e) => `${byId.get(e.s) ?? e.s} --${e.p}--> ${byId.get(e.o) ?? e.o}`);
-    const headingLine = `sidewise report graph ${t} · ${edges.length} edge${edges.length === 1 ? '' : 's'} (depth 2, ${nodes.length} node${nodes.length === 1 ? '' : 's'})`;
-    return { exit: 0, text: [headingLine, ...withCap(lines, edges.length)].join('\n') };
+    const groups = groupEdges(edges);
+    const lines = groups.map((g) => renderEdge(byId, g));
+    const headingLine = `sidewise report graph ${t} · ${groups.length} edge${groups.length === 1 ? '' : 's'} (depth 2, ${nodes.length} node${nodes.length === 1 ? '' : 's'})`;
+    return { exit: 0, text: [headingLine, ...withCap(lines, groups.length)].join('\n') };
   });
 }
 
@@ -318,6 +405,7 @@ function suggestionText(s: FieldSuggestion | undefined): string {
 }
 
 function reportFields(paths: SidewisePaths, env: Record<string, string | undefined>, accept: string | undefined): VerbResult {
+  ensureHotIndexFresh(paths); // fields reads the hot tier's own `runs.wise` column directly; see ensureHotIndexFresh's own comment
   const { config } = resolveConfig(paths, env);
   const knownKeys = [...WISE_KEYS, ...Object.keys(config.wise)];
   const fields = undeclaredFieldSamples(paths, { knownKeys });

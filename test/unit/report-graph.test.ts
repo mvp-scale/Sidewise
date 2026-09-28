@@ -2,26 +2,23 @@
 // `report`, plus `fields`'s own undeclared-wise-key discovery and `--accept` write-back. Builds small
 // hand-crafted ledgers (appendContractRun, same helper every other report test uses) and reads them back
 // through `runReport` only — never the graph tier's own internals (ledger-graph.test.ts already covers those).
+//
+// Controller fix (2026-09-28): `wise`/`problems`/`calls`/`fields` read the hot tier's own tables straight off
+// disk (ledger/graph.ts), with no linear-scan fallback of their own — unlike `hits`/`patterns`/`history`
+// (test/unit/report.test.ts), which go through `withIndex(..., {readOnly:true})`'s `IndexHandle` and so can
+// never be wrong on a stale/missing index, only slow. These tests used to work around that with their own
+// `syncHotIndex` helper (one extra `withIndex` call between the append and the read); `runReport` now does that
+// itself (`ensureHotIndexFresh`, report.ts), so every test below reads immediately after appending, exactly as
+// an agent calling `sidewise report ...` right after `sidewise class ...` would.
+import { existsSync, rmSync } from 'node:fs';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { withIndex } from '../../src/ledger/index.ts';
 import { appendContractRun } from '../../src/ledger/log.ts';
-import type { SidewisePaths } from '../../src/ledger/paths.ts';
 import { runReport } from '../../src/verbs/report.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleContractRun } from '../helpers/runs.ts';
 
 const T = Date.now();
-
-/** The hot tier's own on-disk index (ledger/index.ts) lags by exactly the most recent write until some other
- *  `withIndex` call (readOnly:false) catches it up — `nextRunNumber`'s own catch-up, run at the START of each
- *  append, only ever covers runs already on disk BEFORE that append. `wise`/`problems`/`calls`/`fields` all read
- *  the hot tier's own tables straight off disk (ledger/graph.ts), with no linear-scan fallback, so a test that
- *  appends and immediately reads needs one more (real, non-readOnly) `withIndex` call in between — exactly what
- *  a follow-up CLI command (another run, `sidewise outcome`, etc.) would naturally provide in real usage. */
-function syncHotIndex(paths: SidewisePaths): void {
-  withIndex(paths, () => undefined);
-}
 
 describe('runReport: graph-tier views, empty state', () => {
   it('problems/wise/calls/fields all say plainly there is nothing yet', () => {
@@ -50,13 +47,39 @@ describe('runReport: graph-tier views, empty state', () => {
   });
 });
 
+describe('runReport: hot-tier freshness (controller fix)', () => {
+  it('deleting index.db entirely still lists every run — the ledger, not a stale cache, is the truth [C-225]', () => {
+    const { paths } = tempProject({});
+    for (let i = 0; i < 3; i++) appendContractRun(paths, sampleContractRun({ where: [`src/${i}.ts`], wise: { why: 'validate' } }), T + i, 'b'); // SW-0001..SW-0003
+    expect(existsSync(paths.index)).toBe(true); // the append path already warms the hot tier
+    rmSync(paths.index, { force: true });
+    expect(existsSync(paths.index)).toBe(false);
+    const r = runReport('wise', { paths });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('sidewise report wise · 3 runs');
+    expect(r.text).toContain('SW-0001');
+    expect(r.text).toContain('SW-0002');
+    expect(r.text).toContain('SW-0003');
+  });
+
+  it('a run appended after the index.db already exists shows up in the very next report call, with no manual sync in between [C-225]', () => {
+    const { paths } = tempProject({});
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // SW-0001
+    const before = runReport('wise', { paths });
+    expect(before.text).toContain('sidewise report wise · 1 run');
+    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'] }), T + 1000, 'b'); // SW-0002 — index.db is now stale
+    const after = runReport('wise', { paths });
+    expect(after.text).toContain('sidewise report wise · 2 runs');
+    expect(after.text).toContain('SW-0002');
+  });
+});
+
 describe('runReport: problems', () => {
   it('ranks family x place by gate counts, worst (most fail) first [C-220]', () => {
     const { paths } = tempProject({});
     const cat = (name: string, family: string) => ({ name, section: 'concerns' as const, pass: 'no' as const, need: 'all' as const, tags: [], family: family as never, questions: [{ n: 1, kind: 'yesno' as const, text: 'q?' }] });
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], ask: { categories: [cat('injection', 'injection')], layers: [] }, categories: { injection: 'fail' } }), T, 'b'); // SW-0001
     appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], ask: { categories: [cat('guards', 'guards')], layers: [] }, categories: { guards: 'pass' } }), T, 'b'); // SW-0002
-    syncHotIndex(paths);
     const r = runReport('problems', { paths });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('sidewise report problems · 2 rows');
@@ -71,7 +94,6 @@ describe('runReport: wise', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', area: 'api', risk: 'high' } }), T, 'b'); // SW-0001
     appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], wise: { why: 'find', stage: 'build' } }), T + 1000, 'b'); // SW-0002, later ts
-    syncHotIndex(paths);
     const r = runReport('wise', { paths });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('sidewise report wise · 2 runs');
@@ -95,16 +117,32 @@ describe('runReport: calls', () => {
       T,
       'b',
     ); // SW-0001
-    syncHotIndex(paths);
     const r = runReport('calls', { paths });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('sidewise report calls · 1 row');
     expect(r.text).toContain('jev-1.13.0 (provider) · calls 1 · tokens 250 · cost $0.0100');
   });
+
+  it('falls back to the run\'s own calls/costUsd/adapter/model for a pre-telemetry record, marked "none" [C-222]', () => {
+    const { paths } = tempProject({});
+    // No `telemetry` field at all — the shape every real pre-plan-2c-B2 ledger line has.
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], adapter: 'openai', model: 'gpt-x', calls: 2, costUsd: 0.5 }), T, 'b'); // SW-0001
+    const r = runReport('calls', { paths });
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('sidewise report calls · 1 row');
+    expect(r.text).toContain('gpt-x (none) · calls 2 · tokens 0 · cost $0.5000 · saved $0.0000');
+  });
+
+  it('a fully-reused pre-telemetry record (calls: 0) contributes no row', () => {
+    const { paths } = tempProject({});
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], calls: 0, costUsd: 0 }), T, 'b'); // SW-0001
+    const r = runReport('calls', { paths });
+    expect(r.text).toBe('sidewise report calls · no calls in the last 30 days → "sidewise class <request>" starts one');
+  });
 });
 
 describe('runReport: graph', () => {
-  it('shows the neighborhood around one kind:label target as predicate lines', () => {
+  it('shows the neighborhood around one kind:label target as predicate lines, with gate/score/provenance/run [C-219] [C-224]', () => {
     const { paths } = tempProject({});
     appendContractRun(
       paths,
@@ -118,8 +156,22 @@ describe('runReport: graph', () => {
     ); // SW-0001
     const r = runReport('graph', { paths }, 'category:injection');
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('run:SW-0001 --asks--> category:injection');
-    expect(r.text).toContain('category:injection --checks--> place:src/a.ts');
+    // run --checks--> category: the run checked this category (renamed from the old, backwards `asks`).
+    expect(r.text).toContain('run:SW-0001 --checks--> category:injection (extracted) [SW-0001]');
+    // category --judged <gate> (p <score>)--> place: the category's own verdict on that place (renamed from
+    // the old, backwards `checks`), with its provenance and witnessing run shown on every edge.
+    expect(r.text).toContain('category:injection --judged fail (p 0)--> place:src/a.ts (extracted) [SW-0001]');
+  });
+
+  it('aggregates the same (s,p,o,score) edge witnessed by more than one run into one line with a ×N count [C-224]', () => {
+    const { paths } = tempProject({});
+    const ask = { categories: [{ name: 'injection', section: 'concerns' as const, pass: 'no' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'q?' }] }], layers: [] };
+    for (let i = 0; i < 3; i++) {
+      appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], ask, categories: { injection: 'fail' } }), T, 'b'); // SW-0001..SW-0003
+    }
+    const r = runReport('graph', { paths }, 'category:injection');
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('category:injection --judged fail (p 0, ×3)--> place:src/a.ts (extracted) [SW-0001, SW-0002, SW-0003]');
   });
 });
 
@@ -128,7 +180,6 @@ describe('runReport: fields', () => {
     const { paths } = tempProject({});
     const values = ['low', 'high', 'low', 'high', 'low'];
     for (const v of values) appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', extras: { severity: v } } }), T, 'b');
-    syncHotIndex(paths);
     const r = runReport('fields', { paths });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('severity (5 runs)');
@@ -139,7 +190,6 @@ describe('runReport: fields', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', extras: { statuscode: '200' } } }), T, 'b');
     appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], wise: { why: 'validate', extras: { statuscode: '404' } } }), T, 'b');
-    syncHotIndex(paths);
     const r = runReport('fields', { paths });
     expect(r.text).toContain('statuscode (2 runs)');
     expect(r.text).toContain('suggest: pattern: ^\\d+$');
@@ -149,7 +199,6 @@ describe('runReport: fields', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', extras: { handledin: 'src/handler.ts' } } }), T, 'b');
     appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], wise: { why: 'validate', extras: { handledin: 'src/other.ts' } } }), T, 'b');
-    syncHotIndex(paths);
     const r = runReport('fields', { paths });
     expect(r.text).toContain('handledin (2 runs)');
     expect(r.text).toContain('suggest: reference (link: where)');
@@ -159,7 +208,6 @@ describe('runReport: fields', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', extras: { blurb: 'this has spaces' } } }), T, 'b');
     appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], wise: { why: 'validate', extras: { blurb: 'another one here' } } }), T, 'b');
-    syncHotIndex(paths);
     const r = runReport('fields', { paths });
     expect(r.text).toContain('blurb (2 runs)');
     expect(r.text).toContain('suggest: no suggestion yet — not enough signal');
@@ -170,7 +218,6 @@ describe('runReport: fields', () => {
     const values = ['low', 'high', 'low', 'high', 'low'];
     for (const v of values) appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', extras: { severity: v } } }), T, 'b');
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], wise: { why: 'validate', extras: { blurb: 'this has spaces' } } }), T, 'b');
-    syncHotIndex(paths);
 
     const noSuggestion = runReport('fields', { paths }, undefined, 'blurb');
     expect(noSuggestion.exit).toBe(2);

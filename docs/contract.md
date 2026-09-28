@@ -868,16 +868,26 @@ always prints the file's path either way, whether or not that succeeds. [C-204]
 and edges as `kind:label --predicate--> kind:label` lines. With no target it names how to give one
 (`sidewise report graph <kind>:<label>`, e.g. `category:injection`) rather than dumping the whole graph, and an
 unknown target is a plain "not found," never an empty crash. [C-219]
+Each edge line's own predicate carries the run→category and category→place relationship the RIGHT way round:
+`run --checks--> category` (the run checked this category) and, separately, `category --judged <gate> (p
+<score>)--> place` (that category's own verdict on that place — pass/fail/unsure scored 1/0/0.5). Every edge
+shows its own provenance (`extracted`, `declared` or `inferred`) and the run(s) that witnessed it; the same
+(subject, predicate, object, score) witnessed by more than one run folds into one line with a `×N` count and
+the run list (or a sorted first..last range once there are more than a few), never one line per witnessing run.
+[C-224]
 `sidewise report problems` ranks every family x place pair by gate counts (fail, then unsure, then pass), worst
 first — the ranked, agent-facing knowledge pull an agent can act on directly, capped and counted like every
 other view. [C-220]
 `sidewise report wise` lists every run's own wise fields (why/area/stage/change/risk/blast/problem), newest
 first. [C-221]
 `sidewise report calls` rolls up telemetry by day, verb, model and source (calls, tokens, cost, amount saved by
-reuse), over its own default window (the last 30 days) unless the graph tier is asked otherwise. `graph`,
-`problems`, `wise` and `calls` all refresh the graph tier (ledger/graph.ts) before reading — readers refresh, the
-paid path never does — and report a plain message naming `sidewise doctor`, never a stack trace, when the graph
-tier needs `node:sqlite` and it isn't available. [C-222]
+reuse), over its own default window (the last 30 days) unless the graph tier is asked otherwise. A run with no
+recorded `telemetry` at all (a pre-plan-2c-B2 ledger line) still shows up, from its own aggregate
+`calls`/`costUsd`/`adapter`/`model`, marked `(none)` in place of a real source — an old ledger's calls and cost
+are never silently dropped from this view. `graph`, `problems`, `wise` and `calls` all refresh the graph tier
+(ledger/graph.ts) before reading — readers refresh, the paid path never does — and report a plain message
+naming `sidewise doctor`, never a stack trace, when the graph tier needs `node:sqlite` and it isn't available.
+[C-222]
 `sidewise report fields` lists every `wise.extras` key no run's project has declared yet (not a base wise field,
 not already in `config.wise`), with its sample values and a suggested type: `closed` (≤8 distinct values across
 ≥5 runs), `pattern` (every value matches one fixed regex shape), `reference` (every value looks like a
@@ -885,6 +895,12 @@ where/route path), or "no suggestion yet" when none of those fit. `--accept <fie
 and, when that field has a suggestion, writes it into `.sidewise/config.yaml`'s `wise:` block and prints exactly
 what it wrote; naming a field that isn't undeclared, or one with no suggestion yet, is a clean stop, never a
 silent no-op. [C-223]
+`graph`/`problems`/`wise`/`calls`/`fields` read the hot tier's own on-disk tables (`runs`/`categories`/`places`,
+ledger/index.ts) directly, not through the reuse-safe `IndexHandle` abstraction `hits`/`patterns`/`history`
+use — so each one first forces that tier to catch up or rebuild on disk (the same self-heal a paid write
+already gets, just triggered from a read), before either reading it directly or refreshing the graph tier on
+top of it. A missing `index.db`, or one that lags the ledger by any number of runs, is never a wrong or
+incomplete answer for any of these five views — only ever, at worst, one extra catch-up's cost. [C-225]
 
 ---
 

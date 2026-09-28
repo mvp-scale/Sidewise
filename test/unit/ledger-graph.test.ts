@@ -58,7 +58,7 @@ const INJECTION: Category = { name: 'injection', section: 'concerns', family: 'i
 const OTHER_CHECK: Category = { name: 'other-check', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'q2?' }] };
 
 describe('ledger/graph: one-subject run (rules 1-6, 10-14)', () => {
-  it('mints about/asks/judged/is-a/checks/at/uses/contains/reaches/touches from one class run', () => {
+  it('mints about/checks/is-a/judged/at/uses/contains/reaches/touches from one class run', () => {
     const { paths } = tempProject();
     appendContractRun(
       paths,
@@ -78,17 +78,16 @@ describe('ledger/graph: one-subject run (rules 1-6, 10-14)', () => {
     try {
       // 1. about
       expect(hasTriple(db, 'about', ['run', 'SW-0001'], ['area', 'api'])).toBe(true);
-      // 2/3/4. asks / judged / is-a
-      expect(hasTriple(db, 'asks', ['run', 'SW-0001'], ['category', 'injection'])).toBe(true);
-      expect(hasTriple(db, 'asks', ['run', 'SW-0001'], ['category', 'other-check'])).toBe(true);
+      // 2/3. checks / is-a — run --checks--> category (the run checked this category)
+      expect(hasTriple(db, 'checks', ['run', 'SW-0001'], ['category', 'injection'])).toBe(true);
+      expect(hasTriple(db, 'checks', ['run', 'SW-0001'], ['category', 'other-check'])).toBe(true);
       expect(hasTriple(db, 'is-a', ['category', 'injection'], ['family', 'input'])).toBe(true);
-      expect(allTriples(db).some((r) => r.p === 'judged' && r.s === nodeIdOf(db, 'run', 'SW-0001') && r.o === nodeIdOf(db, 'category', 'injection') && r.score === 0)).toBe(true);
-      expect(allTriples(db).some((r) => r.p === 'judged' && r.o === nodeIdOf(db, 'category', 'other-check') && r.score === 1)).toBe(true);
-      // 5/6. checks/at — the where entry is stripLines-normalized (":12-20" dropped)
+      // 4/5/6. judged/at — category's own verdict on a place (judged), and the where entry is
+      // stripLines-normalized (":12-20" dropped)
       expect(nodeIdOf(db, 'place', 'src/a.ts')).toBeDefined();
       expect(nodeIdOf(db, 'place', 'src/a.ts:12-20')).toBeUndefined();
-      expect(hasTriple(db, 'checks', ['category', 'injection'], ['place', 'src/a.ts'])).toBe(true);
-      expect(hasTriple(db, 'checks', ['category', 'other-check'], ['place', 'src/a.ts'])).toBe(true);
+      expect(allTriples(db).some((r) => r.p === 'judged' && r.s === nodeIdOf(db, 'category', 'injection') && r.o === nodeIdOf(db, 'place', 'src/a.ts') && r.score === 0)).toBe(true);
+      expect(allTriples(db).some((r) => r.p === 'judged' && r.s === nodeIdOf(db, 'category', 'other-check') && r.o === nodeIdOf(db, 'place', 'src/a.ts') && r.score === 1)).toBe(true);
       expect(hasTriple(db, 'at', ['run', 'SW-0001'], ['place', 'src/a.ts'])).toBe(true);
       // 12. uses (adjacent chain parts)
       expect(hasTriple(db, 'uses', ['component', 'web-app/orders-handler'], ['code', 'handler.ts'])).toBe(true);
@@ -228,7 +227,7 @@ describe('ledger/graph: watermark behavior', () => {
     refreshGraph(paths, {});
     db = openDb(paths);
     try {
-      expect(metaValue(db, 'graph_schema_version')).toBe('1');
+      expect(metaValue(db, 'graph_schema_version')).toBe('2');
       expect(hasTriple(db, 'at', ['run', 'SW-0001'], ['place', 'src/a.ts'])).toBe(true);
     } finally {
       db.close();

@@ -34,10 +34,17 @@
  * `wiseJson`) — a future `v_wise` reader reads it from there directly. Do not "fix" this later by adding a
  * problem triple; it would just duplicate what `runs.wise` already answers.
  *
- * Predicate vocabulary implemented in `ingestContractRun`/`ingestOutcome` below (plan 2c C3): about, is-a, asks,
- * judged, checks, at, contains (three sources: uses-chain '/' segments, sweep item hierarchy, and an inferred
+ * Predicate vocabulary implemented in `ingestContractRun`/`ingestOutcome` below (plan 2c C3): about, is-a,
+ * checks (run --checks--> category: the run checked this category — controller fix, 2026-09-28: this used to
+ * be named `asks`, and the name `checks` used to be misapplied one hop further down, below), judged (category
+ * --judged--> place, WITH the gate's own score: what that check found there — the run-level "judged (run,
+ * category, score)" triple this used to be is gone, folded into `checks` above since the hot tier's own
+ * `categories` table already answers "which gate did this run give this category" without a graph triple for
+ * it), at, contains (three sources: uses-chain '/' segments, sweep item hierarchy, and an inferred
  * place×component cross-signal), builds-on/narrows/replays, resolved-as, reaches, touches, uses, plus
- * custom/config-driven fields (`wise.extras`, via `.sidewise/config.yaml`'s `wise.<key>` overrides).
+ * custom/config-driven fields (`wise.extras`, via `.sidewise/config.yaml`'s `wise.<key>` overrides). Every
+ * triple's own `provenance` column (extracted | declared | inferred) is always populated, never null — a
+ * reader (`report graph`) shows it on every edge, not only the inferred ones.
  *
  * Node:sqlite availability: if `getSqliteCtor()` (ledger/index.ts) returns null (Node < 22.13, or sqlite
  * genuinely unavailable), every entry point here throws `GraphUnavailableError` — there is no linear-scan
@@ -53,7 +60,19 @@ import { isContractRun, type ContractRun, type LedgerRecord, type OutcomeRecord 
 import { withLock } from './lock.ts';
 import { ensureDir, type SidewisePaths } from './paths.ts';
 
-const GRAPH_SCHEMA_VERSION = '1';
+// Bumped to '2' (from '1') here: the PK (p, s, o, run) WITHOUT ROWID orders `triples` by predicate first, so
+// neither an OUTBOUND walk (`WHERE s = ?`, any predicate — `graphAround`'s own out-edges and `traverse`'s
+// recursive-CTE join) nor an INBOUND one (`WHERE o = ?`, any predicate — `graphAround`'s own in-edges) can use
+// the PK, or the old `idx_triples_pos (p, o, s)` (predicate-first: only helps a query that already knows the
+// predicate, which neither of these does) — both fell back to a full table scan, confirmed via `EXPLAIN QUERY
+// PLAN` (SCAN triples) and named in docs/evidence/ledger-scale.md's own "likely cause" note for the
+// `graphRebuild`/`traverseDepth4` misses at 100k. `idx_triples_spo`/`idx_triples_o` below fix both directions
+// (also confirmed via EXPLAIN QUERY PLAN: SEARCH ... USING [COVERING] INDEX); `idx_triples_pos` itself is
+// dropped — nothing in this codebase queries by predicate+object today, so it was pure insert overhead with no
+// read ever benefiting from it. A schema-version bump means an existing (v1) graph tier self-heals via the
+// same missing/wrong-schema path `needsCatchUp`/`catchUpGraph` already use for any other mismatch — a full
+// re-ingest from byte 0, not a migration.
+const GRAPH_SCHEMA_VERSION = '2';
 
 const GRAPH_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS nodes (
@@ -71,7 +90,8 @@ CREATE TABLE IF NOT EXISTS triples (
   score REAL,
   PRIMARY KEY (p, s, o, run)
 ) WITHOUT ROWID;
-CREATE INDEX IF NOT EXISTS idx_triples_pos ON triples(p, o, s);
+CREATE INDEX IF NOT EXISTS idx_triples_spo ON triples(s, p, o);
+CREATE INDEX IF NOT EXISTS idx_triples_o ON triples(o, p, s);
 `;
 
 // The hot tier (ledger/index.ts) always creates `meta` itself, but this module must work even the first time
@@ -184,6 +204,13 @@ function isLiteral(wiseConfig: Record<string, WiseFieldOverride>, key: string): 
   return wiseConfig[key]?.literal === true;
 }
 
+/** pass/fail/unsure → 1/0/0.5, for a `judged` triple's own `score` column — deliberate simplification
+ *  (documented, not a gap): a per-category calibrated `p` isn't tracked separately from the discrete gate
+ *  today. undefined/anything else → null (no score recorded). */
+function gateScore(gate: string | undefined): number | null {
+  return gate === 'pass' ? 1 : gate === 'fail' ? 0 : gate === 'unsure' ? 0.5 : null;
+}
+
 /** One contract run's own triples (plan 2c C3's predicate list). `wiseConfig` is the effective project config's
  *  `wise:` overrides (`resolveConfig(...).config.wise`), resolved once per `refreshGraph` call, never per line. */
 function ingestContractRun(db: GraphDb, rec: ContractRun, wiseConfig: Record<string, WiseFieldOverride>): void {
@@ -197,33 +224,37 @@ function ingestContractRun(db: GraphDb, rec: ContractRun, wiseConfig: Record<str
     for (const a of areas) addTriple(db, 'about', runNode, nodeId(db, 'area', a), RUN, 'extracted', null);
   }
 
-  // 2/3/4. is-a / asks / judged — every category this run's ask carries.
+  // 2/3. checks / is-a — every category this run's ask carries. `checks` is run --checks--> category (the run
+  // checked this category); its own verdict on a PLACE is rule 4/5's `judged`, below.
   const cats = runCategories(rec);
   for (const cat of cats) {
     const catNode = nodeId(db, 'category', cat.name);
-    addTriple(db, 'asks', runNode, catNode, RUN, 'extracted', null);
-    const gate = rec.categories[cat.name];
-    // Deliberate simplification (documented, not a gap): the schema's `score` is one REAL column, and a
-    // per-category calibrated `p` isn't tracked separately from the gate today — pass/fail/unsure → 1/0/0.5.
-    const score = gate === 'pass' ? 1 : gate === 'fail' ? 0 : gate === 'unsure' ? 0.5 : null;
-    addTriple(db, 'judged', runNode, catNode, RUN, 'extracted', score);
+    addTriple(db, 'checks', runNode, catNode, RUN, 'extracted', null);
     if (cat.family) addTriple(db, 'is-a', catNode, nodeId(db, 'family', cat.family), RUN, 'extracted', null);
   }
 
-  // 5. checks — (category, place) pairs this run actually has evidence for.
+  // 4/5. judged — a category's own verdict on a place: category --judged--> place, scored from the gate.
+  // Deliberate simplification (documented, not a gap): the schema's `score` is one REAL column, and a
+  // per-category calibrated `p` isn't tracked separately from the gate today — pass/fail/unsure → 1/0/0.5.
+  // One-subject: every category against every place this run touched, at the RUN's own gate for that category.
+  // Sweep: every layer's categories against the places its own items touched, at each ITEM's own gate for that
+  // category — more precise than a single run-wide gate, since a sweep's own items can disagree with each other.
   if (!rec.items) {
     const places = runPlaces(rec);
     for (const cat of cats) {
       const catNode = nodeId(db, 'category', cat.name);
-      for (const placeLabel of places) addTriple(db, 'checks', catNode, nodeId(db, 'place', placeLabel), RUN, 'extracted', null);
+      const score = gateScore(rec.categories[cat.name]);
+      for (const placeLabel of places) addTriple(db, 'judged', catNode, nodeId(db, 'place', placeLabel), RUN, 'extracted', score);
     }
   } else {
     for (const layer of rec.ask.layers) {
       const layerItems = Object.values(rec.items).filter((it) => it.layer === layer.name && it.unit);
-      const placeLabels = [...new Set(layerItems.map((it) => normalizeLabel('place', it.unit!.path)))];
       for (const cat of layer.categories) {
         const catNode = nodeId(db, 'category', cat.name);
-        for (const placeLabel of placeLabels) addTriple(db, 'checks', catNode, nodeId(db, 'place', placeLabel), RUN, 'extracted', null);
+        for (const item of layerItems) {
+          const placeLabel = normalizeLabel('place', item.unit!.path);
+          addTriple(db, 'judged', catNode, nodeId(db, 'place', placeLabel), RUN, 'extracted', gateScore(item.categories[cat.name]));
+        }
       }
     }
   }
@@ -602,7 +633,10 @@ export interface CallStat {
   day: string;
   verb: string;
   model: string;
-  source: 'provider' | 'cache';
+  /** 'none' marks a fallback row: a pre-telemetry record (plan 2c B2 predates it) with no `telemetry` array at
+   *  all — its own aggregate `calls`/`costUsd`/`adapter`/`model` stand in, so an old ledger still shows its
+   *  calls and cost instead of silently vanishing from this view. */
+  source: 'provider' | 'cache' | 'none';
   calls: number;
   tokens: number;
   costUsd: number;
@@ -612,7 +646,10 @@ export interface CallStat {
 /** Telemetry rollup (cost/tokens/latency-adjacent counts, by day/verb/model/source): the hot tier does not
  *  index `telemetry` (it lives inside each run's full JSON body), so this reads full records via
  *  `readRecordAt` for a WINDOWED, CAPPED run set (research doc O4 — default the last 30 days, and a hard run
- *  cap regardless), never a full-ledger scan. */
+ *  cap regardless), never a full-ledger scan. A run written before plan 2c B2 (or any run whose `telemetry`
+ *  simply wasn't recorded) carries no `telemetry` array — rather than drop it from this view entirely, its own
+ *  `calls`/`costUsd`/`adapter`/`model` (always present, every schema version) fill in one `source: 'none'` row
+ *  per day/verb/model, with `tokens`/`savedUsd` left at 0 (unknown at that granularity). */
 export function callStats(paths: SidewisePaths, opts: { sinceIso?: string; limit?: number } = {}): CallStat[] {
   if (!existsSync(paths.index)) return [];
   const since = opts.sinceIso ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -629,20 +666,30 @@ export function callStats(paths: SidewisePaths, opts: { sinceIso?: string; limit
   const agg = new Map<string, CallStat>();
   for (const row of rows) {
     const rec = readRecordAt(paths.log, Number(row.offset));
-    if (!rec || !isContractRun(rec) || !rec.telemetry) continue;
+    if (!rec || !isContractRun(rec)) continue;
     const day = String(row.ts).slice(0, 10);
-    for (const t of rec.telemetry) {
-      const model = t.source === 'provider' ? t.model : 'reused';
-      const key = `${day}\u0000${rec.verb}\u0000${model}\u0000${t.source}`;
-      const cur = agg.get(key) ?? { day, verb: rec.verb, model, source: t.source, calls: 0, tokens: 0, costUsd: 0, savedUsd: 0 };
-      cur.calls += 1;
-      if (t.source === 'provider') {
-        cur.tokens += (t.inputTokens ?? 0) + (t.outputTokens ?? 0);
-        cur.costUsd += t.costUsd ?? 0;
-      } else {
-        cur.tokens += t.original.inputTokens ?? 0;
-        cur.savedUsd += t.savedUsd ?? 0;
+    if (rec.telemetry && rec.telemetry.length) {
+      for (const t of rec.telemetry) {
+        const model = t.source === 'provider' ? t.model : 'reused';
+        const key = `${day}\u0000${rec.verb}\u0000${model}\u0000${t.source}`;
+        const cur = agg.get(key) ?? { day, verb: rec.verb, model, source: t.source, calls: 0, tokens: 0, costUsd: 0, savedUsd: 0 };
+        cur.calls += 1;
+        if (t.source === 'provider') {
+          cur.tokens += (t.inputTokens ?? 0) + (t.outputTokens ?? 0);
+          cur.costUsd += t.costUsd ?? 0;
+        } else {
+          cur.tokens += t.original.inputTokens ?? 0;
+          cur.savedUsd += t.savedUsd ?? 0;
+        }
+        agg.set(key, cur);
       }
+    } else if (rec.calls > 0) {
+      // Pre-telemetry (or telemetry-less) record that genuinely made provider calls: fall back to its own
+      // aggregate fields rather than showing nothing for it.
+      const key = `${day}\u0000${rec.verb}\u0000${rec.model}\u0000none`;
+      const cur = agg.get(key) ?? { day, verb: rec.verb, model: rec.model, source: 'none' as const, calls: 0, tokens: 0, costUsd: 0, savedUsd: 0 };
+      cur.calls += rec.calls;
+      cur.costUsd += rec.costUsd ?? 0;
       agg.set(key, cur);
     }
   }
