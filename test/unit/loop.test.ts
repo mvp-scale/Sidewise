@@ -9,26 +9,32 @@ import { stubProvider, type Stub } from '../helpers/stub-provider.ts';
 /** Wraps a stub so its answer reports an estimated cost, without changing stub-provider.ts (shared by other crews). */
 const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }) });
 
+// part is not the finest layer (story is) — a thin "boundaries" ask (2 probes, no decisions) is fine there.
+// story IS the finest layer: it needs a full 3 concerns x 3 probes + decisions ask. done (q3-5, pass: yes) and
+// risk (q6-8, pass: no) keep their ORIGINAL first-probe numbers (3 and, before this migration, 4 — now 6,
+// since each category grew from 1 probe to 3); a new "fit" concerns category and severity/route decisions
+// round out the contract. Every test below keys off done's/risk's own first probe only, same as before.
 const LOOP =
-  'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout, saved cards]\n      - name: payments\n        story: [refunds, retries, partial capture]\n      - ledger\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\n        2: Can {part} be deployed without the others?\n    story:\n      done:\n        pass: yes\n        3: Is "{story}" testable against {part} as written?\n      risk:\n        pass: no\n        4: Does "{story}" need data {part} doesn\'t own?\nwise:\n  why: validate\n  area: api\n';
+  'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout, saved cards]\n      - name: payments\n        story: [refunds, retries, partial capture]\n      - ledger\n  ask:\n    part:\n      concerns:\n        boundaries:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n    story:\n      concerns:\n        done:\n          pass: yes\n          3: Is "{story}" testable against {part} as written?\n          4: Does "{story}" have a named owner?\n          5: Is "{story}" small enough to ship on its own?\n        risk:\n          pass: no\n          6: Does "{story}" need data {part} doesn\'t own?\n          7: Does "{story}" depend on another part\'s release order?\n          8: Could "{story}" fail silently in production?\n        fit:\n          pass: yes\n          9: Does "{story}" match how {part} is meant to be used?\n          10: Would "{story}" survive {part} being replaced later?\n          11: Is "{story}" covered by an existing test today?\n      decisions:\n        severity:\n          pass: [none, low]\n          12:\n            scale: How risky is "{story}"?\n            levels: [none, low, medium, high, critical]\n        route:\n          pass: [build-now]\n          13:\n            choice: What should happen to "{story}" next?\n            options: [build-now, rework, redesign]\nwise:\n  why: validate\n  area: api\n';
 
 describe('loop', () => {
   it('the contract example: payments and its failing children show up, tree order, worst-target next [C-080] [C-082]', async () => {
     const { paths } = tempProject({});
     const yes = (q: { id: string }) =>
-      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
+      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#6' ? 0.91 : q.id === 'payments/partial capture#6' ? 0.48 : /#(6|7|8)$/.test(q.id) ? 0.1 : 0.9;
     const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes }), env: {} });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('payments: {boundaries: fail, 2: 0.18}');
-    expect(r.text).toContain('payments/refunds: {done: fail, risk: fail, 3: 0.22, 4: 0.91}');
-    expect(r.text).toContain('payments/partial capture: {risk: unsure, 4: 0.48}');
+    expect(r.text).toContain('payments/refunds: {done: fail, risk: fail, 3: 0.22, 6: 0.91}');
+    expect(r.text).toContain('payments/partial capture: {risk: unsure, 6: 0.48}');
     expect(r.text).toContain('passing: [gateway, gateway/guest checkout, gateway/saved cards, payments/retries, ledger]');
     expect(r.text).toContain('gate: fail');
     expect(r.text).toContain('wise: {recorded: [why, area]}');
     // worstFirst picks the worst item (most fails, then unsures): refunds (2 failing categories) over
     // payments itself (1) or partial capture (0 fails, 1 unsure) — matches the contract's own golden example.
     expect(r.text).toContain('next: sidewise template drill --parent SW-0001 --from payments/refunds');
-    expect(r.text).toMatch(/2 calls · 16 questions · budget \d+% used/);
+    // part: 2 probes x 3 items = 6; story: 11 probes (9 concerns + 2 decisions) x 5 items = 55; 6+55 = 61.
+    expect(r.text).toMatch(/2 calls · 61 questions · budget \d+% used/);
     expect(r.run).toBeDefined();
   });
 
@@ -37,7 +43,7 @@ describe('loop', () => {
     const provider = stubProvider();
     const r = await runLoop(LOOP, { paths, provider, env: {}, dryRun: true });
     expect(r.exit).toBe(0);
-    expect(r.text).toBe('plan:\n  calls: 2\n  questions: 16\n  items: 8\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
+    expect(r.text).toBe('plan:\n  calls: 2\n  questions: 61\n  items: 8\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
   });
@@ -45,7 +51,7 @@ describe('loop', () => {
   it('a goal that clears the bar on a fully-passing sweep: gate pass, next is "act on it"', async () => {
     const { paths } = tempProject({});
     const ALL_PASS =
-      'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - gateway\n      - payments\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\nwise:\n  why: validate\n  area: api\n';
+      'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - gateway\n      - payments\n  ask:\n    part:\n      concerns:\n        boundaries:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n          3: Does {part} have a single clear owner?\n        clarity:\n          pass: yes\n          4: Is {part}\'s purpose documented?\n          5: Is {part}\'s interface stable?\n          6: Is {part} easy to test in isolation?\n        fit:\n          pass: yes\n          7: Does {part} fit the overall design?\n          8: Is {part} loosely coupled to its neighbors?\n          9: Would {part} survive a neighbor being replaced?\n      decisions:\n        severity:\n          pass: [none, low]\n          10:\n            scale: How risky is {part}?\n            levels: [none, low, medium, high, critical]\n        route:\n          pass: [ship]\n          11:\n            choice: What should happen to {part}?\n            options: [ship, fix, block]\nwise:\n  why: validate\n  area: api\n';
     const r = await runLoop(ALL_PASS, { paths, provider: stubProvider({ yes: () => 0.95 }), env: {} });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('gate: pass');
@@ -56,7 +62,7 @@ describe('loop', () => {
   it('a goal that misses the bar on an all-passing sweep: next says so, not a passing item', async () => {
     const { paths } = tempProject({});
     const ALL_PASS =
-      'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - gateway\n      - payments\n  ask:\n    part:\n      boundaries:\n        pass: yes\n        1: Does {part} own one clear responsibility?\nwise:\n  why: validate\n  area: api\n';
+      'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - gateway\n      - payments\n  ask:\n    part:\n      concerns:\n        boundaries:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n          3: Does {part} have a single clear owner?\n        clarity:\n          pass: yes\n          4: Is {part}\'s purpose documented?\n          5: Is {part}\'s interface stable?\n          6: Is {part} easy to test in isolation?\n        fit:\n          pass: yes\n          7: Does {part} fit the overall design?\n          8: Is {part} loosely coupled to its neighbors?\n          9: Would {part} survive a neighbor being replaced?\n      decisions:\n        severity:\n          pass: [none, low]\n          10:\n            scale: How risky is {part}?\n            levels: [none, low, medium, high, critical]\n        route:\n          pass: [ship]\n          11:\n            choice: What should happen to {part}?\n            options: [ship, fix, block]\nwise:\n  why: validate\n  area: api\n';
     // Every item's own category clears the bar; only the goal itself misses — worstFirst has nothing to point
     // at, so this used to throw on worst!.id, then (fix round 1) wrongly drilled into gateway even though it passed.
     const yes = (q: { id: string }) => (q.id === 'goal' ? 0.1 : 0.95);
@@ -71,7 +77,7 @@ describe('loop', () => {
   it('the full per-item category record is kept in the ledger even though no per-layer query surfaces it yet [C-084]', async () => {
     const { paths } = tempProject({});
     const yes = (q: { id: string }) =>
-      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
+      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#6' ? 0.91 : q.id === 'payments/partial capture#6' ? 0.48 : /#(6|7|8)$/.test(q.id) ? 0.1 : 0.9;
     const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes }), env: {} });
     // Unlike class (view's request mode reads a per-category, per-place record straight off the ledger),
     // a sweep run's own top-level `categories` is always {} — the per-item categories below are the only
@@ -80,13 +86,13 @@ describe('loop', () => {
     if (!r.run || !isContractRun(r.run)) throw new Error('expected a v2 contract run');
     expect(r.run.categories).toEqual({});
     expect(r.run.items?.['payments']?.categories).toEqual({ boundaries: 'fail' });
-    expect(r.run.items?.['payments/refunds']?.categories).toEqual({ done: 'fail', risk: 'fail' });
+    expect(r.run.items?.['payments/refunds']?.categories).toEqual({ done: 'fail', risk: 'fail', fit: 'pass', severity: 'pass', route: 'pass' });
   });
 
   it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
     const { paths } = tempProject({});
     const yes = (q: { id: string }) =>
-      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
+      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#6' ? 0.91 : q.id === 'payments/partial capture#6' ? 0.48 : /#(6|7|8)$/.test(q.id) ? 0.1 : 0.9;
     const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes, adapter: 'fake' }), env: {} });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('adapter fake · not evidence');
@@ -113,7 +119,7 @@ describe('loop', () => {
   it('a missing budget file is created with defaults, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({});
     const yes = (q: { id: string }) =>
-      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#4' ? 0.91 : q.id === 'payments/partial capture#4' ? 0.48 : q.id.endsWith('#4') ? 0.1 : 0.9;
+      q.id === 'payments#2' ? 0.18 : q.id === 'payments/refunds#3' ? 0.22 : q.id === 'payments/refunds#6' ? 0.91 : q.id === 'payments/partial capture#6' ? 0.48 : /#(6|7|8)$/.test(q.id) ? 0.1 : 0.9;
     const r = await runLoop(LOOP, { paths, provider: stubProvider({ yes }), env: {} });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
