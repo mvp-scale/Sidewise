@@ -13,6 +13,7 @@ describe('runHelp', () => {
     expect(r.exit).toBe(0);
     expect(r.text).toContain('## Invoke it');
     expect(r.text).toContain('mm3');
+    expect(r.text).toContain('MM3 = MAK³ (make: use what is proven) + MDL³ (model: learn what is missing), each across Know / Judge / Prove.');
     expect(r.text).toContain('## Pick your verb');
     for (const verb of VERBS) expect(r.text).toContain(verb);
     expect(r.text).toContain('## Read the verdict');

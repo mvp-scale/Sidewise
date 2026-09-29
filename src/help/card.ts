@@ -16,15 +16,17 @@ import { VERB_LINE } from './verbs.ts';
 
 const PITCH_LINE_1 = 'MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence,';
 const PITCH_LINE_2 = 'never a command. Think of it as a citable second opinion, not a linter.';
-/** The same two sentences above, unwrapped to one line — `agentFrontDoorLines` below (cli.ts's usage header)
+const PITCH_LINE_3 = 'MM3 = MAK³ (make: use what is proven) + MDL³ (model: learn what is missing), each across Know / Judge / Prove.';
+/** The same three sentences above, unwrapped to one line — `agentFrontDoorLines` below (cli.ts's usage header)
  *  reuses this verbatim rather than hand-typing a shorter pitch of its own. Not exported: nothing outside this
  *  file needs the pitch on its own, only through `card()` or `agentFrontDoorLines()`. */
-const PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2}`;
+const PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2} ${PITCH_LINE_3}`;
 
 export function card(): string {
   return [
     PITCH_LINE_1,
     PITCH_LINE_2,
+    PITCH_LINE_3,
     '',
     '## Invoke it',
     'In Claude Code: call the `mm3` MCP tool directly — same args as the CLI (e.g. args: ["class", "-"]),',

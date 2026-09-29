@@ -10574,6 +10574,7 @@ function checkMdl2(mdl2, out, rawText, mdlFields = MDL_FIELDS) {
     out.add("mdl", `${lineCount} lines`, `the mdl block is capped at ${MAX_MDL_LINES} lines`);
   }
 }
+var RENAMED_BLOCKS = { side: "mak", wise: "mdl" };
 function checkSchema(value, verb, rawText, mdlFields = MDL_FIELDS) {
   const out = new Out();
   if (!isObj3(value)) {
@@ -10581,10 +10582,11 @@ function checkSchema(value, verb, rawText, mdlFields = MDL_FIELDS) {
     return out.stops;
   }
   for (const k of Object.keys(value)) {
-    if (k !== "mak" && k !== "mdl") out.add(clip(k, 20), "not a block", "the request holds only mak: and mdl:; put fields under mak:");
+    if (Object.hasOwn(RENAMED_BLOCKS, k)) out.add(k, "renamed", `use ${RENAMED_BLOCKS[k]}:`);
+    else if (k !== "mak" && k !== "mdl") out.add(clip(k, 20), "not a block", "the request holds only mak: and mdl:; put fields under mak:");
   }
-  if (!("mak" in value)) out.add("mak", "missing", "start with mak: and a goal");
-  else checkMak(value.mak, verb, out);
+  if ("mak" in value) checkMak(value.mak, verb, out);
+  else if (!("side" in value)) out.add("mak", "missing", "start with mak: and a goal");
   if ("mdl" in value) checkMdl2(value.mdl, out, rawText, mdlFields);
   return out.stops;
 }
@@ -16664,11 +16666,13 @@ function runAgent(target, env = {}, deps = {}) {
 // src/help/card.ts
 var PITCH_LINE_1 = "MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict \u2014 evidence,";
 var PITCH_LINE_2 = "never a command. Think of it as a citable second opinion, not a linter.";
-var PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2}`;
+var PITCH_LINE_3 = "MM3 = MAK\xB3 (make: use what is proven) + MDL\xB3 (model: learn what is missing), each across Know / Judge / Prove.";
+var PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2} ${PITCH_LINE_3}`;
 function card() {
   return [
     PITCH_LINE_1,
     PITCH_LINE_2,
+    PITCH_LINE_3,
     "",
     "## Invoke it",
     'In Claude Code: call the `mm3` MCP tool directly \u2014 same args as the CLI (e.g. args: ["class", "-"]),',
