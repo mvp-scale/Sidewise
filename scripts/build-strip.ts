@@ -271,29 +271,29 @@ type Timeline = ReturnType<typeof timeline>;
 /** The beats of the loop in seconds: what lands when, and the loop length `T`. */
 function timeline() {
   return {
-    typeShell: 0.8, // `claude` is typed
-    boxIn: 2.8,
-    typeAsk: 3.4,
-    toolIn: 6.9,
-    runIn: 7.4,
-    fire: 7.9, // the call fires: the request tab pulses
-    reqIn: 9.6, // the folded request fades in
-    bandA: 10.2,
-    hint: 10.2,
-    ptrIn: 14.0, // the pointer appears and moves to concerns
-    clickCon: 15.5, openCon: 15.65,
-    clickDec: 21.2, openDec: 21.35,
-    clickMdl: 27.1, openMdl: 27.25,
-    clickResp: 33.6,
-    respIn: 34.2,
-    r2: 39.3,
-    r3: 44.6,
-    clickKnow: 49.7,
-    knowIn: 50.4,
-    k2: 55.8,
-    k3: 61.2,
-    end: 67.0, // fade out at the loop seam
-    T: 67.8,
+    typeShell: 0.5, // `claude` is typed
+    boxIn: 1.2,
+    typeAsk: 1.5,
+    toolIn: 3.4,
+    runIn: 3.9,
+    fire: 4.4, // the call fires: the request tab pulses
+    reqIn: 6.1, // the folded request fades in
+    bandA: 6.7,
+    hint: 6.7,
+    ptrIn: 10.5, // the pointer appears and moves to concerns
+    clickCon: 12.0, openCon: 12.15,
+    clickDec: 17.7, openDec: 17.85,
+    clickMdl: 23.6, openMdl: 23.75,
+    clickResp: 30.1,
+    respIn: 30.7,
+    r2: 35.8,
+    r3: 41.1,
+    clickKnow: 46.2,
+    knowIn: 46.9,
+    k2: 52.3,
+    k3: 57.7,
+    end: 63.5, // fade out at the loop seam
+    T: 64.3,
   };
 }
 
@@ -303,7 +303,7 @@ function typing(n: number, t0: number, seed: number, text: string): number[] {
   let t = t0;
   return Array.from({ length: n }, (_, i) => {
     x = (Math.imul(x, 1103515245) + 12345) & 0x7fffffff;
-    t += 0.055 + ((x >> 8) % 100) / 100 * 0.085 + (text[i - 1] === ' ' ? 0.06 : 0);
+    t += 0.022 + ((x >> 8) % 100) / 100 * 0.034 + (text[i - 1] === ' ' ? 0.025 : 0);
     return Math.round(t * 100) / 100;
   });
 }
