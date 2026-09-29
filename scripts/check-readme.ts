@@ -16,7 +16,7 @@ export type { Story };
 
 type Opts = { root: string; dryRun: (verb: string, yaml: string) => string | null; published?: boolean };
 
-const OLD = /\b(?:side|wise):|\bsidewise\b(?!-?play)|\bSidewise\b|\bSW-\d{4}\b/;
+const OLD = /\b(?:side|wise):|\bsidewise\b|\bSidewise\b|\bSW-\d{4}\b/;
 const VERBS = 'view|class|replay|scan|drill|loop';
 
 /** Shape check for docs/story.yaml: a bad file becomes problem lines, not a TypeError. */
@@ -109,7 +109,7 @@ function siteText(html: string): string {
   return squash(bare.replace(/&#(\d+);/g, (_m, n: string) => String.fromCharCode(+n)).replace(/&(\w+);/g, (m, k: string) => ENTITIES[k] ?? m));
 }
 const plain = (md: string): string => squash(md.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/`/g, ''));
-/** The demo player's drift check: each scene's footer is on the site, and the README's one frozen response is that scene's text with its label (model, endpoint, latency, cost); run ids repeat across the two stories, so a scene is matched by id and then by text. */
+/** The demo player's drift check: each scene's footer is on the site, and the README's one frozen response is that scene's text with its label (model, endpoint, latency, cost), and its frozen request is that scene's request; run ids repeat across the two stories, so a scene is matched by id and then by text. */
 export function checkDemo(html: string, readme: string | undefined, scenes: Scene[]): string[] {
   const out: string[] = [];
   if (!scenes.length) return ['✖ demo: no scenes in docs/demo/scenes/ → run tsx scripts/build-demo.ts extract'];
@@ -127,6 +127,9 @@ export function checkDemo(html: string, readme: string | undefined, scenes: Scen
     const s = hit.cands.find((c) => c.response.trim() === hit.b) ?? hit.cands[0]!; // two stories can share a run id: prefer the scene whose text matches
     if (hit.b !== s.response.trim()) out.push(`✖ README response ${s.id}: differs from docs/demo/scenes → copy the scene's response text verbatim`);
     if (!plain(readme).includes(sceneLabel(s))) out.push(`✖ README response ${s.id}: label "${sceneLabel(s)}" is not in the README → copy it from the scene footer`);
+    const req = blocks.find((b) => /^ {2}goal:/m.test(b) && !idOf(b)); // the frozen request: the block with a goal: line and no run id (the response has both)
+    if (req === undefined) out.push(`✖ README request ${s.id}: no frozen request in ## See it run → paste the scene's request text under "The request the agent wrote"`);
+    else if (req !== s.request.trim()) out.push(`✖ README request ${s.id}: differs from docs/demo/scenes → copy the scene's request text verbatim`);
   }
   return out;
 }

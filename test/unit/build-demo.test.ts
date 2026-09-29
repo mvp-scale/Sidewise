@@ -1,7 +1,9 @@
 // Unit tests for scripts/build-demo.ts (scene extract, footer, YAML highlight, the inferred decision, player markup) and checkDemo (footer and README drift); no ledger, no network, no browser.
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { extractScene, fmtCost, highlightYaml, inferDecision, loadScenes, loadStories, renderDecision, renderKnowledge, renderPlayer, renderScene, renderVerdict, sceneFooter, sceneLabel, scrubKickoff, scrubPaths, stagePage, type Scene } from '../../scripts/build-demo.ts';
+import { extractScene, fmtCost, goalChip, highlightYaml, inferDecision, loadScenes, loadStories, renderDecision, renderKnowledge, renderPlayer, renderScene, renderVerdict, sceneFooter, sceneLabel, scrubKickoff, scrubPaths, stagePage, type Scene } from '../../scripts/build-demo.ts';
 import { buildSite } from '../../scripts/build-site.ts';
 import { checkDemo } from '../../scripts/check-readme.ts';
 
@@ -36,6 +38,11 @@ const row = {
 const meta = { story: 'mak', n: 3, pin: 'WordPress @3ffb1df', run: 4, of: 6, children: ['MM3-0010'] };
 const scene = (over: Partial<Scene> = {}): Scene => ({ ...extractScene(row, request, meta), ...over });
 const text = (html: string): string => html.replaceAll('<span class="ln', '\n<span class="ln').replace(/<[^>]+>/g, '').replaceAll('&lt;', '<').replaceAll('&gt;', '>').replaceAll('&quot;', '"').replaceAll('&amp;', '&').replaceAll('&nbsp;', '');
+/** Builds the site into a throwaway folder (never the repo's site/dist) and returns its index.html. */
+function builtPage(): string {
+  const dist = mkdtempSync(path.join(tmpdir(), 'mm3-site-'));
+  try { buildSite(undefined, dist); return readFileSync(path.join(dist, 'index.html'), 'utf8'); } finally { rmSync(dist, { recursive: true, force: true }); }
+}
 const squash = (t: string): string => t.split('\n').map((l) => l.trim().replace(/\s+/g, ' ')).filter(Boolean).join('\n');
 
 describe('extractScene', () => {
@@ -51,14 +58,17 @@ describe('extractScene', () => {
     expect(s.knowledge.recorded).toEqual([]);
     expect(s.knowledge.budget).toBe('budget: $0.10 left of $0.10 · 26 of 30 runs left');
   });
-  it('strips absolute and play-area paths from the request and response', () => {
-    const abs = ['', 'home', 'someone', 'mm3-demo-play'].join('/'); // built, so this file holds no machine path itself
-    const s = extractScene({ ...row, response: response + `\nnotes: [${abs}/x.js]` }, request + `\n  at: ${abs}/notes/a.yaml`, meta);
-    expect(s.request + s.response).not.toMatch(/\/home\/|mm3-demo-play/);
+  it('strips absolute paths, and the play-area name taken from the --play path, from the request and response', () => {
+    const name = ['demo', 'play'].join('-'); // built from parts: no play-area name is written in this file
+    const play = ['', 'home', 'someone', name].join('/');
+    const s = extractScene({ ...row, response: response + `\nnotes: [${play}/x.js]` }, request + `\n  at: ~/${name}/notes/a.yaml`, { ...meta, play });
+    expect(s.request + s.response).not.toMatch(new RegExp(`/home/|${name}`));
     expect(scrubPaths('a /tmp/x/y.js b')).toBe('a <path> b');
+    expect(scrubPaths(`keep ${name}-like text`)).toBe(`keep ${name}-like text`); // no --play given: only machine paths go
   });
   it('shortens the kickoff paths and keeps its wording', () => {
-    const k = scrubKickoff('Use MM3.\n\nThe code is ~/mm3-demo-play/n8n (unmodified). Run `~/mm3-demo-play/bin/mm3 agent`.\n\nLeave these in ~/mm3-demo-play/notes-n8n/:');
+    const name = ['demo', 'play'].join('-');
+    const k = scrubKickoff(`Use MM3.\n\nThe code is ~/${name}/n8n (unmodified). Run \`~/${name}/bin/mm3 agent\`.\n\nLeave these in ~/${name}/notes-n8n/:`, ['', 'x', name].join('/'));
     expect(k).toBe('Use MM3.\n\nThe code is <checkout> (unmodified). Run `mm3 agent`.\n\nLeave these in notes/:');
   });
   it('reads a fully reused run as zero asked, zero calls, $0.00000', () => {
@@ -158,6 +168,16 @@ next: mm3 template drill --parent MM3-0006 --from packages/cli/src/index.ts`;
   });
 });
 
+describe('goal heading', () => {
+  it('labels the run goal as "goal tested:" and shows its own gate chip and p beside it', () => {
+    const html = renderScene(scene());
+    expect(html).toContain('<em class="gt">goal tested:</em> The API is &lt;safe&gt;');
+    expect(html).toContain('<span class="goalgate"><span class="chip unsure">unsure 0.38</span></span>');
+    expect(goalChip(scene({ response: response.replace('goal: {gate: unsure, p: 0.38}', 'goal: {gate: pass, p: 0.87}') }))).toContain('chip pass">pass 0.87');
+    expect(goalChip(scene({ response: 'not: yaml' }))).toBe('');
+  });
+});
+
 describe('renderPlayer', () => {
   const st = (id: string, label: string) => ({ id, label, name: 'X', title: `Title ${id}`, pinned: 'X @abc', task: { question: 'Use MM3 <now>', full: 'Use MM3 <now>\n\nrest' }, about: '2 of 6 runs.', scenes: [scene({ story: id, n: 1 }), scene({ story: id, n: 2, id: 'MM3-0010', verb: 'drill' })] });
   const stories = [st('mak', 'MAK³ · make'), st('mdl', 'MDL³ · model')];
@@ -226,7 +246,7 @@ describe('the committed stories', () => {
   it('carry the kickoff as the agent got it: the question verbatim, paths shortened, no play-area path', () => {
     expect(stories[0]!.task.question).toBe('Use MM3 to answer this: I want to add agentic UI (AUI) components to WordPress — UI elements an AI agent can drive. Where would the integration most likely need to go, what are the touch points, what would change, and which security areas does the change touch?');
     expect(stories[1]!.task.question).toMatch(/^Use MM3 to answer this: I've never worked in n8n and I want to make it faster\./);
-    for (const st of stories) { expect(st.task.full.startsWith(st.task.question)).toBe(true); expect(st.task.full).toContain('run `mm3 agent` first'); expect(st.task.full).not.toContain('mm3-demo-play'); }
+    for (const st of stories) { expect(st.task.full.startsWith(st.task.question)).toBe(true); expect(st.task.full).toContain('run `mm3 agent` first'); expect(st.task.full).not.toMatch(/~\/[\w.-]*-play\b/); }
   });
   it('read every footer from a row: real model and endpoint, estimated cost, and the WordPress Abilities API check', () => {
     for (const s of scenes) {
@@ -259,7 +279,7 @@ describe('the committed stories', () => {
   it('carry no machine path, play-area path or old name', () => {
     for (const f of readdirSync('docs/demo/scenes')) {
       const raw = readFileSync(`docs/demo/scenes/${f}`, 'utf8');
-      expect(raw, f).not.toMatch(/\/home\/|\/Users\/|mm3labs-play|mm3-demo-play|\/tmp\/|<path>/);
+      expect(raw, f).not.toMatch(/\/home\/|\/Users\/|-play\b|\/tmp\/|<path>/);
       expect(raw, f).not.toMatch(/\bSidewise\b|\bsidewise\b|\bSW-\d{4}\b|\bside:|\bwise:/);
     }
   });
@@ -271,8 +291,7 @@ describe('the committed stories', () => {
     }
   });
   it('appear in the built site with the player script', () => {
-    buildSite(undefined, 'site/dist');
-    const page = readFileSync('site/dist/index.html', 'utf8');
+    const page = builtPage();
     expect(page).toContain('data-player');
     expect(page).toContain('src="player.js"');
     expect(page.match(/class="pstab /g)).toHaveLength(2);
@@ -283,13 +302,20 @@ describe('the committed stories', () => {
 describe('checkDemo', () => {
   const scenes = loadScenes();
   const readme = readFileSync('README.md', 'utf8');
-  const page = (): string => { buildSite(undefined, 'site/dist'); return readFileSync('site/dist/index.html', 'utf8'); };
+  const page = builtPage;
   it('passes for the real site and README', () => {
     expect(checkDemo(page(), readme, scenes)).toEqual([]);
   });
   it('fails when a scene footer drifts from the site', () => {
     const drifted = page().replace('293 ms · ~$0.00012 · 12 questions', '293 ms · ~$0.00099 · 12 questions');
     expect(checkDemo(drifted, readme, scenes).join('\n')).toMatch(/site demo MM3-0004: footer/);
+  });
+  it('fails when the README request drifts from its scene, or is missing', () => {
+    const a = readme.replace('  depth: quick\n', '  depth: thorough\n');
+    expect(a).not.toBe(readme);
+    expect(checkDemo(page(), a, scenes).join('\n')).toMatch(/README request MM3-0004: differs/);
+    const b = readme.replace('  goal: Abilities API is the integration point', '  aim: Abilities API is the integration point');
+    expect(checkDemo(page(), b, scenes).join('\n')).toMatch(/README request MM3-0004: no frozen request/);
   });
   it('fails when the README response text or label drifts from its scene', () => {
     const a = readme.replace('escalate: true\nmdl:', 'escalate: false\nmdl:');

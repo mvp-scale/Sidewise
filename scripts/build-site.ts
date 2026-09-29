@@ -1,6 +1,6 @@
 /**
  * Builds the mm3lab.dev landing page: fills site/template.html from docs/story.yaml (so the site and the README
- * repeat the same phrases) and the two-story demo player from docs/demo/scenes/*.json, then copies site/style.css, site/player.js and docs/assets/* next to it in site/dist/ (gitignored).
+ * repeat the same phrases) and the two-story demo player from docs/demo/scenes/*.json, then copies site/style.css, site/player.js and docs/assets/* (the SVGs; the GIFs are the README's, the page runs the live player) next to it in site/dist/ (gitignored).
  * renderSite is pure so a unit test can pin the escaping and the lists; the main block does the file work.
  */
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -61,7 +61,7 @@ export function buildSite(story: Story = loadStory(), dist = 'site/dist'): strin
   writeFileSync(path.join(dist, 'index.html'), renderSite(story, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(stories.length ? renderPlayer(stories) : '') }));
   copyFileSync('site/style.css', path.join(dist, 'style.css'));
   copyFileSync('site/player.js', path.join(dist, 'player.js'));
-  for (const f of readdirSync('docs/assets')) cpSync(path.join('docs/assets', f), path.join(dist, f));
+  for (const f of readdirSync('docs/assets')) if (!f.endsWith('.gif')) cpSync(path.join('docs/assets', f), path.join(dist, f));
   return `site built: ${dist}/index.html (${stories.reduce((n, st) => n + st.scenes.length, 0)} player steps in ${stories.length} stories)`;
 }
 

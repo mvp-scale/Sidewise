@@ -42,23 +42,30 @@ export function sceneLabel(s: Scene): string {
   return `real output · ${f.model} · ${f.endpoint} · ${f.latencyMs} ms · ${fmtCost(f.costUsd, f.costEstimated)}`;
 }
 
-/** Drops any absolute machine path and the play area's name from text that will be committed. */
-export function scrubPaths(text: string): string {
-  return text
-    .replace(/(?:\/(?:home|Users|root|tmp|var|mnt)\/[^\s,'"\]}]+)+/g, '<path>')
-    .replace(/[\w./-]*mm3(?:labs|-demo)-play[\w./-]*/g, '<path>');
+const reEsc = (t: string): string => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** The play area's folder name, taken from the --play path given at extract time (empty when none is given). */
+const playName = (play: string): string => (play ? path.basename(path.resolve(play)) : '');
+
+/** Drops any absolute machine path, and anything carrying the play area's name (from its path), from text that will be committed. */
+export function scrubPaths(text: string, play = ''): string {
+  const name = playName(play);
+  const bare = text.replace(/(?:\/(?:home|Users|root|tmp|var|mnt)\/[^\s,'"\]}]+)+/g, '<path>');
+  return name ? bare.replace(new RegExp(`[\\w./-]*${reEsc(name)}[\\w./-]*`, 'g'), '<path>') : bare;
 }
 
 /** The kickoff as the agent got it, with the play area's paths shortened: the tool is `mm3`, the notes folder `notes/`, the source `<checkout>`. */
-export function scrubKickoff(text: string): string {
+export function scrubKickoff(text: string, play = ''): string {
+  const name = playName(play);
+  if (!name) return scrubPaths(text);
+  const home = `~/${reEsc(name)}`;
   return scrubPaths(text
-    .replaceAll('~/mm3-demo-play/bin/mm3', 'mm3')
-    .replace(/~\/mm3-demo-play\/notes-\w+\//g, 'notes/')
-    .replace(/~\/mm3-demo-play\/(?:wordpress|n8n)/g, '<checkout>'));
+    .replace(new RegExp(`${home}/bin/mm3`, 'g'), 'mm3')
+    .replace(new RegExp(`${home}/notes-\\w+/`, 'g'), 'notes/')
+    .replace(new RegExp(`${home}/(?:wordpress|n8n)`, 'g'), '<checkout>'), play);
 }
 
 type Row = { id?: string; verb?: string; ts?: string; model?: string; baseURL?: string; costUsd?: number; parent?: string | null; from?: string | null; response?: string; telemetry?: { source?: string; from?: string; latencyMs?: number | null; questions?: number; costUsd?: number | null; costEstimated?: boolean; savedUsd?: number }[] };
-type Meta = { story: string; n: number; pin: string; run: number; of: number; children: string[] };
+type Meta = { story: string; n: number; pin: string; run: number; of: number; children: string[]; play?: string };
 
 /** One ledger row plus its request text becomes a scene; footer and knowledge fields come from the row, summed over its provider calls. */
 export function extractScene(row: object, requestYaml: string, meta: Meta): Scene {
@@ -67,8 +74,8 @@ export function extractScene(row: object, requestYaml: string, meta: Meta): Scen
   const cached = (r.telemetry ?? []).filter((t) => t.source === 'cache');
   const host = ((): string => { try { return new URL(r.baseURL ?? '').host; } catch { return r.baseURL ?? ''; } })();
   const verb = r.verb ?? '';
-  const response = scrubPaths((r.response ?? '').replace(/\s+$/, ''));
-  const request = scrubPaths(requestYaml.replace(/\s+$/, ''));
+  const response = scrubPaths((r.response ?? '').replace(/\s+$/, ''), meta.play);
+  const request = scrubPaths(requestYaml.replace(/\s+$/, ''), meta.play);
   let doc: unknown = null;
   try { doc = parse(response); } catch { /* not YAML: no recorded fields */ }
   const recorded = isObj(doc) && isObj(doc.mdl) && Array.isArray(doc.mdl.recorded) ? doc.mdl.recorded.map(String) : [];
@@ -277,6 +284,15 @@ export function renderKnowledge(s: Scene): string {
 
 // ---------------------------------------------------------------- one step, one story, the player
 
+/** The goal's own gate and p as one chip (pass, fail or unsure, then p), read from the response; empty when the run has no goal block. */
+export function goalChip(s: Scene): string {
+  let doc: unknown;
+  try { doc = parse(s.response); } catch { doc = null; }
+  const g = isObj(doc) && isObj(doc.mak) && isObj(doc.mak.goal) ? doc.mak.goal : null;
+  const gate = g ? gateOf(g.gate) : '';
+  return gate ? `<span class="goalgate">${chip(gate, `${gate}${typeof g!.p === 'number' ? ` ${pTxt(g!.p)}` : ''}`)}</span>` : '';
+}
+
 const FLOW = ['task', 'request', 'response', 'quick read', 'decision', 'ledger'];
 const lines = (t: string): number => t.split('\n').length;
 
@@ -286,7 +302,7 @@ export function renderScene(s: Scene, opts: { phase?: number; show?: 'request' |
   const req = parse(s.request) as { mak?: { depth?: string } } | null;
   const meta = [s.verb, req?.mak?.depth ? `depth ${req.mak.depth}` : '', `${lines(s.request)}-line request`].filter(Boolean).join(' · ');
   return `<article class="pscene fam-${esc(s.story)}" id="scene-${esc(s.story)}-${esc(s.id)}" data-scene="${esc(s.story)}-${esc(s.id)}" data-n="${s.n}" data-verb="${esc(s.verb)}" data-show="${opts.show ?? 'request'}"${phase}${opts.hidden ? ' hidden' : ''}>
-  <header class="phead"><h3><span class="stepno">${s.n}</span><span class="goal">${esc(s.title)}</span></h3><ol class="flow" aria-label="the flow of one step">${FLOW.map((f, i) => `<li>${i + 1} ${f}</li>`).join('')}</ol></header>
+  <header class="phead"><h3><span class="stepno">${s.n}</span><span class="goal"><em class="gt">goal tested:</em> ${esc(s.title)}</span>${goalChip(s)}</h3><ol class="flow" aria-label="the flow of one step">${FLOW.map((f, i) => `<li>${i + 1} ${f}</li>`).join('')}</ol></header>
   <div class="pmain">
     <section class="codecard" aria-label="request and response">
       <div class="codetabs" role="tablist" aria-label="request or response"><button type="button" role="tab" data-tab="request" aria-selected="true"><i>2</i> request.yaml</button><button type="button" role="tab" data-tab="response" aria-selected="false"><i>3</i> response.yaml</button><span class="cmeta">${esc(meta)}</span><span class="cpage" hidden></span></div>
@@ -370,11 +386,11 @@ export function extractStory(def: StoryDef, play: string, kickoff: string, outDi
     const commit = row.commit ?? '';
     const tags = def.id === 'mdl' ? (spawnSync('git', ['-C', repo, 'tag', '--points-at', commit], { encoding: 'utf8' }).stdout ?? '').split('\n').filter((t) => t.startsWith('n8n@')) : [];
     const pin = tags[0] ?? `${def.name} @${commit.slice(0, 7)}`;
-    return extractScene(row, yaml, { story: def.id, n: i + 1, pin, run: runs.indexOf(row) + 1, of: runs.length, children: runs.filter((r) => r.parent === row.id).map((r) => r.id ?? '') });
+    return extractScene(row, yaml, { story: def.id, n: i + 1, pin, run: runs.indexOf(row) + 1, of: runs.length, children: runs.filter((r) => r.parent === row.id).map((r) => r.id ?? ''), play });
   });
   const omitted = runs.filter((r) => !def.picks.some((p) => p.id === r.id)).map((r) => `${r.id} (${r.verb})`);
   const about = `${scenes.length} of the agent's ${runs.length} runs, in ledger order. Left out: ${omitted.join(', ')}. ${def.why}`;
-  const full = scrubKickoff(kickoff.trim());
+  const full = scrubKickoff(kickoff.trim(), play);
   const story: DemoStory = { id: def.id, label: def.label, name: def.name, title: def.title, pinned: def.pinned, task: { question: full.split('\n\n')[0]!, full }, about, scenes };
   writeFileSync(path.join(outDir, `${def.id}.json`), JSON.stringify(story, null, 2) + '\n');
   return scenes.map((s) => `${def.id} ${s.n}  ${sceneFooter(s)}  ${s.footer.pin}`);
