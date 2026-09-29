@@ -3,7 +3,7 @@
  * `.sidewise/viewer.html`, opened in a browser when one is available. Everything it shows is derived, read-side,
  * from records the other verbs already wrote (readLedger, never the id index — this never touches index.db).
  *
- * The place x concern consensus is a straight port of `lab/research/consensus-proto/proto.py`'s graph: for every
+ * The place x concern consensus is a straight port of an internal consensus prototype's graph: for every
  * (place, concern) pair, every run that judged it is a vote. All votes agreeing is STRONG (>=2 runs) or SINGLE
  * (exactly one); votes disagreeing is CONFLICT. The prototype's `same_checklist` flag survives too (a CONFLICT
  * where every hit asked the same normalized question text is a real reversal; a CONFLICT where the questions

@@ -4,7 +4,7 @@
  * place lookups, a dynamic Wise json_extract query without/with an expression index, one real end-to-end paid
  * `class` call through the fake provider, and (plan 2c "Before C3") the graph tier (src/ledger/graph.ts): a
  * full graph rebuild, graph catch-up after 50 new lines, `problemCounts` top-20, and a depth-4 `traverse` —
- * see lab/research/2026-09-28-graph-index-scale.md §5 for the targets these are measured against. Not part of
+ * The graph targets (traversal < 100 ms, rebuild < 30 s at 100k runs) come from the internal scale plan. Not part of
  * `npm test` — 10k/100k ledgers take real time and real disk; run by hand (`npx tsx scripts/bench-ledger.ts`)
  * or `npm run bench:ledger`, into a throwaway temp project per size, never the repo. The Wise query and every
  * graph-tier row need node:sqlite for real (Node >= 22.13); on a host without it, those rows are skipped with

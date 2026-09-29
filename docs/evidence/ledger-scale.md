@@ -77,7 +77,7 @@ double-digit-percent swing on a single/small-sample row.
 
 ## Bottom line (prior round): plan 2c Phase C, "before C3" — the catch-up O(n)
 
-`lab/research/2026-09-28-graph-index-scale.md` §1 measured `catchup1` growing with ledger size (91.8 ms at
+An earlier internal scale review measured `catchup1` growing with ledger size (91.8 ms at
 10k → 431.2 ms at 100k) and flagged it as a bug to find and fix before building the graph tier on top of the
 same catch-up path. **Found (prior round): it was never in `src/ledger/index.ts` — it was a bug in this bench
 script.**

@@ -131,7 +131,7 @@ export interface PatternRow {
  *  2b's "family per category as queryable". Counted per CATEGORY, not per run: a run with two categories of the
  *  same family (rare, but the schema allows it) counts twice, since each category has its own gate. Not exported:
  *  the report command that would consume this is explicitly out of scope for this plan ("the report re-key on
- *  family" — lab/plans/2026-09-28-plan-2b-unified-contract.md's own "Out of scope" list); `familyCounts()`
+ *  family" — out of scope for the plan that added it); `familyCounts()`
  *  itself stays, proven correct (both index engines agree) so that future command has real, tested data to read. */
 interface FamilyRow {
   family: string;
