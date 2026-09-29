@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-labelledby="t d" style="text-rendering:geometricPrecision">
-<!-- How MM3 works (dark theme): the six verbs in a 2 by 3 grid. Rows are MAK³ (make, use what is proven: view, class, replay) and MDL³ (model, learn what is missing: scan, drill, loop); columns are Know, Judge, Prove. A ledger bar underneath says all six write one ledger. Legible at a 400 px viewport: every text is at least 23 units in a 720-unit box, so at 380 px wide it renders at 12 px or more. Rows fade in once; the animation only runs when the reader has not asked for reduced motion. -->
+<!-- How MM3 works (dark theme): the six verbs in a 2 by 3 grid. Rows are MAK³ (make, use what is proven: view, class, replay) and MDL³ (model, learn what is missing: scan, drill, loop); columns are Know, Judge, Prove. A ledger bar underneath says all six write one ledger. Legible at a 400 px viewport: every text is at least 23 units in a 720-unit box, so at 380 px wide it renders at 12 px or more. Every row is fully visible by default (as in an <img>, on GitHub, in headless renders); rows ease in once, from a visible state, and only when the reader has not asked for reduced motion. -->
   <title id="t">How MM3 works</title>
   <desc id="d">Six verbs in two rows and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns.</desc>
   <defs><linearGradient id="bg" x2="0" y2="1"><stop stop-color="#0b1424"/><stop offset="1" stop-color="#050914"/></linearGradient></defs>
@@ -11,9 +11,9 @@
     .verb{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:36px;font-weight:800}
     .cap{fill:#f5f8ff;font-size:24px}
     @media (prefers-reduced-motion:no-preference){
-      .r{opacity:0;animation:r 12s ease-out infinite}
+      .r{animation:r .8s ease-out both}
       .d1{animation-delay:.2s}.d2{animation-delay:.5s}.d3{animation-delay:.8s}.d4{animation-delay:1.4s}.d5{animation-delay:1.7s}.d6{animation-delay:2s}.d7{animation-delay:2.6s}
-      @keyframes r{0%{opacity:0;transform:translateY(5px)}6%,94%{opacity:1;transform:translateY(0)}100%{opacity:0}}
+      @keyframes r{from{opacity:.45;transform:translateY(5px)}to{opacity:1;transform:none}}
     }
   </style>
   <rect width="720" height="520" rx="28" fill="url(#bg)"/>

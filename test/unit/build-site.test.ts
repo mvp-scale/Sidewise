@@ -8,7 +8,7 @@ const story: Story = {
   tagline: 'Checklists in. Calibrated verdicts out.',
   identity: 'MM3 turns a checklist into a verdict.',
   numbers: [{ text: '$0.000065 per check & more', method: 'docs/numbers.md#cost-per-check' }],
-  install: { claude: '/plugin marketplace add x/y', npm: 'npm install -g @mvpscale/mm3', nokey: 'MM3_PROVIDER=fake mm3 class r.yaml' },
+  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', nokey: 'MM3_PROVIDER=fake mm3 class r.yaml' },
   useCases: [{ title: 'Check a change', verb: 'class' }, { title: 'Find <where> it lives', verb: 'scan' }],
 };
 
@@ -37,7 +37,7 @@ describe('renderSite', () => {
 });
 
 describe('checkSite', () => {
-  const html = renderSite(story, '<title>MM3</title>{{tagline}}{{identity}}{{installClaude}}{{installNpm}}{{installNokey}}{{numbers}}{{useCases}}');
+  const html = renderSite(story, '<title>MM3</title>{{tagline}}{{identity}}{{installClaude}}{{installClaudeInstall}}{{installNpm}}{{installNpmInit}}{{installNokey}}{{numbers}}{{useCases}}');
   it('passes a page that carries every story phrase and a linked method', () => {
     expect(checkSite(html, story)).toEqual([]);
   });
@@ -54,5 +54,30 @@ describe('checkSite', () => {
     expect(checkSite(page, real)).toEqual([]);
     expect(page).toContain('<title>MM3: ');
     expect(page).not.toMatch(/https?:\/\/(?!github\.com|mm3lab\.dev|www\.w3\.org)/);
+  });
+  describe('prose drift against the README', () => {
+    const real = loadStory();
+    const readme = readFileSync('README.md', 'utf8');
+    const page = renderSite(real, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(false) });
+    it('passes for the real README and template', () => {
+      expect(checkSite(page, real, undefined, readme)).toEqual([]);
+    });
+    it('fails when a Limits bullet in the README is edited', () => {
+      const drifted = readme.replace('A calibrated 0.9 is wrong about one time in ten.', 'A calibrated 0.9 is wrong about one time in twenty.');
+      expect(drifted).not.toBe(readme);
+      expect(checkSite(page, real, undefined, drifted).join('\n')).toMatch(/Limits and alternatives/);
+    });
+    it('fails when the response block or a Why paragraph drifts', () => {
+      const a = readme.replace('cost estimated from tokens', 'cost guessed from tokens');
+      expect(checkSite(page, real, undefined, a).join('\n')).toMatch(/See it run/);
+      const b = readme.replace('louder, not smarter.', 'louder, not wiser.');
+      expect(checkSite(page, real, undefined, b).join('\n')).toMatch(/Why we built it/);
+    });
+    it('fails when a table cell or a use-case blurb drifts', () => {
+      const a = readme.replace('recheck after a fix', 'recheck after any fix');
+      expect(checkSite(page, real, undefined, a).join('\n')).toMatch(/What you get/);
+      const b = readme.replace('ranks the files that most need a look', 'ranks the files');
+      expect(checkSite(page, real, undefined, b).join('\n')).toMatch(/blurb for scan/);
+    });
   });
 });

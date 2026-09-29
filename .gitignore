@@ -8,4 +8,5 @@ coverage/
 .mm3/
 .claude/settings.local.json
 lab/
-CLAUDE.local.mdsite/dist/
+CLAUDE.local.md
+site/dist/

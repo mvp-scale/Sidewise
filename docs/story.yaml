@@ -10,7 +10,9 @@ numbers:
     method: docs/numbers.md#agent-smoke-score
 install:
   claude: "/plugin marketplace add mvp-scale/Sidewise"
+  claudeInstall: "/plugin install mm3@mvp-scale"
   npm: "npm install -g @mvpscale/mm3"
+  npmInit: "mm3 init"
   nokey: "MM3_PROVIDER=fake mm3 class review.yaml"
 useCases:
   - { title: "Check a change before you merge it", verb: class }

@@ -5,14 +5,14 @@
  */
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { loadStory, type Story } from './check-readme.ts';
+import { loadStory, type Story } from './story.ts';
 
 /** The site is served apart from the repo, so a number's method links to the GitHub copy of the doc. */
 const BLOB = 'https://github.com/mvp-scale/Sidewise/blob/nightly/';
 export const methodUrl = (method: string): string => BLOB + method;
 
-const VERB_BLURBS: Record<string, string> = {
-  class: 'One call, three angles per concern, a verdict for each.',
+export const VERB_BLURBS: Record<string, string> = {
+  class: 'One class call, three angles per concern, a verdict for each.',
   replay: "Re-asks a past run's own questions across two commits, so you check the fix without re-checking everything.",
   scan: 'Sweeps a folder and ranks the files that most need a look.',
   loop: 'Puts a plan through the same checklist before anyone writes it.',
@@ -28,7 +28,9 @@ export function renderSite(story: Story, template: string, extra: Record<string,
     tagline: esc(story.tagline),
     identity: esc(story.identity),
     installClaude: esc(story.install.claude),
+    installClaudeInstall: esc(story.install.claudeInstall),
     installNpm: esc(story.install.npm),
+    installNpmInit: esc(story.install.npmInit),
     installNokey: esc(story.install.nokey),
     numbers: story.numbers
       .map((n) => `    <li><a href="${esc(methodUrl(n.method))}"><span class="stat">${esc(n.text)}</span><span class="meth">How it was measured</span></a></li>`)
@@ -52,14 +54,15 @@ export function demoSlot(hasGif: boolean): string {
     : '';
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const dist = 'site/dist';
+/** Writes site/dist/ (index.html, style.css, docs/assets/*) from docs/story.yaml; returns the note to print. */
+export function buildSite(story: Story = loadStory(), dist = 'site/dist'): string {
   rmSync(dist, { recursive: true, force: true });
   mkdirSync(dist, { recursive: true });
   const hasGif = existsSync('docs/assets/demo.gif');
-  const html = renderSite(loadStory(), readFileSync('site/template.html', 'utf8'), { demo: demoSlot(hasGif) });
-  writeFileSync(path.join(dist, 'index.html'), html);
+  writeFileSync(path.join(dist, 'index.html'), renderSite(story, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(hasGif) }));
   copyFileSync('site/style.css', path.join(dist, 'style.css'));
   for (const f of readdirSync('docs/assets')) cpSync(path.join('docs/assets', f), path.join(dist, f));
-  console.log(`site built: ${dist}/index.html${hasGif ? ' (with demo.gif)' : ' (no demo.gif yet)'}`);
+  return `site built: ${dist}/index.html${hasGif ? ' (with demo.gif)' : ' (no demo.gif yet)'}`;
 }
+
+if (import.meta.url === `file://${process.argv[1]}`) console.log(buildSite());

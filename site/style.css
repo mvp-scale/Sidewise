@@ -98,6 +98,7 @@ section.wrap { padding-block: clamp(2.5rem, 7vw, 4.5rem); }
 .code pre { margin: 0; background: var(--code-bg); color: var(--code-ink); border: 1px solid var(--code-line); border-radius: 14px; padding: 1.1rem 1.2rem; overflow-x: auto; font-size: .88rem; line-height: 1.6; }
 .code pre code { background: none; border: 0; padding: 0; font-size: inherit; color: inherit; }
 .copy { position: absolute; top: .55rem; right: .55rem; font: 600 .78rem var(--sans); color: var(--code-ink); background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .22); border-radius: 8px; padding: .3rem .7rem; cursor: pointer; }
+.copy:focus-visible { outline-color: var(--code-ink); }
 .copy:hover { background: rgba(255, 255, 255, .2); }
 details { margin: 1rem 0; }
 summary { cursor: pointer; font-weight: 700; color: var(--blue); padding: .3rem 0; }

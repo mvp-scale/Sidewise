@@ -7,21 +7,13 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { parse } from 'yaml';
-import { esc, methodUrl } from './build-site.ts';
+import { buildSite, esc, methodUrl, VERB_BLURBS } from './build-site.ts';
+import { loadStory, type Story } from './story.ts';
 
-export type Story = {
-  tagline: string;
-  identity: string;
-  numbers: { text: string; method: string }[];
-  install: { claude: string; npm: string; nokey: string };
-  useCases: { title: string; verb: string }[];
-};
+export { loadStory };
+export type { Story };
+
 type Opts = { root: string; dryRun: (verb: string, yaml: string) => string | null; published?: boolean };
-
-export function loadStory(file = 'docs/story.yaml'): Story {
-  return parse(readFileSync(file, 'utf8')) as Story;
-}
 
 const OLD = /\b(?:side|wise):|\bsidewise\b(?!-?play)|\bSidewise\b|\bSW-\d{4}\b/;
 const VERBS = 'view|class|replay|scan|drill|loop';
@@ -33,7 +25,7 @@ export function checkStory(raw: unknown): string[] {
   const str = (v: unknown) => typeof v === 'string' && v.trim() !== '';
   for (const k of ['tagline', 'identity']) if (!str(o[k])) out.push(`✖ story.yaml: ${k} must be a non-empty string → fix docs/story.yaml`);
   const inst = (o.install ?? {}) as Record<string, unknown>;
-  for (const k of ['claude', 'npm', 'nokey']) if (!str(inst[k])) out.push(`✖ story.yaml: install.${k} must be a non-empty string → fix docs/story.yaml`);
+  for (const k of ['claude', 'claudeInstall', 'npm', 'npmInit', 'nokey']) if (!str(inst[k])) out.push(`✖ story.yaml: install.${k} must be a non-empty string → fix docs/story.yaml`);
   if (!Array.isArray(o.numbers)) out.push('✖ story.yaml: numbers must be a list → use numbers: [] for none');
   else o.numbers.forEach((n: unknown, i) => { if (!str((n as { text?: unknown } | null)?.text)) out.push(`✖ story.yaml: numbers[${i}].text must be a non-empty string → fix docs/story.yaml`); });
   if (!Array.isArray(o.useCases)) out.push('✖ story.yaml: useCases must be a list → use useCases: [] for none');
@@ -57,7 +49,7 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
   if (firstCmd < 0 || firstCmd + 1 > 30) out.push(`✖ first command: line ${firstCmd + 1} → move install up to within 30 lines`);
   const phrases: [string, string][] = [
     ['story.tagline', story.tagline], ['story.identity', story.identity],
-    ['story.install.claude', story.install.claude], ['story.install.npm', story.install.npm], ['story.install.nokey', story.install.nokey],
+    ['story.install.claude', story.install.claude], ['story.install.claudeInstall', story.install.claudeInstall], ['story.install.npm', story.install.npm], ['story.install.npmInit', story.install.npmInit], ['story.install.nokey', story.install.nokey],
     ...story.numbers.map((n, i): [string, string] => [`story.numbers[${i}]`, n.text]),
     ...story.useCases.map((u, i): [string, string] => [`story.useCases[${i}]`, u.title]),
   ];
@@ -87,11 +79,11 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
 }
 
 /** The site's drift check: every story phrase verbatim in the built page, each number linked to its method, no old names, and (given the dist folder) every relative asset present. */
-export function checkSite(html: string, story: Story, dist?: string): string[] {
+export function checkSite(html: string, story: Story, dist?: string, readme?: string): string[] {
   const out: string[] = [];
   const phrases: [string, string][] = [
     ['story.tagline', story.tagline], ['story.identity', story.identity],
-    ['story.install.claude', story.install.claude], ['story.install.npm', story.install.npm], ['story.install.nokey', story.install.nokey],
+    ['story.install.claude', story.install.claude], ['story.install.claudeInstall', story.install.claudeInstall], ['story.install.npm', story.install.npm], ['story.install.npmInit', story.install.npmInit], ['story.install.nokey', story.install.nokey],
     ...story.numbers.map((n, i): [string, string] => [`story.numbers[${i}]`, n.text]),
     ...story.useCases.map((u, i): [string, string] => [`story.useCases[${i}]`, u.title]),
   ];
@@ -101,6 +93,50 @@ export function checkSite(html: string, story: Story, dist?: string): string[] {
   html.split('\n').forEach((l, i) => { if (OLD.test(l.replaceAll('mvp-scale/Sidewise', ''))) out.push(`✖ site old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
   if (dist) for (const m of html.matchAll(/(?:href|src|srcset)="((?!https?:|data:|#|mailto:)[^"\s#]+)/g)) {
     if (!existsSync(path.join(dist, m[1]!))) out.push(`✖ site link: ${m[1]} is not in ${dist} → fix the path or copy the asset`);
+  }
+  if (readme !== undefined) out.push(...checkSiteProse(html, readme, story));
+  return out;
+}
+
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", ldquo: '"', rdquo: '"', lsquo: "'", rsquo: "'", middot: '·', nbsp: ' ' };
+const quotes = (t: string): string => t.replace(/[\u2018\u2019]/g, "'").replace(/[\u201C\u201D]/g, '"');
+const squash = (t: string): string => quotes(t).replace(/\s+/g, ' ').trim();
+/** The page's visible text: scripts and styles dropped, tags removed, entities decoded, whitespace squashed. */
+function siteText(html: string): string {
+  const bare = html.replace(/<(script|style)[\s\S]*?<\/\1>/g, '').replace(/<[^>]+>/g, '');
+  return squash(bare.replace(/&#(\d+);/g, (_m, n: string) => String.fromCharCode(+n)).replace(/&(\w+);/g, (m, k: string) => ENTITIES[k] ?? m));
+}
+const plain = (md: string): string => squash(md.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/`/g, ''));
+const PROSE_SECTIONS = ['See it run', 'What you get', 'Why we built it', 'Limits and alternatives'];
+
+/** Prose the README and the site both carry (hand-copied, not in story.yaml): each block of these README sections must appear in the page's text, so a README edit that the site missed fails. */
+function checkSiteProse(html: string, readme: string, story: Story): string[] {
+  const out: string[] = [];
+  const text = siteText(html);
+  const want = (section: string, block: string): void => {
+    const t = squash(block);
+    if (t && !text.includes(t)) out.push(`✖ site prose: "${t.slice(0, 60)}…" (README "${section}") is not in site/dist/index.html → copy it from README.md into site/template.html`);
+  };
+  for (const section of PROSE_SECTIONS) {
+    const start = readme.indexOf(`\n## ${section}\n`);
+    if (start < 0) { out.push(`✖ site prose: README has no "## ${section}" section → restore it`); continue; }
+    const rest = readme.slice(start + 1);
+    const body = rest.slice(rest.indexOf('\n') + 1).split(/\n## /)[0]!;
+    for (const m of body.matchAll(/```[^\n]*\n([\s\S]*?)```/g)) if (!m[1]!.includes('verb=')) want(section, m[1]!);
+    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
+    for (const block of prose.split(/\n\s*\n/)) {
+      const lines = block.split('\n').filter((l) => l.trim());
+      if (lines[0]?.startsWith('|')) {
+        for (const row of lines) {
+          if (/^\|[\s|:-]+\|?$/.test(row)) continue;
+          for (const cell of row.split('|').slice(1, -1)) want(section, plain(cell).replace(/^(\w+): /, '$1 ').replace(' · ', ' '));
+        }
+      } else for (const item of block.split(/\n(?=- )/)) want(section, plain(item.replace(/^\s*- /, '')));
+    }
+  }
+  for (const u of story.useCases) {
+    const blurb = VERB_BLURBS[u.verb];
+    if (blurb && !plain(readme).toLowerCase().includes(blurb.toLowerCase())) out.push(`✖ site prose: use-case blurb for ${u.verb} ("${blurb}") is not in the README → make build-site.ts's VERB_BLURBS match the README bullet`);
   }
   return out;
 }
@@ -124,10 +160,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let story: Story | undefined;
   let problems: string[];
   try { story = loadStory(); problems = checkStory(story); } catch (e) { problems = [`✖ story.yaml: ${(e as Error).message.split('\n')[0]} → fix docs/story.yaml`]; }
-  if (!problems.length) problems = checkReadme(readFileSync('README.md', 'utf8'), story!, { root: '.', dryRun: cliDryRun, published: false });
   if (!problems.length) {
-    const index = 'site/dist/index.html'; // built first: `npm run check:readme` runs build:site before this script
-    problems = existsSync(index) ? checkSite(readFileSync(index, 'utf8'), story!, 'site/dist') : [`✖ site: ${index} missing → run npm run build:site`];
+    const md = readFileSync('README.md', 'utf8');
+    problems = checkReadme(md, story!, { root: '.', dryRun: cliDryRun, published: false });
+    buildSite(story!); // the site is built here so CI and a clean checkout check the page they would ship
+    problems.push(...checkSite(readFileSync('site/dist/index.html', 'utf8'), story!, 'site/dist', md));
   }
   for (const p of problems) console.log(p);
   console.log(problems.length ? `readme: ${problems.length} problem(s)` : 'readme OK');

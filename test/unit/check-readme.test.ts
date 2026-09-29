@@ -6,14 +6,14 @@ const story: Story = {
   tagline: 'Checklists in. Calibrated verdicts out.',
   identity: 'MM3 turns a checklist into a verdict.',
   numbers: [],
-  install: { claude: '/plugin marketplace add x/y', npm: 'npm install -g @mvpscale/mm3', nokey: 'MM3_PROVIDER=fake mm3 class r.yaml' },
+  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', nokey: 'MM3_PROVIDER=fake mm3 class r.yaml' },
   useCases: [],
 };
 const ok = (): string | null => null;
 const good = [
   '# MM3', '', 'Checklists in. Calibrated verdicts out.', '', 'MM3 turns a checklist into a verdict.', '',
   '<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/a.svg"><img src="docs/assets/a.svg" alt="how"></picture>',
-  '', '## Install', '', '```bash', '/plugin marketplace add x/y', 'npm install -g @mvpscale/mm3', 'MM3_PROVIDER=fake mm3 class r.yaml', '```',
+  '', '## Install', '', '```bash', '/plugin marketplace add x/y', '/plugin install x@y', 'npm install -g @mvpscale/mm3', 'mm3 init', 'MM3_PROVIDER=fake mm3 class r.yaml', '```',
   '', '## License', '', 'Apache-2.0 · [contract](docs/contract.md)',
 ].join('\n');
 const opts = (dryRun: (verb: string, yaml: string) => string | null = ok) => ({ root: 'test/unit/fixtures/readme', dryRun });
@@ -33,7 +33,7 @@ describe('checkReadme', () => {
   it('runs every request example through the dry-run and reports its stop', () => {
     const md = good + '\n\n```yaml\nmak:\n  goal: x\n```\n';
     const bad = (): string | null => '✖ mak.goal: is too short';
-    expect(checkReadme(md, story, opts(bad))).toContainEqual('✖ example 1 (line 22): ✖ mak.goal: is too short');
+    expect(checkReadme(md, story, opts(bad))).toContainEqual('✖ example 1 (line 24): ✖ mak.goal: is too short');
   });
   it('flags a broken relative link or asset', () => {
     const md = good.replace('docs/contract.md', 'docs/nope.md');
