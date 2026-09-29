@@ -22,6 +22,7 @@ report() { echo "✖ check-clean: $1"; fail=1; }
 for f in $files; do
   case "$f" in
     lab/*|lab) report "$f is local-only (lab/) → git rm --cached -r lab" ;;
+    .superpowers/*|.superpowers) report "$f is local-only (.superpowers/) → git rm --cached -r .superpowers" ;;
     .env|.env.*) [ "$f" = ".env.example" ] || report "$f holds environment secrets → git rm --cached $f" ;;
     *.pem|*.key|*.p12) report "$f looks like a key file → remove it from the commit" ;;
     CLAUDE.local.md) report "$f is local-only → git rm --cached $f" ;;

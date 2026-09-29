@@ -10,3 +10,4 @@ coverage/
 lab/
 CLAUDE.local.md
 site/dist/
+.superpowers/
