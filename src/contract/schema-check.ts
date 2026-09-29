@@ -22,7 +22,7 @@ import {
 } from './mdl-fields.ts';
 
 const TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
-const RUN_ID = /^MM3-\d{4,}$/u;
+const RUN_ID = /^(?:MM3|SW)-\d{4,}$/u;
 const PATH = /^[^\s:]+(:\d+(-\d+)?)?$/u;
 const QNUM = /^[1-9][0-9]*$/u;
 const MAK_KEYS = ['goal', 'depth', 'where', 'parent', 'ask', 'over', 'from', 'compare', 'verb', 'expect'];

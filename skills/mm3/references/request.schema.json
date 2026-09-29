@@ -36,7 +36,7 @@
     },
     "runId": {
       "type": "string",
-      "pattern": "^MM3-\\d{4,}$"
+      "pattern": "^(?:MM3|SW)-\\d{4,}$"
     },
     "path": {
       "type": "string",
