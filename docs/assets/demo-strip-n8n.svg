@@ -1,150 +1,163 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700" viewBox="0 0 900 700" role="img" aria-label="MM3 on n8n: one class run, its request, its response and the ledger knowledge, walked beat by beat">
-<title>MM3 on n8n</title><desc>A real run (MM3-0003): 21 questions · 1 call · 305 ms · ~$0.00004. Request, response and knowledge tabs, one highlighted group per beat.</desc>
-<style>svg{font-family:ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace}text{white-space:pre}.code0{opacity:0;transform:translateY(0px)}.ton0{opacity:0}.tdim0{opacity:1}.code1{opacity:1;transform:translateY(0px)}.ton1{opacity:1}.tdim1{opacity:0}.code2{opacity:0;transform:translateY(0px)}.ton2{opacity:0}.tdim2{opacity:1}.band0{opacity:0}.cap0{opacity:0}.band1{opacity:0}.cap1{opacity:0}.band2{opacity:0}.cap2{opacity:0}.band3{opacity:0}.cap3{opacity:0}.band4{opacity:1}.cap4{opacity:1}.band5{opacity:0}.cap5{opacity:0}.band6{opacity:0}.cap6{opacity:0}.term0{opacity:1}.term1{opacity:1}.term2{opacity:1}.term3{opacity:1}.term4{opacity:1}.cur3{opacity:0}.cur4{opacity:0}.cur5{opacity:1}@media (prefers-reduced-motion:no-preference){.code0{animation:kc0 25.2s linear infinite}.ton0{animation:kt0 25.2s linear infinite}.tdim0{animation:kd0 25.2s linear infinite}.code1{animation:kc1 25.2s linear infinite}.ton1{animation:kt1 25.2s linear infinite}.tdim1{animation:kd1 25.2s linear infinite}.code2{animation:kc2 25.2s linear infinite}.ton2{animation:kt2 25.2s linear infinite}.tdim2{animation:kd2 25.2s linear infinite}.band0{animation:kb0 25.2s linear infinite}.cap0{animation:kp0 25.2s linear infinite}.band1{animation:kb1 25.2s linear infinite}.cap1{animation:kp1 25.2s linear infinite}.band2{animation:kb2 25.2s linear infinite}.cap2{animation:kp2 25.2s linear infinite}.band3{animation:kb3 25.2s linear infinite}.cap3{animation:kp3 25.2s linear infinite}.band4{animation:kb4 25.2s linear infinite}.cap4{animation:kp4 25.2s linear infinite}.band5{animation:kb5 25.2s linear infinite}.cap5{animation:kp5 25.2s linear infinite}.band6{animation:kb6 25.2s linear infinite}.cap6{animation:kp6 25.2s linear infinite}.term0{animation:kl0 25.2s linear infinite}.term1{animation:kl1 25.2s linear infinite}.term2{animation:kl2 25.2s linear infinite}.term3{animation:kl3 25.2s linear infinite}.term4{animation:kl4 25.2s linear infinite}.cur3{animation:kx3 25.2s linear infinite}.cur4{animation:kx4 25.2s linear infinite}.cur5{animation:kx5 25.2s linear infinite}@keyframes kc0{0%{opacity:1;transform:translateY(0px);transform:translateY(0px)}11.905%{transform:translateY(0px)}14.286%{transform:translateY(-85px)}26.19%{transform:translateY(-85px)}28.571%{transform:translateY(-782px)}40.476%{transform:translateY(-782px)}41.468%{opacity:1}42.857%{opacity:0;transform:translateY(-782px)}100%{opacity:0}}@keyframes kt0{0%{opacity:1}41.468%{opacity:1}42.857%{opacity:0}100%{opacity:0}}@keyframes kd0{0%{opacity:0}41.468%{opacity:0}42.857%{opacity:1}100%{opacity:1}}@keyframes kc1{0%{opacity:0;transform:translateY(0px)}41.468%{opacity:0}42.857%{opacity:1;transform:translateY(0px)}54.762%{transform:translateY(0px)}57.143%{transform:translateY(0px)}69.048%{transform:translateY(0px)}71.429%{transform:translateY(0px)}83.333%{transform:translateY(0px)}84.325%{opacity:1}85.714%{opacity:0;transform:translateY(0px)}100%{opacity:0}}@keyframes kt1{0%{opacity:0}41.468%{opacity:0}42.857%{opacity:1}84.325%{opacity:1}85.714%{opacity:0}100%{opacity:0}}@keyframes kd1{0%{opacity:1}41.468%{opacity:1}42.857%{opacity:0}84.325%{opacity:0}85.714%{opacity:1}100%{opacity:1}}@keyframes kc2{0%{opacity:0;transform:translateY(0px)}84.325%{opacity:0}85.714%{opacity:1;transform:translateY(0px)}97.619%{transform:translateY(0px)}100%{opacity:1;transform:translateY(0px)}}@keyframes kt2{0%{opacity:0}84.325%{opacity:0}85.714%{opacity:1}100%{opacity:1}}@keyframes kd2{0%{opacity:1}84.325%{opacity:1}85.714%{opacity:0}100%{opacity:0}}@keyframes kb0{0%{opacity:1}12.897%{opacity:1}14.286%{opacity:0}100%{opacity:0}}@keyframes kp0{0%{opacity:1}12.897%{opacity:1}14.286%{opacity:0}100%{opacity:0}}@keyframes kb1{0%{opacity:0}12.897%{opacity:0}14.286%{opacity:1}27.183%{opacity:1}28.571%{opacity:0}100%{opacity:0}}@keyframes kp1{0%{opacity:0}12.897%{opacity:0}14.286%{opacity:1}27.183%{opacity:1}28.571%{opacity:0}100%{opacity:0}}@keyframes kb2{0%{opacity:0}27.183%{opacity:0}28.571%{opacity:1}41.468%{opacity:1}42.857%{opacity:0}100%{opacity:0}}@keyframes kp2{0%{opacity:0}27.183%{opacity:0}28.571%{opacity:1}41.468%{opacity:1}42.857%{opacity:0}100%{opacity:0}}@keyframes kb3{0%{opacity:0}41.468%{opacity:0}42.857%{opacity:1}55.754%{opacity:1}57.143%{opacity:0}100%{opacity:0}}@keyframes kp3{0%{opacity:0}41.468%{opacity:0}42.857%{opacity:1}55.754%{opacity:1}57.143%{opacity:0}100%{opacity:0}}@keyframes kb4{0%{opacity:0}55.754%{opacity:0}57.143%{opacity:1}70.04%{opacity:1}71.429%{opacity:0}100%{opacity:0}}@keyframes kp4{0%{opacity:0}55.754%{opacity:0}57.143%{opacity:1}70.04%{opacity:1}71.429%{opacity:0}100%{opacity:0}}@keyframes kb5{0%{opacity:0}70.04%{opacity:0}71.429%{opacity:1}84.325%{opacity:1}85.714%{opacity:0}100%{opacity:0}}@keyframes kp5{0%{opacity:0}70.04%{opacity:0}71.429%{opacity:1}84.325%{opacity:1}85.714%{opacity:0}100%{opacity:0}}@keyframes kb6{0%{opacity:0}84.325%{opacity:0}85.714%{opacity:1}100%{opacity:1}}@keyframes kp6{0%{opacity:0}84.325%{opacity:0}85.714%{opacity:1}100%{opacity:1}}@keyframes kl0{0%{opacity:1}100%{opacity:1}}@keyframes kl1{0%{opacity:1}100%{opacity:1}}@keyframes kl2{0%{opacity:1}100%{opacity:1}}@keyframes kl3{0%{opacity:0}41.468%{opacity:0}42.857%{opacity:1}100%{opacity:1}}@keyframes kl4{0%{opacity:0}70.04%{opacity:0}71.429%{opacity:1}100%{opacity:1}}@keyframes kx3{0%{opacity:1}41.468%{opacity:1}42.857%{opacity:0}100%{opacity:0}}@keyframes kx4{0%{opacity:0}41.468%{opacity:0}42.857%{opacity:1}70.04%{opacity:1}71.429%{opacity:0}100%{opacity:0}}@keyframes kx5{0%{opacity:0}70.04%{opacity:0}71.429%{opacity:1}100%{opacity:1}}}</style>
-<defs><clipPath id="vp"><rect x="351" y="92" width="548" height="527"/></clipPath></defs>
-<rect width="900" height="700" rx="14" fill="#050914"/><rect x=".5" y=".5" width="899" height="699" rx="14" fill="none" stroke="#24344f"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="690" viewBox="0 0 900 690" role="img" aria-label="MM3 on n8n: one quick class run, its request, its response and the ledger knowledge, walked beat by beat">
+<title>MM3 on n8n</title><desc>A real run (MM3-0007): 12 questions · 1 call · 345 ms · ~$0.00005. Request, response and knowledge tabs, one highlighted group per beat.</desc>
+<style>svg{font-family:ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace}text{white-space:pre}.ton0{opacity:0}.tdim0{opacity:1}.ton1{opacity:1}.tdim1{opacity:0}.ton2{opacity:0}.tdim2{opacity:1}.code0{opacity:0}.code1{opacity:0}.code2{opacity:0}.code3{opacity:0}.code4{opacity:1}.code5{opacity:0}.band0{opacity:0}.cap0{opacity:0}.band1{opacity:0}.cap1{opacity:0}.band2{opacity:0}.cap2{opacity:0}.band3{opacity:0}.cap3{opacity:0}.band4{opacity:0}.cap4{opacity:0}.band5{opacity:1}.cap5{opacity:1}.band6{opacity:0}.cap6{opacity:0}.band7{opacity:0}.cap7{opacity:0}.term0{opacity:1}.term1{opacity:1}.term2{opacity:1}.term3{opacity:1}.term4{opacity:1}.term5{opacity:1}.cur4{opacity:0}.cur5{opacity:0}.cur6{opacity:1}.wire{opacity:.45}.pkt{opacity:0}@media (prefers-reduced-motion:no-preference){.ton0{animation:kt0 29.600000000000005s linear infinite}.tdim0{animation:kd0 29.600000000000005s linear infinite}.ton1{animation:kt1 29.600000000000005s linear infinite}.tdim1{animation:kd1 29.600000000000005s linear infinite}.ton2{animation:kt2 29.600000000000005s linear infinite}.tdim2{animation:kd2 29.600000000000005s linear infinite}.code0{animation:kc0 29.600000000000005s linear infinite}.code1{animation:kc1 29.600000000000005s linear infinite}.code2{animation:kc2 29.600000000000005s linear infinite}.code3{animation:kc3 29.600000000000005s linear infinite}.code4{animation:kc4 29.600000000000005s linear infinite}.code5{animation:kc5 29.600000000000005s linear infinite}.band0{animation:kb0 29.600000000000005s linear infinite}.cap0{animation:kp0 29.600000000000005s linear infinite}.band1{animation:kb1 29.600000000000005s linear infinite}.cap1{animation:kp1 29.600000000000005s linear infinite}.band2{animation:kb2 29.600000000000005s linear infinite}.cap2{animation:kp2 29.600000000000005s linear infinite}.band3{animation:kb3 29.600000000000005s linear infinite}.cap3{animation:kp3 29.600000000000005s linear infinite}.band4{animation:kb4 29.600000000000005s linear infinite}.cap4{animation:kp4 29.600000000000005s linear infinite}.band5{animation:kb5 29.600000000000005s linear infinite}.cap5{animation:kp5 29.600000000000005s linear infinite}.band6{animation:kb6 29.600000000000005s linear infinite}.cap6{animation:kp6 29.600000000000005s linear infinite}.band7{animation:kb7 29.600000000000005s linear infinite}.cap7{animation:kp7 29.600000000000005s linear infinite}.term4{animation:kl4 29.600000000000005s linear infinite}.term5{animation:kl5 29.600000000000005s linear infinite}.cur4{animation:kx4 29.600000000000005s linear infinite}.cur5{animation:kx5 29.600000000000005s linear infinite}.cur6{animation:kx6 29.600000000000005s linear infinite}.wire{animation:kw 29.600000000000005s linear infinite}.pkt{animation:kpk 29.600000000000005s linear infinite}.wire{stroke-dashoffset:0}@keyframes kt0{0%{opacity:1}50.169%{opacity:1}51.351%{opacity:0}100%{opacity:0}}@keyframes kd0{0%{opacity:0}50.169%{opacity:0}51.351%{opacity:1}100%{opacity:1}}@keyframes kt1{0%{opacity:0}50.169%{opacity:0}51.351%{opacity:1}86.655%{opacity:1}87.838%{opacity:0}100%{opacity:0}}@keyframes kd1{0%{opacity:1}50.169%{opacity:1}51.351%{opacity:0}86.655%{opacity:0}87.838%{opacity:1}100%{opacity:1}}@keyframes kt2{0%{opacity:0}86.655%{opacity:0}87.838%{opacity:1}100%{opacity:1}}@keyframes kd2{0%{opacity:1}86.655%{opacity:1}87.838%{opacity:0}100%{opacity:0}}@keyframes kc0{0%{opacity:0}5.743%{opacity:0}6.926%{opacity:1}13.682%{opacity:1}14.865%{opacity:0}100%{opacity:0}}@keyframes kc1{0%{opacity:0}13.682%{opacity:0}14.865%{opacity:1}25.845%{opacity:1}27.027%{opacity:0}100%{opacity:0}}@keyframes kc2{0%{opacity:0}25.845%{opacity:0}27.027%{opacity:1}38.007%{opacity:1}39.189%{opacity:0}100%{opacity:0}}@keyframes kc3{0%{opacity:0}38.007%{opacity:0}39.189%{opacity:1}50.169%{opacity:1}51.351%{opacity:0}100%{opacity:0}}@keyframes kc4{0%{opacity:0}50.169%{opacity:0}51.351%{opacity:1}86.655%{opacity:1}87.838%{opacity:0}100%{opacity:0}}@keyframes kc5{0%{opacity:0}86.655%{opacity:0}87.838%{opacity:1}100%{opacity:1}}@keyframes kb0{0%{opacity:0}5.743%{opacity:0}6.926%{opacity:1}13.682%{opacity:1}14.865%{opacity:0}100%{opacity:0}}@keyframes kp0{0%{opacity:0}5.743%{opacity:0}6.926%{opacity:1}13.682%{opacity:1}14.865%{opacity:0}100%{opacity:0}}@keyframes kb1{0%{opacity:0}13.682%{opacity:0}14.865%{opacity:1}25.845%{opacity:1}27.027%{opacity:0}100%{opacity:0}}@keyframes kp1{0%{opacity:0}13.682%{opacity:0}14.865%{opacity:1}25.845%{opacity:1}27.027%{opacity:0}100%{opacity:0}}@keyframes kb2{0%{opacity:0}25.845%{opacity:0}27.027%{opacity:1}38.007%{opacity:1}39.189%{opacity:0}100%{opacity:0}}@keyframes kp2{0%{opacity:0}25.845%{opacity:0}27.027%{opacity:1}38.007%{opacity:1}39.189%{opacity:0}100%{opacity:0}}@keyframes kb3{0%{opacity:0}38.007%{opacity:0}39.189%{opacity:1}50.169%{opacity:1}51.351%{opacity:0}100%{opacity:0}}@keyframes kp3{0%{opacity:0}38.007%{opacity:0}39.189%{opacity:1}50.169%{opacity:1}51.351%{opacity:0}100%{opacity:0}}@keyframes kb4{0%{opacity:0}50.169%{opacity:0}51.351%{opacity:1}62.331%{opacity:1}63.514%{opacity:0}100%{opacity:0}}@keyframes kp4{0%{opacity:0}50.169%{opacity:0}51.351%{opacity:1}62.331%{opacity:1}63.514%{opacity:0}100%{opacity:0}}@keyframes kb5{0%{opacity:0}62.331%{opacity:0}63.514%{opacity:1}74.493%{opacity:1}75.676%{opacity:0}100%{opacity:0}}@keyframes kp5{0%{opacity:0}62.331%{opacity:0}63.514%{opacity:1}74.493%{opacity:1}75.676%{opacity:0}100%{opacity:0}}@keyframes kb6{0%{opacity:0}74.493%{opacity:0}75.676%{opacity:1}86.655%{opacity:1}87.838%{opacity:0}100%{opacity:0}}@keyframes kp6{0%{opacity:0}74.493%{opacity:0}75.676%{opacity:1}86.655%{opacity:1}87.838%{opacity:0}100%{opacity:0}}@keyframes kb7{0%{opacity:0}86.655%{opacity:0}87.838%{opacity:1}100%{opacity:1}}@keyframes kp7{0%{opacity:0}86.655%{opacity:0}87.838%{opacity:1}100%{opacity:1}}@keyframes kl4{0%{opacity:0}50.169%{opacity:0}51.351%{opacity:1}100%{opacity:1}}@keyframes kl5{0%{opacity:0}74.493%{opacity:0}75.676%{opacity:1}100%{opacity:1}}@keyframes kx4{0%{opacity:1}50.169%{opacity:1}51.351%{opacity:0}100%{opacity:0}}@keyframes kx5{0%{opacity:0}50.169%{opacity:0}51.351%{opacity:1}74.493%{opacity:1}75.676%{opacity:0}100%{opacity:0}}@keyframes kx6{0%{opacity:0}74.493%{opacity:0}75.676%{opacity:1}100%{opacity:1}}@keyframes kw{0%{opacity:1}7.095%{opacity:1}9.797%{opacity:.45}100%{opacity:.45}}@keyframes kpk{0%{opacity:0;transform:translateX(0)}0.507%{opacity:1;transform:translateX(0)}5.068%{opacity:1;transform:translateX(180px)}5.743%{opacity:0;transform:translateX(180px)}100%{opacity:0;transform:translateX(180px)}}}</style>
+<defs><clipPath id="vp"><rect x="351" y="78" width="548" height="544"/></clipPath></defs>
+<rect width="900" height="690" rx="14" fill="#050914"/><rect x=".5" y=".5" width="899" height="689" rx="14" fill="none" stroke="#24344f"/>
 <text x="22" y="34" font-size="17" font-weight="700" fill="#f5f8ff">MM<tspan fill="#b7ff83">3</tspan></text>
-<line x1="350" y1="48" x2="350" y2="682" stroke="#24344f"/>
+<line x1="350" y1="48" x2="350" y2="672" stroke="#24344f"/>
 <text class="term0" x="22" y="76" font-size="12" fill="#7f93b0">~/n8n $ claude</text>
 <text class="term1" x="22" y="102" font-size="12" fill="#e6edf7">&gt; where would I make n8n faster?</text>
 <text class="term2" x="22" y="128" font-size="12" fill="#e6edf7">$ mm3 class review.yaml</text>
-<text class="term3" x="22" y="154" font-size="12" fill="#7f93b0">21 questions · 1 call · 305 ms · ~$0.00004</text>
-<text class="term4" x="22" y="180" font-size="12" fill="#ffcd57">next: drill into architecture</text>
-<rect class="cur3" x="22" y="143" width="7" height="14" fill="#b7ff83"/>
+<text class="term3" x="22" y="154" font-size="12" fill="#9bdcff">sending request …</text>
+<text class="term4" x="22" y="180" font-size="12" fill="#7f93b0">12 questions · 1 call · 345 ms · ~$0.00005</text>
+<text class="term5" x="22" y="206" font-size="12" fill="#ffcd57">next: drill into correctness</text>
 <rect class="cur4" x="22" y="169" width="7" height="14" fill="#b7ff83"/>
 <rect class="cur5" x="22" y="195" width="7" height="14" fill="#b7ff83"/>
-<text x="22" y="656" font-size="12" fill="#7f93b0"># prompt shortened for display;</text>
-<text x="22" y="674" font-size="12" fill="#7f93b0"># the run itself is real</text>
-<text class="tdim0" x="370" y="72" font-size="12.5" fill="#7f93b0">request</text><g class="ton0"><text x="370" y="72" font-size="12.5" font-weight="700" fill="#9bdcff">request</text><line x1="370" y1="80" x2="421.8" y2="80" stroke="#9bdcff" stroke-width="2"/></g>
-<text class="tdim1" x="451.8" y="72" font-size="12.5" fill="#7f93b0">response</text><g class="ton1"><text x="451.8" y="72" font-size="12.5" font-weight="700" fill="#9bdcff">response</text><line x1="451.8" y1="80" x2="511" y2="80" stroke="#9bdcff" stroke-width="2"/></g>
-<text class="tdim2" x="541" y="72" font-size="12.5" fill="#7f93b0">knowledge</text><g class="ton2"><text x="541" y="72" font-size="12.5" font-weight="700" fill="#9bdcff">knowledge</text><line x1="541" y1="80" x2="607.6" y2="80" stroke="#9bdcff" stroke-width="2"/></g>
-<line x1="350" y1="83" x2="900" y2="83" stroke="#24344f"/>
+<rect class="cur6" x="22" y="221" width="7" height="14" fill="#b7ff83"/>
+<text x="22" y="646" font-size="12" fill="#7f93b0"># prompt shortened for display;</text>
+<text x="22" y="664" font-size="12" fill="#7f93b0"># the run itself is real</text>
+<line class="wire" x1="156" y1="150" x2="352" y2="150" stroke="#9bdcff" stroke-width="1.5" stroke-dasharray="4 5"/><path class="wire" d="M351 146L360 150L351 154Z" fill="#9bdcff"/>
+<g class="pkt"><rect x="156" y="145" width="18" height="10" rx="2" fill="#9bdcff"/><text x="174" y="169" text-anchor="end" font-size="12" fill="#9bdcff">request</text></g>
+<text class="tdim0" x="370" y="64" font-size="12.5" fill="#7f93b0">request</text><g class="ton0"><text x="370" y="64" font-size="12.5" font-weight="700" fill="#9bdcff">request</text><line x1="370" y1="72" x2="421.8" y2="72" stroke="#9bdcff" stroke-width="2"/></g>
+<text class="tdim1" x="451.8" y="64" font-size="12.5" fill="#7f93b0">response</text><g class="ton1"><text x="451.8" y="64" font-size="12.5" font-weight="700" fill="#9bdcff">response</text><line x1="451.8" y1="72" x2="511" y2="72" stroke="#9bdcff" stroke-width="2"/></g>
+<text class="tdim2" x="541" y="64" font-size="12.5" fill="#7f93b0">knowledge</text><g class="ton2"><text x="541" y="64" font-size="12.5" font-weight="700" fill="#9bdcff">knowledge</text><line x1="541" y1="72" x2="607.6" y2="72" stroke="#9bdcff" stroke-width="2"/></g>
+<text class="ton0" x="882" y="64" text-anchor="end" font-size="12" fill="#7f93b0">collapsed to fit on screen</text>
+<line x1="350" y1="75" x2="900" y2="75" stroke="#24344f"/>
 <g clip-path="url(#vp)">
 <g class="code0">
-<rect class="band0" x="360" y="93" width="530" height="104" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
-<rect class="band1" x="360" y="195" width="530" height="495" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
-<rect class="band2" x="360" y="1045" width="530" height="240" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
-<text x="370" y="106" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
-<text x="370" y="123" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: n8n architecture supports identifying and addressing speed</text>
-<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">    bottlenecks</text>
-<text x="370" y="157" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">verb</tspan>: class</text>
-<text x="370" y="174" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">depth</tspan>: standard</text>
-<text x="370" y="191" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">where</tspan>: [packages/core/src/index.ts, packages/cli/src/index.ts]</text>
-<text x="370" y="208" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">ask</tspan>:</text>
-<text x="370" y="225" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">concerns</tspan>:</text>
-<text x="370" y="242" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">architecture</tspan>:</text>
-<text x="370" y="259" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">family</tspan>: design</text>
-<text x="370" y="276" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: yes</text>
-<text x="370" y="293" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">1</tspan>: Are major architectural components (execution, queue,</text>
-<text x="370" y="310" font-size="12.5" fill="#e6edf7" xml:space="preserve">          DB layer) clearly separated?</text>
-<text x="370" y="327" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">2</tspan>: Do components have well-defined responsibility</text>
-<text x="370" y="344" font-size="12.5" fill="#e6edf7" xml:space="preserve">          boundaries?</text>
-<text x="370" y="361" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">3</tspan>: Can you identify clear data flow paths between</text>
-<text x="370" y="378" font-size="12.5" fill="#e6edf7" xml:space="preserve">          components?</text>
-<text x="370" y="395" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">speed-paths</tspan>:</text>
-<text x="370" y="412" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">family</tspan>: design-risk</text>
-<text x="370" y="429" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: yes</text>
-<text x="370" y="446" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">4</tspan>: Is the execution engine isolated as a</text>
-<text x="370" y="463" font-size="12.5" fill="#e6edf7" xml:space="preserve">          profiling/optimization target?</text>
-<text x="370" y="480" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">5</tspan>: Are hot paths (workflow execution, data queries)</text>
-<text x="370" y="497" font-size="12.5" fill="#e6edf7" xml:space="preserve">          identifiable and measurable?</text>
-<text x="370" y="514" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">6</tspan>: Can the bottlenecks be traced through data flow and</text>
-<text x="370" y="531" font-size="12.5" fill="#e6edf7" xml:space="preserve">          timing?</text>
-<text x="370" y="548" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">scalability</tspan>:</text>
-<text x="370" y="565" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">family</tspan>: design</text>
-<text x="370" y="582" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: yes</text>
-<text x="370" y="599" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">7</tspan>: Does the architecture support horizontal scaling</text>
-<text x="370" y="616" font-size="12.5" fill="#e6edf7" xml:space="preserve">          (workers)?</text>
-<text x="370" y="633" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">8</tspan>: Are resource limits enforceable per workflow or</text>
-<text x="370" y="650" font-size="12.5" fill="#e6edf7" xml:space="preserve">          execution?</text>
-<text x="370" y="667" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">9</tspan>: Is state sufficiently distributed to avoid centralizing</text>
-<text x="370" y="684" font-size="12.5" fill="#e6edf7" xml:space="preserve">          bottlenecks?</text>
-<text x="370" y="701" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">optimization</tspan>:</text>
-<text x="370" y="718" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">family</tspan>: design-risk</text>
-<text x="370" y="735" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: yes</text>
-<text x="370" y="752" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">10</tspan>: Can the execution engine be optimized without touching</text>
-<text x="370" y="769" font-size="12.5" fill="#e6edf7" xml:space="preserve">          other components?</text>
-<text x="370" y="786" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">11</tspan>: Can I/O operations be batched or parallelized</text>
-<text x="370" y="803" font-size="12.5" fill="#e6edf7" xml:space="preserve">          independently?</text>
-<text x="370" y="820" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">12</tspan>: Are caching points clearly visible for performance</text>
-<text x="370" y="837" font-size="12.5" fill="#e6edf7" xml:space="preserve">          improvement?</text>
-<text x="370" y="854" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">integration</tspan>:</text>
-<text x="370" y="871" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">family</tspan>: design</text>
-<text x="370" y="888" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: yes</text>
-<text x="370" y="905" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">13</tspan>: Do async/await patterns dominate the hot paths?</text>
-<text x="370" y="922" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">14</tspan>: Are database queries optimized (indexed, batched)?</text>
-<text x="370" y="939" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">15</tspan>: Is connection pooling used for external resources?</text>
-<text x="370" y="956" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">observability</tspan>:</text>
-<text x="370" y="973" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">family</tspan>: design</text>
-<text x="370" y="990" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: yes</text>
-<text x="370" y="1007" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">16</tspan>: Can performance be measured component-by-component?</text>
-<text x="370" y="1024" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">17</tspan>: Are critical latency points logged/instrumented?</text>
-<text x="370" y="1041" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">18</tspan>: Can bottlenecks be reproduced in a test environment?</text>
-<text x="370" y="1058" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">decisions</tspan>:</text>
-<text x="370" y="1075" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">bottleneck</tspan>:</text>
-<text x="370" y="1092" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: [execution-engine]</text>
-<text x="370" y="1109" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">19</tspan>:</text>
-<text x="370" y="1126" font-size="12.5" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">scale</tspan>: Which layer is most likely the speed bottleneck?</text>
-<text x="370" y="1143" font-size="12.5" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">levels</tspan>: [execution-engine, queue-processing,</text>
-<text x="370" y="1160" font-size="12.5" fill="#e6edf7" xml:space="preserve">            database-layer, api-gateway, network-io, other]</text>
-<text x="370" y="1177" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">next-move</tspan>:</text>
-<text x="370" y="1194" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: [profile]</text>
-<text x="370" y="1211" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">20</tspan>:</text>
-<text x="370" y="1228" font-size="12.5" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">choice</tspan>: What should be the first speed optimization</text>
-<text x="370" y="1245" font-size="12.5" fill="#e6edf7" xml:space="preserve">            step?</text>
-<text x="370" y="1262" font-size="12.5" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">options</tspan>: [profile, cache, parallelize, batch-queries,</text>
-<text x="370" y="1279" font-size="12.5" fill="#e6edf7" xml:space="preserve">            optimize-db, refactor-execution]</text>
-<text x="370" y="1296" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>:</text>
-<text x="370" y="1313" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">why</tspan>: validate</text>
-<text x="370" y="1330" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">area</tspan>: api</text>
-<text x="370" y="1347" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">problem</tspan>: Understand n8n's architectural support for speed</text>
-<text x="370" y="1364" font-size="12.5" fill="#e6edf7" xml:space="preserve">    optimization</text>
-<text x="370" y="1381" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">touches</tspan>: [execution-engine, queue, database, api, frontend]</text>
-<text x="370" y="1398" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">blast</tspan>: system</text>
+<rect class="band0" x="360" y="96" width="530" height="80" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
+<text x="370" y="92" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
+<text x="370" y="108" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: The lazy node loader can be optimized to reduce startup</text>
+<text x="370" y="124" font-size="12.5" fill="#e6edf7" xml:space="preserve">    time and memory usage</text>
+<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">depth</tspan>: quick</text>
+<text x="370" y="156" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">where</tspan>: [packages/core/src/nodes-loader/</text>
+<text x="370" y="172" font-size="12.5" fill="#e6edf7" xml:space="preserve">    lazy-package-directory-loader.ts]</text>
+<text x="370" y="188" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">ask</tspan>:</text>
+<text x="370" y="204" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">concerns</tspan>: <tspan fill="#7f93b0">▸ 3 concerns · 9 questions</tspan></text>
+<text x="370" y="220" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">decisions</tspan>: <tspan fill="#7f93b0">▸ 2 decisions · 2 questions</tspan></text>
+<text x="370" y="236" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>: <tspan fill="#7f93b0">▸ optional · none sent</tspan></text>
 </g>
 <g class="code1">
-<rect class="band3" x="360" y="110" width="530" height="53" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
-<rect class="band4" x="360" y="161" width="530" height="138" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
-<rect class="band5" x="360" y="297" width="530" height="70" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
-<text x="370" y="106" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
-<text x="370" y="123" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">id</tspan>: MM3-0003</text>
-<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">gate</tspan>: <tspan fill="#ff8d85">fail</tspan></text>
-<text x="370" y="157" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: {gate: <tspan fill="#b7ff83">pass</tspan>, p: <tspan fill="#ffcd57">0.70</tspan>}</text>
-<text x="370" y="174" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">architecture</tspan>: {gate: <tspan fill="#ff8d85">fail</tspan>, <tspan fill="#ffcd57">1</tspan>: <tspan fill="#ffcd57">0.44</tspan>, <tspan fill="#ffcd57">2</tspan>: <tspan fill="#ffcd57">0.57</tspan>, <tspan fill="#ffcd57">3</tspan>: <tspan fill="#ffcd57">0.25</tspan>}</text>
-<text x="370" y="191" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">speed-paths</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">4</tspan>: <tspan fill="#ffcd57">0.44</tspan>, <tspan fill="#ffcd57">5</tspan>: <tspan fill="#ffcd57">0.62</tspan>, <tspan fill="#ffcd57">6</tspan>: <tspan fill="#ffcd57">0.67</tspan>}</text>
-<text x="370" y="208" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">scalability</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">7</tspan>: <tspan fill="#ffcd57">0.62</tspan>, <tspan fill="#ffcd57">8</tspan>: <tspan fill="#ffcd57">0.54</tspan>, <tspan fill="#ffcd57">9</tspan>: <tspan fill="#ffcd57">0.40</tspan>}</text>
-<text x="370" y="225" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">optimization</tspan>: {gate: <tspan fill="#ff8d85">fail</tspan>, <tspan fill="#ffcd57">10</tspan>: <tspan fill="#ffcd57">0.49</tspan>, <tspan fill="#ffcd57">11</tspan>: <tspan fill="#ffcd57">0.66</tspan>, <tspan fill="#ffcd57">12</tspan>: <tspan fill="#ffcd57">0.16</tspan>}</text>
-<text x="370" y="242" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">integration</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">13</tspan>: <tspan fill="#ffcd57">0.48</tspan>, <tspan fill="#ffcd57">14</tspan>: <tspan fill="#ffcd57">0.32</tspan>, <tspan fill="#ffcd57">15</tspan>: <tspan fill="#ffcd57">0.36</tspan>}</text>
-<text x="370" y="259" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">observability</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">16</tspan>: <tspan fill="#ffcd57">0.72</tspan>, <tspan fill="#ffcd57">17</tspan>: <tspan fill="#ffcd57">0.50</tspan>, <tspan fill="#ffcd57">18</tspan>: <tspan fill="#ffcd57">0.71</tspan>}</text>
-<text x="370" y="276" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">bottleneck</tspan>: {gate: <tspan fill="#b7ff83">pass</tspan>, <tspan fill="#ffcd57">19</tspan>: {top: execution-engine, p: <tspan fill="#ffcd57">0.77</tspan>}}</text>
-<text x="370" y="293" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">next-move</tspan>: {gate: <tspan fill="#b7ff83">pass</tspan>, <tspan fill="#ffcd57">20</tspan>: {top: profile, p: <tspan fill="#ffcd57">1</tspan>}}</text>
-<text x="370" y="310" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">consensus</tspan>: <tspan fill="#ffcd57">WEAK</tspan></text>
-<text x="370" y="327" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">escalate</tspan>: <tspan fill="#ffcd57">true</tspan></text>
-<text x="370" y="344" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>: {<tspan fill="#9bdcff">recorded</tspan>: [why, area, problem, touches, blast]}</text>
-<text x="370" y="361" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">next</tspan>: <tspan fill="#b7ff83">mm3 template drill --parent MM3-0003 --from architecture</tspan></text>
-<text x="370" y="378" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">notes</tspan>: [cost estimated from tokens (no live pricing reported),</text>
-<text x="370" y="395" font-size="12.5" fill="#e6edf7" xml:space="preserve">  &quot;budget: $0.10 left of $0.10 · 27 of 30 runs left&quot;]</text>
+<rect class="band1" x="360" y="192" width="530" height="400" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
+<text x="370" y="92" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
+<text x="370" y="108" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: The lazy node loader can be optimized to reduce startup</text>
+<text x="370" y="124" font-size="12.5" fill="#e6edf7" xml:space="preserve">    time and memory usage</text>
+<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">depth</tspan>: quick</text>
+<text x="370" y="156" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">where</tspan>: [packages/core/src/nodes-loader/</text>
+<text x="370" y="172" font-size="12.5" fill="#e6edf7" xml:space="preserve">    lazy-package-directory-loader.ts]</text>
+<text x="370" y="188" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">ask</tspan>:</text>
+<text x="370" y="204" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">concerns</tspan>:</text>
+<text x="370" y="220" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">performance</tspan>:</text>
+<text x="370" y="236" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: no</text>
+<text x="370" y="252" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">need</tspan>: most</text>
+<text x="370" y="268" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">tags</tspan>: [startup, memory, loader]</text>
+<text x="370" y="284" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">1</tspan>: Does `loadAll()` read large JSON files repeatedly</text>
+<text x="370" y="300" font-size="12.5" fill="#e6edf7" xml:space="preserve">          without caching?</text>
+<text x="370" y="316" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">2</tspan>: Are the node filtering loops iterating the same arrays</text>
+<text x="370" y="332" font-size="12.5" fill="#e6edf7" xml:space="preserve">          multiple times?</text>
+<text x="370" y="348" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">3</tspan>: Could the excludeNodes check be moved outside the loop?</text>
+<text x="370" y="364" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">correctness</tspan>:</text>
+<text x="370" y="380" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: no</text>
+<text x="370" y="396" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">4</tspan>: Does the filtering preserve the original order of nodes</text>
+<text x="370" y="412" font-size="12.5" fill="#e6edf7" xml:space="preserve">          after exclude?</text>
+<text x="370" y="428" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">5</tspan>: Are the node objects in `this.known.nodes` kept in sync</text>
+<text x="370" y="444" font-size="12.5" fill="#e6edf7" xml:space="preserve">          with `this.types.nodes`?</text>
+<text x="370" y="460" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">6</tspan>: Does the method handle missing JSON files correctly?</text>
+<text x="370" y="476" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">design</tspan>:</text>
+<text x="370" y="492" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: no</text>
+<text x="370" y="508" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">7</tspan>: Is there a way to pre-compute the filter instead of</text>
+<text x="370" y="524" font-size="12.5" fill="#e6edf7" xml:space="preserve">          doing it at runtime?</text>
+<text x="370" y="540" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">8</tspan>: Could Set lookups replace the array includes() calls</text>
+<text x="370" y="556" font-size="12.5" fill="#e6edf7" xml:space="preserve">          for better perf?</text>
+<text x="370" y="572" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">9</tspan>: Does the code skip filtering if there are no include</text>
+<text x="370" y="588" font-size="12.5" fill="#e6edf7" xml:space="preserve">          restrictions specified?</text>
+<text x="370" y="604" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">decisions</tspan>: <tspan fill="#7f93b0">▸ 2 decisions · 2 questions</tspan></text>
+<text x="370" y="620" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>: <tspan fill="#7f93b0">▸ optional · none sent</tspan></text>
+<text x="385" y="204" font-size="12.5" fill="#9bdcff">▾</text>
 </g>
 <g class="code2">
-<rect class="band6" x="360" y="212" width="530" height="53" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
-<text x="370" y="106" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#7f93b0"># .mm3/log.jsonl: append-only, one row per run (abridged)</tspan></text>
-<text x="370" y="123" font-size="12.5" fill="#e6edf7" xml:space="preserve">{<tspan fill="#9bdcff">&quot;id&quot;</tspan>:&quot;MM3-0003&quot;,<tspan fill="#9bdcff">&quot;verb&quot;</tspan>:&quot;class&quot;,<tspan fill="#9bdcff">&quot;model&quot;</tspan>:&quot;jev-1.13.0&quot;,</text>
-<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">&quot;costUsd&quot;</tspan>:<tspan fill="#ffcd57">0.0000441</tspan>,<tspan fill="#9bdcff">&quot;telemetry&quot;</tspan>:[{<tspan fill="#9bdcff">&quot;latencyMs&quot;</tspan>:<tspan fill="#ffcd57">305</tspan>,</text>
-<text x="370" y="157" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">&quot;questions&quot;</tspan>:<tspan fill="#ffcd57">21</tspan>,<tspan fill="#9bdcff">&quot;costEstimated&quot;</tspan>:true}]}</text>
-<text x="370" y="174" font-size="12.5" fill="#e6edf7" xml:space="preserve"></text>
-<text x="370" y="191" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#7f93b0"># .mm3/index.db: a SQLite index over every row</tspan></text>
-<text x="370" y="208" font-size="12.5" fill="#e6edf7" xml:space="preserve"></text>
-<text x="370" y="225" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#7f93b0"># next release, same questions (n8n@2.41.3):</tspan></text>
-<text x="370" y="242" font-size="12.5" fill="#e6edf7" xml:space="preserve">MM3-0006  scan  reused <tspan fill="#ffcd57">81</tspan> of <tspan fill="#ffcd57">81</tspan> · <tspan fill="#ffcd57">0</tspan> calls · $0.00000</text>
-<text x="370" y="259" font-size="12.5" fill="#e6edf7" xml:space="preserve">  saved ~$0.00022 by reusing MM3-0001</text>
+<rect class="band2" x="360" y="208" width="530" height="192" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
+<text x="370" y="92" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
+<text x="370" y="108" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: The lazy node loader can be optimized to reduce startup</text>
+<text x="370" y="124" font-size="12.5" fill="#e6edf7" xml:space="preserve">    time and memory usage</text>
+<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">depth</tspan>: quick</text>
+<text x="370" y="156" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">where</tspan>: [packages/core/src/nodes-loader/</text>
+<text x="370" y="172" font-size="12.5" fill="#e6edf7" xml:space="preserve">    lazy-package-directory-loader.ts]</text>
+<text x="370" y="188" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">ask</tspan>:</text>
+<text x="370" y="204" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">concerns</tspan>: <tspan fill="#7f93b0">▸ 3 concerns · 9 questions</tspan></text>
+<text x="370" y="220" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">decisions</tspan>:</text>
+<text x="370" y="236" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">priority</tspan>:</text>
+<text x="370" y="252" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: [high]</text>
+<text x="370" y="268" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">10</tspan>:</text>
+<text x="370" y="284" font-size="12.5" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">scale</tspan>: What is the performance impact of the current</text>
+<text x="370" y="300" font-size="12.5" fill="#e6edf7" xml:space="preserve">            approach?</text>
+<text x="370" y="316" font-size="12.5" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">levels</tspan>: [none, low, medium, high, critical]</text>
+<text x="370" y="332" font-size="12.5" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">action</tspan>:</text>
+<text x="370" y="348" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: [optimize]</text>
+<text x="370" y="364" font-size="12.5" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">11</tspan>:</text>
+<text x="370" y="380" font-size="12.5" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">choice</tspan>: Should this be optimized?</text>
+<text x="370" y="396" font-size="12.5" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">options</tspan>: [ship, optimize, investigate]</text>
+<text x="370" y="412" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>: <tspan fill="#7f93b0">▸ optional · none sent</tspan></text>
+<text x="385" y="220" font-size="12.5" fill="#9bdcff">▾</text>
+</g>
+<g class="code3">
+<rect class="band3" x="360" y="224" width="530" height="32" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
+<text x="370" y="92" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
+<text x="370" y="108" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: The lazy node loader can be optimized to reduce startup</text>
+<text x="370" y="124" font-size="12.5" fill="#e6edf7" xml:space="preserve">    time and memory usage</text>
+<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">depth</tspan>: quick</text>
+<text x="370" y="156" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">where</tspan>: [packages/core/src/nodes-loader/</text>
+<text x="370" y="172" font-size="12.5" fill="#e6edf7" xml:space="preserve">    lazy-package-directory-loader.ts]</text>
+<text x="370" y="188" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">ask</tspan>:</text>
+<text x="370" y="204" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">concerns</tspan>: <tspan fill="#7f93b0">▸ 3 concerns · 9 questions</tspan></text>
+<text x="370" y="220" font-size="12.5" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">decisions</tspan>: <tspan fill="#7f93b0">▸ 2 decisions · 2 questions</tspan></text>
+<text x="370" y="236" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>:   <tspan fill="#7f93b0"># optional — not sent in this run;</tspan></text>
+<text x="370" y="252" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#7f93b0">       # it tells the ledger why you asked</tspan></text>
+<text x="361" y="236" font-size="12.5" fill="#9bdcff">▾</text>
+</g>
+<g class="code4">
+<rect class="band4" x="360" y="96" width="530" height="48" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
+<rect class="band5" x="360" y="144" width="530" height="80" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
+<rect class="band6" x="360" y="224" width="530" height="64" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
+<text x="370" y="92" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
+<text x="370" y="108" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">id</tspan>: MM3-0007</text>
+<text x="370" y="124" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">gate</tspan>: <tspan fill="#ff8d85">fail</tspan></text>
+<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: {gate: <tspan fill="#b7ff83">pass</tspan>, p: <tspan fill="#ffcd57">0.75</tspan>}</text>
+<text x="370" y="156" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">performance</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">1</tspan>: <tspan fill="#ffcd57">0.24</tspan>, <tspan fill="#ffcd57">2</tspan>: <tspan fill="#ffcd57">0.52</tspan>, <tspan fill="#ffcd57">3</tspan>: <tspan fill="#ffcd57">0.44</tspan>}</text>
+<text x="370" y="172" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">correctness</tspan>: {gate: <tspan fill="#ff8d85">fail</tspan>, <tspan fill="#ffcd57">4</tspan>: <tspan fill="#ffcd57">0.78</tspan>, <tspan fill="#ffcd57">5</tspan>: <tspan fill="#ffcd57">0.52</tspan>, <tspan fill="#ffcd57">6</tspan>: <tspan fill="#ffcd57">0.49</tspan>}</text>
+<text x="370" y="188" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">design</tspan>: {gate: <tspan fill="#ff8d85">fail</tspan>, <tspan fill="#ffcd57">7</tspan>: <tspan fill="#ffcd57">0.71</tspan>, <tspan fill="#ffcd57">8</tspan>: <tspan fill="#ffcd57">0.81</tspan>, <tspan fill="#ffcd57">9</tspan>: <tspan fill="#ffcd57">0.83</tspan>}</text>
+<text x="370" y="204" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">priority</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">10</tspan>: {top: medium, p: <tspan fill="#ffcd57">0.31</tspan>}}</text>
+<text x="370" y="220" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">action</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">11</tspan>: {top: optimize, p: <tspan fill="#ffcd57">0.56</tspan>}}</text>
+<text x="370" y="236" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">consensus</tspan>: <tspan fill="#ffcd57">WEAK</tspan></text>
+<text x="370" y="252" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">escalate</tspan>: <tspan fill="#ffcd57">true</tspan></text>
+<text x="370" y="268" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>: {recorded: none}</text>
+<text x="370" y="284" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">next</tspan>: <tspan fill="#b7ff83">mm3 template drill --parent MM3-0007 --from correctness</tspan></text>
+<text x="370" y="300" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">notes</tspan>: [cost estimated from tokens (no live pricing reported),</text>
+<text x="370" y="316" font-size="12.5" fill="#e6edf7" xml:space="preserve">  &quot;budget: $0.10 left of $0.10 · 25 of 30 runs left&quot;]</text>
+</g>
+<g class="code5">
+<rect class="band7" x="360" y="208" width="530" height="64" rx="5" fill="#b7ff83" fill-opacity=".07" stroke="#b7ff83" stroke-opacity=".55"/>
+<text x="370" y="92" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#7f93b0"># .mm3/log.jsonl: append-only, one row per run (abridged)</tspan></text>
+<text x="370" y="108" font-size="12.5" fill="#e6edf7" xml:space="preserve">{<tspan fill="#9bdcff">&quot;id&quot;</tspan>:&quot;MM3-0007&quot;,<tspan fill="#9bdcff">&quot;verb&quot;</tspan>:&quot;class&quot;,<tspan fill="#9bdcff">&quot;depth&quot;</tspan>:&quot;quick&quot;,<tspan fill="#9bdcff">&quot;gate&quot;</tspan>:&quot;fail&quot;,</text>
+<text x="370" y="124" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">&quot;model&quot;</tspan>:&quot;jev-1.13.0&quot;,<tspan fill="#9bdcff">&quot;calls&quot;</tspan>:<tspan fill="#ffcd57">1</tspan>,<tspan fill="#9bdcff">&quot;costUsd&quot;</tspan>:<tspan fill="#ffcd57">0.000046494</tspan>,</text>
+<text x="370" y="140" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">&quot;telemetry&quot;</tspan>:[{<tspan fill="#9bdcff">&quot;latencyMs&quot;</tspan>:<tspan fill="#ffcd57">345</tspan>,<tspan fill="#9bdcff">&quot;questions&quot;</tspan>:<tspan fill="#ffcd57">12</tspan>,</text>
+<text x="370" y="156" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">&quot;costEstimated&quot;</tspan>:true}]}</text>
+<text x="370" y="172" font-size="12.5" fill="#e6edf7" xml:space="preserve"></text>
+<text x="370" y="188" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#7f93b0"># .mm3/index.db: a SQLite index over every row</tspan></text>
+<text x="370" y="204" font-size="12.5" fill="#e6edf7" xml:space="preserve"></text>
+<text x="370" y="220" font-size="12.5" fill="#e6edf7" xml:space="preserve"><tspan fill="#7f93b0"># same ledger, next release: a different run (MM3-0006,</tspan></text>
+<text x="370" y="236" font-size="12.5" fill="#e6edf7" xml:space="preserve">  <tspan fill="#7f93b0">n8n@2.41.3)</tspan></text>
+<text x="370" y="252" font-size="12.5" fill="#e6edf7" xml:space="preserve">MM3-0006  scan  reused <tspan fill="#ffcd57">81</tspan> of <tspan fill="#ffcd57">81</tspan> · <tspan fill="#ffcd57">0</tspan> calls · $0.00000</text>
+<text x="370" y="268" font-size="12.5" fill="#e6edf7" xml:space="preserve">  saved ~$0.00022 by reusing MM3-0001</text>
 </g>
 </g>
-<rect x="360" y="638" width="530" height="44" rx="7" fill="#0b1424" stroke="#24344f"/>
-<text class="cap0" x="370" y="666" font-size="15" font-weight="700" fill="#b7ff83">One claim. Only your code. Fixed cost.</text>
-<text class="cap1" x="370" y="666" font-size="15" font-weight="700" fill="#b7ff83">Yes/no questions. Cheap models nail them.</text>
-<text class="cap2" x="370" y="666" font-size="15" font-weight="700" fill="#b7ff83">When yes/no isn't enough.</text>
-<text class="cap3" x="370" y="666" font-size="15" font-weight="700" fill="#b7ff83">A verdict you can cite. Odds, not vibes.</text>
-<text class="cap4" x="370" y="666" font-size="15" font-weight="700" fill="#b7ff83">Finds exactly where it breaks.</text>
-<text class="cap5" x="370" y="666" font-size="15" font-weight="700" fill="#b7ff83">Knows when to doubt itself. Tells you the next move.</text>
-<text class="cap6" x="370" y="666" font-size="15" font-weight="700" fill="#b7ff83">Every answer kept. Ask again? Instant. Free.</text>
+<rect x="360" y="638" width="530" height="40" rx="7" fill="#0b1424" stroke="#24344f"/>
+<text class="cap0" x="370" y="663" font-size="15" font-weight="700" fill="#b7ff83">One claim. Only your code. Fixed cost.</text>
+<text class="cap1" x="370" y="663" font-size="15" font-weight="700" fill="#b7ff83">Yes/no questions. Cheap models nail them.</text>
+<text class="cap2" x="370" y="663" font-size="15" font-weight="700" fill="#b7ff83">When yes/no isn't enough.</text>
+<text class="cap3" x="370" y="663" font-size="15" font-weight="700" fill="#b7ff83">Why you asked — so the ledger learns.</text>
+<text class="cap4" x="370" y="663" font-size="15" font-weight="700" fill="#b7ff83">A verdict you can cite. Odds, not vibes.</text>
+<text class="cap5" x="370" y="663" font-size="15" font-weight="700" fill="#b7ff83">Finds exactly where it breaks.</text>
+<text class="cap6" x="370" y="663" font-size="15" font-weight="700" fill="#b7ff83">Knows when to doubt itself. Tells you the next move.</text>
+<text class="cap7" x="370" y="663" font-size="15" font-weight="700" fill="#b7ff83">Every answer kept. Ask again? Instant. Free.</text>
 </svg>

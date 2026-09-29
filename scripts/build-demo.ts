@@ -346,7 +346,8 @@ ${body}
 
 const SCENE_DIR = 'docs/demo/scenes';
 export function loadStories(dir = SCENE_DIR): DemoStory[] {
-  return readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => JSON.parse(readFileSync(path.join(dir, f), 'utf8')) as DemoStory);
+  // a scene file that is not a story (docs/demo/scenes/strip-n8n.json, the README strip's one run) has no `scenes` list and is skipped
+  return readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => JSON.parse(readFileSync(path.join(dir, f), 'utf8')) as DemoStory).filter((st) => Array.isArray(st.scenes));
 }
 /** Every step of every story, in story order. */
 export function loadScenes(dir = SCENE_DIR): Scene[] {
@@ -366,8 +367,8 @@ const STORIES: StoryDef[] = [
     picks: [{ id: 'MM3-0001', file: '01-scan-architecture.yaml' }, { id: 'MM3-0003', file: '02-architecture-analysis.yaml' }, { id: 'MM3-0004', file: '03-drill-architecture.yaml' }, { id: 'MM3-0006', file: '01-scan-architecture.yaml' }] },
 ];
 
-type AskRow = { ask?: { categories?: { questions?: { text: string }[] }[]; layers?: { categories?: { questions?: { text: string }[] }[] }[] } };
-const askTexts = (r: AskRow): string[] => [...(r.ask?.categories ?? []), ...(r.ask?.layers ?? []).flatMap((l) => l.categories ?? [])].flatMap((c) => (c.questions ?? []).map((q) => q.text));
+export type AskRow = { ask?: { categories?: { questions?: { text: string }[] }[]; layers?: { categories?: { questions?: { text: string }[] }[] }[] } };
+export const askTexts = (r: AskRow): string[] => [...(r.ask?.categories ?? []), ...(r.ask?.layers ?? []).flatMap((l) => l.categories ?? [])].flatMap((c) => (c.questions ?? []).map((q) => q.text));
 
 /** One-time, free: reads a play ledger and its request files, checks each request against its row (goal and every question text), and writes the story JSON. */
 export function extractStory(def: StoryDef, play: string, kickoff: string, outDir = SCENE_DIR): string[] {

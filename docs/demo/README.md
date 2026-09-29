@@ -9,12 +9,12 @@ in full, wrapped, never cut), 4 a colour-coded quick read of it (gates, p bars, 
 infers** (the move MM3's `next:` names and why: gate, concerns, consensus, escalate, reuse) and 6 what the ledger now
 holds (lineage, reuse, what was recorded, the budget line). mm3lab.dev has it interactive (story tabs, a step-through,
 request and response tabs, hover a question to light its answer, a replay); the README shows one n8n run as a single
-animated strip (`docs/assets/demo-strip-n8n.svg`, built by `scripts/build-strip.ts` from MM3-0003 and MM3-0006 in
-`scenes/mdl.json`, free) and links here for the step-through. The same steps can still be rendered as two animated GIFs at
+animated strip (`docs/assets/demo-strip-n8n.svg`, built by `scripts/build-strip.ts` from the quick class run MM3-0007 in
+`scenes/strip-n8n.json` and MM3-0006 in `scenes/mdl.json`, free) and links here for the step-through. The same steps can still be rendered as two animated GIFs at
 1600x900 (`docs/assets/demo-player-light.gif` and `-dark.gif`), where a long request or response is paged through so the
 whole text is shown; the README no longer embeds them.
 
-Every step is frozen data in `docs/demo/scenes/{mak,mdl}.json`: the request, the response MM3 printed (verbatim), the
+Every step is frozen data in `docs/demo/scenes/{mak,mdl}.json` (the strip's own run is one scene in `strip-n8n.json`, extracted with `tsx scripts/build-strip.ts extract`): the request, the response MM3 printed (verbatim), the
 footer (model, endpoint, latency, cost, questions, reuse, calls, id, date, pinned commit or tag) and the ledger facts, all
 read from that run's own ledger row by `extract`. The decision text is derived from the response itself by
 `inferDecision`, not typed. Nothing in a footer is typed by hand. Rendering the site or the GIFs reads only these JSON
