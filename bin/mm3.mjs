@@ -10376,6 +10376,25 @@ function checkAsk(ask2, verb, out) {
   if (!isObj3(ask2)) return out.add("mak.ask", "is not a mapping", `add concerns: and decisions: (${templateHint})`);
   if (Object.keys(ask2).length === 0) return out.add("mak.ask", "is empty", `add concerns: and decisions: (${templateHint})`);
   if ("concerns" in ask2 || "decisions" in ask2) {
+    const layerKeys = Object.keys(ask2).filter((k) => !SECTION_NAMES.includes(k) && isObj3(ask2[k]));
+    if (layerKeys.length > 0) {
+      const many = layerKeys.length > 1;
+      const names = layerKeys.map((k) => `${clip(k, 20)}:`).join(", ");
+      for (const sec of SECTION_NAMES) {
+        if (!(sec in ask2)) continue;
+        out.add(
+          `mak.ask.${sec}`,
+          `sits beside the layer${many ? "s" : ""} ${names}`,
+          many ? "move it under a layer (a sweep) or drop the layers (one subject)" : `move it under ${names} (a sweep) or drop ${names} (one subject)`
+        );
+      }
+      for (const k of Object.keys(ask2)) {
+        if (!SECTION_NAMES.includes(k) && !isObj3(ask2[k])) out.add(`mak.ask.${clip(k, 20)}`, "not concerns or decisions", "use concerns: or decisions:");
+      }
+      if ("concerns" in ask2) checkCategoriesMap(ask2.concerns, "mak.ask.concerns", out);
+      if ("decisions" in ask2) checkCategoriesMap(ask2.decisions, "mak.ask.decisions", out);
+      return;
+    }
     checkSectionsBlock(ask2, "mak.ask", out);
     return;
   }
@@ -10476,7 +10495,7 @@ function checkMak(mak, verb, out) {
   }
   if ("expect" in mak) {
     const e = mak.expect;
-    if (e === "none") {
+    if (e === "none" || Array.isArray(e) && e.length === 0) {
     } else if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === "string" && isTag(x))) {
       out.add("mak.expect", show(e), 'give 1\u20139 concern names, lowercase kebab-case, \u2264 20 characters, or the word "none"');
     } else if (new Set(e).size !== e.length) {
@@ -11096,7 +11115,7 @@ function checkCross(raw, verb) {
       ...mak.parent !== void 0 ? { parent: mak.parent } : {},
       ...mak.from !== void 0 ? { from: mak.from } : {},
       ...mak.compare !== void 0 ? { compare: mak.compare } : {},
-      ...mak.expect !== void 0 ? { expect: mak.expect } : {},
+      ...mak.expect !== void 0 ? { expect: Array.isArray(mak.expect) && mak.expect.length === 0 ? "none" : mak.expect } : {},
       categories: over === void 0 ? categories : [],
       layers,
       ...over !== void 0 ? { over } : {}
