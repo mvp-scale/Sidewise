@@ -137,6 +137,12 @@ describe('validateRequest', () => {
     expect(stopsOf(withExpect, 'class')).toContainEqual('✖ mak.expect: only replay predicts fixed concerns → remove it');
   });
 
+  it('replay expect: [] validates and is normalized to "none" [C-210]', () => {
+    const v = validateRequest({ mak: { goal: 'The fix works', parent: 'MM3-0042', compare: { before: 'main', after: 'HEAD' }, expect: [] } }, 'replay');
+    if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
+    expect(v.request.mak.expect).toBe('none');
+  });
+
   it('mdl is entirely optional: omitting it validates, and request.mdl is null (nothing recorded for it) [C-005]', () => {
     const v = validateRequest(req(), 'class');
     expect(v.ok && v.request.mdl).toBeNull();

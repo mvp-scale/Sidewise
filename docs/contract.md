@@ -58,7 +58,7 @@ and `mdl:`, on every verb, and a key never selects a mode; the verb you run does
 | mak | `from` | drill only |
 | mak | `compare` | replay only |
 | mak | `parent` | required by drill and replay (what to build on); allowed on every verb otherwise, as lineage only |
-| mak | `expect` | replay only, required: which of the parent's concerns this replay should turn to pass, or the word `none` to predict no flips at all |
+| mak | `expect` | replay only, required: which of the parent's concerns this replay should turn to pass, or the word `none` (an empty list `[]` counts as `none`) to predict no flips at all |
 | mdl | `why` | `validate` · `find` · `debug` |
 | mdl | `area` | `data` · `api` · `ui` · `auth` · `hosting` · `build` · `tests` — single value, or a list of up to 2; omit for a whole-system question (`uses` carries the map) |
 | mdl | `stage` | `design` · `build` · `review` · `pre-merge` · `post-fix` · `release` · `operate` (live production/incident) |
@@ -490,7 +490,7 @@ after) and `still` (ones that don't), and a `probes: <fixed>/<total> fixed` coun
 category's own questions cleared out of how many it has; anything in the run-wide `regressed` list (passing
 before, not after now) can alone fail the gate even when every `after` category passes on its own. [C-064] [C-211]
 `expect:` is required: either 1–9 concern names (lowercase kebab-case, each ≤ 20 characters and unique), or the
-literal word `none` — the agent's own prediction of which of the parent's concerns this replay should turn to
+literal word `none` (an empty list `[]` is read as `none`) — the agent's own prediction of which of the parent's concerns this replay should turn to
 pass (`none`: predicts no flips at all). Each named concern must be a real concerns-section category of the
 parent; naming a decisions category or an unknown name is a stop. The response's `expected:` grades the
 prediction against what actually happened, per named concern: `fixed` (missed or unsure before, clears now) or

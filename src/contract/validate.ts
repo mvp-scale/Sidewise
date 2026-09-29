@@ -351,7 +351,7 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
       ...(mak.parent !== undefined ? { parent: mak.parent as string } : {}),
       ...(mak.from !== undefined ? { from: mak.from as string } : {}),
       ...(mak.compare !== undefined ? { compare: mak.compare as { before: string; after: string } } : {}),
-      ...(mak.expect !== undefined ? { expect: mak.expect as string[] | 'none' } : {}),
+      ...(mak.expect !== undefined ? { expect: (Array.isArray(mak.expect) && mak.expect.length === 0 ? 'none' : mak.expect) as string[] | 'none' } : {}),
       categories: over === undefined ? categories : [],
       layers,
       ...(over !== undefined ? { over } : {}),

@@ -73,7 +73,7 @@ describe('checkSchema', () => {
     expect(texts(v)).toEqual(['✖ mak.verb: "judge" → use view, class, replay, scan, drill or loop, or leave it out']);
     const e = base();
     e.mak.expect = [];
-    expect(texts(e)).toEqual(['✖ mak.expect: [] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters, or the word "none"']);
+    expect(texts(e)).toEqual([]); // [] names no concern to fix: same prediction as "none", accepted [C-210]
     const e2 = base();
     e2.mak.expect = ['Not A Tag'];
     expect(texts(e2)).toEqual(['✖ mak.expect: ["Not A Tag"] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters, or the word "none"']);

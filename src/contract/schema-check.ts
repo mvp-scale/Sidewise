@@ -290,8 +290,9 @@ function checkMak(mak: unknown, verb: Verb | undefined, out: Out): void {
   }
   if ('expect' in mak) {
     const e = mak.expect;
-    if (e === 'none') {
-      // plan 2c N4: "none" predicts no flips at all — any flip is reported as unexpected:.
+    if (e === 'none' || (Array.isArray(e) && e.length === 0)) {
+      // plan 2c N4: "none" predicts no flips at all — any flip is reported as unexpected:. An empty list names no
+      // concern to fix, which is the same prediction, so it is accepted as none (validate.ts normalizes it).
     } else if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === 'string' && isTag(x))) {
       out.add('mak.expect', show(e), 'give 1–9 concern names, lowercase kebab-case, ≤ 20 characters, or the word "none"');
     } else if (new Set(e).size !== e.length) {
