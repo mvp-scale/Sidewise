@@ -62,7 +62,7 @@ Publishing runs only when the repo variable `MM3_PUBLISH` is `true`, and only th
 
 This section is for any agent that has MM3 installed as a dependency in its own project, not for contributing to MM3 itself.
 
-MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence, never a command. Every request has a `mak:` block (**solve it now**: one goal, then plumbing) and an optional `mdl:` block (**get smarter**: why you're here, so the ledger learns).
+MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence, never a command. Every request has a `mak:` block (**make**: the request itself, one goal, then plumbing) and an optional `mdl:` block (**model**: why you're here, so the ledger learns). The six verbs split into MAK³ (use what is proven: `view`, `class`, `replay`) and MDL³ (learn what is missing: `scan`, `drill`, `loop`), each across Know, Judge and Prove.
 
 ## Run this first
 
