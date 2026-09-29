@@ -1,0 +1,13 @@
+# The one source for every phrase README.md and mm3lab.dev repeat. npm run check:readme keeps them in step.
+tagline: "Checklists in. Calibrated verdicts out."
+identity: "MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict your coding agent can cite."
+numbers: []
+install:
+  claude: "/plugin marketplace add mvp-scale/Sidewise"
+  npm: "npm install -g @mvpscale/mm3"
+  nokey: "MM3_PROVIDER=fake mm3 class review.yaml"
+useCases:
+  - { title: "Check a change before you merge it", verb: class }
+  - { title: "Prove a fix actually worked", verb: replay }
+  - { title: "Find where a problem lives", verb: scan }
+  - { title: "Check a design before any code exists", verb: loop }

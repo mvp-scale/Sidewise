@@ -33,5 +33,6 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npx tsx scripts/check-readme.ts
       - run: npm run check:pack
       - run: npm run check:plugin
