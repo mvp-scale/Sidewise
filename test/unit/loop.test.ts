@@ -83,7 +83,7 @@ describe('loop', () => {
     // Unlike class (view's request mode reads a per-category, per-place record straight off the ledger),
     // a sweep run's own top-level `categories` is always {} — the per-item categories below are the only
     // place this run's grading lives, and today only this run's own response reads them back, not a
-    // dedicated cross-run pattern query. That's the real, current shape of "Mdl learns" for loop.
+    // dedicated cross-run pattern query. That's the real, current shape of "mdl learns" for loop.
     if (!r.run || !isContractRun(r.run)) throw new Error('expected a v2 contract run');
     expect(r.run.categories).toEqual({});
     expect(r.run.items?.['payments']?.categories).toEqual({ boundaries: 'fail' });

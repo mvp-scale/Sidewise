@@ -46,7 +46,7 @@ function state(root: string): { lines: Line[]; runIds: string[]; counted: number
   return { lines, runIds, counted, budgetRuns: budgetRunsOf(root), files };
 }
 
-const expectedIds = (n: number): string[] => Array.from({ length: n }, (_, i) => `SW-${String(i + 1).padStart(4, '0')}`);
+const expectedIds = (n: number): string[] => Array.from({ length: n }, (_, i) => `MM3-${String(i + 1).padStart(4, '0')}`);
 const printedId = (r: CliResult): string | undefined => /^ {2}id: (MM3-\d{4,})$/m.exec(r.stdout)?.[1];
 const isLockTimeout = (r: CliResult): boolean => r.status === 1 && r.stdout === '' && /^✖ lock: [^\n]+ → [^\n]+\n$/.test(r.stderr);
 

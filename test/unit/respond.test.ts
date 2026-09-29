@@ -60,7 +60,7 @@ describe('mdlRecorded', () => {
     expect(mdlRecorded(null, ['parent'])).toEqual(['parent']);
   });
 
-  it('also names stage/change/risk when set, in Mdl\'s own field order, extras still last [C-044]', () => {
+  it('also names stage/change/risk when set, in the mdl block\'s own field order, extras still last [C-044]', () => {
     expect(mdlRecorded({ stage: 'review' })).toEqual(['stage']);
     expect(mdlRecorded({ change: 'fix' })).toEqual(['change']);
     expect(mdlRecorded({ risk: 'high' })).toEqual(['risk']);

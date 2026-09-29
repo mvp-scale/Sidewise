@@ -29,7 +29,7 @@ describe('view: free lookup records', () => {
     const lookups = records.filter(isLookup);
     expect(lookups).toHaveLength(1);
     expect(lookups[0]).toMatchObject({ kind: 'lookup', goal: 'This login handler is safe to merge', where: ['src/user.ts:1-3'], hit: true, reused: 'MM3-0001' });
-    expect(lookups[0]!.id).not.toMatch(/^SW-/); // never a run number
+    expect(lookups[0]!.id).not.toMatch(/^(?:MM3|SW)-/); // never a run number
   });
 
   it('a miss (no matching prior run) logs hit: false, reused: null, and explains the miss as "never asked" [N2]', () => {
@@ -52,7 +52,7 @@ describe('view: free lookup records', () => {
     expect(lookups).toHaveLength(2);
     expect(lookups[0]).toMatchObject({ goal: '.', where: ['.'], hit: false, reused: null });
     expect(lookups[1]).toMatchObject({ goal: 'src', where: ['src'], hit: false, reused: null });
-    expect(lookups.every((l) => !l.id.match(/^SW-/))).toBe(true); // never a run number
+    expect(lookups.every((l) => !l.id.match(/^(?:MM3|SW)-/))).toBe(true); // never a run number
   });
 
   it('a run-id lookup logs on a hit, never on a miss (not in the ledger)', async () => {
