@@ -1,0 +1,58 @@
+# scan: sweeps code Sidewise reads itself. over: builds layers (file -> function -> call); ask: keys by layer,
+# and the contract (3k concerns x 3 angles + 2-5 decisions) is enforced on the finest layer (here: function).
+side:
+  goal: Handlers don't trust request input    # required
+  # verb: scan                                # optional — must match the command you run, or the request is sent back
+  depth: quick                                # required — at most 10 items asked per layer (standard 20, thorough 30) — extra items are skipped, not failed
+  over:                                       # required
+    file: src/handlers/*.ts                   # a glob, scanned by file (add a severity scale below to rank findings)
+    function: each                            # "each" splits the layer above into its next unit (function, then call)
+  ask:                                        # required — one concerns:/decisions: pair per layer named in over — {function} fills in per item
+                                               # questions are numbered 1…N across the WHOLE request, decisions included — no gaps, no restart at decisions
+    function:
+      concerns:                               # exactly 3k categories for the depth above (quick: 3), each with exactly 3 probes
+        injection:
+          pass: no                            # ask what {function} itself does, not what code outside it does
+          1: Does {function} take request text straight from `req.query` or `req.body`?       # reach
+          2: Is that value concatenated into a query string instead of bound as a parameter?  # guard
+          3: Does {function} run the query with `db.query` on that string?                    # sink
+        access:
+          pass: no
+          4: Does {function} use an id from the request instead of the session?
+          5: Does {function} skip comparing the record's owner to the caller?
+          6: Could {function} return another user's record by changing the id alone?
+        leaks:
+          family: output                        # output's own roles (sidewise agent probe): source, encode, render
+          pass: no
+          7: Does {function} return a raw database error to the caller?              # source
+          8: Does {function} log the full request body?                             # encode (no redaction before it's written out)
+          9: Does {function}'s response include fields the caller never asked for?   # render
+      decisions:                              # 2-5 categories; at least one scale and one choice
+        severity:
+          pass: [none, low]
+          10:
+            scale: How severe is the worst issue in {function}?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [ship]
+          11:
+            choice: Where should {function} go?
+            options: [ship, fix, block]
+        # scope:                                 # optional, recommended (TypeSafe best practice) — the visible-scope probe
+        #   pass: [enough]
+        #   12:
+        #     choice: Can this be answered from the code shown?
+        #     options: [enough, partial, missing]
+                                               # scan never takes where: (over: is what it reads), from:, compare: or parent:
+wise:                                         # optional block; every field inside it is optional too
+  why: find                                   # optional — validate | find | debug
+  area: api                                   # optional — data | api | ui | auth | hosting | build | tests
+  # stage: build                              # optional — design | build | review | pre-merge | post-fix | release
+  # change: fix                               # optional — feature | fix | refactor | dependency | config
+  # risk: medium                              # optional — low | medium | high
+  # parent: SW-0001                           # optional — a related run, for lineage
+  # problem: Screening every request handler for unvalidated input reaching a query or a missing permission check   # optional
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - container:api -> component:handlers -> container:db
+  # touches: [handlers]                       # optional — up to 5 entities/objects this run is about
+  # blast: system                             # optional — code | component | container | system | person

@@ -1,0 +1,8 @@
+side:
+  goal: the fix from SW-0042 is proven to work comparing main to HEAD
+  parent: SW-0042
+  compare:
+    before: main
+    after: HEAD
+wise:
+  why: validate

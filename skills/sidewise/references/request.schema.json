@@ -1,0 +1,474 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mvp-scale/Sidewise/skills/sidewise/references/request.schema.json",
+  "title": "Sidewise request",
+  "description": "Two blocks. side: one goal plus plumbing to the TypeSafe classifier. wise: optional context so the ledger learns. ask has two sections: concerns (yes/no) and decisions (scale/choice). Checks JSON Schema can't express (exact counts per depth, per-section kind restrictions, numbers unique and 1..N with no gaps, a category holds one kind of question, paths inside the project) are done by the Sidewise validator, which answers '✖ field: problem → fix'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "side"
+  ],
+  "properties": {
+    "side": {
+      "$ref": "#/$defs/side"
+    },
+    "wise": {
+      "$ref": "#/$defs/wise"
+    }
+  },
+  "$defs": {
+    "line": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 160,
+      "pattern": "^[^\\n]*$"
+    },
+    "tag": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "maxLength": 20
+    },
+    "sectionTag": {
+      "allOf": [
+        { "$ref": "#/$defs/tag" },
+        { "not": { "enum": ["concerns", "decisions"] } }
+      ]
+    },
+    "runId": {
+      "type": "string",
+      "pattern": "^SW-\\d{4,}$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^[^\\s:]+(:\\d+(-\\d+)?)?$",
+      "description": "a project path, optional :start-end"
+    },
+    "side": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "goal"
+      ],
+      "properties": {
+        "goal": {
+          "$ref": "#/$defs/line",
+          "description": "one line: what you want to be true"
+        },
+        "depth": {
+          "enum": [
+            "quick",
+            "standard",
+            "thorough"
+          ],
+          "description": "quick | standard | thorough = k = 1 | 2 | 3. One subject: the concerns section holds exactly 3k categories, each with exactly 3 yes/no probes (9 | 18 | 27 total). A sweep: at most 10 | 20 | 30 items per layer"
+        },
+        "where": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "$ref": "#/$defs/path"
+          }
+        },
+        "parent": {
+          "$ref": "#/$defs/runId",
+          "description": "required by drill and change: the run this builds on. Allowed on every verb otherwise, as lineage only"
+        },
+        "ask": {
+          "description": "one subject: {concerns: {...}, decisions: {...}} straight under ask. A sweep: {<layer>: {concerns: {...}, decisions: {...}}}, keyed by layer; {layer} blanks are filled in per item. A legacy flat category directly under ask (no concerns:/decisions: wrapper) is refused.",
+          "oneOf": [
+            {
+              "$ref": "#/$defs/sections"
+            },
+            {
+              "type": "object",
+              "minProperties": 1,
+              "propertyNames": {
+                "$ref": "#/$defs/sectionTag"
+              },
+              "additionalProperties": {
+                "$ref": "#/$defs/sections"
+              }
+            }
+          ]
+        },
+        "over": {
+          "type": "object",
+          "description": "sweeps: layer name → items. An item is a string, or {name: <item>, <next-layer>: [...]}. Different items may have different child layers. A layer can also be a path pattern (scan) or 'each' (we split the layer above into functions, calls or steps). Item ids are the names joined by '/': payments/refunds. 'concerns'/'decisions' are reserved for ask's own sections",
+          "minProperties": 1,
+          "propertyNames": {
+            "$ref": "#/$defs/sectionTag"
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 30
+              },
+              {
+                "type": "string"
+              }
+            ]
+          }
+        },
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "description": "drill: an item id from the parent run (names joined by '/': billing-engine/refunds), or a category name for a one-subject parent"
+        },
+        "compare": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "before",
+            "after"
+          ],
+          "properties": {
+            "before": {
+              "type": "string"
+            },
+            "after": {
+              "type": "string"
+            }
+          },
+          "description": "replay: two git refs"
+        },
+        "expect": {
+          "oneOf": [
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 9,
+              "items": {
+                "$ref": "#/$defs/tag"
+              }
+            },
+            {
+              "const": "none"
+            }
+          ],
+          "description": "replay, required: which of the parent's concerns this replay should turn to pass, or \"none\" to predict no flips at all"
+        },
+        "verb": {
+          "enum": [
+            "view",
+            "class",
+            "replay",
+            "scan",
+            "drill",
+            "loop"
+          ],
+          "description": "optional; the tool or command name wins. If both are present and differ, the request is sent back"
+        }
+      },
+      "description": "Per-verb requirements (checked by the validator): class needs depth, where, ask · view needs where (a partial draft is fine) · replay needs parent, compare and expect, and never ask (it re-runs the parent's questions; for new questions, use class) · scan and loop need depth, over, ask · drill needs parent and from; depth is optional. A sweep shows its total question count and cost before any call."
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "concerns": {
+          "$ref": "#/$defs/categoriesMap"
+        },
+        "decisions": {
+          "$ref": "#/$defs/categoriesMap"
+        }
+      }
+    },
+    "categoriesMap": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/tag"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/category"
+      }
+    },
+    "category": {
+      "type": "object",
+      "required": [
+        "pass"
+      ],
+      "properties": {
+        "pass": {
+          "description": "yes/no questions (concerns): yes (each answer ≥ 0.70) or no (each ≤ 0.30). Scale or choice (decisions): the passing levels or options",
+          "oneOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "enum": [
+                "yes",
+                "no"
+              ]
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
+        },
+        "need": {
+          "enum": [
+            "all",
+            "most",
+            "any"
+          ],
+          "default": "all",
+          "description": "all: every answer clears the bar · most: ≥ 2/3 and none the wrong way · any: at least one"
+        },
+        "tags": {
+          "type": "array",
+          "maxItems": 3,
+          "items": {
+            "$ref": "#/$defs/tag"
+          }
+        },
+        "family": {
+          "enum": [
+            "access",
+            "injection",
+            "secrets",
+            "input",
+            "output",
+            "availability",
+            "correctness",
+            "design",
+            "design-risk",
+            "done",
+            "other"
+          ],
+          "description": "concerns only; defaults to the category name when that name is itself a family"
+        }
+      },
+      "propertyNames": {
+        "anyOf": [
+          {
+            "enum": [
+              "pass",
+              "need",
+              "tags",
+              "family"
+            ]
+          },
+          {
+            "pattern": "^[1-9][0-9]*$"
+          }
+        ]
+      },
+      "patternProperties": {
+        "^[1-9][0-9]*$": {
+          "$ref": "#/$defs/question"
+        }
+      }
+    },
+    "question": {
+      "oneOf": [
+        {
+          "allOf": [
+            {
+              "$ref": "#/$defs/line"
+            },
+            {
+              "pattern": "\\?$"
+            }
+          ],
+          "description": "a yes/no question ending in ?"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scale",
+            "levels"
+          ],
+          "properties": {
+            "scale": {
+              "$ref": "#/$defs/line"
+            },
+            "levels": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 10,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "choice",
+            "options"
+          ],
+          "properties": {
+            "choice": {
+              "$ref": "#/$defs/line"
+            },
+            "options": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "wise": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "why": {
+          "enum": [
+            "validate",
+            "find",
+            "debug",
+            "unknown"
+          ]
+        },
+        "area": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/wiseArea"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 2,
+              "items": {
+                "$ref": "#/$defs/wiseArea"
+              }
+            }
+          ]
+        },
+        "stage": {
+          "enum": [
+            "design",
+            "build",
+            "review",
+            "pre-merge",
+            "post-fix",
+            "release",
+            "operate",
+            "unknown"
+          ]
+        },
+        "change": {
+          "enum": [
+            "feature",
+            "fix",
+            "refactor",
+            "dependency",
+            "config",
+            "unknown"
+          ]
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "unknown"
+          ]
+        },
+        "parent": {
+          "$ref": "#/$defs/runId"
+        },
+        "problem": {
+          "$ref": "#/$defs/line",
+          "description": "one line: what the agent is solving right now"
+        },
+        "uses": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/wiseChain"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {
+                "$ref": "#/$defs/wiseChain"
+              }
+            }
+          ],
+          "description": "one C4 chain, or a list of up to 5: level:name ( -> level:name)*"
+        },
+        "touches": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40,
+            "pattern": "^[^\\n]*$"
+          }
+        },
+        "blast": {
+          "enum": [
+            "code",
+            "component",
+            "container",
+            "system",
+            "person",
+            "unknown"
+          ]
+        }
+      },
+      "patternProperties": {
+        "^(?=.{1,20}$)(?!(?:why|area|stage|change|risk|parent|problem|uses|touches|blast)$)[a-z][a-z0-9]*(-[a-z0-9]+)*$": {
+          "description": "any other lower-kebab key (≤20 characters): one line ≤160, or a list of ≤5 such lines, recorded as-is",
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 160,
+              "pattern": "^[^\\n]*$"
+            },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 5,
+              "items": {
+                "type": "string",
+                "maxLength": 160,
+                "pattern": "^[^\\n]*$"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "wiseArea": {
+      "enum": [
+        "data",
+        "api",
+        "ui",
+        "auth",
+        "hosting",
+        "build",
+        "tests",
+        "unknown"
+      ]
+    },
+    "wiseChain": {
+      "type": "string",
+      "maxLength": 160,
+      "pattern": "^(?:person|system|container|component|code):[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\\??(?: -> (?:person|system|container|component|code):[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\\??)*$",
+      "description": "a C4 chain: level:name ( -> level:name)*, level in person|system|container|component|code"
+    }
+  }
+}

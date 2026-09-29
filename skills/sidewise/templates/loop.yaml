@@ -1,0 +1,65 @@
+# loop: sweeps ideas the agent itself writes (a design, a plan) before any code exists. No file evidence.
+side:
+  goal: The checkout redesign is sound        # required
+  # verb: loop                                # optional — must match the command you run, or the request is sent back
+  depth: quick                                # required — sets the concerns count on the finest layer (story) below; also caps items per layer (10/20/30)
+  where: [src/checkout/]                      # optional — context only (folder that will hold this); loop reads no files
+  over:                                       # required
+    part:                           # part and story are SIBLINGS here, both under over: — not one nested in the other
+      - name: gateway
+        story: [guest checkout, saved cards]   # names/tags: one word or kebab-case, <= 20 chars, no "/"
+      - name: payments
+        story: [refunds, retries, partial capture]
+      - ledger
+  ask:                                        # required — one concerns:/decisions: pair per layer; only the finest layer (story) needs the full 3k + decisions
+    part:                          # part is not the finest layer: thin on purpose, counts aren't enforced here (a note if thin)
+      concerns:
+        boundaries:
+          family: design                        # design's own roles (sidewise agent probe): responsibility, dependency, testability
+          pass: yes
+          1: Does {part} own one clear responsibility?              # responsibility
+          2: Can {part} be deployed without the others?              # dependency
+    story:                          # every story question is asked of EVERY story — phrase it so that holds; story is the finest layer
+      concerns:
+        done:                                   # "done" is itself a family — its 3 roles: concrete, testable, owned
+          pass: yes
+          3: Is "{story}" testable against {part} as written?        # testable
+          4: Does "{story}" have a named owner?                      # owned
+          5: Is "{story}" small enough to ship on its own?           # concrete
+        risk:
+          family: design-risk                   # design-risk's own roles: abuse, failure, data
+          pass: no
+          6: Does "{story}" need data {part} doesn't own?                              # data
+          7: Could "{story}" be built by bypassing {part}'s own boundary?              # abuse
+          8: Could "{story}" fail silently in production?                             # failure
+        fit:
+          family: design                        # design's own roles: responsibility, dependency, testability
+          pass: yes
+          9: Does "{story}" match how {part} is meant to be used?    # responsibility
+          10: Would "{story}" survive {part} being replaced later?   # dependency
+          11: Is "{story}" covered by an existing test today?        # testability
+      decisions:
+        risk-level:
+          pass: [none, low]
+          12:
+            scale: How risky is "{story}"?
+            levels: [none, low, medium, high, critical]
+        route:
+          pass: [build-now]
+          13:
+            choice: What should happen to "{story}" next?
+            options: [build-now, rework, redesign]
+                                               # loop never takes from:, compare: or parent: — it has no parent run to build on
+wise:                                         # optional block; every field inside it is optional too
+  why: validate                               # optional — validate | find | debug
+  area: api                                   # optional — data | api | ui | auth | hosting | build | tests
+  # stage: design                             # optional — design | build | review | pre-merge | post-fix | release
+  # change: feature                           # optional — feature | fix | refactor | dependency | config
+  # risk: medium                              # optional — low | medium | high
+  # parent: SW-0001                           # optional — a related run, for lineage
+  # problem: Stress-testing the checkout split into gateway/payments/ledger before writing any code   # optional
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - system:checkout -> container:gateway
+  #   - system:checkout -> container:payments
+  # touches: [gateway, payments, ledger]       # optional — up to 5 entities/objects this run is about
+  # blast: system                             # optional — code | component | container | system | person

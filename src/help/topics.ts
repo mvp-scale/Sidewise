@@ -1,0 +1,121 @@
+/**
+ * `sidewise help <topic>`: cross-cutting rules that don't belong to one verb:
+ * authoring (how to write a request), verdict (how to read one), wise (the ledger's own context fields),
+ * reuse (what answers are free and why). `verdict()`'s response-vocabulary bullets come from rules.ts's
+ * `VERDICT_FACTS` — the same list `agent verdict` (help/agent.ts) renders bare, so the two views can't state
+ * the verdict rules differently; `probe()` likewise splices `ruleLines('probe')` in after `PROBE_RULES`, for
+ * facts that are Sidewise's own validator rules rather than TypeSafe guidance (schema-check.ts's per-question
+ * character cap). [C-194] [C-196]
+ */
+import { AREAS, BLASTS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
+import { MAX_CUSTOM_KEY_LEN, MAX_WISE_LINES } from '../contract/wise-fields.ts';
+import { proseLines } from './patterns.ts';
+import { BAD_PROBE_EXAMPLE, FAMILY_ROLES, PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
+
+export const TOPICS = ['authoring', 'verdict', 'wise', 'reuse', 'probe'] as const;
+export type Topic = (typeof TOPICS)[number];
+
+function authoring(): string {
+  return [
+    '## authoring',
+    'How to write a request that survives its first try. Under the hood a yes/no question asks the classifier\'s',
+    'Noul primitive, a `scale:` asks Score, and a `choice:` asks Choice — one narrow, coherent judgment per',
+    'question, so keep each one to a single thing.',
+    ...ruleLines('authoring'),
+    '- `where:` is ALL the code a run sees — nothing outside it exists, however obvious the wiring seems.',
+    '- phrase the goal as the exact claim you need proven ("this handler is safe to merge", not "review this handler") — wording changes the verdict, on purpose.',
+    '- a `{blank}` in a sweep question is filled in per item; it must name that layer or one above it.',
+    '- a question\'s number is a label for the response only — the model never sees it, so the question text itself has to carry its full meaning on its own.',
+    '- a `scale:` level should name a concrete situation that stands on its own ("crashes in production"), not a bare relative point ("high").',
+    '- give a `choice:` a genuine no-match option (e.g. `none`) whenever the code might fit none of the others.',
+    '- ask everything you need about this evidence in one request — a second call (`drill`) is for when you need to look at something new, not more angles on what you already sent.',
+    ...proseLines('authoring'),
+  ].join('\n');
+}
+
+function verdict(): string {
+  return [
+    '## verdict',
+    'How to read what comes back:',
+    ...ruleLines('verdict'),
+    ...VERDICT_FACTS.map((f) => `- ${f}.`),
+  ].join('\n');
+}
+
+function wise(): string {
+  return [
+    '## wise',
+    'wise: is optional context that never reaches the classifier — it only shapes what the ledger learns. Every',
+    `field is optional; the block is capped at ${MAX_WISE_LINES} YAML lines:`,
+    '',
+    '| field | closed values | what you get back |',
+    '|---|---|---|',
+    `| why    | ${WHYS.join(', ')} | why this run happened, for later pattern-mining |`,
+    `| area   | ${AREAS.join(', ')} (single, or a list of up to 2) | which slice of the system it touched |`,
+    `| stage  | ${STAGES.join(', ')} | where in the workflow it landed |`,
+    `| change | ${CHANGES.join(', ')} | what kind of change was under review |`,
+    `| risk   | ${RISKS.join(', ')} | how risky the change looked going in |`,
+    `| problem | free text, one line, 3–160 chars | what the agent was solving, in its own words |`,
+    `| uses   | up to 5 C4 chains: level:name ( -> level:name)* | which parts of the system this run touches |`,
+    `| touches | up to 5 short entries | the entities/objects this run is about |`,
+    `| blast  | ${BLASTS.join(', ')} | how far a fix's blast radius reaches |`,
+    '',
+    `Any other lower-kebab key (≤${MAX_CUSTOM_KEY_LEN} characters) is also accepted: one line or a short list,`,
+    'recorded as-is. Every closed field above also accepts `unknown`. For this project\'s exact allowed values,',
+    'run `sidewise agent wise` — it renders the full C4 legend (the `uses` grammar, the chain examples) too.',
+    '',
+    ...ruleLines('wise'),
+    '- every field is optional; the response always echoes back which ones were recorded as `wise: {recorded: [...]}`, or `{recorded: none}`.',
+  ].join('\n');
+}
+
+function reuse(): string {
+  return [
+    '## reuse',
+    'The exact same question, asked of the exact same code, is answered for free from the ledger — no call, no',
+    'spend, and the response says so. This is exact-match reuse: same evidence, same question text, same',
+    'provider and model; nothing here is a semantic or fuzzy match.',
+    '- `view <request-file>` checks this before you spend anything: it shows `reuse: SW-####` when the exact',
+    '  question set was already asked on unchanged code.',
+    '- a sweep (scan, loop, drill on a sweep parent) reuses per item: unchanged items cost nothing, and the',
+    '  response counts how many were reused.',
+    '- a fully-reused run should never be blocked by the spend cap, since it spends nothing — if you see that,',
+    '  it\'s a bug, not a feature.',
+    '- reuse keys on the evidence and the question\'s own text, not on how the answer is graded: moving a',
+    '  category\'s `pass:` or `need:` re-grades the same free answer instead of re-asking the question.',
+  ].join('\n');
+}
+
+function probe(): string {
+  return [
+    '## probe',
+    'A valid probe: the shape of a well-formed question, best practice for a higher-quality answer — guidance,',
+    "not new validator enforcement. Each rule below is TypeSafe's own published guidance, paraphrased, with its",
+    'source page cited.',
+    '',
+    ...PROBE_RULES.map((r) => `- ${r.text} (TypeSafe: ${r.cite})`),
+    ...ruleLines('probe'),
+    '',
+    'Round 3 smoke testing found this directly: a goal phrased as the vulnerability ("runs request input as code")',
+    'read pass/fail backwards, and its probability stayed at p 0.98 before AND after the fix that removed the',
+    "vulnerability — the wording, not the classifier, was wrong. That's rule 7 above.",
+    '',
+    '## Angles: a concern is one path; its ~3 probes are three angles on it',
+    "This part is Sidewise's own model, not TypeSafe's — pick the family that matches the category's path,",
+    'then write one probe per role:',
+    '',
+    ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(' · ')}`),
+    '',
+    `A bad probe: "${BAD_PROBE_EXAMPLE.bad}" — ${BAD_PROBE_EXAMPLE.why}. Rewritten as three angles:`,
+    ...BAD_PROBE_EXAMPLE.good.map((g) => `- ${g}`),
+    '',
+    'See the sidewise-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),',
+    'wise\'s problem/uses/touches/blast fields, and one recipe per verb.',
+  ].join('\n');
+}
+
+const BUILDERS: Record<Topic, () => string> = { authoring, verdict, wise, reuse, probe };
+
+export function topicHelp(topic: Topic): string {
+  return BUILDERS[topic]();
+}

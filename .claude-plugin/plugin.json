@@ -7,5 +7,14 @@
   "homepage": "https://github.com/mvp-scale/Sidewise",
   "repository": "https://github.com/mvp-scale/Sidewise",
   "license": "Apache-2.0",
-  "keywords": ["decision-support", "checklist", "consensus", "knowledge"]
+  "keywords": ["decision-support", "checklist", "consensus", "knowledge"],
+  "userConfig": {
+    "typesafe_api_key": {
+      "type": "string",
+      "title": "TypeSafe API key: press Enter here, then paste",
+      "description": "Press Enter, paste your key, press Enter, then choose \"Save configuration\". Stored masked in Claude Code's secure storage. No key: sample answers only.",
+      "sensitive": true,
+      "required": false
+    }
+  }
 }

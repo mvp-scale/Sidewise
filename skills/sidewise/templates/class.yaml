@@ -1,0 +1,59 @@
+# class: one subject, one verdict. Edit goal, where and ask; wise is optional but cheap context.
+# side.verb (shown once here, commented) is legal on every verb — it's optional everywhere, not just class.
+side:
+  goal: This login handler is safe to merge   # required — phrase as the exact claim to prove — wording changes the verdict
+  # verb: class                               # optional — must match the command you run, or the request is sent back
+  depth: quick                                # required — quick=9, standard=18, thorough=27 yes/no questions across 3/6/9 concerns categories (decisions don't count)
+  where: [src/handlers/user.ts:1-40]          # required — up to 5 path[:start-end] entries — this is ALL the code it sees
+                                               # a whole file over ~20,000 chars won't send — name the range instead
+                                               # a question about code NOT in where: has nothing to answer from — add it here
+                                               # with more than one file, name the one you mean in the question (in `backticks`)
+  ask:                                        # required — two sections: concerns (yes/no) and decisions (scale/choice)
+                                               # questions are numbered 1…N across the WHOLE request, decisions included — no gaps, no restart at decisions
+    concerns:                                 # exactly 3k categories for the depth above (quick: 3), each with exactly 3 probes — three angles on one path (sidewise agent probe)
+      injection:
+        pass: no                              # every question in this category must answer "no" when things are fine
+        need: most                            # optional (default all) — all: every answer clears · most: >= 2/3, none a clear miss · any: at least one
+        tags: [sql, backend]                  # optional — up to 3 short tags on this category, kept for later pattern-mining
+        1: Is the user id taken from `req.query` without validation?                       # reach
+        2: Is the id concatenated into the SQL string instead of bound as a parameter?     # guard (note the polarity: "yes" here is bad)
+        3: Does the query run with `db.query` on that concatenated string?                 # sink
+      access:
+        pass: no
+        4: Is the session's own user id used to look up the record, not one from the request?   # actor
+        5: Is the record's owner compared against the caller before it's returned?              # check
+        6: Could any caller read another user's record by changing the id alone?                # resource
+      leaks:
+        family: output                          # output's own roles (sidewise agent probe): source, encode, render
+        pass: no
+        7: Does a failed query send the raw database error back to the caller?    # source
+        8: Is the error message written to a response body verbatim?             # encode (no sanitizing before it goes out)
+        9: Does the response include fields the caller never asked for?          # render
+    decisions:                                # 2-5 categories; at least one scale and one choice; don't count toward depth
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst issue found?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should this go?
+          options: [ship, fix, block]
+      # scope:                                 # optional, recommended (TypeSafe best practice) — the visible-scope probe
+      #   pass: [enough]
+      #   12:
+      #     choice: Can this be answered from the code shown?
+      #     options: [enough, partial, missing]
+wise:                                         # optional block; every field inside it is optional too
+  why: validate                               # optional — validate | find | debug
+  area: auth                                  # optional — data | api | ui | auth | hosting | build | tests
+  # stage: build                              # optional — design | build | review | pre-merge | post-fix | release
+  # change: fix                               # optional — feature | fix | refactor | dependency | config
+  # risk: medium                              # optional — low | medium | high
+  # parent: SW-0001                           # optional — a related run, for lineage (side.parent is accepted on every verb too)
+  # problem: The user id from the request reaches a SQL query unchecked      # optional — one line, your own words: what you're solving now
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  #   - component:web-app/user-handler -> container:db
+  # touches: [userId, findUser]               # optional — up to 5 entities/objects this run is about
+  # blast: component                          # optional — code | component | container | system | person

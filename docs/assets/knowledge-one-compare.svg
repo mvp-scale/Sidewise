@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc" style="text-rendering:geometricPrecision">
+  <title id="title">Great on its own. Better with a Knowledge One.</title>
+  <desc id="desc">Two cards. A System One classifier: online, inexpensive, fast, calibrated yes or no. A Knowledge One, such as Sidewise, adds what a System One doesn't give you on its own: a standard request, well-formed checks before you pay, many angles per decision, caching, routing, knowing what it doesn't know, context kept, a traceable record, and knowledge that grows with use.</desc>
+  <defs>
+    <linearGradient id="bg" x2="0" y2="1"><stop stop-color="#0b1424"/><stop offset="1" stop-color="#050914"/></linearGradient>
+    <linearGradient id="amber"><stop stop-color="#ffe49c"/><stop offset="1" stop-color="#ffbd4a"/></linearGradient>
+    <linearGradient id="lime"><stop stop-color="#b7ff83"/><stop offset="1" stop-color="#78df41"/></linearGradient>
+  </defs>
+  <style>
+    text{font-family:Inter,ui-sans-serif,system-ui,sans-serif}
+    .h{fill:#f5f8ff;font-size:25px;font-weight:800}.hs{fill:#93a7bd;font-size:14px}
+    .card{fill:#101b2e;stroke:#24344f;stroke-width:1.5}
+    .ct{fill:#f5f8ff;font-size:19px;font-weight:800}.cs{fill:#93a7bd;font-size:12.5px}
+    .k{fill:#93a7bd;font-size:11px;font-weight:800;letter-spacing:.08em}
+    .it{fill:#e8eefb;font-size:13.5px}.dim{fill:#6f819a;font-size:13.5px}
+    .foot{fill:#93a7bd;font-size:14px}
+    .r{opacity:0;animation:r 12s ease-out infinite}
+    .d1{animation-delay:.2s}.d2{animation-delay:.5s}.d3{animation-delay:.8s}.d4{animation-delay:1.1s}.d5{animation-delay:1.6s}.d6{animation-delay:1.9s}.d7{animation-delay:2.2s}.d8{animation-delay:2.5s}.d9{animation-delay:2.8s}.d10{animation-delay:3.2s}.d11{animation-delay:3.5s}.d12{animation-delay:3.8s}.d13{animation-delay:4.1s}
+    @keyframes r{0%{opacity:0;transform:translateY(5px)}6%,94%{opacity:1;transform:translateY(0)}100%{opacity:0}}
+    @media(prefers-reduced-motion:reduce){*{animation:none!important}.r{opacity:1}}
+  </style>
+  <rect width="1000" height="600" rx="28" fill="url(#bg)"/>
+  <rect x="20" y="20" width="960" height="560" rx="22" fill="none" stroke="#fff" stroke-opacity=".08"/>
+  <text x="500" y="64" text-anchor="middle" class="h">Great on its own. Better with a Knowledge One.</text>
+  <text x="500" y="90" text-anchor="middle" class="hs">A System One classifier answers well. A Knowledge One makes every answer count.</text>
+
+  <!-- left card: System One -->
+  <rect x="48" y="116" width="420" height="424" rx="20" class="card"/>
+  <rect x="72" y="140" width="44" height="44" rx="12" fill="url(#amber)"/><text x="94" y="169" text-anchor="middle" fill="#2b2107" font-size="15" font-weight="850">S1</text>
+  <text x="132" y="158" class="ct">System One</text><text x="132" y="178" class="cs">a classifier, e.g. TypeSafe's Jev</text>
+  <text x="72" y="222" class="k">WHAT IT DOES WELL</text>
+  <g class="r d1"><circle cx="80" cy="246" r="5" fill="#ffd166"/><text x="96" y="251" class="it">Online, nothing to host</text></g>
+  <g class="r d2"><circle cx="80" cy="274" r="5" fill="#ffd166"/><text x="96" y="279" class="it">Inexpensive: a fraction of a cent</text></g>
+  <g class="r d3"><circle cx="80" cy="302" r="5" fill="#ffd166"/><text x="96" y="307" class="it">Fast, focused judgments</text></g>
+  <g class="r d4"><circle cx="80" cy="330" r="5" fill="#ffd166"/><text x="96" y="335" class="it">Calibrated yes/no, with odds</text></g>
+  <text x="72" y="378" class="k">LEFT TO YOU</text>
+  <text x="72" y="404" class="dim">How to ask it well, every time</text>
+  <text x="72" y="430" class="dim">What it doesn't know, and when to doubt it</text>
+  <text x="72" y="456" class="dim">Remembering what it already told you</text>
+  <text x="72" y="482" class="dim">Turning answers into knowledge</text>
+  <text x="72" y="516" class="cs">It works. It's the foundation.</text>
+
+  <!-- right card: Knowledge One -->
+  <rect x="532" y="116" width="420" height="424" rx="20" class="card" style="stroke:#9cff63;stroke-opacity:.45"/>
+  <rect x="556" y="140" width="44" height="44" rx="12" fill="url(#lime)"/><text x="578" y="169" text-anchor="middle" fill="#14240a" font-size="15" font-weight="850">K1</text>
+  <text x="616" y="158" class="ct">+ Knowledge One</text><text x="616" y="178" class="cs">e.g. Sidewise, on top of any System One</text>
+  <text x="556" y="222" class="k" style="fill:#9bdcff">ADDS, FOR THE DECISION IN FRONT OF YOU</text>
+  <g class="r d5"><circle cx="564" cy="246" r="5" fill="#9bdcff"/><text x="580" y="251" class="it">A standard request: 10, 20 or 30 angles</text></g>
+  <g class="r d6"><circle cx="564" cy="274" r="5" fill="#9bdcff"/><text x="580" y="279" class="it">Checked before you pay</text></g>
+  <g class="r d7"><circle cx="564" cy="302" r="5" fill="#9bdcff"/><text x="580" y="307" class="it">A verdict per concern, and "unsure"</text></g>
+  <g class="r d8"><circle cx="564" cy="330" r="5" fill="#9bdcff"/><text x="580" y="335" class="it">Cached answers, routed to your model</text></g>
+  <text x="556" y="378" class="k" style="fill:#b7ff83">ADDS, FOR EVERYTHING AFTER</text>
+  <g class="r d9"><circle cx="564" cy="399" r="5" fill="#b7ff83"/><text x="580" y="404" class="it">Knows when its answer is stale</text></g>
+  <g class="r d10"><circle cx="564" cy="425" r="5" fill="#b7ff83"/><text x="580" y="430" class="it">Why you asked, kept with the answer</text></g>
+  <g class="r d11"><circle cx="564" cy="451" r="5" fill="#b7ff83"/><text x="580" y="456" class="it">A traceable, append-only record</text></g>
+  <g class="r d12"><circle cx="564" cy="477" r="5" fill="#b7ff83"/><text x="580" y="482" class="it">Knowledge that grows with use</text></g>
+  <text x="556" y="516" class="cs">The same foundation, made better.</text>
+
+  <text x="500" y="566" text-anchor="middle" class="foot">A System One needs a Knowledge One. <tspan fill="#f5f8ff" font-weight="760">That's Sidewise.</tspan></text>
+</svg>

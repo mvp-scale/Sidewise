@@ -6,5 +6,10 @@ WORKDIR /app
 COPY --chown=node:node package.json package-lock.json ./
 USER node
 RUN npm ci --no-audit --no-fund
+# npm ci resolves straight from package-lock.json, so it only ever caches yaml's TARBALL request, never its
+# packument (the un-versioned "what versions exist" metadata) — but that's exactly what a fresh `npm install
+# <tarball>` needs when it lands in a brand-new project with no lock file of its own (test/e2e/install/
+# clean-install.test.ts). Network is available here, at build time; the test itself runs under --network none.
+RUN npm view yaml@2.9.1 > /dev/null
 COPY --chown=node:node . .
-CMD ["sh", "-c", "npx tsc -p tsconfig.json --noEmit && npx vitest run --project unit --project contract --project golden && npm pack --dry-run --json > /dev/null && echo PACK OK"]
+CMD ["sh", "-c", "npx tsc -p tsconfig.json --noEmit && npx vitest run --project unit --project contract --project golden && npm run build && npx vitest run --project install && echo INSTALL OK"]

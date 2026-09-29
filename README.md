@@ -14,45 +14,150 @@ Sidewise gives coding agents a cheap, calibrated side-question. The agent writes
 - **Irreversible stays human.** Delete, deploy, drop and pay are always the agent's or owner's call.
 - **Every answer gets graded.** Outcomes (held · overruled · failed) are logged next to the question that produced them.
 - **It finds what your agents are bad at.** Overruled, failed and split answers roll up into weak spots, but only with enough evidence to be believed.
-- **Budgeted.** Daily and per-session caps, and it fails closed.
-- **Runs where your agents run.** One CLI and one MCP server, with native setup for Claude Code, Codex, Gemini CLI, Cursor, VS Code/Copilot and more.
+- **Budgeted, no surprises.** A hard spend cap that only you reset. It fails closed.
+- **Runs where your agents run.** One CLI and one MCP server: a one-command plugin for Claude Code, a `GEMINI.md` for Gemini CLI, and a standard MCP server any MCP client (Cursor, VS Code/Copilot, ...) can point at.
 
 ## What a run looks like
 
+Every request has a `side:` block (**solve it now**: one goal, then plumbing) and an optional `wise:` block (**get smarter**: why you're here, so the ledger learns). `class` — one call, one subject — is the simplest of the six verbs; run `sidewise help` for all six and how they fit together.
+
+Request:
+
+```yaml
+side:
+  goal: This login handler is safe to merge
+  depth: quick
+  where: [src/user.ts:1-3]
+  ask:
+    injection:
+      pass: no
+      1: Is request text placed directly into the SQL query?
+      2: Could a caller change what the query does?
+      10: Would a standard security scanner flag this code?
+    guards:
+      pass: yes
+      3: Is the id checked to be a number before use?
+      6: Is the caller compared to the record owner?
+      9: Does the query select only needed columns?
+    access:
+      pass: no
+      4: Could one user read another user's record?
+      5: Can any caller read any record without a permission check?
+    leaks:
+      pass: no
+      7: Does the error sent back reveal the query?
+      8: Does the code log an email address?
+    severity:
+      pass: [none, low]
+      11:
+        scale: How severe is the worst issue?
+        levels: [none, low, medium, high, critical]
+    route:
+      pass: [ship]
+      12:
+        choice: Where should this go?
+        options: [ship, fix, block]
+wise:
+  why: validate
+  area: data
 ```
-sidewise class L1
-problem: login lookup builds SQL from the request
-focus: This handler is safe to merge
 
- 1  Is request text placed directly into the SQL query?
- 2  Could a caller change what the query does?
- 3 !Is the id checked to be a number before use?
- ...
-10  Would a standard security scanner flag this code?
+Response:
 
-? Where should this go? ship | fix | block
+```yaml
+side:
+  id: SW-0042
+  gate: fail
+  goal: {gate: fail, p: 0.08}
+  injection: {gate: fail,   1: 0.94, 2: 0.91, 10: 0.90}
+  guards:    {gate: pass,   3: 0.88, 6: 0.81, 9: 0.75}
+  access:    {gate: fail,   4: 0.86, 5: 0.84}
+  leaks:     {gate: unsure, 7: 0.55, 8: 0.20}
+  severity:  {gate: fail,   11: {top: high, p: 0.81}}
+  route:     {gate: fail,   12: {top: block, p: 0.97}}
+  consensus: STRONG
+  escalate: false
+wise: {recorded: [why, area]}
+next: sidewise template drill --parent SW-0042 --from injection
+notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
 ```
 
-```
-sidewise SW-0042 · class L1 · consensus STRONG · leans block (.97)
-agree   1 2 4 5 7 10 · reversed ok 3 6 9
-concern 1 2 (injection) · 4 5 (access)
-guidance: the evidence agrees this query is exploitable; fix before merging
-next: sidewise drill --parent SW-0042 --focus injection
-```
+The numbers above are one run's illustration, not a guarantee — the real classifier's actual answer varies.
 
-## Install (coming)
+## Install
 
-```bash
-npx @mvpscale/sidewise init            # detect your agents and set each one up
-```
+Requires Node 22.13 or newer — it's what the ledger's `node:sqlite` index runs on. The CLI checks this itself and stops with a clear message on anything older (`sidewise doctor` reports it too, and still runs on an old Node so you can see what's wrong).
 
-Claude Code plugin:
+**Claude Code: install the plugin and set your key in its options, that's all.**
 
 ```
 /plugin marketplace add mvp-scale/Sidewise
 /plugin install sidewise@mvp-scale
 ```
+
+Claude prompts for a TypeSafe API key (masked, optional — leave it empty to use the free fake provider):
+
+1. Press Enter on "TypeSafe API key", paste your key, press Enter, then choose "Save configuration".
+
+The plugin bundles its own CLI and its own MCP tool; nothing else to install, no npm, no PATH. Want the AI Gateway route instead? The plugin's config only offers the TypeSafe key — set `AI_GATEWAY_API_KEY` in your own environment; the CLI reads it the same way it always has. Testing from a clone of this repo: `/plugin marketplace add /path/to/your/clone` instead of the GitHub form.
+
+`/plugin` defaults to installing at **user** scope (every project); Sidewise is scoped per project, so pick **project** scope in the prompt if you can, or run `sidewise init --scope project` afterward to fix it — `sidewise doctor` names the scope it finds and nudges you if it's user-only.
+
+**Everyone else (a bare terminal, Codex, Gemini CLI, ...):** run this inside the project you want Sidewise in:
+
+```bash
+npx @mvpscale/sidewise init
+```
+
+`init` does four things and says what it did at each step, one line apiece:
+- It puts the `sidewise` command on your PATH. You choose global, `--user` (under `~/.local`, no sudo) or `--local` (this project only, run as `npx sidewise`). It never runs sudo.
+- It asks for your TypeSafe API key, with the input hidden, and stores it per user: the OS keychain first, otherwise `~/.config/sidewise/env` (mode 0600). Press Enter to skip and use the free fake provider.
+- It enables the Claude Code plugin for this project, if `claude` is on your PATH.
+- It sets up `.sidewise/`, this project's run history, which git ignores.
+
+Re-running `init` changes nothing that's already right. In a second project it only enables that project. `sidewise uninstall` reverses it for this project; add `--all` to also remove the key and the CLI.
+
+**Just the CLI:** `npm install -g @mvpscale/sidewise` (global; may need sudo), `npm install -g --prefix ~/.local @mvpscale/sidewise` (no sudo; `~/.local/bin` must be on PATH) or `npm install -D @mvpscale/sidewise` (this project; run `npx sidewise`). Then add a key with `sidewise init`, or `export TYPESAFE_API_KEY=…`.
+
+`sidewise doctor` says where the key came from (`from OS keychain`, `from user file …`, `from env …`), never the key itself.
+
+### From a local build
+
+In a clone of this repo:
+
+```bash
+npm install
+cd /path/to/your/project && npm --prefix /path/to/Sidewise run dev:install
+```
+
+`dev:install` builds, packs a tarball, and runs `init` from that tarball in the directory you ran it from, so a local build installs exactly the way the published package does.
+
+## Quickstart
+
+Every command below runs unmodified, in order, against a fresh project — `sidewise template class` already asks about the first three lines of `src/user.ts`, so nothing needs editing before `sidewise class` sends it. In a real project, edit the `goal` and `ask` first.
+
+With no `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` in the environment, this runs on the built-in fake provider — free, deterministic, offline, and its answers are canned, not real. Set one of those keys for real answers (or `SIDEWISE_PROVIDER=fake|chaos|typesafe` to choose explicitly).
+
+```bash
+# sidewise-quickstart
+sidewise template class > review.yaml
+sidewise class review.yaml
+sidewise view src
+sidewise report
+sidewise outcome SW-0001 held --by you
+sidewise budget
+```
+
+Run `sidewise doctor` any time to check which provider, route and base URL a call would use, whether a key is
+set (never its value), and whether a project and its ledger are found — free, no call, no spend. Set
+`SIDEWISE_BASE_URL=<url>` to point at a proxy or a self-hosted mirror instead of TypeSafe's own endpoint
+(`https` required, except `http` for `localhost`/`127.0.0.1`/`[::1]`). A 429 or 529 from TypeSafe is retried
+automatically, up to twice more; a 401 or 422 never retries.
+
+`sidewise report [hits|patterns|history]` reads back what the ledger already knows — free, read-only, no
+options beyond the view name; it's a read tool, not a seventh verb.
+
+For the full six verbs, grading rules and stop/exit codes, run `sidewise help` (or `sidewise help <verb>`/`sidewise help <topic>`), or see [skills/sidewise/SKILL.md](skills/sidewise/SKILL.md) for the short version.
 
 ## Releases
 
