@@ -408,6 +408,9 @@ function checkMdl(mdl: unknown, out: Out, rawText?: string, mdlFields: readonly 
   }
 }
 
+/** The pre-rename top-level blocks and what they became (MM3 rename: side: -> mak:, wise: -> mdl:). */
+const RENAMED_BLOCKS: Record<string, string> = { side: 'mak', wise: 'mdl' };
+
 /** Every schema violation in a parsed request, as schema-class stops. Empty when the schema accepts it.
  *  `verb` is used only to word the flat-ask/empty-ask fix text ("mm3 template <verb>"); every other check
  *  here is verb-agnostic, matching the published schema (which has no concept of verb either). `rawText`: the
@@ -423,10 +426,12 @@ export function checkSchema(value: unknown, verb?: Verb, rawText?: string, mdlFi
     return out.stops;
   }
   for (const k of Object.keys(value)) {
-    if (k !== 'mak' && k !== 'mdl') out.add(clip(k, 20), 'not a block', 'the request holds only mak: and mdl:; put fields under mak:');
+    // Pre-rename requests (side:/wise: before the MM3 rename) get a help-first stop, not a generic "not a block".
+    if (Object.hasOwn(RENAMED_BLOCKS, k)) out.add(k, 'renamed', `use ${RENAMED_BLOCKS[k]}:`);
+    else if (k !== 'mak' && k !== 'mdl') out.add(clip(k, 20), 'not a block', 'the request holds only mak: and mdl:; put fields under mak:');
   }
-  if (!('mak' in value)) out.add('mak', 'missing', 'start with mak: and a goal');
-  else checkMak(value.mak, verb, out);
+  if ('mak' in value) checkMak(value.mak, verb, out);
+  else if (!('side' in value)) out.add('mak', 'missing', 'start with mak: and a goal'); // side: already got its own stop
   if ('mdl' in value) checkMdl(value.mdl, out, rawText, mdlFields);
   return out.stops;
 }

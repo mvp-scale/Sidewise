@@ -32,6 +32,13 @@ describe('checkSchema', () => {
     expect(texts({ ...base(), focus: 'x' })).toEqual(['✖ focus: not a block → the request holds only mak: and mdl:; put fields under mak:']);
   });
 
+  it('pre-rename side:/wise: get a "renamed" stop that names the new block [C-004]', () => {
+    const { mak, ...rest } = base();
+    expect(texts({ side: mak })).toEqual(['✖ side: renamed → use mak:']);
+    expect(texts({ ...base(), wise: {} })).toEqual(['✖ wise: renamed → use mdl:']);
+    expect(texts({ side: mak, wise: {}, ...rest })).toEqual(['✖ side: renamed → use mak:', '✖ wise: renamed → use mdl:']);
+  });
+
   it('mak fields: unknown, goal, depth, where, parent, compare, verb, from, expect [C-010] [C-012] [C-210]', () => {
     const r = base();
     r.mak.level = 1;
