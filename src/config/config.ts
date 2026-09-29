@@ -1,6 +1,6 @@
 /**
- * `mm3 config`: prints the EFFECTIVE config as valid, copyable YAML (plan 2c B, item 3) — never writes
- * anything. Free, like `doctor`: works with or without a project (no project just means every value is a
+ * `mm3 config`: prints the EFFECTIVE config as valid, copyable YAML (plan 2c B, item 3) — plain `config` never
+ * writes anything. Free, like `doctor`: works with or without a project (no project just means every value is a
  * default, since there's nowhere for config.yaml to live). A broken config.yaml is reported here too (the same
  * stops `mm3 doctor` would show), but this command still prints the rest of the effective table
  * underneath — one bad key never hides everything else.
@@ -17,11 +17,20 @@
  *   - an OPTIONAL field nobody set (no default exists at all — provider, baseURL, model, budget.since,
  *     sweep.maxItems, reuse.maxAgeDays/maxCommits) is a commented EXAMPLE instead, since there's no real value
  *     to show. Either way, uncommenting any single line yields a valid config.yaml fragment.
+ * That display is NOT itself a file (it is wrapped in `config:`/`project:`/`notes:`), so `mm3 config --write`
+ * (runConfigWrite below) writes the real thing: a STARTER `.mm3/config.yaml`, only when none exists, built from
+ * the same defaults table and the same example values as the display so the two can't drift. Every setting in it
+ * is commented out and every section header is live (a header with no live child is null, which validate.ts
+ * reads as "no overrides"), so it is valid as-is and stays valid when any one value line is uncommented. This
+ * module also spots a near-miss file name in `.mm3/` (config.ymal, config.yml, ...) that would otherwise be
+ * ignored without a word.
  */
+import { existsSync, readdirSync, writeFileSync } from 'node:fs';
 import { scalar } from '../contract/emit.ts';
-import type { Mm3Paths } from '../ledger/paths.ts';
+import { onStore } from '../ledger/lock.ts';
+import { ensureDir, type Mm3Paths } from '../ledger/paths.ts';
 import type { VerbResult } from '../verbs/types.ts';
-import type { ConfigSource, PricingRate } from './defaults.ts';
+import { DEFAULT_CONFIG, type ConfigSource, type PricingRate } from './defaults.ts';
 import { resolveConfig, type ResolvedConfig } from './load.ts';
 
 type Prim = string | number | boolean;
@@ -43,6 +52,19 @@ function fieldLine(indent: string, key: string, source: ConfigSource | undefined
   if (source === 'env') return `${indent}# ${key}: (set via env, not config.yaml)`;
   return `${indent}# ${key}: ${valueText(example)}  # example`;
 }
+
+/** The value shown for a setting with no built-in default (or, in the display, the commented example line):
+ *  one table for the display and the starter file. Settings that do have a default show that default instead. */
+const EXAMPLES: Record<string, Prim> = {
+  'budget.since': '2026-01-01T00:00:00Z',
+  provider: 'typesafe',
+  baseURL: 'https://api.typesafe.ai',
+  model: 'jev-1.13.0',
+  'sweep.maxItems': 30,
+  'reuse.maxAgeDays': 30,
+  'reuse.maxCommits': 20,
+};
+const ex = (key: string): Prim => EXAMPLES[key]!;
 
 const PRICING_FIELDS = ['inputPerMTok', 'outputPerMTok', 'perSecond', 'perCall'] as const;
 
@@ -77,7 +99,15 @@ function mdlLines(resolved: ResolvedConfig): string[] {
   return lines;
 }
 
-export function formatConfig(resolved: ResolvedConfig, projectLine: string): string {
+/** The config file's path as shown in a note: relative to where the command ran, like the `project:` line. */
+const configFileLabel = (projectLine: string): string => (projectLine === '.' || projectLine === 'none' ? '.mm3/config.yaml' : `${projectLine}/.mm3/config.yaml`);
+
+const customizeNote = (projectLine: string): string =>
+  projectLine === 'none'
+    ? 'to customize: run mm3 config --write inside a project → writes .mm3/config.yaml with a commented guide'
+    : 'to customize: run mm3 config --write → writes .mm3/config.yaml with a commented guide';
+
+export function formatConfig(resolved: ResolvedConfig, projectLine: string, extraNotes: readonly string[] = []): string {
   const c = resolved.config;
   const s = resolved.sources;
   const lines: string[] = [
@@ -88,11 +118,11 @@ export function formatConfig(resolved: ResolvedConfig, projectLine: string): str
     fieldLine('    ', 'usd', s['budget.usd'], c.budget.usd, 5),
     fieldLine('    ', 'runs', s['budget.runs'], c.budget.runs, 500),
     fieldLine('    ', 'per', s['budget.per'], c.budget.per, 'total'),
-    fieldLine('    ', 'since', s['budget.since'], c.budget.since, '2026-01-01T00:00:00Z'),
+    fieldLine('    ', 'since', s['budget.since'], c.budget.since, ex('budget.since')),
     '',
-    fieldLine('  ', 'provider', s.provider, c.provider, 'typesafe'),
-    fieldLine('  ', 'baseURL', s.baseURL, c.baseURL, 'https://api.typesafe.ai'),
-    fieldLine('  ', 'model', s.model, c.model, 'jev-1.13.0'),
+    fieldLine('  ', 'provider', s.provider, c.provider, ex('provider')),
+    fieldLine('  ', 'baseURL', s.baseURL, c.baseURL, ex('baseURL')),
+    fieldLine('  ', 'model', s.model, c.model, ex('model')),
     '',
     ...pricingLines(resolved),
     '',
@@ -101,29 +131,172 @@ export function formatConfig(resolved: ResolvedConfig, projectLine: string): str
     fieldLine('  ', 'backoffMs', s.backoffMs, c.backoffMs, 1000),
     '',
     '  sweep:',
-    fieldLine('    ', 'maxItems', s['sweep.maxItems'], c.sweep.maxItems, 30),
+    fieldLine('    ', 'maxItems', s['sweep.maxItems'], c.sweep.maxItems, ex('sweep.maxItems')),
     fieldLine('    ', 'maxQuestionsPerCall', s['sweep.maxQuestionsPerCall'], c.sweep.maxQuestionsPerCall, 500),
     '',
     fieldLine('  ', 'requestMaxBytes', s.requestMaxBytes, c.requestMaxBytes, 1_048_576),
     '',
     '  reuse:',
-    fieldLine('    ', 'maxAgeDays', s['reuse.maxAgeDays'], c.reuse.maxAgeDays, 30),
-    fieldLine('    ', 'maxCommits', s['reuse.maxCommits'], c.reuse.maxCommits, 20),
+    fieldLine('    ', 'maxAgeDays', s['reuse.maxAgeDays'], c.reuse.maxAgeDays, ex('reuse.maxAgeDays')),
+    fieldLine('    ', 'maxCommits', s['reuse.maxCommits'], c.reuse.maxCommits, ex('reuse.maxCommits')),
     '',
     ...mdlLines(resolved),
     '',
     'notes:',
-    '  - free: never writes, never spends',
-    ...(resolved.present ? [] : ['  - no config.yaml here → every value is a default or env var']),
+    '  - free: never spends; plain config never writes',
+    ...(resolved.present ? [`  - customized in ${configFileLabel(projectLine)} → edit it, then run mm3 config to check`] : ['  - no config.yaml here → every value is a default or env var', `  - ${customizeNote(projectLine)}`]),
+    ...extraNotes.map((n) => `  - ${n}`),
   ];
   return `${lines.join('\n')}\n`;
 }
 
+/** Files in `.mm3/` that look like a misnamed config.yaml (config.yml, config.ymal, config.yaml.txt,
+ *  config.json, Config.yaml ...) — only when the real one is missing, since then the typo is why nothing applied.
+ *  One note each (at most 3), in the help-first `what → fix` shape; never a stop. */
+export function nearMissNotes(paths: Mm3Paths | undefined): string[] {
+  if (!paths || existsSync(paths.config)) return [];
+  let names: string[];
+  try {
+    names = readdirSync(paths.dir);
+  } catch {
+    return [];
+  }
+  return names
+    .filter((n) => n.toLowerCase().startsWith('config') && n !== 'config.yaml')
+    .sort()
+    .slice(0, 3)
+    .map((n) => `found .mm3/${n} — did you mean config.yaml? → rename it`);
+}
+
 export function runConfig(env: Record<string, string | undefined>, paths: Mm3Paths | undefined, projectLine: string): VerbResult {
   const resolved = resolveConfig(paths, env);
+  const notes = nearMissNotes(paths);
   if (resolved.stops.length) {
     const stopLines = resolved.stops.map((st) => st.text).join('\n');
-    return { exit: 2, text: `${stopLines}\n\n${formatConfig(resolved, projectLine)}\n→ see: mm3 agent config` };
+    return { exit: 2, text: `${stopLines}\n\n${formatConfig(resolved, projectLine, notes)}\n→ see: mm3 agent config` };
   }
-  return { exit: 0, text: formatConfig(resolved, projectLine) };
+  return { exit: 0, text: formatConfig(resolved, projectLine, notes) };
+}
+
+/** What each setting is, in a few plain words — the trailing comment on its line in the starter file. */
+const HINTS: Record<string, string> = {
+  budget: 'spending caps',
+  'budget.usd': 'dollars MM3 may spend',
+  'budget.runs': 'paid runs MM3 may make',
+  'budget.per': 'count the caps: total | day | hour',
+  'budget.since': 'only count spend after this moment',
+  provider: 'typesafe | fake (free sample answers)',
+  baseURL: 'where classifier calls go (https)',
+  model: 'the pinned classifier model',
+  pricing: 'what a call costs, per model, for budget estimates (dollars)',
+  timeoutMs: 'give up on one call after this many ms',
+  retries: 'extra tries after a retryable failure',
+  backoffMs: 'first wait between tries, in ms',
+  sweep: 'limits on scan and loop',
+  'sweep.maxItems': 'most items one sweep may look at (can only lower the built-in cap)',
+  'sweep.maxQuestionsPerCall': 'most questions in one classifier call',
+  requestMaxBytes: 'largest request file MM3 will read',
+  reuse: 'when a stored answer is too old to reuse (off unless set)',
+  'reuse.maxAgeDays': 're-ask answers older than this many days',
+  'reuse.maxCommits': 're-ask after this many commits',
+  mdl: 'per-field overrides of the mdl catalog (see mm3 agent mdl)',
+};
+
+const PRICING_HINTS: Record<(typeof PRICING_FIELDS)[number], string> = {
+  inputPerMTok: 'dollars per million input tokens',
+  outputPerMTok: 'dollars per million output tokens',
+  perSecond: 'dollars per second of compute',
+  perCall: 'dollars per call',
+};
+
+const STARTER_FRONT = [
+  '# MM3 project settings (.mm3/config.yaml).',
+  '#',
+  '# Every setting below is commented out, so MM3 runs on its built-in defaults. To change one, uncomment its',
+  '# line (delete the leading "# ") and change the value. To go back to the default, delete the line or comment it',
+  '# out again. Run mm3 config any time to check the file; it lists every problem and where each value comes from.',
+  '#',
+  '# Precedence: environment variable > this file > built-in default.',
+  '# Safe to commit: it holds settings only, never keys (those go in env or the keychain). The ledger is not committed.',
+  '',
+];
+
+function getIn(root: unknown, dotted: string): Prim | undefined {
+  let cur = root;
+  for (const k of dotted.split('.')) cur = typeof cur === 'object' && cur !== null ? (cur as Record<string, unknown>)[k] : undefined;
+  return cur as Prim | undefined;
+}
+
+/** The text `mm3 config --write` writes. Built from DEFAULT_CONFIG (the value of every setting that has one)
+ *  and EXAMPLES (the ones that don't) — the same two tables the display reads. Section headers are live so a
+ *  block with every child commented out parses as null ("no overrides", validate.ts); setting lines are `# `
+ *  plus the exact line they become when uncommented, each with a short trailing comment. */
+export function starterConfig(): string {
+  const val = (key: string): string => valueText(getIn(DEFAULT_CONFIG, key) ?? ex(key));
+  const header = (indent: string, label: string, hintKey: string, hint = HINTS[hintKey]): string => `${indent}${label}:${hint ? `  # ${hint}` : ''}`;
+  const setting = (indent: string, key: string, dotted: string): string => `# ${indent}${key}: ${val(dotted)}  # ${HINTS[dotted]}`;
+  const top = (key: string): string => setting('', key, key);
+  const lines: string[] = [
+    ...STARTER_FRONT,
+    header('', 'budget', 'budget'),
+    setting('  ', 'usd', 'budget.usd'),
+    setting('  ', 'runs', 'budget.runs'),
+    setting('  ', 'per', 'budget.per'),
+    setting('  ', 'since', 'budget.since'),
+    '',
+    top('provider'),
+    top('baseURL'),
+    top('model'),
+    '',
+    header('', 'pricing', 'pricing'),
+  ];
+  for (const [model, rate] of Object.entries(DEFAULT_CONFIG.pricing)) {
+    lines.push(header('  ', scalar(model, false), '', `also: ${PRICING_FIELDS.filter((f) => (rate as PricingRate)[f] === undefined).join(', ')}`));
+    for (const f of PRICING_FIELDS) {
+      const v = (rate as PricingRate)[f];
+      if (v !== undefined) lines.push(`#     ${f}: ${valueText(v)}  # ${PRICING_HINTS[f]}`);
+    }
+  }
+  lines.push(
+    '',
+    top('timeoutMs'),
+    top('retries'),
+    top('backoffMs'),
+    '',
+    header('', 'sweep', 'sweep'),
+    setting('  ', 'maxItems', 'sweep.maxItems'),
+    setting('  ', 'maxQuestionsPerCall', 'sweep.maxQuestionsPerCall'),
+    '',
+    top('requestMaxBytes'),
+    '',
+    header('', 'reuse', 'reuse'),
+    setting('  ', 'maxAgeDays', 'reuse.maxAgeDays'),
+    setting('  ', 'maxCommits', 'reuse.maxCommits'),
+    '',
+    header('', 'mdl', 'mdl'),
+    '#   risk: {values: [low, medium, high]}  # example: your own values for one field',
+  );
+  return `${lines.join('\n')}\n`;
+}
+
+/** `mm3 config --write`: writes the starter `.mm3/config.yaml` ONLY when none exists (flag `wx`: never
+ *  overwrites, even in a race). An existing file is a note at exit 0, never a stop. No project → a stop, since
+ *  we never create `.mm3/` in whatever folder an agent happens to be in (paths.ts resolvePaths). */
+export function runConfigWrite(paths: Mm3Paths | undefined, projectLine: string): VerbResult {
+  if (!paths) return { exit: 2, text: '✖ config: no project here → run inside a project (a folder with .git or .mm3), or set MM3_HOME' };
+  const label = configFileLabel(projectLine);
+  const exists: VerbResult = { exit: 0, text: `config: ${label} already exists → not overwritten; edit it, then run mm3 config to check\n` };
+  if (existsSync(paths.config)) return exists;
+  const wrote = onStore(paths.config, 'write', () => {
+    ensureDir(paths);
+    try {
+      writeFileSync(paths.config, starterConfig(), { flag: 'wx' });
+      return true;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EEXIST') return false;
+      throw e;
+    }
+  });
+  if (!wrote) return exists;
+  return { exit: 0, text: `wrote: ${label}\nnotes:\n  - every setting is commented out → uncomment a line and change its value, then run mm3 config to check\n` };
 }

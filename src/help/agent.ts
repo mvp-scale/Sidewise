@@ -256,18 +256,20 @@ function templateCard(): string {
   );
 }
 
-/** `mm3 agent config`'s card (plan 2c B1): `mm3 config` is free, never writes, and works with or
- *  without a project. Terse like every other tool card here — the full key list lives in `mm3 config`'s
+/** `mm3 agent config`'s card (plan 2c B1): `mm3 config` is free, never writes (`--write` writes only a missing
+ *  starter file), and works with or without a project. Terse like every other tool card here — the full key list lives in `mm3 config`'s
  *  own output (it prints every effective value plus its source), not repeated here. */
 function configCard(): string {
   return renderCard(
     ['tool: config'],
     [
-      '- syntax: mm3 config',
-      '- free: never writes, never spends, works with or without a project',
+      '- syntax: mm3 config [--write]',
+      '- free: plain config never writes, never spends, works with or without a project',
       '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, mdl) and which of default/config/env it came from',
       '- reads .mm3/config.yaml if present — sparse overrides only, precedence env > config > default',
       '- a bad config.yaml shows its ✖ problems here too, then the rest of the effective table underneath',
+      '- the display is not a file: to customize run mm3 config --write → writes .mm3/config.yaml (commented guide) only if missing, never overwrites',
+      '- a misnamed .mm3/config.ymal (or config.yml, config.json) gets a did-you-mean note here and in doctor',
     ],
   );
 }

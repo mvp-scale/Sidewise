@@ -34,6 +34,7 @@ import { hasKey, JevConfigError, resolveJevConfig, routeLabel, type JevConfig, t
 import { emit, m, type Value } from '../contract/emit.ts';
 import { VERBS, type Verb } from '../contract/types.ts';
 import type { ConfigSource } from '../config/defaults.ts';
+import { nearMissNotes } from '../config/config.ts';
 import { resolveConfig } from '../config/load.ts';
 import { validateConfig } from '../config/validate.ts';
 import { sqliteAvailable } from '../ledger/index.ts';
@@ -270,6 +271,7 @@ export function runDoctor(
     'free: no call, no spend',
     ...(paths ? [] : ['no project found here or above → run inside one, or set MM3_HOME']),
     ...(keyNote ? [keyNote] : []),
+    ...nearMissNotes(paths),
   ];
 
   const doc = m(

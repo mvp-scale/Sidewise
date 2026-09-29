@@ -1170,6 +1170,22 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   Exit 0 when the config is usable; exit 2 with the same `✖` message a paid verb would give when it isn't (a
   floating model, a bad `MM3_BASE_URL`) — including too old a Node, which doctor still runs and reports
   rather than stopping outright (see C-106). [C-095]
+- `mm3 config` is a free, read-only display of the effective config (plain `config` never writes); it is not itself
+  a valid file, so its last notes point to `mm3 config --write` (no `.mm3/config.yaml` yet) or name the file path
+  (one exists). `mm3 config --write` writes `.mm3/config.yaml` only when it is missing (creating `.mm3/` and its
+  `.gitignore`, which un-ignores `config.yaml`): commented front matter (what the file is, how to edit it,
+  precedence env > file > defaults, safe to commit), then every setting commented out under live section headers,
+  top-level keys at column 0. It never overwrites: with a file present it prints a note naming the path and
+  exits 0; with no project it stops with `✖ config: ... → ...` at exit 2. The starter is built from the same
+  defaults table the display uses, is valid as written, and stays valid when any single value line is
+  uncommented. [C-226]
+- A config section with every child commented out (`sweep:`, `reuse:`, `budget:`, `mdl:`, `pricing:`, or a
+  `pricing`/`mdl` entry such as `jev-1.13.0:` with nothing under it) parses as null and means "no overrides", never
+  a `✖ config.<section>: is not a mapping` stop. [C-227]
+- A file in `.mm3/` named like the config but not `config.yaml` (`config.yml`, `config.ymal`, `config.yaml.txt`,
+  `config.json`), with no real `config.yaml` beside it, gets a note from `mm3 config` and `mm3 doctor`:
+  `found .mm3/config.ymal — did you mean config.yaml? → rename it`. It is never a stop, and the misnamed file is
+  never read. [C-228]
 - The TypeSafe client retries a 429, a 529, or another retryable status/timeout up to 2 more times (3 attempts
   total), honouring the server's own `Retry-After` when it sends one, else exponential backoff with jitter,
   capped at 10s per wait. 401, 422 and any other non-retryable status are never retried — the first failure is

@@ -20,7 +20,7 @@ import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './b
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
 import { JevConfigError } from './classifier/typesafe/config.ts';
-import { runConfig } from './config/config.ts';
+import { runConfig, runConfigWrite } from './config/config.ts';
 import { classifierFileConfig, resolveConfig } from './config/load.ts';
 import { RUN_ID } from './ledger/ids.ts';
 import { LockError, StoreError } from './ledger/lock.ts';
@@ -78,7 +78,7 @@ const LINES = {
   outcome: 'mm3 outcome <MM3-####> held|overruled|failed --by <actor>',
   budget: 'mm3 budget [show | reset | set --usd <n> --runs <n>]',
   doctor: 'mm3 doctor [<file> | -]',
-  config: 'mm3 config',
+  config: 'mm3 config [--write]',
   init: 'mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]',
   uninstall: 'mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]',
   mcp: 'mm3 mcp',
@@ -339,13 +339,14 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   }
 
   // config: free, like doctor — works with or without a project (no project just means every value shown is a
-  // default, since there's nowhere for config.yaml to live). Never spends or writes.
+  // default, since there's nowhere for config.yaml to live). Never spends; plain `config` never writes, and
+  // `--write` writes only a missing starter .mm3/config.yaml (never overwrites one that exists).
   if (command === 'config') {
-    const { positionals } = args('config', { args: rest, allowPositionals: true, options: {} });
+    const { positionals, values } = args('config', { args: rest, allowPositionals: true, options: { write: { type: 'boolean' } } });
     positionalCount('config', positionals, 0, 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
     const projectLine = configPaths ? path.relative(ctx.cwd, configPaths.root) || '.' : 'none';
-    const r = runConfig(ctx.env, configPaths, projectLine);
+    const r = values.write ? runConfigWrite(configPaths, projectLine) : runConfig(ctx.env, configPaths, projectLine);
     return finish(r.exit, r.text);
   }
 

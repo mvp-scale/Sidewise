@@ -85,7 +85,12 @@ function checkNonEmptyString(path: string, v: unknown, out: ConfigStop[]): boole
   return true;
 }
 
+/** A section header with every child commented out (`sweep:` alone) parses as null (or undefined): that is "no
+ *  overrides", the shape `mm3 config --write`'s starter file relies on, never a "not a mapping" stop. */
+const isEmptySection = (v: unknown): boolean => v === null || v === undefined;
+
 function checkBudget(v: unknown, out: ConfigStop[]): Partial<Mm3Config['budget']> {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('budget', 'is not a mapping', 'write usd:, runs: and/or per: under budget:'));
     return {};
@@ -109,6 +114,7 @@ function checkBudget(v: unknown, out: ConfigStop[]): Partial<Mm3Config['budget']
 }
 
 function checkPricing(v: unknown, out: ConfigStop[]): Mm3Config['pricing'] {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('pricing', 'is not a mapping', 'write <model>: {inputPerMTok: <n>} under pricing:'));
     return {};
@@ -117,6 +123,7 @@ function checkPricing(v: unknown, out: ConfigStop[]): Mm3Config['pricing'] {
   for (const model of Object.keys(v)) {
     const rate = v[model];
     const path = `pricing.${model}`;
+    if (isEmptySection(rate)) continue; // `jev-1.13.0:` with every rate commented out: keep the built-in rate
     if (!isObj(rate)) {
       out.push(stop(path, 'is not a mapping', 'write {inputPerMTok, outputPerMTok, perSecond, perCall}'));
       continue;
@@ -139,6 +146,7 @@ function checkPricing(v: unknown, out: ConfigStop[]): Mm3Config['pricing'] {
 }
 
 function checkSweep(v: unknown, out: ConfigStop[]): Partial<Mm3Config['sweep']> {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('sweep', 'is not a mapping', 'write maxItems: and/or maxQuestionsPerCall: under sweep:'));
     return {};
@@ -157,6 +165,7 @@ function checkSweep(v: unknown, out: ConfigStop[]): Partial<Mm3Config['sweep']> 
 }
 
 function checkReuse(v: unknown, out: ConfigStop[]): Partial<Mm3Config['reuse']> {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('reuse', 'is not a mapping', 'write maxAgeDays: and/or maxCommits: under reuse:'));
     return {};
@@ -180,6 +189,7 @@ const MDL_OVERRIDE_FIELDS = ['values', 'note', 'as', 'pattern', 'link', 'literal
  *  piece) — see defaults.ts's MdlFieldOverride doc. Still fully validated so a typo doesn't silently do
  *  nothing once that consumer lands. */
 function checkMdl(v: unknown, out: ConfigStop[]): Mm3Config['mdl'] {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('mdl', 'is not a mapping', 'write <field>: {values: [...], note: "..."} under mdl:'));
     return {};
@@ -188,6 +198,7 @@ function checkMdl(v: unknown, out: ConfigStop[]): Mm3Config['mdl'] {
   for (const field of Object.keys(v)) {
     const override = v[field];
     const path = `mdl.${field}`;
+    if (isEmptySection(override)) continue; // a field header with every override commented out: no override
     if (!isObj(override)) {
       out.push(stop(path, 'is not a mapping', 'write {values?, note?, as?, pattern?, link?, literal?}'));
       continue;

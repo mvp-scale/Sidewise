@@ -7584,7 +7584,9 @@ function checkNonEmptyString(path22, v, out) {
   if (checkSecretValue(path22, v, out)) return false;
   return true;
 }
+var isEmptySection = (v) => v === null || v === void 0;
 function checkBudget(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("budget", "is not a mapping", "write usd:, runs: and/or per: under budget:"));
     return {};
@@ -7607,6 +7609,7 @@ function checkBudget(v, out) {
   return result;
 }
 function checkPricing(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("pricing", "is not a mapping", "write <model>: {inputPerMTok: <n>} under pricing:"));
     return {};
@@ -7615,6 +7618,7 @@ function checkPricing(v, out) {
   for (const model of Object.keys(v)) {
     const rate = v[model];
     const path22 = `pricing.${model}`;
+    if (isEmptySection(rate)) continue;
     if (!isObj(rate)) {
       out.push(stop(path22, "is not a mapping", "write {inputPerMTok, outputPerMTok, perSecond, perCall}"));
       continue;
@@ -7635,6 +7639,7 @@ function checkPricing(v, out) {
   return result;
 }
 function checkSweep(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("sweep", "is not a mapping", "write maxItems: and/or maxQuestionsPerCall: under sweep:"));
     return {};
@@ -7652,6 +7657,7 @@ function checkSweep(v, out) {
   return result;
 }
 function checkReuse(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("reuse", "is not a mapping", "write maxAgeDays: and/or maxCommits: under reuse:"));
     return {};
@@ -7670,6 +7676,7 @@ function checkReuse(v, out) {
 }
 var MDL_OVERRIDE_FIELDS = ["values", "note", "as", "pattern", "link", "literal"];
 function checkMdl(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("mdl", "is not a mapping", 'write <field>: {values: [...], note: "..."} under mdl:'));
     return {};
@@ -7678,6 +7685,7 @@ function checkMdl(v, out) {
   for (const field of Object.keys(v)) {
     const override = v[field];
     const path22 = `mdl.${field}`;
+    if (isEmptySection(override)) continue;
     if (!isObj(override)) {
       out.push(stop(path22, "is not a mapping", "write {values?, note?, as?, pattern?, link?, literal?}"));
       continue;
@@ -9748,6 +9756,9 @@ function providerIdentity(env = process.env, deps = {}) {
   return { adapter: "fake", model: FAKE_MODEL, route: "fake", baseURL: null };
 }
 
+// src/config/config.ts
+import { existsSync as existsSync7, readdirSync, writeFileSync as writeFileSync4 } from "node:fs";
+
 // src/contract/emit.ts
 var m = (...entries) => new Map(entries);
 var RESERVED = /^(?:true|false|null|~|yes|no|on|off|y|n)$/iu;
@@ -9803,6 +9814,16 @@ function fieldLine(indent3, key2, source, value, example) {
   if (source === "env") return `${indent3}# ${key2}: (set via env, not config.yaml)`;
   return `${indent3}# ${key2}: ${valueText(example)}  # example`;
 }
+var EXAMPLES = {
+  "budget.since": "2026-01-01T00:00:00Z",
+  provider: "typesafe",
+  baseURL: "https://api.typesafe.ai",
+  model: "jev-1.13.0",
+  "sweep.maxItems": 30,
+  "reuse.maxAgeDays": 30,
+  "reuse.maxCommits": 20
+};
+var ex = (key2) => EXAMPLES[key2];
 var PRICING_FIELDS = ["inputPerMTok", "outputPerMTok", "perSecond", "perCall"];
 function pricingLines(resolved) {
   const lines = ["  pricing:"];
@@ -9830,7 +9851,9 @@ function mdlLines(resolved) {
   }
   return lines;
 }
-function formatConfig(resolved, projectLine2) {
+var configFileLabel = (projectLine2) => projectLine2 === "." || projectLine2 === "none" ? ".mm3/config.yaml" : `${projectLine2}/.mm3/config.yaml`;
+var customizeNote = (projectLine2) => projectLine2 === "none" ? "to customize: run mm3 config --write inside a project \u2192 writes .mm3/config.yaml with a commented guide" : "to customize: run mm3 config --write \u2192 writes .mm3/config.yaml with a commented guide";
+function formatConfig(resolved, projectLine2, extraNotes = []) {
   const c = resolved.config;
   const s = resolved.sources;
   const lines = [
@@ -9841,11 +9864,11 @@ function formatConfig(resolved, projectLine2) {
     fieldLine("    ", "usd", s["budget.usd"], c.budget.usd, 5),
     fieldLine("    ", "runs", s["budget.runs"], c.budget.runs, 500),
     fieldLine("    ", "per", s["budget.per"], c.budget.per, "total"),
-    fieldLine("    ", "since", s["budget.since"], c.budget.since, "2026-01-01T00:00:00Z"),
+    fieldLine("    ", "since", s["budget.since"], c.budget.since, ex("budget.since")),
     "",
-    fieldLine("  ", "provider", s.provider, c.provider, "typesafe"),
-    fieldLine("  ", "baseURL", s.baseURL, c.baseURL, "https://api.typesafe.ai"),
-    fieldLine("  ", "model", s.model, c.model, "jev-1.13.0"),
+    fieldLine("  ", "provider", s.provider, c.provider, ex("provider")),
+    fieldLine("  ", "baseURL", s.baseURL, c.baseURL, ex("baseURL")),
+    fieldLine("  ", "model", s.model, c.model, ex("model")),
     "",
     ...pricingLines(resolved),
     "",
@@ -9854,34 +9877,160 @@ function formatConfig(resolved, projectLine2) {
     fieldLine("  ", "backoffMs", s.backoffMs, c.backoffMs, 1e3),
     "",
     "  sweep:",
-    fieldLine("    ", "maxItems", s["sweep.maxItems"], c.sweep.maxItems, 30),
+    fieldLine("    ", "maxItems", s["sweep.maxItems"], c.sweep.maxItems, ex("sweep.maxItems")),
     fieldLine("    ", "maxQuestionsPerCall", s["sweep.maxQuestionsPerCall"], c.sweep.maxQuestionsPerCall, 500),
     "",
     fieldLine("  ", "requestMaxBytes", s.requestMaxBytes, c.requestMaxBytes, 1048576),
     "",
     "  reuse:",
-    fieldLine("    ", "maxAgeDays", s["reuse.maxAgeDays"], c.reuse.maxAgeDays, 30),
-    fieldLine("    ", "maxCommits", s["reuse.maxCommits"], c.reuse.maxCommits, 20),
+    fieldLine("    ", "maxAgeDays", s["reuse.maxAgeDays"], c.reuse.maxAgeDays, ex("reuse.maxAgeDays")),
+    fieldLine("    ", "maxCommits", s["reuse.maxCommits"], c.reuse.maxCommits, ex("reuse.maxCommits")),
     "",
     ...mdlLines(resolved),
     "",
     "notes:",
-    "  - free: never writes, never spends",
-    ...resolved.present ? [] : ["  - no config.yaml here \u2192 every value is a default or env var"]
+    "  - free: never spends; plain config never writes",
+    ...resolved.present ? [`  - customized in ${configFileLabel(projectLine2)} \u2192 edit it, then run mm3 config to check`] : ["  - no config.yaml here \u2192 every value is a default or env var", `  - ${customizeNote(projectLine2)}`],
+    ...extraNotes.map((n) => `  - ${n}`)
   ];
   return `${lines.join("\n")}
 `;
 }
+function nearMissNotes(paths) {
+  if (!paths || existsSync7(paths.config)) return [];
+  let names;
+  try {
+    names = readdirSync(paths.dir);
+  } catch {
+    return [];
+  }
+  return names.filter((n) => n.toLowerCase().startsWith("config") && n !== "config.yaml").sort().slice(0, 3).map((n) => `found .mm3/${n} \u2014 did you mean config.yaml? \u2192 rename it`);
+}
 function runConfig(env, paths, projectLine2) {
   const resolved = resolveConfig(paths, env);
+  const notes = nearMissNotes(paths);
   if (resolved.stops.length) {
     const stopLines = resolved.stops.map((st) => st.text).join("\n");
     return { exit: 2, text: `${stopLines}
 
-${formatConfig(resolved, projectLine2)}
+${formatConfig(resolved, projectLine2, notes)}
 \u2192 see: mm3 agent config` };
   }
-  return { exit: 0, text: formatConfig(resolved, projectLine2) };
+  return { exit: 0, text: formatConfig(resolved, projectLine2, notes) };
+}
+var HINTS = {
+  budget: "spending caps",
+  "budget.usd": "dollars MM3 may spend",
+  "budget.runs": "paid runs MM3 may make",
+  "budget.per": "count the caps: total | day | hour",
+  "budget.since": "only count spend after this moment",
+  provider: "typesafe | fake (free sample answers)",
+  baseURL: "where classifier calls go (https)",
+  model: "the pinned classifier model",
+  pricing: "what a call costs, per model, for budget estimates (dollars)",
+  timeoutMs: "give up on one call after this many ms",
+  retries: "extra tries after a retryable failure",
+  backoffMs: "first wait between tries, in ms",
+  sweep: "limits on scan and loop",
+  "sweep.maxItems": "most items one sweep may look at (can only lower the built-in cap)",
+  "sweep.maxQuestionsPerCall": "most questions in one classifier call",
+  requestMaxBytes: "largest request file MM3 will read",
+  reuse: "when a stored answer is too old to reuse (off unless set)",
+  "reuse.maxAgeDays": "re-ask answers older than this many days",
+  "reuse.maxCommits": "re-ask after this many commits",
+  mdl: "per-field overrides of the mdl catalog (see mm3 agent mdl)"
+};
+var PRICING_HINTS = {
+  inputPerMTok: "dollars per million input tokens",
+  outputPerMTok: "dollars per million output tokens",
+  perSecond: "dollars per second of compute",
+  perCall: "dollars per call"
+};
+var STARTER_FRONT = [
+  "# MM3 project settings (.mm3/config.yaml).",
+  "#",
+  "# Every setting below is commented out, so MM3 runs on its built-in defaults. To change one, uncomment its",
+  '# line (delete the leading "# ") and change the value. To go back to the default, delete the line or comment it',
+  "# out again. Run mm3 config any time to check the file; it lists every problem and where each value comes from.",
+  "#",
+  "# Precedence: environment variable > this file > built-in default.",
+  "# Safe to commit: it holds settings only, never keys (those go in env or the keychain). The ledger is not committed.",
+  ""
+];
+function getIn(root, dotted) {
+  let cur = root;
+  for (const k of dotted.split(".")) cur = typeof cur === "object" && cur !== null ? cur[k] : void 0;
+  return cur;
+}
+function starterConfig() {
+  const val = (key2) => valueText(getIn(DEFAULT_CONFIG, key2) ?? ex(key2));
+  const header = (indent3, label, hintKey, hint = HINTS[hintKey]) => `${indent3}${label}:${hint ? `  # ${hint}` : ""}`;
+  const setting = (indent3, key2, dotted) => `# ${indent3}${key2}: ${val(dotted)}  # ${HINTS[dotted]}`;
+  const top = (key2) => setting("", key2, key2);
+  const lines = [
+    ...STARTER_FRONT,
+    header("", "budget", "budget"),
+    setting("  ", "usd", "budget.usd"),
+    setting("  ", "runs", "budget.runs"),
+    setting("  ", "per", "budget.per"),
+    setting("  ", "since", "budget.since"),
+    "",
+    top("provider"),
+    top("baseURL"),
+    top("model"),
+    "",
+    header("", "pricing", "pricing")
+  ];
+  for (const [model, rate] of Object.entries(DEFAULT_CONFIG.pricing)) {
+    lines.push(header("  ", scalar(model, false), "", `also: ${PRICING_FIELDS.filter((f) => rate[f] === void 0).join(", ")}`));
+    for (const f of PRICING_FIELDS) {
+      const v = rate[f];
+      if (v !== void 0) lines.push(`#     ${f}: ${valueText(v)}  # ${PRICING_HINTS[f]}`);
+    }
+  }
+  lines.push(
+    "",
+    top("timeoutMs"),
+    top("retries"),
+    top("backoffMs"),
+    "",
+    header("", "sweep", "sweep"),
+    setting("  ", "maxItems", "sweep.maxItems"),
+    setting("  ", "maxQuestionsPerCall", "sweep.maxQuestionsPerCall"),
+    "",
+    top("requestMaxBytes"),
+    "",
+    header("", "reuse", "reuse"),
+    setting("  ", "maxAgeDays", "reuse.maxAgeDays"),
+    setting("  ", "maxCommits", "reuse.maxCommits"),
+    "",
+    header("", "mdl", "mdl"),
+    "#   risk: {values: [low, medium, high]}  # example: your own values for one field"
+  );
+  return `${lines.join("\n")}
+`;
+}
+function runConfigWrite(paths, projectLine2) {
+  if (!paths) return { exit: 2, text: "\u2716 config: no project here \u2192 run inside a project (a folder with .git or .mm3), or set MM3_HOME" };
+  const label = configFileLabel(projectLine2);
+  const exists = { exit: 0, text: `config: ${label} already exists \u2192 not overwritten; edit it, then run mm3 config to check
+` };
+  if (existsSync7(paths.config)) return exists;
+  const wrote = onStore(paths.config, "write", () => {
+    ensureDir(paths);
+    try {
+      writeFileSync4(paths.config, starterConfig(), { flag: "wx" });
+      return true;
+    } catch (e) {
+      if (e.code === "EEXIST") return false;
+      throw e;
+    }
+  });
+  if (!wrote) return exists;
+  return { exit: 0, text: `wrote: ${label}
+notes:
+  - every setting is commented out \u2192 uncomment a line and change its value, then run mm3 config to check
+` };
 }
 
 // src/mcp/stdio.ts
@@ -9969,7 +10118,7 @@ function runMcpServer(io, runOne, serverVersion) {
 }
 
 // src/setup/env-file.ts
-import { chmodSync, existsSync as existsSync7, mkdirSync as mkdirSync4, readFileSync as readFileSync8, rmSync as rmSync2, statSync as statSync4, writeFileSync as writeFileSync4 } from "node:fs";
+import { chmodSync, existsSync as existsSync8, mkdirSync as mkdirSync4, readFileSync as readFileSync8, rmSync as rmSync2, statSync as statSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import os from "node:os";
 import path5 from "node:path";
 var ALLOWED_NAMES = ["TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "MM3_BASE_URL", "JEV_MODEL", "JEV_GATEWAY_MODEL", "MM3_PROVIDER"];
@@ -9983,7 +10132,7 @@ function envFilePath(env = process.env) {
   return path5.join(mm3ConfigDir(env), "env");
 }
 function readEnvFile(file) {
-  if (!existsSync7(file)) return void 0;
+  if (!existsSync8(file)) return void 0;
   let mode;
   let raw;
   try {
@@ -10012,7 +10161,7 @@ function setEnvFileValue(file, name, value) {
   const dir = path5.dirname(file);
   mkdirSync4(dir, { recursive: true });
   chmodSync(dir, 448);
-  const existing = existsSync7(file) ? readFileSync8(file, "utf8").split("\n") : [];
+  const existing = existsSync8(file) ? readFileSync8(file, "utf8").split("\n") : [];
   const newLine = `export ${name}='${value}'`;
   let replaced = false;
   const next = existing.map((line3) => {
@@ -10024,12 +10173,12 @@ function setEnvFileValue(file, name, value) {
     return line3;
   });
   if (!replaced) next.push(newLine);
-  writeFileSync4(file, `${next.join("\n").replace(/\n+$/u, "")}
+  writeFileSync5(file, `${next.join("\n").replace(/\n+$/u, "")}
 `);
   chmodSync(file, 384);
 }
 function removeEnvFileValue(file, name) {
-  if (!existsSync7(file)) return "absent";
+  if (!existsSync8(file)) return "absent";
   const lines = readFileSync8(file, "utf8").split("\n");
   let found = false;
   const next = lines.filter((line3) => {
@@ -10045,7 +10194,7 @@ function removeEnvFileValue(file, name) {
     rmSync2(file, { force: true });
     return "file-removed";
   }
-  writeFileSync4(file, `${next.join("\n").replace(/\n+$/u, "")}
+  writeFileSync5(file, `${next.join("\n").replace(/\n+$/u, "")}
 `);
   chmodSync(file, 384);
   return "removed";
@@ -10114,7 +10263,7 @@ function removeStoredKey(runner, platform, env) {
 }
 
 // src/setup/init.ts
-import { existsSync as existsSync10, readFileSync as readFileSync11, realpathSync } from "node:fs";
+import { existsSync as existsSync11, readFileSync as readFileSync11, realpathSync } from "node:fs";
 import path10 from "node:path";
 
 // src/verbs/doctor.ts
@@ -10122,7 +10271,7 @@ var import_yaml4 = __toESM(require_dist(), 1);
 import path9 from "node:path";
 
 // src/setup/install-record.ts
-import { existsSync as existsSync8, mkdirSync as mkdirSync5, readFileSync as readFileSync9, rmSync as rmSync3, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync9, mkdirSync as mkdirSync5, readFileSync as readFileSync9, rmSync as rmSync3, writeFileSync as writeFileSync6 } from "node:fs";
 import path6 from "node:path";
 function installRecordPath(env = process.env) {
   return path6.join(mm3ConfigDir(env), "install.json");
@@ -10134,7 +10283,7 @@ function isInstallRecord(v) {
 }
 function readInstallRecord(env = process.env) {
   const file = installRecordPath(env);
-  if (!existsSync8(file)) return void 0;
+  if (!existsSync9(file)) return void 0;
   try {
     const parsed = JSON.parse(readFileSync9(file, "utf8"));
     return isInstallRecord(parsed) ? parsed : void 0;
@@ -10145,12 +10294,12 @@ function readInstallRecord(env = process.env) {
 function writeInstallRecord(env, record2) {
   const file = installRecordPath(env);
   mkdirSync5(path6.dirname(file), { recursive: true });
-  writeFileSync5(file, `${JSON.stringify(record2, null, 2)}
+  writeFileSync6(file, `${JSON.stringify(record2, null, 2)}
 `);
 }
 function clearInstallRecord(env = process.env) {
   const file = installRecordPath(env);
-  if (existsSync8(file)) rmSync3(file, { force: true });
+  if (existsSync9(file)) rmSync3(file, { force: true });
 }
 
 // src/setup/npm-info.ts
@@ -10208,7 +10357,7 @@ function npmGlobalPrefix(runner) {
 }
 
 // src/setup/plugin.ts
-import { existsSync as existsSync9, rmSync as rmSync4 } from "node:fs";
+import { existsSync as existsSync10, rmSync as rmSync4 } from "node:fs";
 import os2 from "node:os";
 import path8 from "node:path";
 var SCOPES = ["user", "project", "local"];
@@ -10252,7 +10401,7 @@ function pluginCacheDir(homeDir = os2.homedir()) {
 }
 function removePluginCacheDir(homeDir = os2.homedir()) {
   const dir = pluginCacheDir(homeDir);
-  if (!existsSync9(dir)) return false;
+  if (!existsSync10(dir)) return false;
   rmSync4(dir, { recursive: true, force: true });
   return true;
 }
@@ -11288,7 +11437,8 @@ function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
   const notes = [
     "free: no call, no spend",
     ...paths ? [] : ["no project found here or above \u2192 run inside one, or set MM3_HOME"],
-    ...keyNote ? [keyNote] : []
+    ...keyNote ? [keyNote] : [],
+    ...nearMissNotes(paths)
   ];
   const doc = m(
     [
@@ -11365,13 +11515,13 @@ var GLYPH = { done: "\u2714", already: "\xB7", skipped: "\u2013", problem: "\u27
 var line = (status, label, text) => `${GLYPH[status]} ${label}: ${text}`;
 var nowIso = (ctx) => (ctx.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
 var firstLine = (s) => s.trim().split("\n")[0] ?? "";
-var insideGitProject = (cwd) => existsSync10(path10.join(cwd, ".git"));
+var insideGitProject = (cwd) => existsSync11(path10.join(cwd, ".git"));
 function isPackageBin(binPath, pkgName) {
   try {
     let dir = path10.dirname(realpathSync(binPath));
     for (let i = 0; i < 6; i++) {
       const pj = path10.join(dir, "package.json");
-      if (existsSync10(pj)) {
+      if (existsSync11(pj)) {
         const meta = JSON.parse(readFileSync11(pj, "utf8"));
         return meta.name === pkgName;
       }
@@ -11385,7 +11535,7 @@ function isPackageBin(binPath, pkgName) {
   return false;
 }
 function defaultMode(cwd, prefixWritable) {
-  if (existsSync10(path10.join(cwd, "package.json"))) return "local";
+  if (existsSync11(path10.join(cwd, "package.json"))) return "local";
   return prefixWritable ? "global" : "user";
 }
 function isNpxCache(binPath) {
@@ -11477,7 +11627,7 @@ async function stepPlugin(flags, ctx) {
 }
 function stepProject(ctx) {
   const paths = pathsFor(ctx.cwd);
-  const already = existsSync10(paths.dir);
+  const already = existsSync11(paths.dir);
   ensureDir(paths);
   return [line(already ? "already" : "done", "project", `${already ? "already has" : "created"} .mm3/ (self-ignoring: .mm3/.gitignore)`)];
 }
@@ -11526,7 +11676,7 @@ var realRunner = (cmd, args2, opts = {}) => {
 };
 
 // src/setup/uninstall.ts
-import { existsSync as existsSync11, realpathSync as realpathSync2, rmSync as rmSync5 } from "node:fs";
+import { existsSync as existsSync12, realpathSync as realpathSync2, rmSync as rmSync5 } from "node:fs";
 import path11 from "node:path";
 var GLYPH2 = { done: "\u2714", already: "\xB7", skipped: "\u2013", problem: "\u2716" };
 var line2 = (status, label, text) => `${GLYPH2[status]} ${label}: ${text}`;
@@ -11554,7 +11704,7 @@ async function stepPlugin2(flags, ctx, manual) {
   const status = pluginStatus(ctx.runner);
   const scopesToRemove = flags.all ? status.scopes : status.scopes.filter((s) => s === "project");
   const marketplace = flags.all && marketplaceExists(ctx.runner);
-  const cacheDirExists = flags.all && existsSync11(pluginCacheDir(ctx.homeDir));
+  const cacheDirExists = flags.all && existsSync12(pluginCacheDir(ctx.homeDir));
   if (!scopesToRemove.length && !marketplace && !cacheDirExists) return [line2("already", "plugin", "nothing to remove here")];
   const manualCmds = [
     ...scopesToRemove.map((s) => `claude plugin uninstall mm3@mvp-scale --scope ${s}`),
@@ -11618,7 +11768,7 @@ async function stepKey2(flags, ctx, manual) {
 async function stepData(flags, ctx, manual) {
   if (flags.keepData) return [line2("skipped", "project", "skipped (--keep-data)")];
   const dir = `${ctx.cwd}/.mm3`;
-  if (!existsSync11(dir)) return [line2("already", "project", "no .mm3/ here")];
+  if (!existsSync12(dir)) return [line2("already", "project", "no .mm3/ here")];
   const remove = flags.yes ? false : await confirm("Remove this project's .mm3/ (your run history)? This cannot be undone.", false, ctx.io);
   if (!remove) {
     manual.push(`project data: rm -rf ${dir}`);
@@ -11628,7 +11778,7 @@ async function stepData(flags, ctx, manual) {
     rmSync5(dir, { recursive: true, force: true });
   } catch {
   }
-  if (existsSync11(dir)) {
+  if (existsSync12(dir)) {
     manual.push(`project data: rm -rf ${dir}`);
     return [line2("problem", "project", `could not remove ${dir} \u2192 remove it by hand: rm -rf ${dir}`)];
   }
@@ -12058,7 +12208,7 @@ import { readFileSync as readFileSync14, realpathSync as realpathSync5 } from "n
 import path16 from "node:path";
 
 // src/evidence/glob.ts
-import { readdirSync } from "node:fs";
+import { readdirSync as readdirSync2 } from "node:fs";
 import path15 from "node:path";
 var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", ".mm3", "dist"]);
 var MAX_FILES = 500;
@@ -12105,7 +12255,7 @@ function expandGlob(root, pattern) {
     if (dir !== rootResolved && !dir.startsWith(rootResolved + path15.sep)) return;
     let entries;
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      entries = readdirSync2(dir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -14154,7 +14304,7 @@ async function runLoop(text, ctx) {
 }
 
 // src/ledger/graph.ts
-import { existsSync as existsSync12, readFileSync as readFileSync15, statSync as statSync8 } from "node:fs";
+import { existsSync as existsSync13, readFileSync as readFileSync15, statSync as statSync8 } from "node:fs";
 var GRAPH_SCHEMA_VERSION = "2";
 var GRAPH_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS nodes (
@@ -14366,7 +14516,7 @@ function scanCompleteLines(buf, from, to) {
   return { consumed: pos, lines };
 }
 function needsCatchUp(paths, logSize) {
-  if (!existsSync12(paths.index)) return true;
+  if (!existsSync13(paths.index)) return true;
   let db;
   try {
     db = openGraphDb(paths.index);
@@ -14390,7 +14540,7 @@ function catchUpGraph(paths, env) {
     db.exec(META_TABLE_SQL);
     if (getMeta2(db, "graph_schema_version") !== GRAPH_SCHEMA_VERSION) resetGraphSchema(db);
     const upto = Number(getMeta2(db, "graph_upto") ?? "0");
-    const size = existsSync12(paths.log) ? statSync8(paths.log).size : 0;
+    const size = existsSync13(paths.log) ? statSync8(paths.log).size : 0;
     if (upto >= size) return;
     const buf = readFileSync15(paths.log);
     const { consumed, lines } = scanCompleteLines(buf, upto, size);
@@ -14422,14 +14572,14 @@ function catchUpGraph(paths, env) {
   }
 }
 function refreshGraph(paths, env = process.env) {
-  const logStat = existsSync12(paths.log) ? statSync8(paths.log) : void 0;
+  const logStat = existsSync13(paths.log) ? statSync8(paths.log) : void 0;
   if (!logStat || logStat.size === 0) return;
   if (!needsCatchUp(paths, logStat.size)) return;
   withLock(paths.lock, () => catchUpGraph(paths, env));
 }
 var EMPTY_NEIGHBORHOOD = { nodes: [], edges: [] };
 function graphAround(paths, opts) {
-  if (!existsSync12(paths.index)) return EMPTY_NEIGHBORHOOD;
+  if (!existsSync13(paths.index)) return EMPTY_NEIGHBORHOOD;
   const db = openGraphDb(paths.index);
   try {
     const label = normalizeLabel(opts.kind, opts.label);
@@ -14472,7 +14622,7 @@ function graphAround(paths, opts) {
   }
 }
 function mdlRows(paths, opts = {}) {
-  if (!existsSync12(paths.index)) return [];
+  if (!existsSync13(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const limit = Math.min(Math.max(opts.limit ?? 100, 1), 1e3);
@@ -14506,7 +14656,7 @@ function mdlRows(paths, opts = {}) {
   }
 }
 function problemCounts(paths, opts = {}) {
-  if (!existsSync12(paths.index)) return [];
+  if (!existsSync13(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const limit = Math.min(Math.max(opts.limit ?? 20, 1), 500);
@@ -14530,7 +14680,7 @@ function problemCounts(paths, opts = {}) {
   }
 }
 function callStats(paths, opts = {}) {
-  if (!existsSync12(paths.index)) return [];
+  if (!existsSync13(paths.index)) return [];
   const since = opts.sinceIso ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3).toISOString();
   const limit = Math.min(Math.max(opts.limit ?? 500, 1), 5e3);
   let rows;
@@ -14576,7 +14726,7 @@ var MAX_UNDECLARED_KEYS = 50;
 var MAX_VALUES_PER_KEY = 200;
 var MAX_SAMPLES_PER_KEY = 5;
 function undeclaredFieldSamples(paths, opts) {
-  if (!existsSync12(paths.index)) return [];
+  if (!existsSync13(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const known = new Set(opts.knownKeys);
@@ -14616,7 +14766,7 @@ function undeclaredFieldSamples(paths, opts) {
 }
 
 // src/verbs/report-web.ts
-import { writeFileSync as writeFileSync6 } from "node:fs";
+import { writeFileSync as writeFileSync7 } from "node:fs";
 import path18 from "node:path";
 var DAY_MS = 24 * 60 * 60 * 1e3;
 var LIST_CAP = 12;
@@ -15256,7 +15406,7 @@ function runReportWeb(ctx) {
   const html = renderViewerHtml(data);
   ensureDir(ctx.paths);
   const viewerPath = path18.join(ctx.paths.dir, "viewer.html");
-  writeFileSync6(viewerPath, html);
+  writeFileSync7(viewerPath, html);
   const shown2 = path18.relative(ctx.paths.root, viewerPath).split(path18.sep).join("/");
   const opened = tryOpen(viewerPath, ctx.platform, ctx.runner, ctx.env);
   const runCount = data.windows.all.story.runs;
@@ -16355,7 +16505,7 @@ var VERDICT_FACTS = [
 ];
 
 // src/help/verbs.ts
-var EXAMPLES = {
+var EXAMPLES2 = {
   view: "mm3 view src/handlers          # what does the ledger already know about this folder?\nmm3 view MM3-0042               # this run's own lineage, up and down",
   class: [
     "mak:",
@@ -16438,7 +16588,7 @@ function verbHelp(verb) {
     `When: ${WHEN[verb]}`,
     "",
     "Example:",
-    EXAMPLES[verb],
+    EXAMPLES2[verb],
     "",
     "Sharp rules:",
     ...SHARP[verb].map((s) => `- ${s}.`),
@@ -16596,11 +16746,13 @@ function configCard() {
   return renderCard(
     ["tool: config"],
     [
-      "- syntax: mm3 config",
-      "- free: never writes, never spends, works with or without a project",
+      "- syntax: mm3 config [--write]",
+      "- free: plain config never writes, never spends, works with or without a project",
       "- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, mdl) and which of default/config/env it came from",
       "- reads .mm3/config.yaml if present \u2014 sparse overrides only, precedence env > config > default",
-      "- a bad config.yaml shows its \u2716 problems here too, then the rest of the effective table underneath"
+      "- a bad config.yaml shows its \u2716 problems here too, then the rest of the effective table underneath",
+      "- the display is not a file: to customize run mm3 config --write \u2192 writes .mm3/config.yaml (commented guide) only if missing, never overwrites",
+      "- a misnamed .mm3/config.ymal (or config.yml, config.json) gets a did-you-mean note here and in doctor"
     ]
   );
 }
@@ -16869,7 +17021,7 @@ var LINES3 = {
   outcome: "mm3 outcome <MM3-####> held|overruled|failed --by <actor>",
   budget: "mm3 budget [show | reset | set --usd <n> --runs <n>]",
   doctor: "mm3 doctor [<file> | -]",
-  config: "mm3 config",
+  config: "mm3 config [--write]",
   init: "mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]",
   uninstall: "mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]",
   mcp: "mm3 mcp"
@@ -17025,11 +17177,11 @@ async function dispatch(argv, ctx) {
     return finish(r.exit, r.text);
   }
   if (command === "config") {
-    const { positionals } = args("config", { args: rest, allowPositionals: true, options: {} });
+    const { positionals, values } = args("config", { args: rest, allowPositionals: true, options: { write: { type: "boolean" } } });
     positionalCount("config", positionals, 0, 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
     const projectLine2 = configPaths ? path21.relative(ctx.cwd, configPaths.root) || "." : "none";
-    const r = runConfig(ctx.env, configPaths, projectLine2);
+    const r = values.write ? runConfigWrite(configPaths, projectLine2) : runConfig(ctx.env, configPaths, projectLine2);
     return finish(r.exit, r.text);
   }
   if (command === "mcp") {
