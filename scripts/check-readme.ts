@@ -3,7 +3,7 @@
  * README edit that breaks the story, an example, a link or the shape fails `npm run check:readme` in CI.
  * The judgment rules (tone, clarity) are graded by the MM3 request in scripts/readme-judgment.yaml instead.
  */
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -22,7 +22,7 @@ export function loadStory(file = 'docs/story.yaml'): Story {
   return parse(readFileSync(file, 'utf8')) as Story;
 }
 
-const OLD = /\b(?:side|wise):|\bsidewise\b(?!-?play)|\bSW-\d{4}\b/;
+const OLD = /\b(?:side|wise):|\bsidewise\b(?!-?play)|\bSidewise\b|\bSW-\d{4}\b/;
 const VERBS = 'view|class|replay|scan|drill|loop';
 
 /** Shape check for docs/story.yaml: a bad file becomes problem lines, not a TypeError. */
@@ -85,14 +85,14 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
   return out;
 }
 
-/** The real dry-run: the built CLI in a throwaway project (a temp dir with .mm3 and links to the repo's top-level folders, so `where:` paths resolve), free (no call, no spend). Returns the first ✖ line or null. */
+/** The real dry-run: the built CLI in a throwaway project (a temp dir with .mm3 and copies of the repo's top-level folders, so `where:` paths resolve; a symlink would be refused as outside the project), free (no call, no spend). Returns the first ✖ line or null. */
 export function cliDryRun(verb: string, yaml: string): string | null {
   const cli = path.resolve('dist/cli.js');
   if (!existsSync(cli)) return '✖ build: dist/cli.js missing → run npm run build';
   const tmp = mkdtempSync(path.join(tmpdir(), 'mm3-readme-'));
   try {
     mkdirSync(path.join(tmp, '.mm3'));
-    for (const d of ['src', 'docs', 'scripts', 'test', 'skills', 'templates', 'package.json']) if (existsSync(d)) symlinkSync(path.resolve(d), path.join(tmp, d));
+    for (const d of ['src', 'docs', 'scripts', 'test', 'skills', 'templates', 'package.json']) if (existsSync(d)) cpSync(path.resolve(d), path.join(tmp, d), { recursive: true });
     const r = spawnSync(process.execPath, [cli, verb, '-', '--dry-run'], { cwd: tmp, input: yaml, encoding: 'utf8', env: { ...process.env, MM3_PROVIDER: 'fake' } });
     if (r.error) return '✖ build: dist/cli.js missing → run npm run build';
     if (r.status === 0) return null;

@@ -90,6 +90,10 @@ describe('checkReadme', () => {
     const out = checkReadme(good + '\nmvp-scale/Sidewise and sidewise class\nSide: prose\n', story, opts());
     expect(out.filter((l) => l.startsWith('✖ old name'))).toHaveLength(1);
   });
+  it('flags the capitalised old name Sidewise, but not the repo URL', () => {
+    const out = checkReadme(good + '\nSidewise turns a checklist\nsee mvp-scale/Sidewise\n', story, opts());
+    expect(out.filter((l) => l.startsWith('✖ old name'))).toHaveLength(1);
+  });
 });
 
 describe('checkStory', () => {
