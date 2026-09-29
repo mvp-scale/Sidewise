@@ -267,8 +267,10 @@ The budget line states headroom, not a percentage: `budget: $0.11 left of $0.12 
 left of the dollar cap, runs left of the run cap; never below zero). One formatter builds it for every run's
 `notes:` and for `mm3 budget`, `budget set` and `budget reset`. It gains a leading `⚠` only at 80% or more used
 (of either cap), and then says what to do and which cap is low: `⚠ budget: $0.02 left of $0.12 · 3 of 30 runs
-left → low: ask the owner to run mm3 budget set --usd <n> --runs <n>` (only the low cap's flag is named). Below
-80% there is no warning, so an agent reads a nearly-full budget as room to keep working. [C-229]
+left → low: ask the owner to run mm3 budget set --usd <n> --runs <n>` (only the low cap's flag is named). A cap
+that concurrent runs overshot says how much was used instead of reading as exactly at the cap: `0 of 3 runs left
+(5 used)`, `$0.00 left of $5.00 ($5.50 used)`. Below 80% there is no warning, so an agent reads a nearly-full
+budget as room to keep working. [C-229]
 A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, offline, canned) adds `adapter
 <name> · not evidence` to `notes:`, right before the budget line, on every verb that calls the classifier
 (class, scan, drill, loop, replay) — so a rehearsal answer is never mistaken for real evidence. [C-092]
@@ -1168,9 +1170,9 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   any verb: the cap is checked only when the run would actually need to call the classifier — reuse only
   skips the *spend* gate, never the *ledger* one (the ledger must still read cleanly and accept the new line
   either way). [C-136] [C-149] [C-150] [C-151] [C-152]
-- `mm3 budget`'s cap-reached message points at the fix that actually applies: `mm3 budget set
-  --runs <n>` when only the run cap tripped (the dollar cap has room left), `mm3 budget reset` whenever
-  the dollar cap is involved, alone or together with the run cap. [C-133]
+- `mm3 budget`'s cap-reached message gives the same command as the low-budget warning: `mm3 budget set` with
+  the flag of each cap that tripped (`--runs <n>`, `--usd <n>`, or both), since `mm3 budget reset` restarts the
+  counted window but raises no cap. [C-133]
 - `replay --dry-run` reads both git refs before answering: a nonexistent or mistyped `before`/`after` ref
   stops `--dry-run` the same way it stops a real run, instead of only surfacing on the paid attempt. [C-148]
 - Node ≥ 22.13 is a hard requirement, not a soft preference: it's what the ledger's `node:sqlite`-backed lookup

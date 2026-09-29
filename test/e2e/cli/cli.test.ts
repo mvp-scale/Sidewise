@@ -43,7 +43,7 @@ describe('mm3 CLI (built): the six verbs, template, outcome, budget', () => {
     expect(mm3(root, ['view', 'src']).stdout).toContain('MM3-0001');
     expect(mm3(root, ['outcome', 'MM3-0001', 'held', '--by', 'e2e-agent']).status).toBe(1);
     expect(mm3(root, ['outcome', 'MM3-0001', 'held', '--by', 'owner']).stdout).toBe('mm3 outcome MM3-0001 held · by owner\n');
-    expect(mm3(root, ['budget']).stdout).toBe('budget: $5.00 left of $5.00 · 498 of 500 runs left\n') // [C-229];
+    expect(mm3(root, ['budget']).stdout).toBe('budget: $5.00 left of $5.00 · 498 of 500 runs left\n'); // [C-229]
   });
 
   it('loop, scan and drill run end to end (drill off the loop parent, sweep shape)', () => {
