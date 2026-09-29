@@ -1,0 +1,19 @@
+{
+  "id": "MM3-0001",
+  "verb": "class",
+  "title": "One verdict for one subject",
+  "prompt": "Take a first look: is that contribution handler safe to merge as it stands?",
+  "command": "mm3 class request.yaml",
+  "request": "mak:\n  goal: The `handleContributionsUpdate` handler rejects unsafe input and is safe to merge\n  verb: class\n  depth: quick\n  where: [app/routes/contributions.js:24-72]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Is `req.body.preTax`, `req.body.afterTax` or `req.body.roth` read from the request body in `handleContributionsUpdate`?\n        2: Are those body values passed to a parser that only accepts numbers, rather than to a code evaluator?\n        3: Does `handleContributionsUpdate` run those body values through `eval`?\n      input:\n        pass: yes\n        4: Are `preTax`, `afterTax` and `roth` checked for NaN and negative values before use?\n        5: Is the combined total of `preTax`, `afterTax` and `roth` capped before the DAO update?\n        6: Does `handleContributionsUpdate` return an error page instead of updating when validation fails?\n      access:\n        pass: yes\n        7: Is `userId` taken from `req.session` rather than from `req.body`?\n        8: Is the update passed to `contributionsDAO.update` keyed only by that session `userId`?\n        9: Does the response render only the caller's own contributions record?\n    decisions:\n      severity:\n        pass: [none, low]\n        10:\n          scale: How severe is the worst issue found in `handleContributionsUpdate`?\n          levels: [none, low, medium, high, critical]\n      route:\n        pass: [ship]\n        11:\n          choice: Where should `handleContributionsUpdate` go?\n          options: [ship, fix, block]\nmdl:\n  why: validate\n  area: [api]\n  stage: pre-merge\n  problem: Is handleContributionsUpdate in contributions.js safe to merge as it stands\n  uses:\n    - component:web-app/contributions-handler -> code:handleContributionsUpdate -> component:web-app/contributions-dao\n  touches: [preTax, afterTax, roth, userId]\n  blast: person",
+  "response": "mak:\n  id: MM3-0001\n  gate: fail\n  goal: {gate: fail, p: 0.06}\n  injection: {gate: fail, 1: 0.99, 2: 0.08, 3: 0.98}\n  input: {gate: pass, 4: 0.95, 5: 0.94, 6: 0.95}\n  access: {gate: unsure, 7: 0.99, 8: 0.71, 9: 0.55}\n  severity: {gate: fail, 10: {top: critical, p: 0.96}}\n  route: {gate: fail, 11: {top: fix, p: 0.70}}\n  consensus: SPLIT\n  escalate: true\nmdl: {recorded: [why, area, stage, problem, uses, touches, blast]}\nnext: mm3 template drill --parent MM3-0001 --from injection\nnotes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]",
+  "footer": {
+    "model": "jev-1.13.0",
+    "endpoint": "api.typesafe.ai",
+    "latencyMs": 364,
+    "costUsd": 0.000047922000000000006,
+    "questions": 12,
+    "calls": 1,
+    "date": "2026-09-29",
+    "subject": "OWASP NodeGoat"
+  }
+}

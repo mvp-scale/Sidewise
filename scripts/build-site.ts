@@ -1,10 +1,11 @@
 /**
  * Builds the mm3lab.dev landing page: fills site/template.html from docs/story.yaml (so the site and the README
- * repeat the same phrases), then copies site/style.css and docs/assets/* next to it in site/dist/ (gitignored).
+ * repeat the same phrases) and the demo player from docs/demo/scenes/*.json, then copies site/style.css, site/player.js and docs/assets/* next to it in site/dist/ (gitignored).
  * renderSite is pure so a unit test can pin the escaping and the lists; the main block does the file work.
  */
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { loadScenes, renderPlayer } from './build-demo.ts';
 import { loadStory, type Story } from './story.ts';
 
 /** The site is served apart from the repo, so a number's method links to the GitHub copy of the doc. */
@@ -47,22 +48,21 @@ export function renderSite(story: Story, template: string, extra: Record<string,
   });
 }
 
-/** Demo slot: the README's GIF, full width, when docs/assets/demo.gif exists; nothing otherwise. */
-export function demoSlot(hasGif: boolean): string {
-  return hasGif
-    ? '  <figure class="demo"><img src="demo.gif" alt="A terminal recording: an agent writes a request, runs mm3 class, and reads the verdict" loading="lazy"></figure>'
-    : '';
+/** Demo slot: the interactive player, rendered from the frozen scene JSON in docs/demo/scenes/ (empty when there are none). */
+export function demoSlot(playerHtml: string): string {
+  return playerHtml ? `  ${playerHtml}` : '';
 }
 
 /** Writes site/dist/ (index.html, style.css, docs/assets/*) from docs/story.yaml; returns the note to print. */
 export function buildSite(story: Story = loadStory(), dist = 'site/dist'): string {
   rmSync(dist, { recursive: true, force: true });
   mkdirSync(dist, { recursive: true });
-  const hasGif = existsSync('docs/assets/demo.gif');
-  writeFileSync(path.join(dist, 'index.html'), renderSite(story, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(hasGif) }));
+  const scenes = existsSync('docs/demo/scenes') ? loadScenes() : [];
+  writeFileSync(path.join(dist, 'index.html'), renderSite(story, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(scenes.length ? renderPlayer(scenes) : '') }));
   copyFileSync('site/style.css', path.join(dist, 'style.css'));
+  copyFileSync('site/player.js', path.join(dist, 'player.js'));
   for (const f of readdirSync('docs/assets')) cpSync(path.join('docs/assets', f), path.join(dist, f));
-  return `site built: ${dist}/index.html${hasGif ? ' (with demo.gif)' : ' (no demo.gif yet)'}`;
+  return `site built: ${dist}/index.html (${scenes.length} player scenes)`;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) console.log(buildSite());

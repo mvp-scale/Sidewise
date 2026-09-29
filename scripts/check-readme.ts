@@ -7,6 +7,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { loadScenes, sceneFooter, sceneLabel, type Scene } from './build-demo.ts';
 import { buildSite, esc, methodUrl, VERB_BLURBS } from './build-site.ts';
 import { loadStory, type Story } from './story.ts';
 
@@ -79,7 +80,7 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
 }
 
 /** The site's drift check: every story phrase verbatim in the built page, each number linked to its method, no old names, and (given the dist folder) every relative asset present. */
-export function checkSite(html: string, story: Story, dist?: string, readme?: string): string[] {
+export function checkSite(html: string, story: Story, dist?: string, readme?: string, scenes?: Scene[]): string[] {
   const out: string[] = [];
   const phrases: [string, string][] = [
     ['story.tagline', story.tagline], ['story.identity', story.identity],
@@ -95,6 +96,7 @@ export function checkSite(html: string, story: Story, dist?: string, readme?: st
     if (!existsSync(path.join(dist, m[1]!))) out.push(`✖ site link: ${m[1]} is not in ${dist} → fix the path or copy the asset`);
   }
   if (readme !== undefined) out.push(...checkSiteProse(html, readme, story));
+  if (scenes) out.push(...checkDemo(html, readme, scenes));
   return out;
 }
 
@@ -107,6 +109,28 @@ function siteText(html: string): string {
   return squash(bare.replace(/&#(\d+);/g, (_m, n: string) => String.fromCharCode(+n)).replace(/&(\w+);/g, (m, k: string) => ENTITIES[k] ?? m));
 }
 const plain = (md: string): string => squash(md.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/`/g, ''));
+/** The demo player's drift check: each scene's footer is on the site, and the README's one frozen response is that scene's text with its label (model, endpoint, latency, cost). */
+export function checkDemo(html: string, readme: string | undefined, scenes: Scene[]): string[] {
+  const out: string[] = [];
+  if (!scenes.length) return ['✖ demo: no scenes in docs/demo/scenes/ → run tsx scripts/build-demo.ts extract'];
+  const text = siteText(html);
+  for (const s of scenes) {
+    const footer = sceneFooter(s);
+    if (!text.includes(squash(footer))) out.push(`✖ site demo ${s.id}: footer "${footer}" is not in site/dist/index.html → rebuild the site from docs/demo/scenes (npm run build:site)`);
+  }
+  if (readme === undefined) return out;
+  const blocks = [...readme.matchAll(/```text\n([\s\S]*?)```/g)].map((m) => m[1]!.trim());
+  const idOf = (b: string): string | undefined => /^ {2}id: (MM3-\d+)$/m.exec(b)?.[1];
+  const hit = blocks.map((b) => ({ b, scene: scenes.find((s) => s.id === idOf(b)) })).find((x) => x.scene);
+  if (!hit) out.push('✖ README response: no frozen response in ## See it run matches a demo scene → paste one scene\'s response text under the player');
+  else {
+    const s = hit.scene!;
+    if (hit.b !== s.response.trim()) out.push(`✖ README response ${s.id}: differs from docs/demo/scenes → copy the scene's response text verbatim`);
+    if (!plain(readme).includes(sceneLabel(s))) out.push(`✖ README response ${s.id}: label "${sceneLabel(s)}" is not in the README → copy it from the scene footer`);
+  }
+  return out;
+}
+
 const PROSE_SECTIONS = ['See it run', 'What you get', 'Why we built it', 'Limits and alternatives'];
 
 /** Prose the README and the site both carry (hand-copied, not in story.yaml): each block of these README sections must appear in the page's text, so a README edit that the site missed fails. */
@@ -123,7 +147,7 @@ function checkSiteProse(html: string, readme: string, story: Story): string[] {
     const rest = readme.slice(start + 1);
     const body = rest.slice(rest.indexOf('\n') + 1).split(/\n## /)[0]!;
     for (const m of body.matchAll(/```[^\n]*\n([\s\S]*?)```/g)) if (!m[1]!.includes('verb=')) want(section, m[1]!);
-    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
+    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<picture>[\s\S]*?<\/picture>/g, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
     for (const block of prose.split(/\n\s*\n/)) {
       const lines = block.split('\n').filter((l) => l.trim());
       if (lines[0]?.startsWith('|')) {
@@ -164,7 +188,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const md = readFileSync('README.md', 'utf8');
     problems = checkReadme(md, story!, { root: '.', dryRun: cliDryRun, published: false });
     buildSite(story!); // the site is built here so CI and a clean checkout check the page they would ship
-    problems.push(...checkSite(readFileSync('site/dist/index.html', 'utf8'), story!, 'site/dist', md));
+    problems.push(...checkSite(readFileSync('site/dist/index.html', 'utf8'), story!, 'site/dist', md, loadScenes()));
   }
   for (const p of problems) console.log(p);
   console.log(problems.length ? `readme: ${problems.length} problem(s)` : 'readme OK');

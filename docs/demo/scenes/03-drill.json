@@ -1,0 +1,19 @@
+{
+  "id": "MM3-0004",
+  "verb": "drill",
+  "title": "Found: dig into the weak spot",
+  "prompt": "The injection concern failed. Pin down exactly why.",
+  "command": "mm3 drill request.yaml",
+  "request": "mak:\n  goal: The contributions handler parses preTax, afterTax and roth without running them as code\n  verb: drill\n  parent: MM3-0001\n  from: injection\n  depth: quick\n  ask:\n    concerns:\n      reach:\n        family: injection\n        pass: no\n        1: Is the string in `req.body.preTax` passed unchanged into `eval` in `handleContributionsUpdate`?\n        2: Is the string in `req.body.afterTax` passed unchanged into `eval` in `handleContributionsUpdate`?\n        3: Is the string in `req.body.roth` passed unchanged into `eval` in `handleContributionsUpdate`?\n      guard:\n        family: injection\n        pass: no\n        4: Does the `isNaN` check in `handleContributionsUpdate` run only after `eval` has already executed the body string?\n        5: Would an expression that evaluates to a valid number pass the later validation while still having run as code?\n        6: Is the number-only `parseInt` alternative left commented out instead of being the active parser?\n      sink:\n        family: injection\n        pass: no\n        7: Does `eval` execute in the server's own Node.js process rather than a sandbox?\n        8: Can the code passed to `eval` reach `require`, `process` or the file system?\n        9: Does the value produced by `eval` reach `contributionsDAO.update` for storage?\n    decisions:\n      severity:\n        pass: [none, low]\n        10:\n          scale: How severe is the `eval` of request body values in `handleContributionsUpdate`?\n          levels: [none, low, medium, high, critical]\n      route:\n        pass: [ship]\n        11:\n          choice: What should happen to the `eval` parsing in `handleContributionsUpdate`?\n          options: [ship, fix, block]\nmdl:\n  why: debug\n  area: [api]\n  stage: pre-merge\n  problem: Pin down exactly why the injection concern failed on the contributions handler\n  uses:\n    - component:web-app/contributions-handler -> code:handleContributionsUpdate -> component:web-app/contributions-dao\n  touches: [preTax, afterTax, roth]\n  blast: system",
+  "response": "mak:\n  id: MM3-0004\n  gate: fail\n  goal: {gate: fail, p: 0.13}\n  reach: {gate: fail, 1: 0.96, 2: 0.96, 3: 0.96}\n  guard: {gate: fail, 4: 0.97, 5: 0.94, 6: 0.98}\n  sink: {gate: fail, 7: 0.97, 8: 0.80, 9: 0.84}\n  severity: {gate: fail, 10: {top: critical, p: 0.97}}\n  route: {gate: fail, 11: {top: fix, p: 0.89}}\n  consensus: STRONG\n  escalate: false\nmdl: {recorded: [why, area, stage, problem, uses, touches, blast]}\nnext: fix it, then mm3 replay --parent MM3-0001 --compare <before>..<after>\nnotes: [cost estimated from tokens (no live pricing reported), budget 1% used ($0.00 of $5.00 · 4 of 500 runs)]",
+  "footer": {
+    "model": "jev-1.13.0",
+    "endpoint": "api.typesafe.ai",
+    "latencyMs": 260,
+    "costUsd": 0.000048594,
+    "questions": 12,
+    "calls": 1,
+    "date": "2026-09-29",
+    "subject": "OWASP NodeGoat"
+  }
+}

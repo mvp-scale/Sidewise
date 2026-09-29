@@ -2,7 +2,7 @@
 <!-- mm3lab.dev landing page. Built by scripts/build-site.ts: double-brace placeholders are filled from docs/story.yaml
      (tagline, identity, numbers, install, use cases), so the site and the README cannot drift apart
      (npm run check:readme). Prose that is not in story.yaml lives here. No script or font is loaded from
-     outside; the one inline script only adds copy buttons and the page reads fine without it. -->
+     outside; the inline script only adds copy buttons and player.js turns the demo scenes into tabs; the page reads fine without either. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -92,22 +92,7 @@
 <section class="wrap run" id="run" aria-labelledby="run-h">
   <h2 id="run-h">See it run</h2>
 {{demo}}
-  <p>The recording is one real run on this repo&rsquo;s own <code>src/ledger/paths.ts</code>: a 32-line request (<code>docs/demo/review.yaml</code>) and one call. Its response, <strong>real output &middot; jev-1.13.0 &middot; 2026-09-29 &middot; $0.000040</strong>:</p>
-  <div class="code" data-copy><pre><code>mak:
-  id: MM3-0001
-  gate: pass
-  goal: {gate: pass, p: 0.70}
-  correctness: {gate: pass, 1: 0.97, 2: 0.96, 3: 0.96}
-  input: {gate: pass, 4: 0.97, 5: 0.98, 6: 0.98}
-  design-risk: {gate: pass, 7: 0.06, 8: 0.06, 9: 0.06}
-  severity: {gate: pass, 10: {top: none, p: 0.50}}
-  route: {gate: pass, 11: {top: ship, p: 0.97}}
-  consensus: STRONG
-  escalate: false
-mdl: {recorded: none}
-next: act on it
-notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]</code></pre></div>
-  <p>A longer example, on OWASP NodeGoat:</p>
+  <p>Five real runs on OWASP NodeGoat, an intentionally vulnerable app: class, scan, drill, replay and loop, each from the prompt to the verdict and the <code>next:</code> step. Every footer comes from that run&rsquo;s own ledger row. The first run in full:</p>
   <p>An agent was asked, on OWASP NodeGoat: <em>&ldquo;Take a first look: is that contribution handler safe to merge as it stands?&rdquo;</em> It wrote this request (42 lines, opened below) and got one answer from one call.</p>
   <details>
     <summary>The request the agent wrote</summary>
@@ -154,7 +139,7 @@ mdl:
   touches: [preTax, afterTax, roth, userId]
   blast: person</code></pre></div>
   </details>
-  <p>The response, <strong>real output &middot; jev-1.13.0 &middot; 2026-09-29 &middot; $0.000048</strong>:</p>
+  <p>The response, <strong>real output &middot; jev-1.13.0 &middot; api.typesafe.ai &middot; 364 ms &middot; $0.000048</strong>:</p>
   <div class="code" data-copy><pre><code>mak:
   id: MM3-0001
   gate: fail
@@ -169,7 +154,7 @@ mdl:
 mdl: {recorded: [why, area, stage, problem, uses, touches, blast]}
 next: mm3 template drill --parent MM3-0001 --from injection
 notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]</code></pre></div>
-  <p>Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through <code>eval</code> (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets <code>escalate: true</code> and <code>next:</code> names the drill that digs into injection. The agent ran that drill, fixed the <code>eval</code>. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.</p>
+  <p>Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through <code>eval</code> (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets <code>escalate: true</code> and <code>next:</code> names the drill that digs into injection. The agent ran that drill, fixed the <code>eval</code>, then replayed to prove the fix: the drill and replay tabs show it. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.</p>
 </section>
 
 <section class="wrap get" id="get" aria-labelledby="get-h">
@@ -245,5 +230,6 @@ notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($
   });
 })();
 </script>
+<script src="player.js" defer></script>
 </body>
 </html>

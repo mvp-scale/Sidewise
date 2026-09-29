@@ -50,28 +50,12 @@ Agents: run `mm3 agent` first. Humans: `mm3 help`.
 
 ## See it run
 
-![A terminal recording: an agent's one-line ask, the request it wrote, one mm3 class run, and the verdict](docs/assets/demo.gif)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo-player-dark.gif">
+  <img src="docs/assets/demo-player-light.gif" alt="An animated split panel of five real MM3 runs on OWASP NodeGoat: class, scan, drill, replay and loop. Each shows the prompt and command, the request with numbered questions, and the verdict with gates, p bars and the next step. A footer under each names the run's model, endpoint, latency, cost and id.">
+</picture>
 
-The recording is one real run on this repo's own `src/ledger/paths.ts`: a 32-line request (`docs/demo/review.yaml`) and one call. Its response, **real output · jev-1.13.0 · 2026-09-29 · $0.000040**:
-
-```text
-mak:
-  id: MM3-0001
-  gate: pass
-  goal: {gate: pass, p: 0.70}
-  correctness: {gate: pass, 1: 0.97, 2: 0.96, 3: 0.96}
-  input: {gate: pass, 4: 0.97, 5: 0.98, 6: 0.98}
-  design-risk: {gate: pass, 7: 0.06, 8: 0.06, 9: 0.06}
-  severity: {gate: pass, 10: {top: none, p: 0.50}}
-  route: {gate: pass, 11: {top: ship, p: 0.97}}
-  consensus: STRONG
-  escalate: false
-mdl: {recorded: none}
-next: act on it
-notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
-```
-
-A longer example, on OWASP NodeGoat:
+Five real runs on OWASP NodeGoat, an intentionally vulnerable app: class, scan, drill, replay and loop, each from the prompt to the verdict and the `next:` step. Every footer comes from that run's own ledger row. The first run in full:
 
 An agent was asked, on OWASP NodeGoat: *"Take a first look: is that contribution handler safe to merge as it stands?"* It wrote this request (42 lines, opened below) and got one answer from one call.
 
@@ -125,7 +109,7 @@ mdl:
 
 </details>
 
-The response, **real output · jev-1.13.0 · 2026-09-29 · $0.000048**:
+The response, **real output · jev-1.13.0 · api.typesafe.ai · 364 ms · $0.000048**:
 
 ```text
 mak:
@@ -144,7 +128,7 @@ next: mm3 template drill --parent MM3-0001 --from injection
 notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
 ```
 
-Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through `eval` (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets `escalate: true` and `next:` names the drill that digs into injection. The agent ran that drill, fixed the `eval`. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.
+Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through `eval` (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets `escalate: true` and `next:` names the drill that digs into injection. The agent ran that drill, fixed the `eval`, then replayed to prove the fix: the drill and replay tabs show it. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.
 
 ## What you get
 

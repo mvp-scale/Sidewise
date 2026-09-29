@@ -31,8 +31,8 @@ describe('renderSite', () => {
   it('throws on an unknown placeholder, and fills the demo slot only when given', () => {
     expect(() => renderSite(story, '{{nope}}')).toThrow(/unknown placeholder/);
     expect(renderSite(story, '[{{demo}}]')).toBe('[]');
-    expect(demoSlot(true)).toContain('demo.gif');
-    expect(demoSlot(false)).toBe('');
+    expect(demoSlot('<div class="player"></div>')).toContain('class="player"');
+    expect(demoSlot('')).toBe('');
   });
 });
 
@@ -50,7 +50,7 @@ describe('checkSite', () => {
   });
   it('renders the real template from the real story with no drift', () => {
     const real = loadStory();
-    const page = renderSite(real, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(false) });
+    const page = renderSite(real, readFileSync('site/template.html', 'utf8'), { demo: demoSlot('') });
     expect(checkSite(page, real)).toEqual([]);
     expect(page).toContain('<title>MM3: ');
     expect(page).not.toMatch(/https?:\/\/(?!github\.com|mm3lab\.dev|www\.w3\.org)/);
@@ -58,7 +58,7 @@ describe('checkSite', () => {
   describe('prose drift against the README', () => {
     const real = loadStory();
     const readme = readFileSync('README.md', 'utf8');
-    const page = renderSite(real, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(false) });
+    const page = renderSite(real, readFileSync('site/template.html', 'utf8'), { demo: demoSlot('') });
     it('passes for the real README and template', () => {
       expect(checkSite(page, real, undefined, readme)).toEqual([]);
     });
