@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" role="img" aria-labelledby="t d" style="text-rendering:geometricPrecision">
+<!-- How MM3 works (dark theme): the six verbs in a 2 by 3 grid. Rows are MAK³ (make, use what is proven: view, class, replay) and MDL³ (model, learn what is missing: scan, drill, loop); columns are Know, Judge, Prove. A ledger bar underneath says all six write one ledger. Legible at a 400 px viewport: every text is at least 23 units in a 720-unit box, so at 380 px wide it renders at 12 px or more. Rows fade in once; the animation only runs when the reader has not asked for reduced motion. -->
+  <title id="t">How MM3 works</title>
+  <desc id="d">Six verbs in two rows and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns.</desc>
+  <defs><linearGradient id="bg" x2="0" y2="1"><stop stop-color="#0b1424"/><stop offset="1" stop-color="#050914"/></linearGradient></defs>
+  <style>
+    text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif}
+    .col{fill:#f5f8ff;font-size:26px;font-weight:800;letter-spacing:.02em}
+    .row{font-size:24px;font-weight:700}
+    .card{fill:#101b2e;stroke:#24344f;stroke-width:1.5}
+    .verb{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:36px;font-weight:800}
+    .cap{fill:#f5f8ff;font-size:24px}
+    @media (prefers-reduced-motion:no-preference){
+      .r{opacity:0;animation:r 12s ease-out infinite}
+      .d1{animation-delay:.2s}.d2{animation-delay:.5s}.d3{animation-delay:.8s}.d4{animation-delay:1.4s}.d5{animation-delay:1.7s}.d6{animation-delay:2s}.d7{animation-delay:2.6s}
+      @keyframes r{0%{opacity:0;transform:translateY(5px)}6%,94%{opacity:1;transform:translateY(0)}100%{opacity:0}}
+    }
+  </style>
+  <rect width="720" height="520" rx="28" fill="url(#bg)"/>
+  <rect x="14" y="14" width="692" height="492" rx="22" fill="none" stroke="#ffffff" stroke-opacity=".08"/>
+  <text x="144" y="56" text-anchor="middle" class="col">Know</text>
+  <text x="360" y="56" text-anchor="middle" class="col">Judge</text>
+  <text x="576" y="56" text-anchor="middle" class="col">Prove</text>
+  <text x="42" y="100" class="row"><tspan fill="#9bdcff" font-weight="900">MAK³</tspan><tspan fill="#f5f8ff"> make</tspan><tspan fill="#93a7bd"> · use what is proven</tspan></text>
+  <g class="r d1"><rect x="42" y="118" width="204" height="132" rx="16" class="card"/><rect x="42" y="118" width="204" height="6" rx="3" fill="#9bdcff"/><text x="60" y="164" class="verb" fill="#9bdcff">view</text><text x="60" y="198" class="cap">free lookup</text><text x="60" y="226" class="cap">of the ledger</text></g>
+  <g class="r d2"><rect x="258" y="118" width="204" height="132" rx="16" class="card"/><rect x="258" y="118" width="204" height="6" rx="3" fill="#9bdcff"/><text x="276" y="164" class="verb" fill="#9bdcff">class</text><text x="276" y="198" class="cap">one subject,</text><text x="276" y="226" class="cap">one verdict</text></g>
+  <g class="r d3"><rect x="474" y="118" width="204" height="132" rx="16" class="card"/><rect x="474" y="118" width="204" height="6" rx="3" fill="#9bdcff"/><text x="492" y="164" class="verb" fill="#9bdcff">replay</text><text x="492" y="198" class="cap">recheck after</text><text x="492" y="226" class="cap">a fix</text></g>
+  <text x="42" y="276" class="row"><tspan fill="#b7ff83" font-weight="900">MDL³</tspan><tspan fill="#f5f8ff"> model</tspan><tspan fill="#93a7bd"> · learn what is missing</tspan></text>
+  <g class="r d4"><rect x="42" y="294" width="204" height="132" rx="16" class="card"/><rect x="42" y="294" width="204" height="6" rx="3" fill="#b7ff83"/><text x="60" y="340" class="verb" fill="#b7ff83">scan</text><text x="60" y="374" class="cap">sweep to find</text><text x="60" y="402" class="cap">where to look</text></g>
+  <g class="r d5"><rect x="258" y="294" width="204" height="132" rx="16" class="card"/><rect x="258" y="294" width="204" height="6" rx="3" fill="#b7ff83"/><text x="276" y="340" class="verb" fill="#b7ff83">drill</text><text x="276" y="374" class="cap">dig into one</text><text x="276" y="402" class="cap">weak spot</text></g>
+  <g class="r d6"><rect x="474" y="294" width="204" height="132" rx="16" class="card"/><rect x="474" y="294" width="204" height="6" rx="3" fill="#b7ff83"/><text x="492" y="340" class="verb" fill="#b7ff83">loop</text><text x="492" y="374" class="cap">vet a design</text><text x="492" y="402" class="cap">before code</text></g>
+  <g class="r d7"><rect x="42" y="440" width="636" height="52" rx="14" fill="#0e1a2c" stroke="#24344f" stroke-width="1.5"/><text x="360" y="474" text-anchor="middle" class="cap" font-weight="700">One ledger under all six. It learns.</text></g>
+</svg>

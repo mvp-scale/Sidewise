@@ -1,151 +1,40 @@
-# MM3
+<h1 align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/wordmark-dark.svg"><img src="docs/assets/wordmark-light.svg" width="280" alt="MM3"></picture></h1>
 
-**A Knowledge One system: use what is proven, learn what is missing, and keep everything it teaches you.**
+<p align="center"><b>Checklists in. Calibrated verdicts out.</b></p>
 
-MM3 gives coding agents a cheap, calibrated side-question. The agent writes a short numbered yes/no checklist on one focus. A small classifier answers it, and MM3 returns a six-line consensus: how strongly the evidence agrees, which way it leans, and where the concern is. Every run and its outcome goes into a local log, so over time MM3 can show you where your agents keep going wrong.
+<p align="center">MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict your coding agent can cite.</p>
 
-## Two modes, three jobs
+<p align="center"><a href="https://github.com/mvp-scale/Sidewise/actions/workflows/ci.yml"><img src="https://github.com/mvp-scale/Sidewise/actions/workflows/ci.yml/badge.svg" alt="CI"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0 license"></a> <a href="#install"><img src="https://img.shields.io/badge/node-%E2%89%A5%2022.13-3c873a" alt="Node 22.13 or newer"></a></p>
 
-**MAK³** (make) uses what is proven. **MDL³** (model) learns what is missing. Each works across the same three jobs, **Know, Judge, Prove**, and the power of three is the point: six verbs, one knowledge system.
+<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-it-works-dark.svg"><img src="docs/assets/how-it-works-light.svg" width="640" alt="How MM3 works. Six verbs in two rows and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns."></picture></p>
 
-| | **Know** | **Judge** | **Prove** |
-|---|---|---|---|
-| **MAK³** · use what is proven | `view` | `class` | `replay` |
-| **MDL³** · learn what is missing | `scan` | `drill` | `loop` |
-
-> **Status: pre-release.** The package, plugin and install flow are under active development. Nothing is on npm yet. Watch the repo or check back for `@mvpscale/mm3@nightly`.
-
-## Why
-
-- **Compact by default, expands on demand.** A short checklist goes in, a ≤ 6-line answer comes out, and you open the detail only when you need it.
-- **Cheaper than a second full-context review.** A decomposed checklist goes to a small classifier. No subagent has to re-read the whole task.
-- **Consensus, never a command.** You get agreement strength and a lean; the agent decides.
-- **Irreversible stays human.** Delete, deploy, drop and pay are always the agent's or owner's call.
-- **Every answer gets graded.** Outcomes (held · overruled · failed) are logged next to the question that produced them.
-- **It finds what your agents are bad at.** Overruled, failed and split answers roll up into weak spots, but only with enough evidence to be believed.
-- **Budgeted, no surprises.** A hard spend cap that only you reset. It fails closed.
-- **Runs where your agents run.** One CLI and one MCP server: a one-command plugin for Claude Code, a `GEMINI.md` for Gemini CLI, and a standard MCP server any MCP client (Cursor, VS Code/Copilot, ...) can point at.
-
-## What a run looks like
-
-Every request has a `mak:` block (**make**: the request itself, one goal, then plumbing) and an optional `mdl:` block (**model**: why you're here, so the ledger learns). The blocks are the same on every verb; the verb you run, not the key, decides whether it is a MAK³ or an MDL³ move. `class` — one call, one subject — is the simplest of the six verbs; run `mm3 help` for all six and how they fit together.
-
-Request:
-
-```yaml
-mak:
-  goal: This login handler is safe to merge
-  depth: quick
-  where: [src/user.ts:1-3]
-  ask:
-    injection:
-      pass: no
-      1: Is request text placed directly into the SQL query?
-      2: Could a caller change what the query does?
-      10: Would a standard security scanner flag this code?
-    guards:
-      pass: yes
-      3: Is the id checked to be a number before use?
-      6: Is the caller compared to the record owner?
-      9: Does the query select only needed columns?
-    access:
-      pass: no
-      4: Could one user read another user's record?
-      5: Can any caller read any record without a permission check?
-    leaks:
-      pass: no
-      7: Does the error sent back reveal the query?
-      8: Does the code log an email address?
-    severity:
-      pass: [none, low]
-      11:
-        scale: How severe is the worst issue?
-        levels: [none, low, medium, high, critical]
-    route:
-      pass: [ship]
-      12:
-        choice: Where should this go?
-        options: [ship, fix, block]
-mdl:
-  why: validate
-  area: data
-```
-
-Response:
-
-```yaml
-mak:
-  id: MM3-0042
-  gate: fail
-  goal: {gate: fail, p: 0.08}
-  injection: {gate: fail,   1: 0.94, 2: 0.91, 10: 0.90}
-  guards:    {gate: pass,   3: 0.88, 6: 0.81, 9: 0.75}
-  access:    {gate: fail,   4: 0.86, 5: 0.84}
-  leaks:     {gate: unsure, 7: 0.55, 8: 0.20}
-  severity:  {gate: fail,   11: {top: high, p: 0.81}}
-  route:     {gate: fail,   12: {top: block, p: 0.97}}
-  consensus: STRONG
-  escalate: false
-mdl: {recorded: [why, area]}
-next: mm3 template drill --parent MM3-0042 --from injection
-notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
-```
-
-The numbers above are one run's illustration, not a guarantee — the real classifier's actual answer varies.
+- [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
+- [1,107 tests, no network, no key](docs/numbers.md#test-count)
+- [12/12 verb and depth choices right in an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
 
 ## Install
 
-Requires Node 22.13 or newer — it's what the ledger's `node:sqlite` index runs on. The CLI checks this itself and stops with a clear message on anything older (`mm3 doctor` reports it too, and still runs on an old Node so you can see what's wrong).
+In Claude Code, from your project:
 
-**Claude Code: install the plugin and set your key in its options, that's all.**
-
-```
+```text
 /plugin marketplace add mvp-scale/Sidewise
 /plugin install mm3@mvp-scale
 ```
 
-Claude prompts for a TypeSafe API key (masked, optional — leave it empty to use the free fake provider):
+Pick **project** scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on "TypeSafe API key", paste, Enter, then "Save configuration". Leave it empty to use the free sample provider.
 
-1. Press Enter on "TypeSafe API key", paste your key, press Enter, then choose "Save configuration".
-
-The plugin bundles its own CLI and its own MCP tool; nothing else to install, no npm, no PATH. Want the AI Gateway route instead? The plugin's config only offers the TypeSafe key — set `AI_GATEWAY_API_KEY` in your own environment; the CLI reads it the same way it always has. Testing from a clone of this repo: `/plugin marketplace add /path/to/your/clone` instead of the GitHub form.
-
-`/plugin` defaults to installing at **user** scope (every project); MM3 is scoped per project, so pick **project** scope in the prompt if you can, or run `mm3 init --scope project` afterward to fix it — `mm3 doctor` names the scope it finds and nudges you if it's user-only.
-
-**Everyone else (a bare terminal, Codex, Gemini CLI, ...):** run this inside the project you want MM3 in:
+In a terminal, or with Codex or Gemini CLI (needs Node 22.13+):
 
 ```bash
-npx @mvpscale/mm3 init
+npm install -g @mvpscale/mm3
+mm3 init
 ```
 
-`init` does four things and says what it did at each step, one line apiece:
-- It puts the `mm3` command on your PATH. You choose global, `--user` (under `~/.local`, no sudo) or `--local` (this project only, run as `npx mm3`). It never runs sudo.
-- It asks for your TypeSafe API key, with the input hidden, and stores it per user: the OS keychain first, otherwise `~/.config/mm3/env` (mode 0600). Press Enter to skip and use the free fake provider.
-- It enables the Claude Code plugin for this project, if `claude` is on your PATH.
-- It sets up `.mm3/`, this project's run history, which git ignores.
+**Status: pre-release.** The package publishes with the first release; until then use the plugin above, or build from a clone (see [AGENTS.md](AGENTS.md)). Nightly builds will land as `@mvpscale/mm3@nightly`.
 
-Re-running `init` changes nothing that's already right. In a second project it only enables that project. `mm3 uninstall` reverses it for this project; add `--all` to also remove the key and the CLI.
+### Try it with no key
 
-**Just the CLI:** `npm install -g @mvpscale/mm3` (global; may need sudo), `npm install -g --prefix ~/.local @mvpscale/mm3` (no sudo; `~/.local/bin` must be on PATH) or `npm install -D @mvpscale/mm3` (this project; run `npx mm3`). Then add a key with `mm3 init`, or `export TYPESAFE_API_KEY=…`.
-
-`mm3 doctor` says where the key came from (`from OS keychain`, `from user file …`, `from env …`), never the key itself.
-
-### From a local build
-
-In a clone of this repo:
-
-```bash
-npm install
-cd /path/to/your/project && npm --prefix /path/to/MM3 run dev:install
-```
-
-`dev:install` builds, packs a tarball, and runs `init` from that tarball in the directory you ran it from, so a local build installs exactly the way the published package does.
-
-## Quickstart
-
-Every command below runs unmodified, in order, against a fresh project — `mm3 template class` already asks about the first three lines of `src/user.ts`, so nothing needs editing before `mm3 class` sends it. In a real project, edit the `goal` and `ask` first.
-
-With no `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` in the environment, this runs on the built-in fake provider — free, deterministic, offline, and its answers are canned, not real. Set one of those keys for real answers (or `MM3_PROVIDER=fake|chaos|typesafe` to choose explicitly).
+With no key set, MM3 runs on a built-in sample provider: free, offline, and its answers are canned and labelled, never evidence. To force it even when a key is set, run `MM3_PROVIDER=fake mm3 class review.yaml`. Every line below runs in order in a fresh project:
 
 ```bash
 # mm3-quickstart
@@ -157,28 +46,172 @@ mm3 outcome MM3-0001 held --by you
 mm3 budget
 ```
 
-Run `mm3 doctor` any time to check which provider, route and base URL a call would use, whether a key is
-set (never its value), and whether a project and its ledger are found — free, no call, no spend. Set
-`MM3_BASE_URL=<url>` to point at a proxy or a self-hosted mirror instead of TypeSafe's own endpoint
-(`https` required, except `http` for `localhost`/`127.0.0.1`/`[::1]`). A 429 or 529 from TypeSafe is retried
-automatically, up to twice more; a 401 or 422 never retries.
+Agents: run `mm3 agent` first. Humans: `mm3 help`.
 
-`mm3 report [hits|patterns|history]` reads back what the ledger already knows — free, read-only, no
-options beyond the view name; it's a read tool, not a seventh verb.
+## See it run
 
-For the full six verbs, grading rules and stop/exit codes, run `mm3 help` (or `mm3 help <verb>`/`mm3 help <topic>`), or see [skills/mm3/SKILL.md](skills/mm3/SKILL.md) for the short version.
+<!-- demo: Task 3 -->
 
-## Releases
+An agent was asked, on OWASP NodeGoat: *"Take a first look: is that contribution handler safe to merge as it stands?"* It wrote this request (42 lines, opened below) and got one answer from one call.
 
-| Channel | Install | When |
-|---|---|---|
-| nightly | `npm i @mvpscale/mm3@nightly` | daily from the `nightly` branch, when it changed and CI passed |
-| stable | `npm i @mvpscale/mm3` | tagged releases on `main` |
+<details>
+<summary>The request the agent wrote</summary>
 
-## Contributing
+```text
+mak:
+  goal: The `handleContributionsUpdate` handler rejects unsafe input and is safe to merge
+  verb: class
+  depth: quick
+  where: [app/routes/contributions.js:24-72]
+  ask:
+    concerns:
+      injection:
+        pass: no
+        1: Is `req.body.preTax`, `req.body.afterTax` or `req.body.roth` read from the request body in `handleContributionsUpdate`?
+        2: Are those body values passed to a parser that only accepts numbers, rather than to a code evaluator?
+        3: Does `handleContributionsUpdate` run those body values through `eval`?
+      input:
+        pass: yes
+        4: Are `preTax`, `afterTax` and `roth` checked for NaN and negative values before use?
+        5: Is the combined total of `preTax`, `afterTax` and `roth` capped before the DAO update?
+        6: Does `handleContributionsUpdate` return an error page instead of updating when validation fails?
+      access:
+        pass: yes
+        7: Is `userId` taken from `req.session` rather than from `req.body`?
+        8: Is the update passed to `contributionsDAO.update` keyed only by that session `userId`?
+        9: Does the response render only the caller's own contributions record?
+    decisions:
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst issue found in `handleContributionsUpdate`?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should `handleContributionsUpdate` go?
+          options: [ship, fix, block]
+mdl:
+  why: validate
+  area: [api]
+  stage: pre-merge
+  problem: Is handleContributionsUpdate in contributions.js safe to merge as it stands
+  uses:
+    - component:web-app/contributions-handler -> code:handleContributionsUpdate -> component:web-app/contributions-dao
+  touches: [preTax, afterTax, roth, userId]
+  blast: person
+```
 
-See [AGENTS.md](AGENTS.md) for commands, test tiers and repo rules. Those rules apply to humans and agents alike.
+</details>
+
+The response, **real output · jev-1.13.0 · 2026-09-29 · $0.000048**:
+
+```text
+mak:
+  id: MM3-0001
+  gate: fail
+  goal: {gate: fail, p: 0.06}
+  injection: {gate: fail, 1: 0.99, 2: 0.08, 3: 0.98}
+  input: {gate: pass, 4: 0.95, 5: 0.94, 6: 0.95}
+  access: {gate: unsure, 7: 0.99, 8: 0.71, 9: 0.55}
+  severity: {gate: fail, 10: {top: critical, p: 0.96}}
+  route: {gate: fail, 11: {top: fix, p: 0.70}}
+  consensus: SPLIT
+  escalate: true
+mdl: {recorded: [why, area, stage, problem, uses, touches, blast]}
+next: mm3 template drill --parent MM3-0001 --from injection
+notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
+```
+
+Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through `eval` (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets `escalate: true` and `next:` names the drill that digs into injection. The agent ran that drill, fixed the `eval`, and ran a `replay` to prove it: the goal now passed at 0.92, with the guard and sink concerns still open. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.
+
+## What you get
+
+|  | **Know** | **Judge** | **Prove** |
+|---|---|---|---|
+| **MAK³** · use what is proven | `view`: a free lookup of what is on record | `class`: one subject, one verdict | `replay`: recheck after a fix |
+| **MDL³** · learn what is missing | `scan`: sweep to find where to look | `drill`: dig into one weak spot | `loop`: vet a design before code |
+
+A request has a `mak:` block (the checklist) and an optional `mdl:` block (why you are asking, so the ledger learns). The verb you run, not the key, decides whether it is a MAK³ or an MDL³ move. `mm3 help <verb>` shows the rules for each; `mm3 template <verb>` prints a filled-in sample.
+
+Every run and its outcome goes into an append-only ledger in `.mm3/` (git-ignored). Ask the same questions of unchanged code and MM3 answers from the ledger: no call, no cost. `mm3 report` reads back where your agents keep going wrong, and a budget cap, which only you reset, stops runaway spend. `mm3 view` looks a request up in the ledger before you spend anything.
+
+## Why we built it
+
+Classifiers got good: TypeSafe's Jev answers a plain yes/no about your code, calibrated, for a fraction of a cent. But an agent that asks once makes a call you can't trace, and asking ten more times is louder, not smarter.
+
+MM3 is a Knowledge One system. It sits on a System One (a fast classifier) and adds a standard way to ask and a place to keep what you learn: one checklist in, a verdict per concern out, every answer kept and reused.
+
+## What you can do
+
+- **Check a change before you merge it.** One `class` call, three angles per concern, a verdict for each. Start with `mm3 template class`.
+- **Prove a fix actually worked.** `replay` re-asks a past run's own questions across two commits, so you check the fix without re-checking everything. Start with `mm3 template replay`.
+- **Find where a problem lives.** `scan` sweeps a folder and ranks the files that most need a look. Start with `mm3 template scan`.
+- **Check a design before any code exists.** `loop` puts a plan through the same checklist before anyone writes it. Start with `mm3 template loop`.
+
+Each template is a filled-in request with its rules as comments.
+
+<details>
+<summary>A request you can dry-run in this repo</summary>
+
+`mm3 class review.yaml --dry-run` validates it and counts its questions without spending anything.
+
+```yaml verb=class
+mak:
+  goal: An answer is reused only while the code it was given on is unchanged
+  depth: quick
+  where: [src/ledger/reuse.ts:193-260, src/ledger/stale.ts]
+  ask:
+    concerns:
+      freshness:
+        pass: yes
+        1: Does the check compare the code's current state with the state the answer was given on?
+        2: Is an answer dropped once the code it was given on has changed?
+        3: Is that comparison made before any call is sent?
+      lookup:
+        pass: yes
+        4: Is a stored answer looked up by the exact question set?
+        5: Is the lookup keyed on the question text and the code state together?
+        6: Is a lookup miss treated as "ask", not as an error?
+      spend:
+        pass: yes
+        7: Does a reused answer cost nothing?
+        8: Is each reuse recorded in the ledger?
+        9: Is a reused answer labelled as reused?
+    decisions:
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst issue found?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should this go?
+          options: [ship, fix, block]
+mdl:
+  why: validate
+  area: data
+```
+
+</details>
+
+## Limits and alternatives
+
+- **Evidence, never a command.** You get an agreement strength and a lean; you or your agent decide. Delete, deploy, drop and pay stay human.
+- **A false pass costs you.** A calibrated 0.9 is wrong about one time in ten. `unsure` is a real answer, and `mm3 outcome` grades each verdict so the ledger can show which ones to distrust.
+- **Not a linter, scanner or test suite.** Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can't put: does this handler check the caller, will this design hold.
+- **Not a second opinion.** A second full-context model review reads everything and costs far more. Use one when the question won't fit a yes/no.
+- **The sample provider is not evidence.** Its answers are canned. Built on TypeSafe's Jev; other classifiers can plug in.
+- **Pre-release.** Tested end to end on a real app with planted flaws (see the numbers above). Not yet on npm.
+
+## Docs and contributing
+
+- [The contract](docs/contract.md): every claim the answer format makes
+- [Evidence for each claim](docs/evidence/README.md) and [where the numbers come from](docs/numbers.md)
+- [The agent skill](skills/mm3/SKILL.md), and `mm3 agent` / `mm3 help` in your terminal
+- Contributing: see [AGENTS.md](AGENTS.md) for commands, test tiers and rules. Open pull requests against the `nightly` branch.
 
 ## License
 
-[Apache-2.0](LICENSE)
+[Apache-2.0](LICENSE) · [Contributing](AGENTS.md) · [Issues](https://github.com/mvp-scale/Sidewise/issues)
