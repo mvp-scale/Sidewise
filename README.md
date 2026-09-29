@@ -125,7 +125,7 @@ mak:
   escalate: true
 mdl: {recorded: [why, area, stage, problem, uses, touches, blast]}
 next: mm3 template drill --parent MM3-0001 --from injection
-notes: [cost estimated from tokens (no live pricing reported), "budget: $5.00 left of $5.00 · 499 of 500 runs left"]
+notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
 ```
 
 Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through `eval` (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets `escalate: true` and `next:` names the drill that digs into injection. The agent ran that drill, fixed the `eval`, then replayed to prove the fix: the drill and replay tabs show it. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.
