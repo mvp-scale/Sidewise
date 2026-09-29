@@ -7379,7 +7379,7 @@ import { parseArgs } from "node:util";
 var package_default = {
   name: "@mvpscale/mm3",
   version: "0.0.0",
-  description: "Side answers for coding agents: compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
+  description: "MM3, a Knowledge One system for coding agents: MAK\xB3 uses what is proven, MDL\xB3 learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
   license: "Apache-2.0",
   type: "module",
   repository: {
@@ -7394,7 +7394,8 @@ var package_default = {
     "gemini-cli",
     "mcp",
     "agent-skills",
-    "decision-support"
+    "decision-support",
+    "knowledge-one"
   ],
   engines: {
     node: ">=22.13"
@@ -7685,7 +7686,7 @@ function checkMdl(v, out) {
     for (const k of Object.keys(override)) {
       if (!MDL_OVERRIDE_FIELDS.includes(k)) {
         const hint = didYouMean(k, MDL_OVERRIDE_FIELDS);
-        out.push(stop(`${path22}.${k}`, `"${k}" is not a mdl override field`, hint ? `did you mean ${hint}?` : `use ${MDL_OVERRIDE_FIELDS.join(", ")}`));
+        out.push(stop(`${path22}.${k}`, `"${k}" is not an mdl override field`, hint ? `did you mean ${hint}?` : `use ${MDL_OVERRIDE_FIELDS.join(", ")}`));
         continue;
       }
       const val = override[k];
@@ -8117,7 +8118,7 @@ import path3 from "node:path";
 // src/ledger/ids.ts
 import { randomBytes } from "node:crypto";
 var CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-var RUN_ID = /^SW-(\d{4,})$/;
+var RUN_ID = /^(?:MM3|SW)-(\d{4,})$/;
 function ulid(now = Date.now(), random = (n) => randomBytes(n)) {
   let t = now;
   let time = "";
@@ -8131,7 +8132,7 @@ function ulid(now = Date.now(), random = (n) => randomBytes(n)) {
   return time + rand;
 }
 function formatRunId(n) {
-  return `SW-${String(n).padStart(4, "0")}`;
+  return `MM3-${String(n).padStart(4, "0")}`;
 }
 
 // src/ledger/log.ts
@@ -8395,6 +8396,11 @@ function countsTowardBudget(rec) {
   return !isContractRun(rec) || rec.calls > 0;
 }
 function normalizeRecordMdl(value) {
+  const legacy = value;
+  for (const [oldKey, newKey] of [["wise", "mdl"], ["side", "mak"]]) {
+    if (oldKey in legacy && !(newKey in legacy)) legacy[newKey] = legacy[oldKey];
+    delete legacy[oldKey];
+  }
   const w = value.mdl;
   if (w && typeof w === "object" && !Array.isArray(w)) {
     value.mdl = normalizeMdl(w);
@@ -8674,7 +8680,7 @@ function buildMemoryHandle(paths) {
   memoryCache = { logPath: paths.log, size, mtimeMs, state };
   return handleFromMemory(state);
 }
-var SCHEMA_VERSION = 6;
+var SCHEMA_VERSION = 7;
 var SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE runs (
@@ -10260,7 +10266,7 @@ var import_yaml3 = __toESM(require_dist(), 1);
 
 // src/contract/schema-check.ts
 var TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
-var RUN_ID2 = /^MM3-\d{4,}$/u;
+var RUN_ID2 = /^(?:MM3|SW)-\d{4,}$/u;
 var PATH = /^[^\s:]+(:\d+(-\d+)?)?$/u;
 var QNUM = /^[1-9][0-9]*$/u;
 var MAK_KEYS = ["goal", "depth", "where", "parent", "ask", "over", "from", "compare", "verb", "expect"];
@@ -16673,8 +16679,8 @@ function card() {
     "## Pick your verb",
     "| Grid | Know | Judge | Prove |",
     "|---|---|---|---|",
-    "| Mak \u2014 solve it with what's proven   | view (free) | class (1 call) | replay (up to 2 calls) |",
-    "| Mdl \u2014 find what's new, and learn it | scan (1 call) | drill (1 call) | loop (1 call/layer) |",
+    "| MAK\xB3 \u2014 make: use what's proven     | view (free) | class (1 call) | replay (up to 2 calls) |",
+    "| MDL\xB3 \u2014 model: learn what's missing | scan (1 call) | drill (1 call) | loop (1 call/layer) |",
     "",
     ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`),
     "",
