@@ -1,5 +1,5 @@
 /**
- * The id index: .sidewise/index.db, a disposable SQLite sidecar (node:sqlite, lazy dynamic import) speeding up
+ * The id index: .mm3/index.db, a disposable SQLite sidecar (node:sqlite, lazy dynamic import) speeding up
  * every read log.ts/reuse.ts/view.ts do against log.jsonl. The log stays the source of truth (AGENTS.md): this
  * file never rewrites log.jsonl, and a missing/corrupt/stale index just costs the next call a rebuild — never a
  * wrong answer. This file's schema and on-disk layout are not being tuned further for now; see
@@ -8,7 +8,7 @@
  * Two engines behind one `withIndex` entry point, both fed by ONE line-interpretation (`applyLine`/`Sink`), so
  * they can never disagree about what a line means — only about where the answer is stored:
  *   - SQLite (node:sqlite `DatabaseSync`): self-healing on open (rebuild on missing/corrupt/wrong-schema/shorter
- *     log/fingerprint mismatch; catch-up on pure growth), persisted to .sidewise/index.db under the ledger lock
+ *     log/fingerprint mismatch; catch-up on pure growth), persisted to .mm3/index.db under the ledger lock
  *     (skipped when this process already holds it — see withLockIfNeeded).
  *   - Linear fallback (in-memory only, never persisted): the always-correct oracle a real SQLite call still
  *     falls back to when it throws (a corrupt or mid-write index.db — self-heal's own safety net, unrelated to
@@ -18,7 +18,7 @@
  *     all; this throw is only the backstop for a caller (a library consumer) that reaches the ledger directly,
  *     bypassing the CLI. `__testOnly.forceFallback`/`forceSqliteMissing` force this path on purpose, on any
  *     Node, to prove the two engines agree (ledger-index.test.ts) — never set outside a test.
- * A project with no ledger yet (log.jsonl missing or empty) never touches disk here at all — no .sidewise/, no
+ * A project with no ledger yet (log.jsonl missing or empty) never touches disk here at all — no .mm3/, no
  * index.db — for either engine: dry runs, `view`, and any command before the first write must create nothing.
  * Once a real write happens, log.jsonl exists first (appendLine's own mkdir), so the next index build has
  * something to persist against.
@@ -26,34 +26,34 @@
  * Schema (slim — no full JSON copy; bodies are read back from the ledger by offset, `readRecordAt`):
  *   meta(key,value): schema_version, upto (bytes indexed), line_count, fp_start + fingerprint (sha256 of the
  *     line ending at upto, for a same-size-or-larger swap statSync's size check alone would miss).
- *   runs(id PK, offset, adapter, model, verb, ts, gate, blocked, wise, parent, pattern): `wise` is a small JSON
- *     blob — the wise object plus category names — so a future Wise query can `json_extract` it; nothing bulky
+ *   runs(id PK, offset, adapter, model, verb, ts, gate, blocked, mdl, parent, pattern): `mdl` is a small JSON
+ *     blob — the mdl object plus category names — so a future Mdl query can `json_extract` it; nothing bulky
  *     (answers, response, items) is copied here. `parent` (indexed) is the run's own `parent` field verbatim
  *     (NULL for none) — view's lineage walk goes up by id (an ordinary findOffset lookup on the parent id
  *     already read off the child's own record) and down via `WHERE parent = ?` on this column. `pattern`
  *     (`patternFingerprint` below) is a short hash of the run's own question set (categories/layers,
  *     names+pass+need+question text, evidence-independent) — NULL for a Plan 1 run or one with no `ask` at all
- *     — so `sidewise report patterns` can `GROUP BY` it without re-reading every record's own body.
+ *     — so `mm3 report patterns` can `GROUP BY` it without re-reading every record's own body.
  *   answer_keys(adapter, model, key PK, run_id, qid): the newest holder's *origin* (resolved through
  *     reusedFrom), self-compacting — one row per (who, key) ever asked, overwritten on every later touch.
  *   outcomes(run_id PK, outcome, ts, by): latest outcome per run.
  *   places(kind, val, run_id): one row per `where` entry (kind 'where') or legacy tag (kind 'tag'), literal
  *     values only (no prefix expansion at write time — `placeCandidates` below does a LIKE-prefix read instead).
  *   categories(run_id, name, section, family, gate): one row per category a run's own ask carried — one-subject
- *     (`ask.categories`) or a sweep's own layers (`ask.layers[].categories`), never both — so `sidewise report`
+ *     (`ask.categories`) or a sweep's own layers (`ask.layers[].categories`), never both — so `mm3 report`
  *     can `GROUP BY family` with a plain indexed query instead of a JSON blob (plan 2b's "family per category
- *     as queryable"; see `runCategories` below). The `wise` column's own JSON blob already carries
- *     problem/nodes/touches/blast for free (it serializes the run's whole `Wise` object verbatim, and that
+ *     as queryable"; see `runCategories` below). The `mdl` column's own JSON blob already carries
+ *     problem/nodes/touches/blast for free (it serializes the run's whole `Mdl` object verbatim, and that
  *     type gained those fields in plan 2b too) — no schema change needed for those; `family` (and `section`)
- *     are the genuinely new things to index here, since they live on each `Category`, not on `wise`.
+ *     are the genuinely new things to index here, since they live on each `Category`, not on `mdl`.
  */
 import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
 import type { Category, Gate, Verb } from '../contract/types.ts';
-import { normalizeWise } from '../contract/wise-fields.ts';
+import { normalizeMdl } from '../contract/mdl-fields.ts';
 import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type FailedRecord, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
 import { withLock } from './lock.ts';
-import { ensureDir, type SidewisePaths } from './paths.ts';
+import { ensureDir, type Mm3Paths } from './paths.ts';
 import { MIN_NODE_LABEL } from '../util/node-version.ts';
 
 const whoKey = (who: { adapter: string; model: string }): string => `${who.adapter}|${who.model}`;
@@ -99,7 +99,7 @@ function categoryShape(c: Category): unknown {
   };
 }
 
-/** For `sidewise report patterns`: a short hash of a contract run's own question set — its categories
+/** For `mm3 report patterns`: a short hash of a contract run's own question set — its categories
  *  (one subject) or its layers of categories (a sweep), sorted by name so the SAME set fingerprints identically
  *  regardless of authoring order. NULL for a Plan 1 run, or a contract run with no `ask` at all (shouldn't occur
  *  in practice, but never crash over it). Deliberately excludes the evidence: two runs asking the identical
@@ -114,7 +114,7 @@ export function patternFingerprint(rec: RunRecord | ContractRun): string | null 
   return sha256hex(JSON.stringify(shape)).slice(0, 16);
 }
 
-/** One row of `sidewise report patterns`: a question-set fingerprint, how often it's been run, its pass/fail/
+/** One row of `mm3 report patterns`: a question-set fingerprint, how often it's been run, its pass/fail/
  *  unsure split, how many distinct places it's touched, and its outcomes so far. */
 export interface PatternRow {
   pattern: string;
@@ -126,7 +126,7 @@ export interface PatternRow {
   outcomes: { held: number; overruled: number; failed: number; open: number };
 }
 
-/** One row of a future `sidewise report families`: a concern `family`, how many categories (across every run)
+/** One row of a future `mm3 report families`: a concern `family`, how many categories (across every run)
  *  carried it, how many distinct runs that touched, and those categories' own pass/fail/unsure split — plan
  *  2b's "family per category as queryable". Counted per CATEGORY, not per run: a run with two categories of the
  *  same family (rare, but the schema allows it) counts twice, since each category has its own gate. Not exported:
@@ -184,22 +184,22 @@ export interface IndexHandle {
    *  none yet — appendOutcome's own "is this exactly the same outcome, by the same actor, already there?"
    *  no-op check, without a full ledger scan. */
   latestOutcomeOf(id: string): { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string } | undefined;
-  /** For `sidewise report`: every distinct place (a `where` path or a sweep tag) ever recorded — report's
+  /** For `mm3 report`: every distinct place (a `where` path or a sweep tag) ever recorded — report's
    *  own enumeration of "everywhere there's something to say," unlike placeCandidates, which narrows FROM one
    *  already-known place. */
   distinctPlaces(): { kind: 'where' | 'tag'; val: string }[];
-  /** For `sidewise report patterns`: every question-set fingerprint (patternFingerprint) that's ever been
+  /** For `mm3 report patterns`: every question-set fingerprint (patternFingerprint) that's ever been
    *  run, with its run/pass/fail/unsure/place/outcome counts. Runs with no fingerprint (a Plan 1 run, or a
    *  contract run with no `ask`) are excluded — there's nothing to group them by. */
   patternCounts(): PatternRow[];
-  /** For a future `sidewise report families`: every concern `family` any category has ever carried, with how
+  /** For a future `mm3 report families`: every concern `family` any category has ever carried, with how
    *  many categories (and distinct runs) touched it and their pass/fail/unsure split — plan 2b's "family per
    *  category as queryable" made real, not just stored. Categories with no family set are excluded (nothing to
    *  group them by, same discipline as patternCounts). */
   familyCounts(): FamilyRow[];
-  /** For `sidewise report history`: every `replay`-verb run, newest first, capped at `limit`. */
+  /** For `mm3 report history`: every `replay`-verb run, newest first, capped at `limit`. */
   recentReplays(limit: number): Candidate[];
-  /** For `sidewise report history`: every recorded outcome, newest first, capped at `limit`. */
+  /** For `mm3 report history`: every recorded outcome, newest first, capped at `limit`. */
   recentOutcomes(limit: number): { runId: string; outcome: OutcomeRecord['outcome']; ts: string; by: string }[];
   /** For the budget (plan 2c B1): total `costUsd` and count of every contract-run/run/failed record with
    *  `ts >= sinceIso` — one indexed query, never a full-ledger scan on the paid path. See `budgetRollup` below. */
@@ -213,7 +213,7 @@ export interface IndexHandle {
 interface Sink {
   run(rec: RunRecord | ContractRun, offset: number): void;
   outcome(rec: OutcomeRecord): void;
-  /** A failed call: never gets an id-index entry (no SW-####, nothing to look up by), but its `ts`/`costUsd`
+  /** A failed call: never gets an id-index entry (no MM3-####, nothing to look up by), but its `ts`/`costUsd`
    *  still count toward the budget rollup below (plan 2c B1: "budget.runs == paid runs + failed records") —
    *  see budgetRollup's own comment for why this needs its own tiny table rather than living in `runs`. */
   failed(rec: FailedRecord): void;
@@ -229,16 +229,23 @@ function countsTowardBudget(rec: RunRecord | ContractRun): boolean {
   return !isContractRun(rec) || rec.calls > 0;
 }
 
-/** plan 2c F1: a ledger record written before plan 2c may still carry `wise.nodes` (a single chain string) instead
- *  of `wise.uses` — every raw-JSON parse site in the ledger (this file's own `parseLedgerLine`/`readRecordAt`, and
+/** plan 2c F1 (and the MM3 rename): a ledger record written before plan 2c may still carry `mdl.nodes` (a single chain string) instead
+ *  of `mdl.uses` — every raw-JSON parse site in the ledger (this file's own `parseLedgerLine`/`readRecordAt`, and
  *  log.ts's `readLedger`) runs a freshly-parsed record through here so every reader (report, view, report patterns/
  *  history) sees `uses` uniformly, without each of them having to check for the old shape. Guarded: most records
- *  carry `wise: null`, which `normalizeWise` would throw on if called directly on it. Exported so log.ts's own
+ *  carry `mdl: null`, which `normalizeMdl` would throw on if called directly on it. It also lifts the pre-rename
+ *  `wise`/`side` keys to `mdl`/`mak`. Exported so log.ts's own
  *  parse site can reuse it rather than duplicating the guard. */
-export function normalizeRecordWise<T>(value: T): T {
-  const w = (value as { wise?: unknown }).wise;
+export function normalizeRecordMdl<T>(value: T): T {
+  // compat: records written before the MM3 rename carry `wise`/`side` keys where new ones carry `mdl`/`mak`
+  const legacy = value as Record<string, unknown>;
+  for (const [oldKey, newKey] of [['wise', 'mdl'], ['side', 'mak']] as const) {
+    if (oldKey in legacy && !(newKey in legacy)) legacy[newKey] = legacy[oldKey];
+    delete legacy[oldKey];
+  }
+  const w = (value as { mdl?: unknown }).mdl;
   if (w && typeof w === 'object' && !Array.isArray(w)) {
-    (value as { wise?: unknown }).wise = normalizeWise(w as { uses?: string[]; nodes?: string });
+    (value as { mdl?: unknown }).mdl = normalizeMdl(w as { uses?: string[]; nodes?: string });
   }
   return value;
 }
@@ -253,7 +260,7 @@ function parseLedgerLine(raw: string, lineNo: number, shown: string): LedgerReco
   if (!isRecord(value)) {
     throw new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not a ledger record → fix or remove that line`);
   }
-  return normalizeRecordWise(value);
+  return normalizeRecordMdl(value);
 }
 
 /** Applies one line to `sink`, and reports whether it was a 'run' line — scanRange tracks `runsSeen` from this,
@@ -374,7 +381,7 @@ export function readRecordAt(logPath: string, offset: number): LedgerRecord | un
       const complete = nl !== -1 ? buf.toString('utf8', 0, nl) : offset + got >= size ? buf.toString('utf8', 0, got) : null;
       if (complete !== null) {
         try {
-          return normalizeRecordWise(JSON.parse(complete) as LedgerRecord);
+          return normalizeRecordMdl(JSON.parse(complete) as LedgerRecord);
         } catch {
           return undefined; // garbled at this offset: stale, not a crash
         }
@@ -590,7 +597,7 @@ function handleFromMemory(state: MemoryState): IndexHandle {
  */
 let memoryCache: { logPath: string; size: number; mtimeMs: number; state: MemoryState } | undefined;
 
-function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
+function buildMemoryHandle(paths: Mm3Paths): IndexHandle {
   const st = existsSync(paths.log) ? statSync(paths.log) : undefined;
   const size = st?.size ?? 0;
   const mtimeMs = st ? Math.round(st.mtimeMs) : 0;
@@ -619,23 +626,23 @@ function buildMemoryHandle(paths: SidewisePaths): IndexHandle {
 // Bumped to 6 (from 5) here: a new `spend` table carries one row per costed record (every RunRecord/
 // ContractRun AND, newly, every FailedRecord too — failed calls previously had no index row at all; see
 // Sink.failed's own comment) so the budget (plan 2c B1) can compute spentUsd/runs since a given timestamp with
-// one indexed query instead of a full-ledger scan. Caps (usd/runs/per/since) now live in `.sidewise/
+// one indexed query instead of a full-ledger scan. Caps (usd/runs/per/since) now live in `.mm3/
 // config.yaml`, not a separate running counter — see src/budget/budget.ts.
 // Bumped to 5 (from 4) here: a new `categories` table carries each contract run's own category shapes
 // (name, section, family, its own gate) — plan 2b's "family per category as queryable" — populated the same
 // way `places`/`answer_keys` are, from the same one-subject `ask.categories` or sweep `ask.layers[].categories`
-// (never both). The new wise fields (problem/nodes/touches/blast) need no schema change at all: `wiseJson`
-// already serializes the whole `wise` object into `runs.wise` verbatim, so they're already queryable via
+// (never both). The new mdl fields (problem/nodes/touches/blast) need no schema change at all: `mdlJson`
+// already serializes the whole `mdl` object into `runs.mdl` verbatim, so they're already queryable via
 // json_extract on that column, same as why/area/stage were before them.
 // Bumped to 4 (from 3) here: runs gained a `pattern` column (+ its own index, and one on `verb`) for
-// `sidewise report patterns`/`history` (patternCounts/recentReplays) — see patternFingerprint's own comment.
+// `mm3 report patterns`/`history` (patternCounts/recentReplays) — see patternFingerprint's own comment.
 // Bumped to 3 (from 2) here: runs gained a `parent` column (+ its own index) so view's "down" lineage walk
 // (WHERE parent = ?) no longer needs a full-ledger scan. Bumped to 2 (from 1): outcomes gained a `uid` column
 // (appendOutcome's own no-op "repeat" check now reads the index instead of a full readLedger — it
 // needs the original outcome record's uid back). A stale on-disk index built under an older version self-heals
 // via the existing schema-version-mismatch rebuild trigger — no migration needed, just a rebuild, which is
 // exactly what self-healing is for.
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7; // 7: the `runs.wise` column became `runs.mdl` (MM3 rename); an older index is stale and rebuilds
 
 const SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -648,7 +655,7 @@ CREATE TABLE runs (
   ts TEXT NOT NULL,
   gate TEXT,
   blocked INTEGER NOT NULL DEFAULT 0,
-  wise TEXT,
+  mdl TEXT,
   parent TEXT,
   pattern TEXT
 );
@@ -797,7 +804,7 @@ export function getSqliteCtor(): DatabaseSyncCtor | null {
 }
 
 /** True when node:sqlite is available in this runtime (Node ≥ 22.13); false when every ledger read/write here
- *  uses the always-correct linear fallback instead (`sidewise doctor`, P5, reports this). */
+ *  uses the always-correct linear fallback instead (`mm3 doctor`, P5, reports this). */
 export function sqliteAvailable(): boolean {
   return getSqliteCtor() !== null;
 }
@@ -823,7 +830,7 @@ interface SqlStatements {
 
 function prepStatements(db: SqliteDb): SqlStatements {
   return {
-    insertRun: db.prepare('INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise, parent, pattern) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'),
+    insertRun: db.prepare('INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, mdl, parent, pattern) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)'),
     insertKey: db.prepare('INSERT OR REPLACE INTO answer_keys (adapter, model, key, run_id, qid) VALUES (?, ?, ?, ?, ?)'),
     insertOutcome: db.prepare('INSERT OR REPLACE INTO outcomes (run_id, outcome, uid, ts, by) VALUES (?, ?, ?, ?, ?)'),
     insertPlace: db.prepare('INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)'),
@@ -833,20 +840,20 @@ function prepStatements(db: SqliteDb): SqlStatements {
   };
 }
 
-/** Only the small searchable subtree the schema asks for: wise + the run's category names — never answers,
- *  response or items. json_extract($.wise.area) etc. can group/filter on this without a full-ledger scan. */
-function wiseJson(rec: RunRecord | ContractRun): string | null {
+/** Only the small searchable subtree the schema asks for: mdl + the run's category names — never answers,
+ *  response or items. json_extract($.mdl.area) etc. can group/filter on this without a full-ledger scan. */
+function mdlJson(rec: RunRecord | ContractRun): string | null {
   if (!isContractRun(rec)) return null;
   const categories = Object.keys(rec.categories ?? {});
-  if (rec.wise === null && categories.length === 0) return null;
-  return JSON.stringify({ wise: rec.wise, categories });
+  if (rec.mdl === null && categories.length === 0) return null;
+  return JSON.stringify({ mdl: rec.mdl, categories });
 }
 
 function sqlSink(stmts: SqlStatements): Sink {
   return {
     run(rec, offset) {
       const gate = 'gate' in rec ? (rec.gate ?? null) : null;
-      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null, patternFingerprint(rec));
+      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, mdlJson(rec), rec.parent ?? null, patternFingerprint(rec));
       if (countsTowardBudget(rec)) stmts.insertSpend.run(rec.id, rec.ts, rec.costUsd ?? 0);
       if (isContractRun(rec)) {
         for (const [qid, key] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key, rec.reusedFrom[qid] ?? rec.id, qid);
@@ -1072,7 +1079,7 @@ function rmSiblingWalShm(dbPath: string): void {
 
 /** Full rebuild: fresh tables, one transaction, streamed from byte 0. Written to a tmp file in the same dir,
  *  then renamed into place — a reader can never observe a half-built index.db. Must run under paths.lock. */
-function rebuildToDisk(paths: SidewisePaths, Db: DatabaseSyncCtor): SqliteDb {
+function rebuildToDisk(paths: Mm3Paths, Db: DatabaseSyncCtor): SqliteDb {
   ensureDir(paths);
   const tmp = tmpDbPath(paths.index);
   rmDbFiles(tmp);
@@ -1122,7 +1129,7 @@ function rebuildToDisk(paths: SidewisePaths, Db: DatabaseSyncCtor): SqliteDb {
 }
 
 /** Catches an already-open db up to the log's current size (only the new bytes). Must run under paths.lock. */
-function catchUpInPlace(db: SqliteDb, paths: SidewisePaths): void {
+function catchUpInPlace(db: SqliteDb, paths: Mm3Paths): void {
   const stmts = prepStatements(db);
   const before = readMetaState(db);
   const size = existsSync(paths.log) ? statSync(paths.log).size : 0;
@@ -1179,7 +1186,7 @@ function quickCheckOk(db: SqliteDb): boolean {
  *  failure, a suspicious size (escalated to the expensive quick_check to confirm), a schema mismatch, a log
  *  shorter than `upto`, or a fingerprint mismatch all come back not-ok (needs a rebuild); a log that's merely
  *  grown comes back ok/not-fresh (needs a catch-up). */
-function tryOpenAndCheck(paths: SidewisePaths, Db: DatabaseSyncCtor): OpenCheck {
+function tryOpenAndCheck(paths: Mm3Paths, Db: DatabaseSyncCtor): OpenCheck {
   if (!existsSync(paths.index)) return { ok: false };
   let db: SqliteDb;
   try {
@@ -1216,7 +1223,7 @@ function safeClose(db: SqliteDb): void {
  *  caught up or rebuilt the on-disk index while this call waited for the lock (a real race under load — N
  *  processes each finding the index missing/stale at once must not each rebuild it in turn). Only catches up or
  *  rebuilds if STILL needed after that re-check. */
-function refreshUnderLock(paths: SidewisePaths, Db: DatabaseSyncCtor): SqliteDb {
+function refreshUnderLock(paths: Mm3Paths, Db: DatabaseSyncCtor): SqliteDb {
   const check = tryOpenAndCheck(paths, Db);
   if (check.ok) {
     if (!check.fresh) catchUpInPlace(check.db, paths);
@@ -1238,7 +1245,7 @@ function refreshUnderLock(paths: SidewisePaths, Db: DatabaseSyncCtor): SqliteDb 
  * self-heals on disk under the lock, re-checking freshness once inside it (refreshUnderLock) rather than
  * blindly repeating whatever the pre-lock check already found.
  */
-function ensureFreshDb(paths: SidewisePaths, Db: DatabaseSyncCtor, opts: { forceRebuild: boolean; readOnly: boolean }): SqliteDb | undefined {
+function ensureFreshDb(paths: Mm3Paths, Db: DatabaseSyncCtor, opts: { forceRebuild: boolean; readOnly: boolean }): SqliteDb | undefined {
   if (!opts.forceRebuild) {
     const check = tryOpenAndCheck(paths, Db);
     if (check.ok && check.fresh) return check.db;
@@ -1274,7 +1281,7 @@ function ensureFreshDb(paths: SidewisePaths, Db: DatabaseSyncCtor, opts: { force
  * already has doesn't check out (the log changed between one call and the next, in a lock-free read).
  * `readOnly`: never persist a catch-up or rebuild to disk for this call — see ensureFreshDb's own comment.
  */
-export function withIndex<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, opts: { forceRebuild?: boolean; readOnly?: boolean } = {}): T {
+export function withIndex<T>(paths: Mm3Paths, fn: (h: IndexHandle) => T, opts: { forceRebuild?: boolean; readOnly?: boolean } = {}): T {
   const logStat = existsSync(paths.log) ? statSync(paths.log) : undefined;
   if (!logStat || logStat.size === 0) return fn(handleFromMemory(emptyMemoryState()));
 
@@ -1285,7 +1292,7 @@ export function withIndex<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, op
  *  timestamped `sinceIso` or later — one indexed query on the SQLite path, a bounded in-memory filter on the
  *  fallback. Safe to call from inside an already-held `paths.lock` (e.g. `recordCall`): `withIndex`/`ensureFreshDb`
  *  use `withLockIfNeeded`, which detects a lock this same process already holds and skips re-acquiring it. */
-export function budgetRollup(paths: SidewisePaths, sinceIso: string, opts: { readOnly?: boolean } = {}): { spentUsd: number; runs: number } {
+export function budgetRollup(paths: Mm3Paths, sinceIso: string, opts: { readOnly?: boolean } = {}): { spentUsd: number; runs: number } {
   return withIndex(paths, (handle) => handle.budgetRollup(sinceIso), { readOnly: opts.readOnly ?? false });
 }
 
@@ -1296,7 +1303,7 @@ export function budgetRollup(paths: SidewisePaths, sinceIso: string, opts: { rea
 // already covers that half for the real CLI/MCP paths, which stop long before ever reaching here). [C-107]
 const NODE_TOO_OLD_LEDGER_MESSAGE = `✖ ledger: node:sqlite is unavailable → install Node ${MIN_NODE_LABEL} or newer (it powers the ledger index); https://nodejs.org`;
 
-function runSqlite<T>(paths: SidewisePaths, fn: (h: IndexHandle) => T, opts: { forceRebuild: boolean; readOnly: boolean }): T {
+function runSqlite<T>(paths: Mm3Paths, fn: (h: IndexHandle) => T, opts: { forceRebuild: boolean; readOnly: boolean }): T {
   // __testOnly.forceFallback: the one intentional, silent fallback left — proving the two engines agree
   // (ledger-index.test.ts). Checked before the try below so it never risks tripping the new throw underneath.
   if (__testOnly.forceFallback) return fn(buildMemoryHandle(paths));

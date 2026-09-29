@@ -42,7 +42,7 @@ export function oneLine(e: unknown): string {
   return text.length > 200 ? `${text.slice(0, 199)}…` : text;
 }
 
-export const actorOf = (ctx: VerbContext): string => ctx.env.SIDEWISE_ACTOR?.trim() || 'agent';
+export const actorOf = (ctx: VerbContext): string => ctx.env.MM3_ACTOR?.trim() || 'agent';
 
 /** Splits a keyed question list into what the ledger already answered (merged straight into `answers`/
  *  `reusedFrom`, for free) and the pairs still left to actually ask — class.ts and drill's one-subject shape
@@ -190,7 +190,7 @@ export async function askAll(
     try {
       result = await ctx.provider.ask(call.questions.map(toClassifierQuestion), call.state);
     } catch (e) {
-      if (paid === 0) return fail(1, `✖ classifier: ${oneLine(e)} → retry later, or set SIDEWISE_PROVIDER=fake to check the request`);
+      if (paid === 0) return fail(1, `✖ classifier: ${oneLine(e)} → retry later, or set MM3_PROVIDER=fake to check the request`);
       return logFailed(ctx, verb, costUsd, `call ${i + 1} of ${calls.length}: ${oneLine(e)}`);
     }
     const latencyMs = Date.now() - startedAt;

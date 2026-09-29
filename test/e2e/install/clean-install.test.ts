@@ -11,36 +11,36 @@ import { USER_TS } from '../../helpers/project.ts';
 
 function quickstartCommands(): string[] {
   const readme = readFileSync('README.md', 'utf8');
-  const fence = /```bash\n# sidewise-quickstart\n([\s\S]*?)```/.exec(readme);
-  if (!fence) throw new Error('README.md has no "# sidewise-quickstart" fenced block');
+  const fence = /```bash\n# mm3-quickstart\n([\s\S]*?)```/.exec(readme);
+  if (!fence) throw new Error('README.md has no "# mm3-quickstart" fenced block');
   return fence[1]!.trim().split('\n').filter((l) => l.trim());
 }
 
 describe('a real npm pack tarball, installed like a consumer would', () => {
   it('npm install <tarball>, then every README quickstart line exits 0 against the installed bin', () => {
-    const packDir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-pack-'));
+    const packDir = mkdtempSync(path.join(os.tmpdir(), 'mm3-pack-'));
     const raw = execFileSync('npm', ['pack', '--json', '--pack-destination', packDir], { encoding: 'utf8' });
     const [{ filename }] = JSON.parse(raw) as [{ filename: string }];
     const tarball = path.join(packDir, filename);
 
-    const projectDir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-consumer-'));
+    const projectDir = mkdtempSync(path.join(os.tmpdir(), 'mm3-consumer-'));
     // Plan 2b's class template now names src/handlers/user.ts as its own worked example where: (a
     // NodeGoat-neutral path), not src/user.ts — give the project both so `template class | class` (the
     // quickstart's own first two lines) has real code to read.
     mkdirSync(path.join(projectDir, 'src', 'handlers'), { recursive: true });
     writeFileSync(path.join(projectDir, 'src', 'user.ts'), USER_TS);
     writeFileSync(path.join(projectDir, 'src', 'handlers', 'user.ts'), USER_TS);
-    writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'sidewise-consumer', version: '0.0.0', private: true }));
+    writeFileSync(path.join(projectDir, 'package.json'), JSON.stringify({ name: 'mm3-consumer', version: '0.0.0', private: true }));
 
     const install = spawnSync('npm', ['install', tarball, '--no-audit', '--no-fund', '--prefer-offline'], { cwd: projectDir, encoding: 'utf8' });
     expect(install.status, install.stderr).toBe(0);
 
-    const bin = path.join(projectDir, 'node_modules', '.bin', 'sidewise');
-    // SIDEWISE_HOME names the project explicitly (paths.ts's resolvePaths) — projectDir has neither .sidewise
+    const bin = path.join(projectDir, 'node_modules', '.bin', 'mm3');
+    // MM3_HOME names the project explicitly (paths.ts's resolvePaths) — projectDir has neither .mm3
     // nor .git yet, same as readme.test.ts's equivalent run against dist/cli.js directly.
-    const env = { ...process.env, SIDEWISE_HOME: projectDir, SIDEWISE_PROVIDER: 'fake', SIDEWISE_ACTOR: 'install-e2e', TYPESAFE_API_KEY: '', AI_GATEWAY_API_KEY: '' };
+    const env = { ...process.env, MM3_HOME: projectDir, MM3_PROVIDER: 'fake', MM3_ACTOR: 'install-e2e', TYPESAFE_API_KEY: '', AI_GATEWAY_API_KEY: '' };
     for (const line of quickstartCommands()) {
-      const r = spawnSync('sh', ['-c', line.replace(/^sidewise\b/u, bin)], { cwd: projectDir, env, encoding: 'utf8' });
+      const r = spawnSync('sh', ['-c', line.replace(/^mm3\b/u, bin)], { cwd: projectDir, env, encoding: 'utf8' });
       expect(r.status, `"${line}" failed:\n${r.stderr}`).toBe(0);
     }
   });

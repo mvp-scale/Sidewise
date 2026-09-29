@@ -1,4 +1,4 @@
-/** @mvpscale/sidewise: the library surface behind the `sidewise` CLI. */
+/** @mvpscale/mm3: the library surface behind the `mm3` CLI. */
 export * from './lens/consensus.ts';
 export * from './classifier/port.ts';
 export { createFakeAdapter, FAKE_MODEL } from './classifier/fake.ts';
@@ -38,8 +38,8 @@ export {
   type Question,
   type Category,
   type Layer,
-  type Side,
-  type Wise,
+  type Mak,
+  type Mdl,
   type Request as ContractRequest,
   type Stop,
   type Gate,

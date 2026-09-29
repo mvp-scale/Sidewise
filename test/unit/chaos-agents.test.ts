@@ -19,7 +19,7 @@ describe('checkAgent skips a missing CLI without invoking one', () => {
   });
 
   it('reports both claude and gemini as not found on a PATH holding only node', () => {
-    dir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-chaos-path-'));
+    dir = mkdtempSync(path.join(os.tmpdir(), 'mm3-chaos-path-'));
     // node itself is on this PATH (so "PATH containing only node" is literally true) — neither checkAgent
     // path needs node on PATH to run (this test is already running inside node); the point is that spawnSync
     // for 'claude'/'gemini' can't resolve them here, exercising the ENOENT branch instead of the real CLIs.

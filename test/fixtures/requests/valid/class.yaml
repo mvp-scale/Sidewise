@@ -1,4 +1,4 @@
-side:
+mak:
   goal: This login handler is safe to merge
   depth: quick
   where: [src/user.ts:1-3]
@@ -30,6 +30,6 @@ side:
         11:
           choice: Where should this go?
           options: [ship, fix, block]
-wise:
+mdl:
   why: validate
   area: data

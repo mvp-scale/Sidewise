@@ -1,12 +1,12 @@
 /**
- * Pure validation of a RAW, already-YAML-parsed `.sidewise/config.yaml` value against the defaults table
- * (defaults.ts) — no file I/O, no env reads, so `sidewise doctor` can call this straight on a file it already
+ * Pure validation of a RAW, already-YAML-parsed `.mm3/config.yaml` value against the defaults table
+ * (defaults.ts) — no file I/O, no env reads, so `mm3 doctor` can call this straight on a file it already
  * read itself (plan 2c B1b), and load.ts can call it on its own parse result. Every problem is a help-first
  * stop in the shared `✖ config.<path>: problem → fix` shape (AGENTS.md rule 7); this module only builds text,
  * never throws.
  */
 import { looksLikeSecret } from '../ledger/redact.ts';
-import { CONFIG_KEYS, CONTRACT_ONLY_KEYS, SECRET_LIKE_KEYS, type SidewiseConfig } from './defaults.ts';
+import { CONFIG_KEYS, CONTRACT_ONLY_KEYS, SECRET_LIKE_KEYS, type Mm3Config } from './defaults.ts';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -67,7 +67,7 @@ function checkPositiveNumber(path: string, v: unknown, out: ConfigStop[]): boole
 }
 
 /** The value-shaped counterpart to checkSecretLike (which flags a secret-NAMED key): a real key pasted into a
- *  config value — `baseURL`, `budget.since`, a wise override's free text — stops here regardless of what the
+ *  config value — `baseURL`, `budget.since`, an mdl override's free text — stops here regardless of what the
  *  surrounding key is called. Reuses redact.ts's own detectors (plan 2c B, security item) so this file never
  *  duplicates the pattern list. */
 function checkSecretValue(path: string, v: string, out: ConfigStop[]): boolean {
@@ -85,12 +85,17 @@ function checkNonEmptyString(path: string, v: unknown, out: ConfigStop[]): boole
   return true;
 }
 
-function checkBudget(v: unknown, out: ConfigStop[]): Partial<SidewiseConfig['budget']> {
+/** A section header with every child commented out (`sweep:` alone) parses as null (or undefined): that is "no
+ *  overrides", the shape `mm3 config --write`'s starter file relies on, never a "not a mapping" stop. */
+const isEmptySection = (v: unknown): boolean => v === null || v === undefined;
+
+function checkBudget(v: unknown, out: ConfigStop[]): Partial<Mm3Config['budget']> {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('budget', 'is not a mapping', 'write usd:, runs: and/or per: under budget:'));
     return {};
   }
-  const result: Partial<SidewiseConfig['budget']> = {};
+  const result: Partial<Mm3Config['budget']> = {};
   for (const k of Object.keys(v)) {
     const path = `budget.${k}`;
     if (checkSecretLike(k, path, out)) continue;
@@ -108,15 +113,17 @@ function checkBudget(v: unknown, out: ConfigStop[]): Partial<SidewiseConfig['bud
   return result;
 }
 
-function checkPricing(v: unknown, out: ConfigStop[]): SidewiseConfig['pricing'] {
+function checkPricing(v: unknown, out: ConfigStop[]): Mm3Config['pricing'] {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('pricing', 'is not a mapping', 'write <model>: {inputPerMTok: <n>} under pricing:'));
     return {};
   }
-  const result: SidewiseConfig['pricing'] = {};
+  const result: Mm3Config['pricing'] = {};
   for (const model of Object.keys(v)) {
     const rate = v[model];
     const path = `pricing.${model}`;
+    if (isEmptySection(rate)) continue; // `jev-1.13.0:` with every rate commented out: keep the built-in rate
     if (!isObj(rate)) {
       out.push(stop(path, 'is not a mapping', 'write {inputPerMTok, outputPerMTok, perSecond, perCall}'));
       continue;
@@ -138,12 +145,13 @@ function checkPricing(v: unknown, out: ConfigStop[]): SidewiseConfig['pricing'] 
   return result;
 }
 
-function checkSweep(v: unknown, out: ConfigStop[]): Partial<SidewiseConfig['sweep']> {
+function checkSweep(v: unknown, out: ConfigStop[]): Partial<Mm3Config['sweep']> {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('sweep', 'is not a mapping', 'write maxItems: and/or maxQuestionsPerCall: under sweep:'));
     return {};
   }
-  const result: Partial<SidewiseConfig['sweep']> = {};
+  const result: Partial<Mm3Config['sweep']> = {};
   for (const k of Object.keys(v)) {
     const path = `sweep.${k}`;
     if (k === 'maxItems' || k === 'maxQuestionsPerCall') {
@@ -156,12 +164,13 @@ function checkSweep(v: unknown, out: ConfigStop[]): Partial<SidewiseConfig['swee
   return result;
 }
 
-function checkReuse(v: unknown, out: ConfigStop[]): Partial<SidewiseConfig['reuse']> {
+function checkReuse(v: unknown, out: ConfigStop[]): Partial<Mm3Config['reuse']> {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop('reuse', 'is not a mapping', 'write maxAgeDays: and/or maxCommits: under reuse:'));
     return {};
   }
-  const result: Partial<SidewiseConfig['reuse']> = {};
+  const result: Partial<Mm3Config['reuse']> = {};
   for (const k of Object.keys(v)) {
     const path = `reuse.${k}`;
     if (k === 'maxAgeDays' || k === 'maxCommits') {
@@ -174,29 +183,31 @@ function checkReuse(v: unknown, out: ConfigStop[]): Partial<SidewiseConfig['reus
   return result;
 }
 
-const WISE_OVERRIDE_FIELDS = ['values', 'note', 'as', 'pattern', 'link', 'literal'] as const;
+const MDL_OVERRIDE_FIELDS = ['values', 'note', 'as', 'pattern', 'link', 'literal'] as const;
 
-/** Accepted and round-tripped, but not yet consumed by wise-fields.ts's card/validator generation (a later
- *  piece) — see defaults.ts's WiseFieldOverride doc. Still fully validated so a typo doesn't silently do
+/** Accepted and round-tripped, but not yet consumed by mdl-fields.ts's card/validator generation (a later
+ *  piece) — see defaults.ts's MdlFieldOverride doc. Still fully validated so a typo doesn't silently do
  *  nothing once that consumer lands. */
-function checkWise(v: unknown, out: ConfigStop[]): SidewiseConfig['wise'] {
+function checkMdl(v: unknown, out: ConfigStop[]): Mm3Config['mdl'] {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
-    out.push(stop('wise', 'is not a mapping', 'write <field>: {values: [...], note: "..."} under wise:'));
+    out.push(stop('mdl', 'is not a mapping', 'write <field>: {values: [...], note: "..."} under mdl:'));
     return {};
   }
-  const result: SidewiseConfig['wise'] = {};
+  const result: Mm3Config['mdl'] = {};
   for (const field of Object.keys(v)) {
     const override = v[field];
-    const path = `wise.${field}`;
+    const path = `mdl.${field}`;
+    if (isEmptySection(override)) continue; // a field header with every override commented out: no override
     if (!isObj(override)) {
       out.push(stop(path, 'is not a mapping', 'write {values?, note?, as?, pattern?, link?, literal?}'));
       continue;
     }
     const entry: Record<string, unknown> = {};
     for (const k of Object.keys(override)) {
-      if (!(WISE_OVERRIDE_FIELDS as readonly string[]).includes(k)) {
-        const hint = didYouMean(k, WISE_OVERRIDE_FIELDS);
-        out.push(stop(`${path}.${k}`, `"${k}" is not a wise override field`, hint ? `did you mean ${hint}?` : `use ${WISE_OVERRIDE_FIELDS.join(', ')}`));
+      if (!(MDL_OVERRIDE_FIELDS as readonly string[]).includes(k)) {
+        const hint = didYouMean(k, MDL_OVERRIDE_FIELDS);
+        out.push(stop(`${path}.${k}`, `"${k}" is not an mdl override field`, hint ? `did you mean ${hint}?` : `use ${MDL_OVERRIDE_FIELDS.join(', ')}`));
         continue;
       }
       const val = override[k];
@@ -215,14 +226,14 @@ function checkWise(v: unknown, out: ConfigStop[]): SidewiseConfig['wise'] {
 /** Validates one RAW parsed config object → the problems found, plus the parts that DID check out (so load.ts
  *  can still apply everything that passed even when something else in the file is wrong — one bad key must
  *  never blank out an otherwise-good file). `raw` is `unknown` because it's whatever `yaml`'s parser handed
- *  back — never assumed to already be shaped like SidewiseConfig. */
-export function validateConfig(raw: unknown): { stops: ConfigStop[]; value: Partial<SidewiseConfig> } {
+ *  back — never assumed to already be shaped like Mm3Config. */
+export function validateConfig(raw: unknown): { stops: ConfigStop[]; value: Partial<Mm3Config> } {
   const out: ConfigStop[] = [];
   if (!isObj(raw)) {
     out.push(stop('', 'is not a mapping', 'write budget:, provider: etc. as top-level keys'));
     return { stops: out, value: {} };
   }
-  const value: Partial<SidewiseConfig> = {};
+  const value: Partial<Mm3Config> = {};
   for (const key of Object.keys(raw)) {
     if (checkSecretLike(key, key, out)) continue;
     if ((CONTRACT_ONLY_KEYS as readonly string[]).includes(key)) {
@@ -237,7 +248,7 @@ export function validateConfig(raw: unknown): { stops: ConfigStop[]; value: Part
     const v = (raw as Record<string, unknown>)[key];
     switch (key) {
       case 'budget':
-        value.budget = checkBudget(v, out) as SidewiseConfig['budget'];
+        value.budget = checkBudget(v, out) as Mm3Config['budget'];
         break;
       case 'provider':
         if (checkNonEmptyString('provider', v, out)) value.provider = v as string;
@@ -258,13 +269,13 @@ export function validateConfig(raw: unknown): { stops: ConfigStop[]; value: Part
         if (checkPositiveNumber(key, v, out)) value[key] = v as number;
         break;
       case 'sweep':
-        value.sweep = checkSweep(v, out) as SidewiseConfig['sweep'];
+        value.sweep = checkSweep(v, out) as Mm3Config['sweep'];
         break;
       case 'reuse':
         value.reuse = checkReuse(v, out);
         break;
-      case 'wise':
-        value.wise = checkWise(v, out);
+      case 'mdl':
+        value.mdl = checkMdl(v, out);
         break;
     }
   }

@@ -24,14 +24,14 @@ function stub(status: number, stdout: string): Runner {
 }
 
 describe('pluginStatus', () => {
-  it('finds sidewise in a plausible claude plugin list --json shape, with its scope', () => {
-    const runner = stub(0, JSON.stringify([{ name: 'other-plugin', scope: 'user' }, { name: 'sidewise', scope: 'project' }]));
+  it('finds mm3 in a plausible claude plugin list --json shape, with its scope', () => {
+    const runner = stub(0, JSON.stringify([{ name: 'other-plugin', scope: 'user' }, { name: 'mm3', scope: 'project' }]));
     const status: PluginStatus = pluginStatus(runner);
     expect(status).toEqual({ installed: true, scopes: ['project'] });
   });
 
   it('also finds a "name@marketplace" form, nested under an object rather than a top-level array', () => {
-    const runner = stub(0, JSON.stringify({ plugins: [{ id: 'sidewise@mvp-scale', scope: 'user' }] }));
+    const runner = stub(0, JSON.stringify({ plugins: [{ id: 'mm3@mvp-scale', scope: 'user' }] }));
     expect(pluginStatus(runner)).toEqual({ installed: true, scopes: ['user'] });
   });
 
@@ -65,8 +65,8 @@ describe('the exact commands (spec-literal)', () => {
     removeMarketplace(recorder);
     expect(calls).toEqual([
       { cmd: 'claude', args: ['plugin', 'marketplace', 'add', '/pkg/dir'] },
-      { cmd: 'claude', args: ['plugin', 'install', 'sidewise@mvp-scale', '--scope', 'user'] },
-      { cmd: 'claude', args: ['plugin', 'uninstall', 'sidewise@mvp-scale', '--scope', 'project'] },
+      { cmd: 'claude', args: ['plugin', 'install', 'mm3@mvp-scale', '--scope', 'user'] },
+      { cmd: 'claude', args: ['plugin', 'uninstall', 'mm3@mvp-scale', '--scope', 'project'] },
       { cmd: 'claude', args: ['plugin', 'marketplace', 'remove', 'mvp-scale'] },
     ]);
   });
@@ -82,18 +82,18 @@ describe('inPluginContext', () => {
   });
 
   it('NO_KEY_PLUGIN_HINT names the exact config-dialog keystrokes', () => {
-    expect(NO_KEY_PLUGIN_HINT).toBe('/plugin → Sidewise → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration');
+    expect(NO_KEY_PLUGIN_HINT).toBe('/plugin → MM3 → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration');
   });
 });
 
 describe('the plugin cache dir Claude leaves behind', () => {
   it('never touches a real ~/.claude: always under the injected homeDir', () => {
-    const home = mkdtempSync(path.join(os.tmpdir(), 'sidewise-home-'));
+    const home = mkdtempSync(path.join(os.tmpdir(), 'mm3-home-'));
     expect(pluginCacheDir(home)).toBe(path.join(home, '.claude', 'plugins', 'cache', 'mvp-scale'));
   });
 
   it('removes it when present, reports false when there was nothing to remove', () => {
-    const home = mkdtempSync(path.join(os.tmpdir(), 'sidewise-home-'));
+    const home = mkdtempSync(path.join(os.tmpdir(), 'mm3-home-'));
     expect(removePluginCacheDir(home)).toBe(false);
     const dir = pluginCacheDir(home);
     mkdirSync(dir, { recursive: true });

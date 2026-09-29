@@ -2,7 +2,7 @@
  * Grading (contract "Grading: a simple bar, checked per question"). Nothing is averaged.
  *   pass: yes → an answer clears the bar at P(yes) ≥ 0.70 · pass: no → at P(yes) ≤ 0.30.
  *   scale / choice → the total probability of the passing levels or options clears at ≥ 0.70.
- *   The mirror image (≤ 0.30 of the passing side) is a clear miss; anything between is "mid".
+ *   The mirror image (≤ 0.30 of the passing mak) is a clear miss; anything between is "mid".
  * A category's gate follows its need (all · most · any). The goal passes at ≥ 0.70. Gates combine as
  * fail > unsure > pass. In a sweep an item passes only when its own categories and all its children pass.
  * worstFirst ranks a sweep's failing items by severity (a scale question's level × p) first, when any item

@@ -219,31 +219,31 @@ describe('resolveJevConfig', () => {
   });
 });
 
-describe('SIDEWISE_BASE_URL (P3)', () => {
+describe('MM3_BASE_URL (P3)', () => {
   it('an https override wins over the route default, trailing slashes stripped [C-094]', () => {
-    expect(resolveJevConfig({ SIDEWISE_BASE_URL: 'https://proxy.example.com/' })).toMatchObject({ baseURL: 'https://proxy.example.com' });
+    expect(resolveJevConfig({ MM3_BASE_URL: 'https://proxy.example.com/' })).toMatchObject({ baseURL: 'https://proxy.example.com' });
   });
 
   it('http is allowed for localhost, 127.0.0.1 and [::1], nowhere else [C-094]', () => {
-    expect(resolveJevConfig({ SIDEWISE_BASE_URL: 'http://localhost:8080' })).toMatchObject({ baseURL: 'http://localhost:8080' });
-    expect(resolveJevConfig({ SIDEWISE_BASE_URL: 'http://127.0.0.1:8080' })).toMatchObject({ baseURL: 'http://127.0.0.1:8080' });
-    expect(resolveJevConfig({ SIDEWISE_BASE_URL: 'http://[::1]:8080' })).toMatchObject({ baseURL: 'http://[::1]:8080' });
+    expect(resolveJevConfig({ MM3_BASE_URL: 'http://localhost:8080' })).toMatchObject({ baseURL: 'http://localhost:8080' });
+    expect(resolveJevConfig({ MM3_BASE_URL: 'http://127.0.0.1:8080' })).toMatchObject({ baseURL: 'http://127.0.0.1:8080' });
+    expect(resolveJevConfig({ MM3_BASE_URL: 'http://[::1]:8080' })).toMatchObject({ baseURL: 'http://[::1]:8080' });
   });
 
-  it('http to a non-local host is a stop: ✖ SIDEWISE_BASE_URL, exit 2 [C-094]', () => {
+  it('http to a non-local host is a stop: ✖ MM3_BASE_URL, exit 2 [C-094]', () => {
     let err: unknown;
     try {
-      resolveJevConfig({ SIDEWISE_BASE_URL: 'http://example.com' });
+      resolveJevConfig({ MM3_BASE_URL: 'http://example.com' });
     } catch (e) {
       err = e;
     }
     expect(err).toBeInstanceOf(JevConfigError);
-    expect((err as JevConfigError).message).toMatch(/^✖ SIDEWISE_BASE_URL:/);
+    expect((err as JevConfigError).message).toMatch(/^✖ MM3_BASE_URL:/);
     expect((err as JevConfigError).exit).toBe(2);
   });
 
   it('a string that is not a URL at all is the same stop', () => {
-    expect(() => resolveJevConfig({ SIDEWISE_BASE_URL: 'not a url' })).toThrow(/^✖ SIDEWISE_BASE_URL:/);
+    expect(() => resolveJevConfig({ MM3_BASE_URL: 'not a url' })).toThrow(/^✖ MM3_BASE_URL:/);
   });
 
   it('the retired JEV_BASE_URL is no longer read: the route default wins', () => {

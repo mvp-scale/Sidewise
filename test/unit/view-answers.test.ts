@@ -7,19 +7,19 @@ import { sampleContractRun, sampleRun } from '../helpers/runs.ts';
 describe('view: --answers [C-215]', () => {
   it('a one-subject run id lists each question: text, answer, reuse origin and key', () => {
     const { paths } = tempProject({});
-    appendContractRun(paths, sampleContractRun({ reusedFrom: { goal: 'SW-0099' } }), Date.now(), 'b'); // SW-0001
-    const r = runView('SW-0001', 1, { paths, env: {} }, undefined, false, true);
+    appendContractRun(paths, sampleContractRun({ reusedFrom: { goal: 'MM3-0099' } }), Date.now(), 'b'); // MM3-0001
+    const r = runView('MM3-0001', 1, { paths, env: {} }, undefined, false, true);
     expect(r.exit).toBe(0);
     const lines = r.text.split('\n');
     expect(lines).toContain('  answers 2:');
-    expect(lines).toContain('    goal "The handler is safe to merge" · p 0.2 · reused SW-0099 · key k-goal');
+    expect(lines).toContain('    goal "The handler is safe to merge" · p 0.2 · reused MM3-0099 · key k-goal');
     expect(lines).toContain('    1 "Is request text in the query?" · p 0.9 · key k-1');
   });
 
   it('is ignored unless explicitly requested — the default output has no answers block', () => {
     const { paths } = tempProject({});
-    appendContractRun(paths, sampleContractRun(), Date.now(), 'b'); // SW-0001
-    expect(runView('SW-0001', 1, { paths, env: {} }).text).not.toContain('answers');
+    appendContractRun(paths, sampleContractRun(), Date.now(), 'b'); // MM3-0001
+    expect(runView('MM3-0001', 1, { paths, env: {} }).text).not.toContain('answers');
   });
 
   it("a sweep's questions are its items' own (`<item id>#<n>`, filled in) — not the empty request-level ask", () => {
@@ -37,8 +37,8 @@ describe('view: --answers [C-215]', () => {
       keys: { 'src/a.ts#1': 'k-item-1' },
       reusedFrom: {},
     });
-    appendContractRun(paths, run, Date.now(), 'b'); // SW-0001
-    const lines = runView('SW-0001', 1, { paths, env: {} }, undefined, false, true).text.split('\n');
+    appendContractRun(paths, run, Date.now(), 'b'); // MM3-0001
+    const lines = runView('MM3-0001', 1, { paths, env: {} }, undefined, false, true).text.split('\n');
     expect(lines).toContain('  answers 1:');
     expect(lines).toContain('    src/a.ts#1 "Is src/a.ts safe?" · p 0.7 · key k-item-1');
   });
@@ -46,14 +46,14 @@ describe('view: --answers [C-215]', () => {
   it('a legacy (Plan 1) run id is a silent no-op, same idiom as --level above 1 (C-123)', () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun({ focus: 'legacy' }));
-    const withFlag = runView('SW-0001', 1, { paths, env: {} }, undefined, false, true).text;
-    const withoutFlag = runView('SW-0001', 1, { paths, env: {} }).text;
+    const withFlag = runView('MM3-0001', 1, { paths, env: {} }, undefined, false, true).text;
+    const withoutFlag = runView('MM3-0001', 1, { paths, env: {} }).text;
     expect(withFlag).toBe(withoutFlag);
   });
 
   it('is ignored for a place/tag target, same restriction --summary has in reverse (C-124)', () => {
     const { paths } = tempProject({});
-    appendContractRun(paths, sampleContractRun(), Date.now(), 'b'); // SW-0001, where: [src/api/user.ts]
+    appendContractRun(paths, sampleContractRun(), Date.now(), 'b'); // MM3-0001, where: [src/api/user.ts]
     const withFlag = runView('src', 1, { paths, env: {} }, undefined, false, true).text;
     const withoutFlag = runView('src', 1, { paths, env: {} }).text;
     expect(withFlag).toBe(withoutFlag);

@@ -1,6 +1,6 @@
 # Nightly (schedule, builds the `nightly` branch) and release (tag vX.Y.Z on `main`) publishing, in one
 # workflow because npm trusted publishing names a single workflow file. Nothing publishes unless the repo
-# variable SIDEWISE_PUBLISH is 'true'. Releases to main are not automated yet: the tag trigger stays off until
+# variable MM3_PUBLISH is 'true'. Releases to main are not automated yet: the tag trigger stays off until
 # nightly has been tested in the wild; a release runs only by hand (workflow_dispatch on a v*.*.* tag).
 name: publish
 
@@ -56,7 +56,7 @@ jobs:
 
   publish:
     needs: [plan, ci]
-    if: needs.plan.outputs.go == 'true' && vars.SIDEWISE_PUBLISH == 'true'
+    if: needs.plan.outputs.go == 'true' && vars.MM3_PUBLISH == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write

@@ -1,6 +1,6 @@
-// The actor recorded for an MCP-driven run when SIDEWISE_ACTOR isn't already set: always "claude", never a git
+// The actor recorded for an MCP-driven run when MM3_ACTOR isn't already set: always "claude", never a git
 // identity — see src/mcp/actor.ts for why. cli.ts's mcp wiring calls this per tools/call, only when
-// SIDEWISE_ACTOR isn't already set — an explicit value always wins over this default. [C-143]
+// MM3_ACTOR isn't already set — an explicit value always wins over this default. [C-143]
 import { describe, expect, it } from 'vitest';
 import { resolveMcpActor } from '../../src/mcp/actor.ts';
 

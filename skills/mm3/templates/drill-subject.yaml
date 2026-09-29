@@ -1,12 +1,12 @@
 # drill --parent <one-subject-run> --from <category>: this parent asked about one subject, not a sweep, so
 # from: names one of its categories and ask: sends brand-new, narrower questions — the parent's 3 angles
 # (its category's 3 probes) become 3 new concerns here, each attacked from 3 angles of its own. No "over" here.
-side:
+mak:
   goal: Find exactly where request text reaches the query
-  parent: SW-0051
+  parent: MM3-0051
   from: access                     # a category from the parent run, not an item — no "over" here
   ask:
-    concerns:                                   # reach/guard/sink are injection's own 3 roles (sidewise agent probe) — named
+    concerns:                                   # reach/guard/sink are injection's own 3 roles (mm3 agent probe) — named
       reach:                                    # by role here, not by family, so family: is given explicitly on each
         family: injection
         pass: no
@@ -36,6 +36,6 @@ side:
         11:
           choice: What should happen next?
           options: [ship, fix, block]
-wise:
+mdl:
   why: debug
   area: data

@@ -1,8 +1,8 @@
-/** Run ids: a collision-proof ULID stored on every record, plus SW-#### assigned in order under the ledger lock. */
+/** Run ids: a collision-proof ULID stored on every record, plus MM3-#### assigned in order under the ledger lock. */
 import { randomBytes } from 'node:crypto';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-export const RUN_ID = /^SW-(\d{4,})$/;
+export const RUN_ID = /^(?:MM3|SW)-(\d{4,})$/; // SW- is the retired prefix: still read, never minted
 
 export function ulid(now: number = Date.now(), random: (n: number) => Uint8Array = (n) => randomBytes(n)): string {
   let t = now;
@@ -18,5 +18,5 @@ export function ulid(now: number = Date.now(), random: (n: number) => Uint8Array
 }
 
 export function formatRunId(n: number): string {
-  return `SW-${String(n).padStart(4, '0')}`;
+  return `MM3-${String(n).padStart(4, '0')}`;
 }

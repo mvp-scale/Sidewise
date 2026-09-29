@@ -1,7 +1,7 @@
 /**
- * The chaos provider (SIDEWISE_PROVIDER=chaos): the fake provider with scheduled faults, for the default tests
- * and the agent chaos run (test/chaos). SIDEWISE_CHAOS="503,malformed,ok" is used one step per call, in order;
- * past the end every call is ok. The position lives in a state file (the CLI uses .sidewise/chaos.json) under
+ * The chaos provider (MM3_PROVIDER=chaos): the fake provider with scheduled faults, for the default tests
+ * and the agent chaos run (test/chaos). MM3_CHAOS="503,malformed,ok" is used one step per call, in order;
+ * past the end every call is ok. The position lives in a state file (the CLI uses .mm3/chaos.json) under
  * its own lock, so separate runs share one schedule; it restarts when the schedule text changes. Offline and
  * deterministic, and its answers are labelled "not evidence" like the fake's.
  */
@@ -15,7 +15,7 @@ import { JevApiError } from './typesafe/config.ts';
 
 export const CHAOS_STEPS = ['ok', '401', '429', '503', '529', 'timeout', 'malformed', 'missing'] as const;
 export type ChaosStep = (typeof CHAOS_STEPS)[number];
-export const CHAOS_MODEL = 'sidewise-chaos-1';
+export const CHAOS_MODEL = 'mm3-chaos-1';
 
 const HTTP: Partial<Record<ChaosStep, { status: number; text: string; retryable: boolean }>> = {
   '401': { status: 401, text: 'invalid API key', retryable: false },
@@ -29,7 +29,7 @@ export function parseSchedule(raw: string | undefined): { steps: ChaosStep[] } |
   if (!text) return { steps: [] };
   const steps = text.split(',').map((s) => s.trim());
   const bad = steps.find((s) => !(CHAOS_STEPS as readonly string[]).includes(s));
-  if (bad !== undefined) return { stop: `✖ provider: SIDEWISE_CHAOS has "${clip(bad, 20)}" → use a comma list of ${CHAOS_STEPS.join(', ')}` };
+  if (bad !== undefined) return { stop: `✖ provider: MM3_CHAOS has "${clip(bad, 20)}" → use a comma list of ${CHAOS_STEPS.join(', ')}` };
   return { steps: steps as ChaosStep[] };
 }
 

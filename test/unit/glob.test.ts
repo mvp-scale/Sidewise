@@ -22,7 +22,7 @@ describe('globToRegExp', () => {
 });
 
 describe('expandGlob', () => {
-  it('lists matching files in path order, skipping .git, node_modules, .sidewise and dist', () => {
+  it('lists matching files in path order, skipping .git, node_modules, .mm3 and dist', () => {
     const { root } = tempProject({ 'src/b.ts': '', 'src/a.ts': '', 'src/x/c.ts': '', 'node_modules/m/i.ts': '', 'dist/d.ts': '', '.git/h.ts': '', 'src/a.md': '' });
     expect(expandGlob(root, 'src/**/*.ts')).toEqual({ files: ['src/a.ts', 'src/b.ts', 'src/x/c.ts'], truncated: false });
     expect(expandGlob(root, '**/*.ts').files).toEqual(['src/a.ts', 'src/b.ts', 'src/x/c.ts']);
@@ -32,7 +32,7 @@ describe('expandGlob', () => {
 
   it('never follows a symlink out of the project', (ctx) => {
     const { root } = tempProject({ 'src/a.ts': '' });
-    const outside = mkdtempSync(path.join(os.tmpdir(), 'sidewise-out-'));
+    const outside = mkdtempSync(path.join(os.tmpdir(), 'mm3-out-'));
     writeFileSync(path.join(outside, 'secret.ts'), 'x');
     try {
       symlinkSync(outside, path.join(root, 'src', 'linked'));

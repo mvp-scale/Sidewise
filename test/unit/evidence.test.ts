@@ -20,16 +20,16 @@ describe('readCodeEvidence', () => {
     expect(r).toEqual({
       ok: false,
       errors: [
-        '✖ side.where: "../elsewhere.ts" is outside the project → use a path inside the project',
-        '✖ side.where: "src" is a folder → name a file (scan covers folders)',
-        '✖ side.where: cannot read "src/missing.ts" → check the path',
+        '✖ mak.where: "../elsewhere.ts" is outside the project → use a path inside the project',
+        '✖ mak.where: "src" is a folder → name a file (scan covers folders)',
+        '✖ mak.where: cannot read "src/missing.ts" → check the path',
       ],
     });
   });
 
   it('stops on a symlink that points outside the project', (ctx) => {
     const { root } = tempProject({ 'src/a.ts': 'inside' });
-    const outside = mkdtempSync(path.join(os.tmpdir(), 'sidewise-outside-'));
+    const outside = mkdtempSync(path.join(os.tmpdir(), 'mm3-outside-'));
     writeFileSync(path.join(outside, 'secret.ts'), 'outside');
     try {
       symlinkSync(path.join(outside, 'secret.ts'), path.join(root, 'src', 'link.ts'));
@@ -39,7 +39,7 @@ describe('readCodeEvidence', () => {
     }
     expect(readCodeEvidence(root, ['src/link.ts'])).toEqual({
       ok: false,
-      errors: ['✖ side.where: "src/link.ts" is outside the project → use a path inside the project'],
+      errors: ['✖ mak.where: "src/link.ts" is outside the project → use a path inside the project'],
     });
     expect(readCodeEvidence(root, ['src/inner.ts'])).toEqual({ ok: true, evidence: { files: { 'src/inner.ts': 'inside' }, notes: [] } });
   });
@@ -50,7 +50,7 @@ describe('readCodeEvidence', () => {
     const r = readCodeEvidence(root, bad);
     expect(r).toEqual({
       ok: false,
-      errors: ['3-2', '0-2', '0'].map((l) => `✖ side.where: "src/a.ts:${l}" has a bad line range → use start-end with 1 ≤ start ≤ end`),
+      errors: ['3-2', '0-2', '0'].map((l) => `✖ mak.where: "src/a.ts:${l}" has a bad line range → use start-end with 1 ≤ start ≤ end`),
     });
     expect(readCodeEvidence(root, ['src/a.ts:2', 'src/a.ts:2-2']).ok).toBe(true);
   });
@@ -70,7 +70,7 @@ describe('readCodeEvidence', () => {
       const r = readCodeEvidence(root, ['src/pay/validate.ts']);
       expect(r).toEqual({
         ok: false,
-        errors: ['✖ side.where: "src/pay/validate.ts" is 1,000 lines, too big to send whole → name a range (src/pay/validate.ts:start-end)'],
+        errors: ['✖ mak.where: "src/pay/validate.ts" is 1,000 lines, too big to send whole → name a range (src/pay/validate.ts:start-end)'],
       });
     });
 
@@ -79,7 +79,7 @@ describe('readCodeEvidence', () => {
       const r = readCodeEvidence(root, ['src/pay/validate.ts:1-1000']);
       expect(r).toEqual({
         ok: false,
-        errors: ['✖ side.where: "src/pay/validate.ts:1-1000" is 1,000 lines, too big to send → narrow the range'],
+        errors: ['✖ mak.where: "src/pay/validate.ts:1-1000" is 1,000 lines, too big to send → narrow the range'],
       });
     });
 
@@ -96,7 +96,7 @@ describe('readCodeEvidence', () => {
       const r = readCodeEvidence(root, ['a.ts', 'b.ts', 'c.ts', 'd.ts']);
       expect(r).toEqual({
         ok: false,
-        errors: [`✖ side.where: "d.ts" doesn't fit — where: is over ${EVIDENCE_LIMITS.totalChars.toLocaleString('en-US')} chars total → send fewer paths or narrower ranges`],
+        errors: [`✖ mak.where: "d.ts" doesn't fit — where: is over ${EVIDENCE_LIMITS.totalChars.toLocaleString('en-US')} chars total → send fewer paths or narrower ranges`],
       });
     });
 
@@ -106,11 +106,11 @@ describe('readCodeEvidence', () => {
       const r = readCodeEvidence(root, ['a.ts', 'b.ts', 'c.ts', 'd.ts']);
       expect(r).toEqual({
         ok: false,
-        errors: [`✖ side.where: "d.ts" doesn't fit — where: is over ${EVIDENCE_LIMITS.totalChars.toLocaleString('en-US')} chars total → send fewer paths or narrower ranges`],
+        errors: [`✖ mak.where: "d.ts" doesn't fit — where: is over ${EVIDENCE_LIMITS.totalChars.toLocaleString('en-US')} chars total → send fewer paths or narrower ranges`],
       });
     });
 
-    it('stopOnOversize: false keeps the old truncate-with-a-note behavior, for a range Sidewise chose itself, not a user-typed where: [C-171]', () => {
+    it('stopOnOversize: false keeps the old truncate-with-a-note behavior, for a range MM3 chose itself, not a user-typed where: [C-171]', () => {
       const { root } = tempProject({ 'a.ts': bigFile() });
       const r = readCodeEvidence(root, ['a.ts:1-1000'], { stopOnOversize: false });
       if (!r.ok) throw new Error(r.errors.join('\n'));

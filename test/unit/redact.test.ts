@@ -59,7 +59,7 @@ describe('redact still catches what it did', () => {
   });
 });
 
-// SW-0006 (round 4 smoke): a `loop` sweep response named its own items `issue-token`, `verify-token` and
+// MM3-0006 (round 4 smoke): a `loop` sweep response named its own items `issue-token`, `verify-token` and
 // `set-new-password` — real category/item names an agent chose, never a secret. KEY_VALUE matched each name as
 // a "secret-ish key", then greedily consumed the immediately-following YAML mapping (`{depends: unsure, ...}`)
 // as if it were the secret VALUE (its char class stopped only at whitespace/quotes, and `{`/`d`/`e`/... aren't
@@ -67,7 +67,7 @@ describe('redact still catches what it did', () => {
 // `issue-token: [redacted] unsure, ...}` — 3 of 4 result rows corrupted, one clean (`request-reset`, no
 // flagged substring). [C-200]
 describe('KEY_VALUE never eats a structured YAML value that follows a secret-shaped key name [C-200]', () => {
-  it('reproduces SW-0006 byte-for-byte before the fix: the category name is destroyed', () => {
+  it('reproduces MM3-0006 byte-for-byte before the fix: the category name is destroyed', () => {
     // Sanity check against the raw pattern shape, documenting the exact incident this test guards against.
     const before = 'issue-token: {depends: unsure, route: fail, 3: 0.66, 7: {top: build-now, p: 1}}';
     const corrupted = 'issue-token: [redacted] unsure, route: fail, 3: 0.66, 7: {top: build-now, p: 1}}';

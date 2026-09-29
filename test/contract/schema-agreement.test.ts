@@ -1,5 +1,5 @@
 // The hand-written schema checks (src/contract/schema-check.ts) and the published JSON Schema
-// (skills/sidewise/references/request.schema.json, checked here by ajv) agree: on every request in the corpus,
+// (skills/mm3/references/request.schema.json, checked here by ajv) agree: on every request in the corpus,
 // and on seeded mutations of it, checkSchema finds nothing exactly when the schema accepts.
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -12,7 +12,7 @@ import { validateRequest } from '../../src/contract/validate.ts';
 import { seededRandom } from '../../src/util/prng.ts';
 
 // [C-003] the public schema file (docs/contract.md's single named source) is the one checked here.
-const schema = JSON.parse(readFileSync('skills/sidewise/references/request.schema.json', 'utf8')) as object;
+const schema = JSON.parse(readFileSync('skills/mm3/references/request.schema.json', 'utf8')) as object;
 const ajvValid = new Ajv2020({ allErrors: true, strict: false }).compile(schema);
 const ROOT = 'test/fixtures/requests';
 
@@ -50,7 +50,7 @@ describe('schema agreement (TS checks ⇔ JSON Schema)', () => {
   it('seeded mutations: both accept or both reject, every time', () => {
     const rnd = seededRandom('schema-agreement');
     const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rnd() * xs.length)]!;
-    const JUNK: unknown[] = [null, 0, 7, true, false, '', 'x', 'no', 'yes', 'Is it?', 'ab', `${'a'.repeat(170)}?`, 'line\nbreak?', [], ['a'], ['a', 'a'], ['a', 'b'], [1, 2], {}, { pass: 'no' }, { pass: 'no', 1: 'Is it?' }, { scale: 'How bad?', levels: ['a', 'b'] }, { choice: 'Which one?', options: ['a', 'b'] }, { scale: 'How bad?', levels: ['a'] }, 'SW-0001', 'SW-1', 'quick', 'each', 'src/*.ts', 'src/a b.ts', { before: 'a', after: 'b' }, { before: 'a' }, 'Bad Name', 'kebab-ok', 'x'.repeat(25), '0'];
+    const JUNK: unknown[] = [null, 0, 7, true, false, '', 'x', 'no', 'yes', 'Is it?', 'ab', `${'a'.repeat(170)}?`, 'line\nbreak?', [], ['a'], ['a', 'a'], ['a', 'b'], [1, 2], {}, { pass: 'no' }, { pass: 'no', 1: 'Is it?' }, { scale: 'How bad?', levels: ['a', 'b'] }, { choice: 'Which one?', options: ['a', 'b'] }, { scale: 'How bad?', levels: ['a'] }, 'MM3-0001', 'MM3-1', 'quick', 'each', 'src/*.ts', 'src/a b.ts', { before: 'a', after: 'b' }, { before: 'a' }, 'Bad Name', 'kebab-ok', 'x'.repeat(25), '0'];
     const KEYS = ['1', '0', '99', 'pass', 'need', 'tags', 'Bad', 'level', 'name', 'x-y', 'a'.repeat(21)];
     const paths = (o: unknown, p: string[] = [], out: string[][] = []): string[][] => {
       out.push(p);

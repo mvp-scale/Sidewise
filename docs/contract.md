@@ -1,24 +1,24 @@
-# Sidewise call contract (public)
+# MM3 call contract (public)
 
-Public, scrubbed copy of the internal spec, for anyone integrating Sidewise. `[C-###]` tags mark every
+Public, scrubbed copy of the internal spec, for anyone integrating MM3. `[C-###]` tags mark every
 normative claim; `scripts/trace.ts` (`npm run check:trace`) maps each one to the test that proves it, and
 fails on any claim with none. Where this contract and the shipped engine disagree, this file describes what
 actually ships, not the original plan.
 
 Agents send YAML in and get YAML back. JSON is accepted too, since JSON is valid YAML 1.2. [C-001]
 A malformed request is sent back as `✖ field: problem → fix` before any TypeSafe call or spend. [C-002]
-The schema is `skills/sidewise/references/request.schema.json` (JSON Schema 2020-12); editors, MCP tools and
+The schema is `skills/mm3/references/request.schema.json` (JSON Schema 2020-12); editors, MCP tools and
 agents all read the same file. [C-003]
 
 ## 1. The idea in one screen
 
 | Block | Holds | Required? | Sent to TypeSafe? |
 |---|---|---|---|
-| `side:` | **solve it now**: one `goal`, then plumbing. `ask:` splits into **concerns** (yes/no, one path per category) and **decisions** (scale/choice) | yes | yes |
-| `wise:` | **get smarter**: why you're here, the area, and the run this follows | optional | no (ledger only) |
+| `mak:` | **make**: the request itself, one `goal`, then plumbing. `ask:` splits into **concerns** (yes/no, one path per category) and **decisions** (scale/choice) | yes | yes |
+| `mdl:` | **model**: why you're here, the area, and the run this follows, so the ledger learns | optional | no (ledger only) |
 
-`side:` is required, and its contents are what reaches TypeSafe. [C-004]
-`wise:` is optional, and never reaches TypeSafe — it's ledger-only context. [C-005]
+`mak:` is required, and its contents are what reaches TypeSafe. [C-004]
+`mdl:` is optional, and never reaches TypeSafe — it's ledger-only context. [C-005]
 
 **One core, three moves.** Every verb is the same core: `goal` + categories + `pass` + numbered questions. [C-006]
 What changes is what it runs over:
@@ -36,8 +36,11 @@ Drill goes down from one item, named by `from:`, in a parent run's own arrays. [
 
 | Grid | Know | Judge | Prove |
 |---|---|---|---|
-| **Side**: solve it with what's proven | [view](#view) | [class](#class) | [replay](#replay) |
-| **Wise**: find what's new, and learn it | [scan](#scan) | [drill](#drill) | [loop](#loop) |
+| **MAK³**: use what is proven | [view](#view) | [class](#class) | [replay](#replay) |
+| **MDL³**: learn what is missing | [scan](#scan) | [drill](#drill) | [loop](#loop) |
+
+MAK³ (make) and MDL³ (model) are modes of the six verbs, named in prose only: the request keys are always `mak:`
+and `mdl:`, on every verb, and a key never selects a mode; the verb you run does.
 
 ---
 
@@ -47,26 +50,26 @@ Drill goes down from one item, named by `from:`, in a parent run's own arrays. [
 
 | Block | Field | Rule |
 |---|---|---|
-| side | `goal` | one line, ≤ 160 chars; what you want to be true. Asked of TypeSafe outright |
-| side | `depth` | `quick` · `standard` · `thorough` = k = 1 · 2 · 3. One subject's `concerns:` section: exactly 3k categories (9 · 18 · 27 yes/no questions). A sweep's finest layer: the same; every layer also caps at 10 · 20 · 30 items asked |
-| side | `where` | 1–5 project paths, optional `:start-end`. We read and redact the code |
-| side | `ask` | `concerns:` (yes/no categories) + `decisions:` (scale/choice categories) for one subject. In a sweep: layer → `{concerns:, decisions:}` |
-| side | `over` | sweeps only: nested arrays |
-| side | `from` | drill only |
-| side | `compare` | replay only |
-| side | `parent` | required by drill and replay (what to build on); allowed on every verb otherwise, as lineage only |
-| side | `expect` | replay only, required: which of the parent's concerns this replay should turn to pass, or the word `none` to predict no flips at all |
-| wise | `why` | `validate` · `find` · `debug` |
-| wise | `area` | `data` · `api` · `ui` · `auth` · `hosting` · `build` · `tests` — single value, or a list of up to 2; omit for a whole-system question (`uses` carries the map) |
-| wise | `stage` | `design` · `build` · `review` · `pre-merge` · `post-fix` · `release` · `operate` (live production/incident) |
-| wise | `change` | `feature` · `fix` · `refactor` · `dependency` · `config` — only when a code change is involved |
-| wise | `risk` | `low` · `medium` · `high`: the stakes if this answer is wrong |
-| wise | `parent` | the run this follows (lineage only; an alias of `side.parent` for verbs that don't require it structurally) |
-| wise | `problem` | one line: what you're solving right now |
-| wise | `uses` | up to 5 C4 chains: `level:name( -> level:name)*` (`level`: `person`/`system`/`container`/`component`/`code`); a single string is a 1-item list |
-| wise | `touches` | up to 5 short domain objects/fields the run touches (not language built-ins) |
-| wise | `blast` | `code` · `component` · `container` · `system` · `person` — the widest level one failure reaches (`person` = users' data or accounts) |
-| wise | *(any other key)* | a lower-kebab key ≤ 20 characters: one line ≤ 160, or a list of ≤ 5 such lines, recorded as-is |
+| mak | `goal` | one line, ≤ 160 chars; what you want to be true. Asked of TypeSafe outright |
+| mak | `depth` | `quick` · `standard` · `thorough` = k = 1 · 2 · 3. One subject's `concerns:` section: exactly 3k categories (9 · 18 · 27 yes/no questions). A sweep's finest layer: the same; every layer also caps at 10 · 20 · 30 items asked |
+| mak | `where` | 1–5 project paths, optional `:start-end`. We read and redact the code |
+| mak | `ask` | `concerns:` (yes/no categories) + `decisions:` (scale/choice categories) for one subject. In a sweep: layer → `{concerns:, decisions:}` |
+| mak | `over` | sweeps only: nested arrays |
+| mak | `from` | drill only |
+| mak | `compare` | replay only |
+| mak | `parent` | required by drill and replay (what to build on); allowed on every verb otherwise, as lineage only |
+| mak | `expect` | replay only, required: which of the parent's concerns this replay should turn to pass, or the word `none` (an empty list `[]` counts as `none`) to predict no flips at all |
+| mdl | `why` | `validate` · `find` · `debug` |
+| mdl | `area` | `data` · `api` · `ui` · `auth` · `hosting` · `build` · `tests` — single value, or a list of up to 2; omit for a whole-system question (`uses` carries the map) |
+| mdl | `stage` | `design` · `build` · `review` · `pre-merge` · `post-fix` · `release` · `operate` (live production/incident) |
+| mdl | `change` | `feature` · `fix` · `refactor` · `dependency` · `config` — only when a code change is involved |
+| mdl | `risk` | `low` · `medium` · `high`: the stakes if this answer is wrong |
+| mdl | `parent` | the run this follows (lineage only; an alias of `mak.parent` for verbs that don't require it structurally) |
+| mdl | `problem` | one line: what you're solving right now |
+| mdl | `uses` | up to 5 C4 chains: `level:name( -> level:name)*` (`level`: `person`/`system`/`container`/`component`/`code`); a single string is a 1-item list |
+| mdl | `touches` | up to 5 short domain objects/fields the run touches (not language built-ins) |
+| mdl | `blast` | `code` · `component` · `container` · `system` · `person` — the widest level one failure reaches (`person` = users' data or accounts) |
+| mdl | *(any other key)* | a lower-kebab key ≤ 20 characters: one line ≤ 160, or a list of ≤ 5 such lines, recorded as-is |
 
 `goal` is one line, at most 160 characters, and is the question asked of TypeSafe outright. [C-010]
 `depth` is `quick` · `standard` · `thorough` = k = 1 · 2 · 3: one subject's `ask.concerns` holds exactly 3k
@@ -83,47 +86,47 @@ whole file (no `:start-end`) names its own line count and asks for a range; a ra
 asks to be narrowed further. [C-169]
 Several `where:` entries that together cross the 60,000-char total are a stop the same way, naming which entry
 doesn't fit — the same silent-cut problem, just across entries instead of within one. [C-170]
-The one exception is evidence Sidewise itself picked, never a user-typed `where:` — today, only `drill`
+The one exception is evidence MM3 itself picked, never a user-typed `where:` — today, only `drill`
 continuing flat from one coded sweep item with no further `over:` (its own whole-file/function/call range) —
 which still truncates with a note, since there's no `where:` for anyone to narrow. [C-171]
 `ask` holds `concerns:` (yes/no categories) and `decisions:` (scale/choice categories) for one subject, or
 layer → `{concerns:, decisions:}` for a sweep. Nothing is published on a flat, unsectioned `ask` any more: a
 category with `pass:` straight under `ask:` (no `concerns:`/`decisions:` wrapper) is refused outright,
-`✖ side.ask: put categories under concerns: (yes/no) and decisions: (scale/choice) → sidewise template <verb>`.
+`✖ mak.ask: put categories under concerns: (yes/no) and decisions: (scale/choice) → mm3 template <verb>`.
 [C-013]
 `over` is sweeps-only: nested arrays that define the layers; `concerns` and `decisions` are reserved words
 there too, since a layer of either name would collide with `ask`'s own sections. [C-014]
 `from` applies only to drill; `compare` only to replay. `parent` is required by drill and replay (the run to
-build on); every other verb accepts it too now, purely as lineage (the same role `wise.parent` already played,
+build on); every other verb accepts it too now, purely as lineage (the same role `mdl.parent` already played,
 which remains an accepted alias for it). [C-015]
-`wise.why` is one of `validate`, `find` or `debug`. [C-016]
-`wise.area` is one of `data`, `api`, `ui`, `auth`, `hosting`, `build` or `tests` — a single value, or a list of
-up to 2 (omit it for a question about the whole system; `wise.uses` carries the map instead). [C-017]
-`wise.parent` records the run this one follows, for lineage only. [C-018]
-`wise.stage` is one of `design`, `build`, `review`, `pre-merge`, `post-fix`, `release` or `operate` (`operate`:
+`mdl.why` is one of `validate`, `find` or `debug`. [C-016]
+`mdl.area` is one of `data`, `api`, `ui`, `auth`, `hosting`, `build` or `tests` — a single value, or a list of
+up to 2 (omit it for a question about the whole system; `mdl.uses` carries the map instead). [C-017]
+`mdl.parent` records the run this one follows, for lineage only. [C-018]
+`mdl.stage` is one of `design`, `build`, `review`, `pre-merge`, `post-fix`, `release` or `operate` (`operate`:
 a live production/incident question). [C-108] [C-209]
-`wise.change` is one of `feature`, `fix`, `refactor`, `dependency` or `config` — only when a code change is
+`mdl.change` is one of `feature`, `fix`, `refactor`, `dependency` or `config` — only when a code change is
 actually involved (a pure design/plan question, e.g. `loop`, usually leaves it out). [C-109]
-`wise.risk` is one of `low`, `medium` or `high`: the stakes if this answer turns out to be wrong. [C-110]
-`wise.problem`, `wise.uses`, `wise.touches` and `wise.blast` are the knowledge fields: a one-line problem
+`mdl.risk` is one of `low`, `medium` or `high`: the stakes if this answer turns out to be wrong. [C-110]
+`mdl.problem`, `mdl.uses`, `mdl.touches` and `mdl.blast` are the knowledge fields: a one-line problem
 statement, up to 5 C4 dependency chains, up to 5 touched entities, and a blast-radius level. All four are
-optional, and none of them reach the classifier — like every other `wise` field, they only shape what the
-ledger learns. `wise.uses` (replaces the single-string `wise.nodes` of the earlier contract — nothing is
+optional, and none of them reach the classifier — like every other `mdl` field, they only shape what the
+ledger learns. `mdl.uses` (replaces the single-string `mdl.nodes` of the earlier contract — nothing is
 published on `nodes` any more, though an old ledger record that still has one reads back as a 1-item `uses`)
 is a list of up to 5 C4 chains, each a chain of `level:name` pairs (`level` one of `person`, `system`,
 `container`, `component` or `code`; `name` project-identifier-shaped, or `name/name` for containment, or ending
 `?` for something guessed or not built yet), joined by ` -> ` within one chain — e.g.
 `container:api -> component:contributions-dao -> container:db`; a single string is accepted as a 1-item list.
-`wise.touches` names domain objects/fields the run is actually about, not language built-ins or vague concepts.
-`wise.blast`'s widest level, `person`, means the failure reaches users' own data or accounts. [C-205]
-Every closed `wise` field (`why`, `area`, `stage`, `change`, `risk`, `blast`) also accepts the literal value
+`mdl.touches` names domain objects/fields the run is actually about, not language built-ins or vague concepts.
+`mdl.blast`'s widest level, `person`, means the failure reaches users' own data or accounts. [C-205]
+Every closed `mdl` field (`why`, `area`, `stage`, `change`, `risk`, `blast`) also accepts the literal value
 `unknown`, when the agent genuinely doesn't know yet. [C-206]
-Any other key under `wise:` is accepted as a custom field when it's a lower-kebab name ≤ 20 characters: its
+Any other key under `mdl:` is accepted as a custom field when it's a lower-kebab name ≤ 20 characters: its
 value (one line ≤ 160 characters, or a list of up to 5 such lines) is recorded as-is, with no further checking
-— `sidewise agent wise` still generates its card from the built-in table plus any project config, so a custom
+— `mm3 agent mdl` still generates its card from the built-in table plus any project config, so a custom
 key is a genuine escape hatch, not a way to redefine a catalog field. [C-207]
-The whole `wise:` block is capped at 25 YAML source lines, counted from the request's own text (not the parsed
-value) — the 26th line stops with `✖ wise: 26 lines → the wise block is capped at 25 lines`. [C-208]
+The whole `mdl:` block is capped at 25 YAML source lines, counted from the request's own text (not the parsed
+value) — the 26th line stops with `✖ mdl: 26 lines → the mdl block is capped at 25 lines`. [C-208]
 
 A concerns category is a lowercase name (one word or `kebab-case`, ≤ 20 chars), `pass: yes` or `pass: no`, an
 optional `need`, optional `tags` (≤ 3), an optional `family`, and exactly 3 yes/no questions (each ending in
@@ -189,7 +192,7 @@ noul | score (criteria: levels) | choice (criteria: {option: option})}`. [C-035]
 A sweep makes one call per layer: `state = {goal, items: {"<item id>": <text or redacted code>}}`, `questions
 = {"<item id>#<n>": {type, instructions: {item, question}}}`. [C-036]
 TypeSafe answers under the keys sent, so `"3"` and `"payments/refunds#3"` come back unchanged; categories,
-`pass`, `need`, `tags` and `wise` never leave our side. [C-037]
+`pass`, `need`, `tags` and `mdl` never leave our side. [C-037]
 
 ### YAML traps we catch
 
@@ -219,15 +222,15 @@ response — not just whichever one the parser happens to choke on first — cap
 only a question's own text actually *starting* with `{` is a trap. When nothing trips this pre-parse scan,
 parsing proceeds exactly as before, so an already-passing request keeps its original wording untouched.
 Every stop a request can trigger — a parse error, a validation stop, or a bad `where`/git path — ends with
-`→ see: sidewise agent <verb>`, naming the verb that was actually run, on top of whatever it already told you
+`→ see: mm3 agent <verb>`, naming the verb that was actually run, on top of whatever it already told you
 to fix: a stop is read by the agent that sent the request, not a person at a terminal, so it points at the
 terse agent view, not `help`. [C-153]
 That same pointer now closes every other stop a person or agent can hit while running one of the six verbs or
 the four tools beyond them (`report`, `outcome`, `budget`, `template`) — not just a request's own validation:
 `view`'s own place/id checks (control characters, outside the project, an unknown run id), `drill`'s own
-parent/from/over checks that aren't evidence reads (an unknown or pre-contract `side.parent`, `side.from` naming
+parent/from/over checks that aren't evidence reads (an unknown or pre-contract `mak.parent`, `mak.from` naming
 no such item or category, an item with no code, code that changed since scan, an idea item given a code-only
-layer, `side.over` on a non-sweep parent), `report`'s own view-name checks, `budget`'s own cap-reached/
+layer, `mak.over` on a non-sweep parent), `report`'s own view-name checks, `budget`'s own cap-reached/
 corrupt-file/bad-cap-value messages, and `outcome`'s own ledger-lookup checks (an unknown run id, the asking
 actor trying to self-certify `held`) — plus every bare CLI usage mistake for a pointable command (an unknown or
 duplicated flag, a missing project, a request file the CLI itself couldn't read, `outcome`'s own id/value/`--by`
@@ -235,26 +238,26 @@ checks, `budget`'s own cap parsing). `report`, `outcome`, `budget` and `template
 `Verb`s, so `verbs/request.ts`'s `stopText` widens to a small `AgentTarget` union (`Verb` plus the four tool
 names) rather than `verbs/` importing `help/agent.ts`'s `AGENT_TOOLS` just for a type; `budget/budget.ts` and
 `ledger/log.ts` sit below `verbs/` in the dependency order, so their own stops append the identical
-`\n→ see: sidewise agent <tool>` line as a literal suffix instead, avoiding a layering inversion. A command with
+`\n→ see: mm3 agent <tool>` line as a literal suffix instead, avoiding a layering inversion. A command with
 no agent card (`help`, `agent`, `doctor`, `init`, `uninstall`, `mcp`) never gets this pointer — there's nothing
 deeper for it to point at. [C-197]
 
 ### Every response
 
 ```yaml
-side:                  # the result: gate first, then goal, then categories (or items in a sweep)
-  id: SW-####
+mak:                  # the result: gate first, then goal, then categories (or items in a sweep)
+  id: MM3-####
   gate: pass | fail | unsure
   …
-wise: {recorded: [...]}    # or: none (this run teaches the ledger less)
+mdl: {recorded: [...]}    # or: none (this run teaches the ledger less)
 next: <one follow-up command>
 notes: [budget …, validation notes …]
 ```
 
-The `side:` block lists the gate first, then the goal (when asked), then the categories or items. [C-043]
-`wise:` is always `{recorded: [...]}` naming what was recorded, or `{recorded: none}` when nothing was. [C-044]
-`next:` is one follow-up command. On a non-pass gate with a category or item to blame, it reads `sidewise
-template drill --parent <id> --from <category-or-item>` — a filled-in drill template, never a bare `sidewise
+The `mak:` block lists the gate first, then the goal (when asked), then the categories or items. [C-043]
+`mdl:` is always `{recorded: [...]}` naming what was recorded, or `{recorded: none}` when nothing was. [C-044]
+`next:` is one follow-up command. On a non-pass gate with a category or item to blame, it reads `mm3
+template drill --parent <id> --from <category-or-item>` — a filled-in drill template, never a bare `mm3
 drill` (drill always needs a request body to fill in). [C-045]
 When every category (or item) passes and only the goal itself missed, `next:` instead says the goal missed
 though every part passed, since there's nothing to drill into; in a sweep where every item was skipped past
@@ -263,9 +266,9 @@ the depth cap, it says so instead of naming one. [C-046]
 A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, offline, canned) adds `adapter
 <name> · not evidence` to `notes:`, right before the budget line, on every verb that calls the classifier
 (class, scan, drill, loop, replay) — so a rehearsal answer is never mistaken for real evidence. [C-092]
-Budget caps (`usd`, `runs`) live in `.sidewise/config.yaml`'s `budget:` key; spend and run counts are derived
+Budget caps (`usd`, `runs`) live in `.mm3/config.yaml`'s `budget:` key; spend and run counts are derived
 from the ledger itself, never a separate counter. A project with neither `config.yaml` nor a legacy
-`.sidewise/budget.json` simply runs on the built-in defaults ($5.00, 500 runs), silently. A legacy
+`.mm3/budget.json` simply runs on the built-in defaults ($5.00, 500 runs), silently. A legacy
 `budget.json` (from before this) is migrated into `config.yaml` at most once, the first time any of those verbs
 preflights a call; that same run's `notes:` says so (`budget file created with defaults ($5.00 · 500 runs)`),
 once, since every later run finds `config.yaml` already holding its own `budget:` key. [C-093]
@@ -276,6 +279,9 @@ live pricing reported)` so it's never mistaken for a figure TypeSafe itself repo
 published rate keeps its cost unreported, never guessed at; a cost the gateway route did report always wins
 over the estimate. Every verb that calls the classifier (class, scan, drill, loop, replay) does this the same
 way. [C-132]
+Compat note (no new claim): run ids are `MM3-####`; the retired `SW-####` shape is still read wherever an id is
+accepted (`parent:`, `view <id>`, `outcome <id>`), and an old ledger record written with `side:`/`wise:` keys loads
+as `mak`/`mdl`, the same way an old `mdl.nodes` loads as `uses`. Nothing writes the old shapes any more.
 Question text is never repeated in a response; the agent has it by number. [C-048]
 A sweep response lists category gates per item and shows probabilities only for questions that didn't clear
 the bar; the full numbers are in the ledger. [C-049]
@@ -284,12 +290,12 @@ the bar; the full numbers are in the ledger. [C-049]
 
 ## view
 
-**Side × Know: what do we already know here?** Free: it reads the ledger and never calls TypeSafe. [C-050]
+**MAK³ × Know: what do we already know here?** Free: it reads the ledger and never calls TypeSafe. [C-050]
 
 **When:** before any paid call; when entering an unfamiliar area; when looking for proven questions. [C-051]
 
 ```yaml
-side:                              # the class request you're about to send — a partial draft is fine
+mak:                              # the class request you're about to send — a partial draft is fine
   goal: This login handler is safe to merge
   depth: quick
   where: [src/user.ts:1-3]
@@ -299,22 +305,22 @@ side:                              # the class request you're about to send — 
         pass: no
         1: Is request text placed directly into the SQL query?
         2: Could a caller change what the query does?
-wise:
+mdl:
   why: validate
   area: data
 ```
 
 ```yaml
-side:
+mak:
   view: src/user.ts:1-3
-  reuse: SW-0042                   # the same questions on unchanged code → use that answer: no call, no spend
+  reuse: MM3-0042                   # the same questions on unchanged code → use that answer: no call, no spend
   runs: 7
   categories:                      # the record here, per category
-    injection: {runs: 5, pass: 1, fail: 4, last: SW-0042}
-    guards:    {runs: 5, pass: 4, fail: 1, last: SW-0042}
+    injection: {runs: 5, pass: 1, fail: 4, last: MM3-0042}
+    guards:    {runs: 5, pass: 4, fail: 1, last: MM3-0042}
     leaks:     {runs: 0}           # never asked here: a gap
-wise: {recorded: none}             # view reads only
-next: sidewise view SW-0042        # read the reused answer
+mdl: {recorded: none}             # view reads only
+next: mm3 view MM3-0042        # read the reused answer
 notes: [free]
 ```
 
@@ -323,32 +329,32 @@ back), `reuse` when the exact question set was asked before on unchanged code, `
 touched this place), and `categories` — per category `{runs, pass, fail, last}`, or `{runs: 0}` when it's
 never been asked here. There is no `best` field yet: nothing ranks "the question set with the best record
 here," even for a category whose fix was later recorded `held`. [C-052]
-`next` is `sidewise view <reuse>` when there's an exact reuse, to read that answer; otherwise it's `sidewise
+`next` is `mm3 view <reuse>` when there's an exact reuse, to read that answer; otherwise it's `mm3
 class`, and your categories become the first pattern here. [C-053]
-`wise: {recorded: none}` always: view never adds to what the ledger *teaches* (no run, no category record) —
+`mdl: {recorded: none}` always: view never adds to what the ledger *teaches* (no run, no category record) —
 no call, no spend. `notes: [free]`. Every successful view — a full draft check (`ask:` categories), a place/tag
 browse, or a run-id lookup — appends one free `kind: "lookup"` ledger line of its own (`goal`, `where`, `hit`,
 `reused`), so the ledger can see what agents search for even when nothing is asked outright; it takes no
-`SW-####` id, is never counted as a run, and never touches the budget (see "Setup, keys and the MCP tool"
+`MM3-####` id, is never counted as a run, and never touches the budget (see "Setup, keys and the MCP tool"
 below). A draft check's own `hit`/`reused` reflect a real exact-answer match; a place/tag browse or a run-id
 lookup always logs `hit: false, reused: null` (there's no "exact question set" concept for a bare browse), with
 `goal`/`where` carrying the place string or run id itself, so the record still says *what* was searched for. A
 run-id lookup that fails (an id not in the ledger) logs nothing, same as a failed draft check. [C-054]
 Given a folder, a tag, or a run id instead of a request body, view answers in place/id mode, which is Plan
-1's own text history rather than the YAML `side:` shape above: for a place, a count line (held / overruled /
+1's own text history rather than the YAML `mak:` shape above: for a place, a count line (held / overruled /
 failed / open, with rehearsal runs counted apart) followed by its newest runs, newest first; for a run id,
 that run's lineage up and down. [C-055]
 A scan/loop/drill sweep run's own `where` is always empty (its questions are asked per item, not per
 request); its real code locations and category tags are indexed from its items' own units and layers
 instead, so `view <folder>` and `view <tag>` find a sweep run the same way they already find a class/replay/
 drill run — not only `view .`. [C-120]
-`view <path>` reads a named file's own bytes only to check whether it looks like a request (`side:` or JSON);
+`view <path>` reads a named file's own bytes only to check whether it looks like a request (`mak:` or JSON);
 a real source file that isn't one is always shown as a place, never misread as "control characters" just
 because its code is hard to parse as YAML. A saved request file is still read as a request, exactly as
 before. [C-121]
 The "… N older → raise the level to see more" line means what it says: no row is ever silently dropped
 without a count and a way to see it. [C-122]
-`view <SW-####> --level 2|3` adds answer detail about the run itself, on top of the lineage `--level` already
+`view <MM3-####> --level 2|3` adds answer detail about the run itself, on top of the lineage `--level` already
 controlled: level 2 shows its own category gates (or, for a sweep, how many of its items are failing); level
 3 adds its notes and adapter/model. Level 1 is unchanged. A legacy (Plan 1) run has none of this stored, so
 any level above 1 is a documented no-op for it, never a stop. [C-123]
@@ -356,9 +362,9 @@ any level above 1 is a documented no-op for it, never a stop. [C-123]
 path), from the latest run that touched it, worst gate first — the free onboarding briefing, without
 hand-assembling it from several `view` calls. Ignored for a run id or a request draft, where "one line per
 place" doesn't apply. [C-124]
-`view <SW-####> --answers` adds, on top of the lineage and any `--level` detail already shown, one line per
+`view <MM3-####> --answers` adds, on top of the lineage and any `--level` detail already shown, one line per
 question that run actually asked: its id, its text, its checked answer (`p <n>` for yes/no; the winning
-level/option and its share for scale/choice), `reused <SW-####>` when that question's answer came from a
+level/option and its share for scale/choice), `reused <MM3-####>` when that question's answer came from a
 prior run, and its answer key (`translate.ts`'s `answerKey` — what makes it reusable). A sweep's questions are
 its items' own (`<item id>#<n>`, filled in), not the request's — `ask.categories` is always empty for one
 (C-120). Ignored for a place/tag or a request draft, the same restriction `--summary` has in reverse (C-124);
@@ -369,12 +375,12 @@ already uses (C-123). [C-215]
 
 ## class
 
-**Side × Judge: does the evidence support this one goal?** One call, one state. [C-056]
+**MAK³ × Judge: does the evidence support this one goal?** One call, one state. [C-056]
 
 **When:** a decision on one subject: merge, choose, triage, check a fix. [C-057]
 
 ```yaml
-side:
+mak:
   goal: This login handler is safe to merge
   depth: quick                     # k=1: exactly 3 concerns categories, 9 yes/no questions total
   where: [src/user.ts:1-3]
@@ -406,14 +412,14 @@ side:
         11:
           choice: Where should this go?
           options: [ship, fix, block]
-wise:
+mdl:
   why: validate
   area: data
 ```
 
 ```yaml
-side:
-  id: SW-0042
+mak:
+  id: MM3-0042
   gate: fail
   goal: {gate: fail, p: 0.08}
   injection: {gate: fail,   1: 0.94, 2: 0.91, 3: 0.90}
@@ -423,20 +429,20 @@ side:
   route:     {gate: fail,   11: {top: block, p: 0.97}}
   consensus: STRONG
   escalate: false
-wise: {recorded: [why, area]}
-next: sidewise template drill --parent SW-0042 --from injection
+mdl: {recorded: [why, area]}
+next: mm3 template drill --parent MM3-0042 --from injection
 notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
 ```
 
 `next:` on `pass` is the caller's own text ("act on it"); on `fail`, it drills into the first category whose
 own gate is `fail`, in written order; on `unsure`, the first category whose own gate is `unsure`. [C-058]
-Wise learns the pass/fail record per category, per place and per area; these questions and categories become
+The ledger learns the pass/fail record per category, per place and per area; these questions and categories become
 a candidate pattern for this place. [C-059]
 When any question's answer was reused (whole or in part) from an earlier run, the response names which one:
-`reused: [SW-####, ...]`, sorted and deduplicated, right after `escalate:`. The field is left out entirely
+`reused: [MM3-####, ...]`, sorted and deduplicated, right after `escalate:`. The field is left out entirely
 when nothing was reused. [C-130]
 When a question is asked fresh (not reused) but an earlier run already answered the exact same question text
-at an overlapping place on code that's since changed, the response's `notes:` says so — `stale: SW-#### answered
+at an overlapping place on code that's since changed, the response's `notes:` says so — `stale: MM3-#### answered
 "<question, clipped>" on older code (p <its P(yes)>)` — up to 3 such notes, one per older run. This is scoped to
 `class` only for now. [C-160]
 
@@ -444,24 +450,24 @@ at an overlapping place on code that's since changed, the response's `notes:` sa
 
 ## replay
 
-**Side × Prove: did the change work?** It replays a parent run's questions (the yardstick) on two states. [C-060]
+**MAK³ × Prove: did the change work?** It replays a parent run's questions (the yardstick) on two states. [C-060]
 
 **When:** after a fix, a refactor, a dependency bump, or to compare fix A with fix B. [C-061]
 
 ```yaml
-side:
+mak:
   goal: The injection fix works
-  parent: SW-0042                  # replay this run's categories and questions
+  parent: MM3-0042                  # replay this run's categories and questions
   compare: {before: main, after: HEAD}
   expect: [injection]              # required: which of the parent's concerns this replay should fix, or "none"
-wise:
+mdl:
   why: validate
   area: data
 ```
 
 ```yaml
-side:
-  id: SW-0051
+mak:
+  id: MM3-0051
   gate: fail                       # every category passes on "after", and nothing regressed
   goal: {gate: pass, p: 0.84}
   injection: {before: fail, after: pass, fixed: [1, 2, 3], probes: 3/3 fixed}
@@ -469,8 +475,8 @@ side:
   leaks:     {before: unsure, after: pass, fixed: [7], probes: 1/1 fixed}
   expected: {fixed: [injection], still: [access]}
   regressed: []
-wise: {recorded: [why, area, parent]}
-next: sidewise template drill --parent SW-0051 --from access
+mdl: {recorded: [why, area, parent]}
+next: mm3 template drill --parent MM3-0051 --from access
 notes: [2 states · budget 2% used]
 ```
 
@@ -484,7 +490,7 @@ after) and `still` (ones that don't), and a `probes: <fixed>/<total> fixed` coun
 category's own questions cleared out of how many it has; anything in the run-wide `regressed` list (passing
 before, not after now) can alone fail the gate even when every `after` category passes on its own. [C-064] [C-211]
 `expect:` is required: either 1–9 concern names (lowercase kebab-case, each ≤ 20 characters and unique), or the
-literal word `none` — the agent's own prediction of which of the parent's concerns this replay should turn to
+literal word `none` (an empty list `[]` is read as `none`) — the agent's own prediction of which of the parent's concerns this replay should turn to
 pass (`none`: predicts no flips at all). Each named concern must be a real concerns-section category of the
 parent; naming a decisions category or an unknown name is a stop. The response's `expected:` grades the
 prediction against what actually happened, per named concern: `fixed` (missed or unsure before, clears now) or
@@ -497,8 +503,8 @@ On a category's own `fixed`, record `outcome held` on the parent; on `still`, ke
 `regressed`, revert or drill into it. [C-065]
 
 ```yaml
-side:
-  id: SW-0052
+mak:
+  id: MM3-0052
   gate: fail                       # access regressed even though it (and the goal) grade pass on their own
   goal: {gate: pass, p: 0.81}
   injection: {before: fail, after: pass, fixed: [1, 2, 3], probes: 3/3 fixed}
@@ -507,15 +513,15 @@ side:
   expected: {fixed: [injection], still: []}
   unexpected: [leaks]              # leaks flipped too, but wasn't named in expect: [injection]
   regressed: [5]
-wise: {recorded: [why, area, parent]}
-next: sidewise template drill --parent SW-0052 --from access
+mdl: {recorded: [why, area, parent]}
+next: mm3 template drill --parent MM3-0052 --from access
 notes: [2 states · budget 2% used]
 ```
 
 A non-empty `regressed` takes priority over the usual "which category matches the overall gate?" search:
 `next:` names the category the first regressed question belongs to, even when every `after` category (and the
 goal) grades pass on its own — the case above, where nothing but `regressed` explains the `fail`. [C-091]
-Called as `sidewise replay --parent SW-#### --compare <before>..<after>` (no request file), the goal asked is
+Called as `mm3 replay --parent MM3-#### --compare <before>..<after>` (no request file), the goal asked is
 the parent run's own goal, not a fixed placeholder. [C-066]
 The plan is for whether the yardstick predicted correctly to feed a ranking: a category that said `fail`
 and was later `fixed` and proven would count as a hit. **Not shipped yet**: there is no hit count anywhere
@@ -523,7 +529,7 @@ in the ledger record (`ContractRun` carries no field for it), and recording a fi
 changes nothing about what `view` shows for that category afterward — the same gap as `view`'s own missing
 `best` field (above). [C-067]
 `replay` reads git in the repo that actually contains each compared file — its own nearest `git rev-parse
---show-toplevel`, not only the Sidewise project root — so a file whose own repo is nested one level down (a
+--show-toplevel`, not only the MM3 project root — so a file whose own repo is nested one level down (a
 monorepo package, a vendored project) is no longer invisible to it. [C-147]
 Like `class`, `replay` names which prior runs its answers came from (`reused: [ids]`) when anything was
 reused, and its `--dry-run` predicts that reuse the same way `class`'s does. [C-152]
@@ -539,8 +545,8 @@ run) is refused: replaying it would need to rebuild that root, which this run ha
 loop's own self-contained `over:` replays fine. [C-216]
 
 ```yaml
-side:
-  id: SW-0099
+mak:
+  id: MM3-0099
   gate: fail                        # src/a.ts regressed on question 3
   goal: {gate: fail, p: 0.05}
   items:
@@ -548,9 +554,9 @@ side:
   passing: 1                        # src/b.ts (unchanged, always passing) says nothing new, so it's left out of items:
   expected: {fixed: [], still: [injection]}
   regressed: [src/a.ts#3]
-wise: {recorded: [parent]}
-next: sidewise template drill --parent SW-0099 --from src/a.ts
-notes: [reused: SW-0042 (0d, 1 commit), 2 refs · 2 calls · 11 questions · budget 2% used]
+mdl: {recorded: [parent]}
+next: mm3 template drill --parent MM3-0099 --from src/a.ts
+notes: [reused: MM3-0042 (0d, 1 commit), 2 refs · 2 calls · 11 questions · budget 2% used]
 ```
 
 The response is item-shaped, not category-shaped: `items:` holds one entry per item whose own `before`/`after`
@@ -572,12 +578,12 @@ sweep's own item ids repeat the same question numbers per item — unlike a one-
 
 ## scan
 
-**Wise × Know: where in this code should we look?** A sweep across code, read by us. [C-068]
+**MDL³ × Know: where in this code should we look?** A sweep across code, read by us. [C-068]
 
 **When:** a new codebase, a release check, a PR's changed files, or a vague bug with no location yet. [C-069]
 
 ```yaml
-side:
+mak:
   goal: Handlers don't trust request input
   depth: quick                     # function is the finest layer: exactly 3 concerns categories, at most 10 items
   over:
@@ -612,14 +618,14 @@ side:
           11:
             choice: Where should {function} go?
             options: [ship, fix, block]
-wise:
+mdl:
   why: find
   area: api
 ```
 
 ```yaml
-side:
-  id: SW-0060
+mak:
+  id: MM3-0060
   gate: fail
   goal: {gate: fail, p: 0.21}
   scanned: {file: 6, function: 23}
@@ -629,8 +635,8 @@ side:
     src/handlers/order.ts/listOrders: {access: unsure, 4: 0.52}
   passing: 20                      # counted, not listed
   reused: 14                       # unchanged functions answered from the ledger for free
-wise: {recorded: [why, area]}
-next: sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser
+mdl: {recorded: [why, area]}
+next: mm3 template drill --parent MM3-0060 --from src/handlers/user.ts/findUser
 notes: [1 call (the function layer; files are read, not asked) · budget 4% used]
 ```
 
@@ -664,14 +670,14 @@ A fully-reused scan is never blocked by an already-reached budget cap (see the d
 
 ## drill
 
-**Wise × Judge: why did this one thing fail?** It goes down from one item in a parent run. [C-074]
+**MDL³ × Judge: why did this one thing fail?** It goes down from one item in a parent run. [C-074]
 
 **When:** after a `fail` or `unsure` from class, scan, loop or replay. [C-075]
 
 ```yaml
-side:
+mak:
   goal: Find exactly where request text reaches the query
-  parent: SW-0060
+  parent: MM3-0060
   from: src/handlers/user.ts/findUser    # an item id or a category from the parent run
   depth: quick                     # call is the finest (and only) layer here: exactly 3 concerns categories
   over:
@@ -705,20 +711,20 @@ side:
           11:
             choice: What should happen to {call} next?
             options: [ship, fix, block]
-wise:
+mdl:
   why: debug
   area: data
 ```
 
 ```yaml
-side:
-  id: SW-0061
+mak:
+  id: MM3-0061
   gate: fail
   goal: {gate: pass, p: 0.77}
   failing:
     src/handlers/user.ts/findUser/db.query: {reach: fail, sink: fail, 1: 0.96, 2: 0.94, 7: 0.91}
   passing: 3
-wise: {recorded: [why, area]}
+mdl: {recorded: [why, area]}
 next: fix it, then run this drill again (unchanged items are reused, so it is nearly free)
 notes: [1 call · budget 4% used]
 ```
@@ -731,9 +737,9 @@ consensus and escalate. [C-077]
 drill's own `next:` never points at drilling further: on a one-subject parent it says to fix it, then
 `replay` against the parent; on a sweep parent it says to fix it and run this same drill again, since
 unchanged items are reused, so it is nearly free. [C-078]
-Wise learns which narrower questions separate the real cause from the noise; they become the drill pattern
+The ledger learns which narrower questions separate the real cause from the noise; they become the drill pattern
 for that category. [C-079]
-`sidewise template drill --parent <id> --from <x>` picks the sample matching that id's own shape when the
+`mm3 template drill --parent <id> --from <x>` picks the sample matching that id's own shape when the
 ledger has it: a sweep parent's sample keeps `over:`, a one-subject parent's has no `over:` and `from:` names
 a category instead. No project, or an id the ledger doesn't have, prints the sweep sample, same as always. [C-090]
 `drill` on a sweep item that has code, given no `over:`, is a flat one-subject proof of just that one item:
@@ -746,12 +752,12 @@ blocked by an already-reached budget cap when fully reused. [C-144] [C-149]
 
 ## loop
 
-**Wise × Prove: does this idea hold up?** A sweep across layers of ideas, written by the agent. [C-080]
+**MDL³ × Prove: does this idea hold up?** A sweep across layers of ideas, written by the agent. [C-080]
 
 **When:** a design, a plan or a feature request before any code; comparing two designs. [C-081]
 
 ```yaml
-side:
+mak:
   goal: The checkout redesign is sound
   depth: quick                     # story is the finest layer: exactly 3 concerns categories there
   where: [src/checkout/]           # optional: the code the ideas are checked against
@@ -797,7 +803,7 @@ side:
           13:
             choice: What should happen to "{story}" next?
             options: [build-now, rework, redesign]
-wise:
+mdl:
   why: validate
   area: api
 ```
@@ -805,8 +811,8 @@ The expansion: 3 parts + 5 stories = 8 items; `part`'s 2 written questions becom
 finest layer), `story`'s 13 become 39, in 2 calls (one per layer).
 
 ```yaml
-side:
-  id: SW-0070
+mak:
+  id: MM3-0070
   gate: fail
   goal: {gate: pass, p: 0.74}
   failing:                         # an item fails if it or any child fails
@@ -814,8 +820,8 @@ side:
     payments/refunds:          {done: fail, risk: fail, 3: 0.22, 6: 0.91}
     payments/partial capture:  {risk: unsure, 6: 0.48}
   passing: [gateway, gateway/guest checkout, gateway/saved cards, payments/retries, ledger]
-wise: {recorded: [why, area]}
-next: sidewise template drill --parent SW-0070 --from payments/refunds
+mdl: {recorded: [why, area]}
+next: mm3 template drill --parent MM3-0070 --from payments/refunds
 notes: [2 calls · 43 questions · budget 3% used]
 ```
 
@@ -831,29 +837,29 @@ A fully-reused loop is never blocked by an already-reached budget cap (see the d
 
 ## report
 
-`sidewise report [hits|patterns|history|web|graph|problems|wise|calls|fields]` is the one way knowledge leaves
+`mm3 report [hits|patterns|history|web|graph|problems|mdl|calls|fields]` is the one way knowledge leaves
 the ledger besides a run's own response: free, read-only, never calls a provider, never writes to the ledger
-(except `fields`'s own `--accept`, which writes only `.sidewise/config.yaml`, never the ledger), and takes no
+(except `fields`'s own `--accept`, which writes only `.mm3/config.yaml`, never the ledger), and takes no
 options beyond the view name (default `hits`) and `fields`'s own `--accept <field>`. It is not a seventh verb —
 it sits outside the Know/Judge/Prove grid, reading across every place at once rather than proving one thing. It
 works unchanged with no on-disk index present (the same linear-fallback engine `view` already falls back to).
 [C-162]
-`sidewise report hits` (or no argument) shows the newest run's own gate per place x category, worst gate first
+`mm3 report hits` (or no argument) shows the newest run's own gate per place x category, worst gate first
 (`fail`, then `unsure`, then `pass`), each row naming the run it came from. A one-subject run's row is marked
 `stale` once the code at that place has changed since — re-derived live, on the bounded set of rows actually
 shown, from the run's own recorded evidence key, never a full-ledger scan. A sweep item's row is never marked
 stale (its evidence isn't reconstructed here). [C-163]
-`sidewise report patterns` groups every run by its own question-set fingerprint (its categories' or layers'
+`mm3 report patterns` groups every run by its own question-set fingerprint (its categories' or layers'
 names, `pass`/`need` and question text — never the evidence), showing how often each set has run, its
 pass/fail/unsure split, how many distinct places it's touched, and its outcomes so far. [C-164]
-`sidewise report history` merges, newest first: every `replay` run's own result against its parent, named
+`mm3 report history` merges, newest first: every `replay` run's own result against its parent, named
 `fixed` or `regressed` (the same priority `replay`'s own gate uses — any regression wins over any fix; a
 replay that moved nothing gets no row), with every recorded outcome. Neither is a new ledger write — both are
 derived, read-side, from records the commands already wrote. [C-165]
 Every view caps its rows and says plainly how many more exist (`… N more not shown`) rather than dropping them
 silently, the same idiom `view` already uses — `report` takes no option to raise it. [C-166]
 An unrecognized view name is a clean stop naming the four real ones. [C-167]
-`sidewise report web` writes one self-contained, read-only viewer, `.sidewise/viewer.html`, holding the
+`mm3 report web` writes one self-contained, read-only viewer, `.mm3/viewer.html`, holding the
 ledger's own place x concern consensus (STRONG when independent runs agree on a gate, CONFLICT when they don't,
 SINGLE for one run alone — with a same-checklist flag on a CONFLICT, since a reused category name can carry a
 different question set across runs), a files x concerns heat map, and a session summary (runs, paid calls,
@@ -864,9 +870,9 @@ value reaches the page as JSON inside a `<script type="application/json">` block
 calls a provider and never writes to the ledger itself (it reads the whole log directly, never the id index);
 it tries to open the file in the user's browser (`xdg-open`, `open`, or `cmd /c start`, depending on the OS) and
 always prints the file's path either way, whether or not that succeeds. [C-204]
-`sidewise report graph <kind>:<label>` shows a small neighborhood (depth 2) around one graph-tier node — nodes
+`mm3 report graph <kind>:<label>` shows a small neighborhood (depth 2) around one graph-tier node — nodes
 and edges as `kind:label --predicate--> kind:label` lines. With no target it names how to give one
-(`sidewise report graph <kind>:<label>`, e.g. `category:injection`) rather than dumping the whole graph, and an
+(`mm3 report graph <kind>:<label>`, e.g. `category:injection`) rather than dumping the whole graph, and an
 unknown target is a plain "not found," never an empty crash. [C-219]
 Each edge line's own predicate carries the run→category and category→place relationship the RIGHT way round:
 `run --checks--> category` (the run checked this category) and, separately, `category --judged <gate> (p
@@ -875,27 +881,27 @@ shows its own provenance (`extracted`, `declared` or `inferred`) and the run(s) 
 (subject, predicate, object, score) witnessed by more than one run folds into one line with a `×N` count and
 the run list (or a sorted first..last range once there are more than a few), never one line per witnessing run.
 [C-224]
-`sidewise report problems` ranks every family x place pair by gate counts (fail, then unsure, then pass), worst
+`mm3 report problems` ranks every family x place pair by gate counts (fail, then unsure, then pass), worst
 first — the ranked, agent-facing knowledge pull an agent can act on directly, capped and counted like every
 other view. [C-220]
-`sidewise report wise` lists every run's own wise fields (why/area/stage/change/risk/blast/problem), newest
+`mm3 report mdl` lists every run's own mdl fields (why/area/stage/change/risk/blast/problem), newest
 first. [C-221]
-`sidewise report calls` rolls up telemetry by day, verb, model and source (calls, tokens, cost, amount saved by
+`mm3 report calls` rolls up telemetry by day, verb, model and source (calls, tokens, cost, amount saved by
 reuse), over its own default window (the last 30 days) unless the graph tier is asked otherwise. A run with no
 recorded `telemetry` at all (a pre-plan-2c-B2 ledger line) still shows up, from its own aggregate
 `calls`/`costUsd`/`adapter`/`model`, marked `(none)` in place of a real source — an old ledger's calls and cost
-are never silently dropped from this view. `graph`, `problems`, `wise` and `calls` all refresh the graph tier
+are never silently dropped from this view. `graph`, `problems`, `mdl` and `calls` all refresh the graph tier
 (ledger/graph.ts) before reading — readers refresh, the paid path never does — and report a plain message
-naming `sidewise doctor`, never a stack trace, when the graph tier needs `node:sqlite` and it isn't available.
+naming `mm3 doctor`, never a stack trace, when the graph tier needs `node:sqlite` and it isn't available.
 [C-222]
-`sidewise report fields` lists every `wise.extras` key no run's project has declared yet (not a base wise field,
-not already in `config.wise`), with its sample values and a suggested type: `closed` (≤8 distinct values across
+`mm3 report fields` lists every `mdl.extras` key no run's project has declared yet (not a base mdl field,
+not already in `config.mdl`), with its sample values and a suggested type: `closed` (≤8 distinct values across
 ≥5 runs), `pattern` (every value matches one fixed regex shape), `reference` (every value looks like a
 where/route path), or "no suggestion yet" when none of those fit. `--accept <field>` re-runs the same discovery
-and, when that field has a suggestion, writes it into `.sidewise/config.yaml`'s `wise:` block and prints exactly
+and, when that field has a suggestion, writes it into `.mm3/config.yaml`'s `mdl:` block and prints exactly
 what it wrote; naming a field that isn't undeclared, or one with no suggestion yet, is a clean stop, never a
 silent no-op. [C-223]
-`graph`/`problems`/`wise`/`calls`/`fields` read the hot tier's own on-disk tables (`runs`/`categories`/`places`,
+`graph`/`problems`/`mdl`/`calls`/`fields` read the hot tier's own on-disk tables (`runs`/`categories`/`places`,
 ledger/index.ts) directly, not through the reuse-safe `IndexHandle` abstraction `hits`/`patterns`/`history`
 use — so each one first forces that tier to catch up or rebuild on disk (the same self-heal a paid write
 already gets, just triggered from a read), before either reading it directly or refreshing the graph tier on
@@ -906,16 +912,16 @@ incomplete answer for any of these five views — only ever, at worst, one extra
 
 ## help and template
 
-`sidewise help` (free, no project needed) prints a one-screen contract card: the six verbs, the rules that
+`mm3 help` (free, no project needed) prints a one-screen contract card: the six verbs, the rules that
 cause most first-try rejects, and how to read a verdict. [C-113]
-`sidewise help <verb>` (view, class, replay, scan, drill, loop) prints that verb's purpose, when to use it,
+`mm3 help <verb>` (view, class, replay, scan, drill, loop) prints that verb's purpose, when to use it,
 one annotated example, and its own sharp rules. [C-114]
-`sidewise help <verb>` now opens with a first line, `Agents: sidewise agent <verb>`, ahead of its own
-`## <verb>` heading — round-4 smoke testing's top finding: a cold CLI agent made zero `sidewise` calls at all
-because it never discovered `sidewise agent` exists. The bare CLI usage text (`sidewise --help`, a bare
-`sidewise`, and `sidewise <command> --help`) carries the same front door: `help/card.ts`'s exported
-`agentFrontDoorLines()` returns, in order, `Agents: run "sidewise agent" first`, the existing `new here? →
-sidewise init` hint for a human, this tool's own one-line pitch (`card()`'s own opening wording, factored out
+`mm3 help <verb>` now opens with a first line, `Agents: mm3 agent <verb>`, ahead of its own
+`## <verb>` heading — round-4 smoke testing's top finding: a cold CLI agent made zero `mm3` calls at all
+because it never discovered `mm3 agent` exists. The bare CLI usage text (`mm3 --help`, a bare
+`mm3`, and `mm3 <command> --help`) carries the same front door: `help/card.ts`'s exported
+`agentFrontDoorLines()` returns, in order, `Agents: run "mm3 agent" first`, the existing `new here? →
+mm3 init` hint for a human, this tool's own one-line pitch (`card()`'s own opening wording, factored out
 rather than retyped a second time), and one purpose bullet per verb from the same shared `VERB_LINE` text
 `agent`'s overview and `help`'s own card already render — `cli.ts` splices this ahead of its usage block rather
 than hand-typing a third copy. [C-191]
@@ -924,14 +930,14 @@ Per-verb sharp rules `help` carries: `drill` says to follow `next:` rather than 
 by severity, worst first, and to scan by file when the file is the unit that matters; `loop` says a sub-layer
 is a sibling key under `over:`, names are ≤ 20 characters with no `/`, and every question under a layer is
 asked of every item at that layer. [C-115]
-`sidewise help <topic>` covers `authoring`, `verdict`, `wise`, `reuse` and `probe` — cross-cutting rules that
+`mm3 help <topic>` covers `authoring`, `verdict`, `mdl`, `reuse` and `probe` — cross-cutting rules that
 don't belong to one verb. [C-116]
-`sidewise help wise` lists every catalog field (`why`, `area`, `stage`, `change`, `risk`, `problem`, `uses`,
+`mm3 help mdl` lists every catalog field (`why`, `area`, `stage`, `change`, `risk`, `problem`, `uses`,
 `touches`, `blast`) with its closed values (where it has any) and what each is for, notes that every closed
 field also accepts `unknown` and that any other lower-kebab key (≤ 20 characters) is recorded as-is, and points
-at `sidewise agent wise` for this project's exact allowed values and the full C4 legend. [C-117]
+at `mm3 agent mdl` for this project's exact allowed values and the full C4 legend. [C-117]
 An unknown `help` target is a clean stop naming every real verb and topic. [C-118]
-`sidewise help probe` is its own recognized topic: a valid probe, the shape of a well-formed Sidewise question —
+`mm3 help probe` is its own recognized topic: a valid probe, the shape of a well-formed MM3 question —
 one narrow judgment per question, self-contained wording (a question's number is a label for the response
 only), answerable from `where:` (naming the file in backticks when there's more than one), one polarity per
 category, concrete scale levels, a "none fits" choice option, the goal phrased as the safe state rather than
@@ -939,23 +945,23 @@ the vulnerability, and the visible-scope probe ("Can this be answered from the c
 extra question — each rule cited to its own TypeSafe documentation page. It's guidance labelled as best
 practice for a higher-quality answer, not new validator enforcement — nothing here is checked by the schema or
 cross-validator. [C-180]
-`sidewise agent probe` renders the same 8 rules bare, no citations, no prose, from the one shared list `help
-probe` renders with citations, so the two views can't drift apart; `sidewise agent` with no verb points
-explicitly at `sidewise agent probe`. [C-181]
+`mm3 agent probe` renders the same 8 rules bare, no citations, no prose, from the one shared list `help
+probe` renders with citations, so the two views can't drift apart; `mm3 agent` with no verb points
+explicitly at `mm3 agent probe`. [C-181]
 The 160-character cap on a single question (or the goal) line — previously a bare literal inside
 `schema-check.ts`'s `lineProblem` — is now the named, exported constant `MAX_QUESTION_CHARS`, documented as a
-shared `rules.ts` entry reaching `sidewise help`'s one-screen card, `help authoring`, every verb that accepts
+shared `rules.ts` entry reaching `mm3 help`'s one-screen card, `help authoring`, every verb that accepts
 `ask:` (`class`, `scan`, `drill`, `loop`, `view` — checked against the schema envelope; `replay` never accepts
 `ask:` at all), and both `help probe` and `agent probe`. This closes a round-4 finding: a cold agent hit `✖
 question 1: is longer than 160 characters` with zero prior warning in `agent view` or `agent probe`. Because the
-cap is Sidewise's own hard validator rule rather than TypeSafe's own published guidance, it lives in
+cap is MM3's own hard validator rule rather than TypeSafe's own published guidance, it lives in
 `RULES`/`ruleLines`, not `PROBE_RULES` (whose cited-guidance contract is unchanged) — `probe()`/`probeCard()`
 simply splice `ruleLines('probe')` in alongside it. [C-194]
-`sidewise help outcome` and `sidewise help budget` are recognized targets the same way `sidewise help report`
-already was — neither is a `side:`-YAML verb (neither takes `ask:`, neither calls the classifier) — each with
+`mm3 help outcome` and `mm3 help budget` are recognized targets the same way `mm3 help report`
+already was — neither is a `mak:`-YAML verb (neither takes `ask:`, neither calls the classifier) — each with
 its own purpose, example, sharp rules and a good/bad pair grounded in a real stop: `outcome`'s self-held
-restriction and its lack of a `--note` flag, `budget`'s bare `set` with no flags. `sidewise agent outcome`,
-`sidewise agent budget` and `sidewise agent report` are the same three targets' bare terse cards — no
+restriction and its lack of a `--note` flag, `budget`'s bare `set` with no flags. `mm3 agent outcome`,
+`mm3 agent budget` and `mm3 agent report` are the same three targets' bare terse cards — no
 citations, no headings, hand-written rather than sharing a data structure with `help`'s prose (an agent card is
 why-only; there's no rule prose to reuse). Before this, `outcome` appeared in neither `help` nor `agent` at
 all. An unknown `help`/`agent` target now names all three extras (`report`, `outcome`, `budget`) alongside
@@ -963,47 +969,47 @@ every verb and topic. [C-182]
 A new `agent verdict` card (`tool: verdict`) and a refactored `help verdict` render the same response-vocabulary
 facts from one shared list, `rules.ts`'s `VERDICT_FACTS`: `need:`'s all/most/any bar, the goal-and-every-category
 gate rule, `consensus` (STRONG/SPLIT/WEAK) and which verbs compute it, `escalate`'s triggers, what a probability
-near 0.50 landing in `unsure` means, `replay`'s per-category fixed/still/regressed grade, `reused: [SW-####]`'s
-meaning, `sidewise report hits`'s `stale` flag, and the three exit codes. `help verdict` keeps its own prose
+near 0.50 landing in `unsure` means, `replay`'s per-category fixed/still/regressed grade, `reused: [MM3-####]`'s
+meaning, `mm3 report hits`'s `stale` flag, and the three exit codes. `help verdict` keeps its own prose
 framing around the list; `agent verdict` renders it bare, matching every other agent card's why-only shape and
-key order. `agent`'s overview gains a third `run:` line, `sidewise agent verdict — before reading a response:
+key order. `agent`'s overview gains a third `run:` line, `mm3 agent verdict — before reading a response:
 how to read it`, alongside its existing pointers at `<verb|tool>` and `probe`. This closes a round-4 finding:
 response-side vocabulary was previously documented only in `help report`'s own prose, and only after a response
 had already used it once. [C-196]
 Every fact the validator enforces that `help` also states (depth counts, the `where` limit, the pass bar, and
-the `wise` catalog lists) is built from the same constants the schema check and validator use, and a test
+the `mdl` catalog lists) is built from the same constants the schema check and validator use, and a test
 asserts each one appears verbatim in the `help` output it names — so the validator and `help` can't quietly
 drift apart. [C-119]
 
-`sidewise template <verb> --from <request.yaml>` — with no `--parent` — names a request YAML file rather than
+`mm3 template <verb> --from <request.yaml>` — with no `--parent` — names a request YAML file rather than
 a drill item or category: its `ask:`/`over:` (the frozen question set) is printed back unchanged, and
 `--where`/`--goal` overlay a new subject on top of it. Neither the file's shape nor its content is
 validated — template only prints, like every other path. [C-111]
 `--where`/`--goal` are refused unless paired with `--from`, and refused together with `--parent` (they overlay
 a checklist read from a file, not a drill item/category lookup). [C-112]
-`sidewise template <verb> --from SW-####` prints that run's own request straight from the ledger — free,
+`mm3 template <verb> --from MM3-####` prints that run's own request straight from the ledger — free,
 read-only, no spend, same discipline as every other `template` path (it only prints; nothing here is
-validated). The `SW-####` shape is checked before the file-path branch (unambiguous, and a typo'd id would
+validated). The `MM3-####` shape is checked before the file-path branch (unambiguous, and a typo'd id would
 otherwise surface a confusing "file not found" instead of "not in the ledger"). An id not in the ledger, or one
 that predates the YAML contract (a Plan 1 run, no `v: 2`), is a clean stop naming the problem, not a crash. With
 no project reachable, the lookup itself is a clean stop (a run-id lookup has nothing to search). `--where`/
 `--goal` overlay on top of a ledger-fetched request the same way they already do for a file-based `--from`.
 [C-201]
-The `--from SW-####` rebuild is faithful to the run's own request for every verb except `replay`: a `replay`
+The `--from MM3-####` rebuild is faithful to the run's own request for every verb except `replay`: a `replay`
 run's stored record also carries its *parent's* `where` and `ask.categories` (kept there only so it can grade
 before/after answers against the same categories — never because the original replay request carried them;
-`replay`'s own `NEVER` list forbids `ask`/`over`/`from`/`where`/`depth` outright). `--from SW-####` on a replay
+`replay`'s own `NEVER` list forbids `ask`/`over`/`from`/`where`/`depth` outright). `--from MM3-####` on a replay
 run therefore reprints only `goal`/`parent`/`compare` (plus `verb`), never the borrowed `where`/`ask`, so the
 printed request stays a schema-valid `replay` request. Every other verb (`class`/`scan`/`loop`/`drill`) stores
 exactly its own request's fields on its own run, so the rebuild for those is a direct, unqualified copy. [C-202]
-`sidewise help report` is its own recognized target, not one of the six verbs (`report` is outside the 2x3
+`mm3 help report` is its own recognized target, not one of the six verbs (`report` is outside the 2x3
 Know/Judge/Prove grid) and not a cross-cutting topic: purpose, an example and its own sharp rules, the same
 shape as `help <verb>`. [C-161]
-`sidewise help class`, `sidewise help scan` and `sidewise help authoring` each carry a "Good / bad" section: a
+`mm3 help class`, `mm3 help scan` and `mm3 help authoring` each carry a "Good / bad" section: a
 bad snippet, a good snippet, and one line of why, for the patterns that cause a first-try reject in practice
 (a whole file in `where:` instead of a range; a question about code that isn't in `where:`; several `where:`
 entries with no file named in the question; `scan` asking `{function}` about something outside it). [C-172]
-`sidewise help view`/`sidewise agent view` and `sidewise help loop`/`sidewise agent loop` each carry their own
+`mm3 help view`/`mm3 agent view` and `mm3 help loop`/`mm3 agent loop` each carry their own
 "Good / bad" section too (previously neither verb had one): `view` without `where:` (nothing to check reuse
 against) and `view` with `over:` present (it checks one subject, never a sweep) both reject outright at the
 schema/cross validator, as does `loop` with a code-glob `over.file` layer (loop sweeps written ideas, not
@@ -1011,10 +1017,10 @@ files on disk — that's `scan`'s job). [C-183]
 The oversized-file good/bad pair's terse `why` (shown in `agent class`) reads "Big whole files refused —
 name the range", matching the real behavior since e6b7d78 (a stop, not a silent cut). [C-184]
 
-Each of the six verb templates (`skills/sidewise/templates/{view,class,replay,scan,drill,loop}.yaml`) shows
-every `side.*` field that verb's own schema and cross-validator allow it to carry — required fields with a
+Each of the six verb templates (`skills/mm3/templates/{view,class,replay,scan,drill,loop}.yaml`) shows
+every `mak.*` field that verb's own schema and cross-validator allow it to carry — required fields with a
 live value, optional fields either live or as a commented-out example — each marked `# required` or
-`# optional` in a trailing comment, and its `wise:` block names every catalog key (`why`, `area`, `stage`,
+`# optional` in a trailing comment, and its `mdl:` block names every catalog key (`why`, `area`, `stage`,
 `change`, `risk`, `parent`, `problem`, `uses`, `touches`, `blast`); a test checks every template against the
 same rule the validator itself enforces, so template and schema can't quietly drift apart. The category-level schema fields that don't vary by verb —
 `need:` and `tags:`, alongside `pass:` and the three question kinds (yes/no, `scale`, `choice`) — are
@@ -1025,16 +1031,16 @@ optional-field comment style. [C-185]
 
 ## agent
 
-`sidewise agent [verb]` (free, no project needed, never spends or writes) is `help`'s terse, agent-facing twin:
+`mm3 agent [verb]` (free, no project needed, never spends or writes) is `help`'s terse, agent-facing twin:
 the enforced rules for that verb (the same list `help <verb>` states) and its "Good / bad" pairs, why-only, in
-at most 8 words — no prose, no headings beyond a bare label. `sidewise agent` alone gives the verb list, the
-universal rules, and a pointer to `sidewise agent probe`. Beyond the six verbs, `agent` also recognizes
+at most 8 words — no prose, no headings beyond a bare label. `mm3 agent` alone gives the verb list, the
+universal rules, and a pointer to `mm3 agent probe`. Beyond the six verbs, `agent` also recognizes
 `probe`, `outcome`, `budget` and `report` — the same non-verb targets `help` does — plus `template`, which
 `help` does not; each its own bare card, free, read-only. Every request-validation stop's pointer (`→ see:
-sidewise agent <verb>`, C-153) names this, not `help` — a stop is read by the agent that sent the request.
+mm3 agent <verb>`, C-153) names this, not `help` — a stop is read by the agent that sent the request.
 [C-173]
 
-`sidewise agent wise` is the wise catalog's own legend card: every field, its closed values (plus the
+`mm3 agent mdl` is the mdl catalog's own legend card: every field, its closed values (plus the
 always-legal `unknown`), the note that any other lower-kebab key is recorded as-is, the C4 model's five levels
 (person/system/container/component/code, each nested inside the one above), how to write a chain flat
 (`parent/child` for containment, ` -> ` for uses, a trailing `?` for something guessed or not built yet), the
@@ -1044,21 +1050,21 @@ so it's the one deliberate exception to `agent`'s otherwise-fixed card shape (C-
 same built-in field table the schema check and cross-validator check against, so it can't state a value the
 request validator would then reject.
 
-`sidewise agent` with no target also prints a `tools:` section, right after the verb list — the other real
+`mm3 agent` with no target also prints a `tools:` section, right after the verb list — the other real
 commands a cold agent needs before writing a request; setup-only commands (`init`, `uninstall`, `mcp`,
-`doctor`) are deliberately left off. `sidewise agent template` is a new bare card, the same shape as
+`doctor`) are deliberately left off. `mm3 agent template` is a new bare card, the same shape as
 `outcome`/`budget`/`report`. Every card `agent` prints — the overview and each verb/tool — is assembled in one
 fixed key order: its identifier line(s) first (`verb:`/`verbs:` for a verb, `tool:`/`tools:` for everything
 else, including `probe`), then `rules:`, then `patterns:` only when that target has any, then `run:` only when
 it points further — a non-verb card's identifier line now reads `tool: <name>`, not the former `target: <name>`,
 so it matches a verb card's own `verb: <name>` line for line. [C-187]
 
-`sidewise agent`'s overview states one more rule, beyond the shared `RULES` list: `where:` resolves against the
-MCP `project` argument or the CLI's `SIDEWISE_HOME`, never the agent's own session cwd, naming both surfaces.
+`mm3 agent`'s overview states one more rule, beyond the shared `RULES` list: `where:` resolves against the
+MCP `project` argument or the CLI's `MM3_HOME`, never the agent's own session cwd, naming both surfaces.
 This is a runtime/environment fact rather than a request-schema one, so it's hand-written once as `agent.ts`'s
 own constant rather than forced into `rules.ts` (built only from `schema-check.ts`/`validate.ts` constants), and
 it appears only in `agent`'s card, not `help`'s — an agent, not a human reading `help`, is the one that actually
-passes `project` or sets `SIDEWISE_HOME`. Round-4 finding: an agent had to fail once, `✖ side.where: cannot read
+passes `project` or sets `MM3_HOME`. Round-4 finding: an agent had to fail once, `✖ mak.where: cannot read
 "app/routes/contributions.js"`, to learn this the hard way. [C-195]
 
 Every `agent <verb>` card's `rules:` list also carries that verb's own sharp-rule prose (`help/verbs.ts`'s
@@ -1072,19 +1078,19 @@ request missing `from:`) and `replay` (a bad request that includes `ask:`), both
 by the real cross-validator (drill's trips its NEEDS check; replay's trips its NEVER check, since `replay` only
 ever replays a parent run's own questions) rather than assumed. [C-192] [C-193]
 
-The Claude Code skill's own "Run this first" guidance (`skills/sidewise/SKILL.md`, carried verbatim into
-`AGENTS.md`'s "Using Sidewise" section and into `GEMINI.md`) sends a cold agent to `sidewise agent` (no verb)
+The Claude Code skill's own "Run this first" guidance (`skills/mm3/SKILL.md`, carried verbatim into
+`AGENTS.md`'s "Using MM3" section and into `GEMINI.md`) sends a cold agent to `mm3 agent` (no verb)
 first — it names every command, including `report`/`outcome`/`budget`/`template`, in one card — before
-`sidewise agent <command>` on whichever one it's about to use, ahead of writing any request. [C-188]
+`mm3 agent <command>` on whichever one it's about to use, ahead of writing any request. [C-188]
 
-`sidewise agent` with no target lists one atomic purpose line under each verb and tool, not just its name —
+`mm3 agent` with no target lists one atomic purpose line under each verb and tool, not just its name —
 `verbs (pick by goal):` followed by `- view: free; what's already known, before any paid call`, one such
 bullet per verb, then a `tools:` section shaped the same way — so an agent holding a goal ("is this handler
 safe to merge?") rather than a verb name can map straight to the right one; the closing `run:` lines say what
-each next step is *for* too (`sidewise agent <verb|tool> — before writing that request`,
-`sidewise agent probe — before writing questions: how to phrase one`), rather than just naming it. These
+each next step is *for* too (`mm3 agent <verb|tool> — before writing that request`,
+`mm3 agent probe — before writing questions: how to phrase one`), rather than just naming it. These
 purpose lines are never a second, hand-typed copy: verbs' come from `help/verbs.ts`'s `VERB_LINE`, and the four
-tools' from `help/report.ts`'s `TOOL_LINE` — the same shared constants `sidewise help`'s own one-screen card
+tools' from `help/report.ts`'s `TOOL_LINE` — the same shared constants `mm3 help`'s own one-screen card
 (`help/card.ts`) renders too (its "Pick your verb" bullets and its "## Tools" section), so `help` and `agent`
 can't state a different purpose for the same command. The card's `rules:` section itself also dropped the
 `P(yes)` notation from the pass-bar rule (`pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between
@@ -1095,13 +1101,13 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
 
 ## Setup, keys and the MCP tool
 
-- `side.verb` is optional. The tool name wins, and a mismatch is sent back. [C-085]
+- `mak.verb` is optional. The tool name wins, and a mismatch is sent back. [C-085]
 - `depth` counts `concerns:` categories only (exactly 3k of them); `decisions:` questions never count toward
   it. [C-086]
 - The ledger stores a category's `section` and `family`/`familySource` alongside its usual fields, the run's
   git sha (`commit`, or `null` when it can't be resolved) at the time it ran, and `where` for every verb (a
   sweep derives it from its items' own code paths). `commit` is resolved in the git repo that actually contains
-  the run's own `where` files — not necessarily the Sidewise project root — falling back to the root's own repo
+  the run's own `where` files — not necessarily the MM3 project root — falling back to the root's own repo
   only when a verb records no `where` at all (a sweep like `loop`). `replay` additionally stores `expect` (the
   agent's own prediction, array or `"none"`) and `commits: {before, after}`, the before/after refs' own
   resolved shas — distinct from `commit`, which for `replay` is specifically the `after` ref's sha, since a
@@ -1112,12 +1118,12 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   logged too, as a free record that never takes a run number and never counts toward the budget.
 - Nested items use `- name: <item>` plus child layers beside it, which is what agents write naturally.
   Different items may have different child layers. [C-087]
-- `sidewise --version` and `sidewise -v` print the installed package's version, one line, exit 0 — free, no
+- `mm3 --version` and `mm3 -v` print the installed package's version, one line, exit 0 — free, no
   project needed, no Node-version gate (same free standing as the bare `--help`/`-h`). [C-178]
-- `sidewise <command> --help` and `sidewise <command> -h` work for every command, exit 0, never reaching that
+- `mm3 <command> --help` and `mm3 <command> -h` work for every command, exit 0, never reaching that
   command's own flag parser (previously an unknown-flag stop for every command but the bare top level — e.g.
-  `sidewise doctor --help` used to fail). For the six verbs it prints that verb's usage line plus `→ see:
-  sidewise help <verb> · sidewise agent <verb>`; every other command prints just its usage line, since none of
+  `mm3 doctor --help` used to fail). For the six verbs it prints that verb's usage line plus `→ see:
+  mm3 help <verb> · mm3 agent <verb>`; every other command prints just its usage line, since none of
   those has a deeper per-command help page today. Free even on too old a Node, the same as the bare
   `--help`/`-h`. [C-179]
 - `--dry-run` (class, replay, scan, drill, loop) reports the calls and question count with no call and no
@@ -1134,7 +1140,7 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   two joined into one (two `?` in one line, or the literal `" and "` between clauses), and a backticked file
   path named in a question that isn't in the request's own `where:` (skipped for a request with no `where:` at
   all — `scan`/`drill`/`loop` legitimately have none). A category mixing yes/no polarity words is deliberately
-  not checked here — not mechanically checkable, left to `sidewise agent probe`'s own prose rule — and neither is
+  not checked here — not mechanically checkable, left to `mm3 agent probe`'s own prose rule — and neither is
   a question over 160 characters, since the schema already stops that outright before a request can ever reach
   `--dry-run`. More than 3 warnings still shows only 3, plus one line naming how many more, the same overflow
   shape used for more than 5 request stops. `replay` carries no `ask:` of its own (it replays its parent's
@@ -1143,119 +1149,135 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   any verb: the cap is checked only when the run would actually need to call the classifier — reuse only
   skips the *spend* gate, never the *ledger* one (the ledger must still read cleanly and accept the new line
   either way). [C-136] [C-149] [C-150] [C-151] [C-152]
-- `sidewise budget`'s cap-reached message points at the fix that actually applies: `sidewise budget set
-  --runs <n>` when only the run cap tripped (the dollar cap has room left), `sidewise budget reset` whenever
+- `mm3 budget`'s cap-reached message points at the fix that actually applies: `mm3 budget set
+  --runs <n>` when only the run cap tripped (the dollar cap has room left), `mm3 budget reset` whenever
   the dollar cap is involved, alone or together with the run cap. [C-133]
 - `replay --dry-run` reads both git refs before answering: a nonexistent or mistyped `before`/`after` ref
   stops `--dry-run` the same way it stops a real run, instead of only surfacing on the paid attempt. [C-148]
 - Node ≥ 22.13 is a hard requirement, not a soft preference: it's what the ledger's `node:sqlite`-backed lookup
   index runs on. The CLI's whole dispatch checks this once, up front (see C-106) — a project's own ledger
-  itself (`.sidewise/log.jsonl`) stays the source of truth regardless: the index is a disposable, self-healing
+  itself (`.mm3/log.jsonl`) stays the source of truth regardless: the index is a disposable, self-healing
   cache that a missing or corrupt copy only costs a rebuild, never a wrong answer; the slower, always-correct
   linear scan it rebuilds from is still what a corrupt or mid-write `index.db` falls back to (see C-107) — but,
   as of the Node-version guard, no longer a normal, silent substitute for `node:sqlite` genuinely missing. [C-089]
-- `SIDEWISE_BASE_URL` overrides the TypeSafe base URL for either route (a proxy, a self-hosted mirror, tests).
+- `MM3_BASE_URL` overrides the TypeSafe base URL for either route (a proxy, a self-hosted mirror, tests).
   It must parse as a URL; `https` is required, except `http` for `localhost`, `127.0.0.1` or `[::1]`. Anything
-  else is a stop, `✖ SIDEWISE_BASE_URL: ... → ...`, at exit 2. [C-094]
-- `sidewise doctor` is free: no classifier call, no budget touched, no ledger write. It reports the resolved
+  else is a stop, `✖ MM3_BASE_URL: ... → ...`, at exit 2. [C-094]
+- `mm3 doctor` is free: no classifier call, no budget touched, no ledger write. It reports the resolved
   provider, route (`direct`/`gateway`/`custom`, or `fake`/`chaos`) and base URL, whether `TYPESAFE_API_KEY` and
   `AI_GATEWAY_API_KEY` are set (never their value), the pinned model (plus the gateway wire model when
   relevant), whether a project/ledger is found, and the Node version and whether `node:sqlite` is available.
   Exit 0 when the config is usable; exit 2 with the same `✖` message a paid verb would give when it isn't (a
-  floating model, a bad `SIDEWISE_BASE_URL`) — including too old a Node, which doctor still runs and reports
+  floating model, a bad `MM3_BASE_URL`) — including too old a Node, which doctor still runs and reports
   rather than stopping outright (see C-106). [C-095]
+- `mm3 config` is a free, read-only display of the effective config (plain `config` never writes); it is not itself
+  a valid file, so its last notes point to `mm3 config --write` (no `.mm3/config.yaml` yet) or name the file path
+  (one exists). `mm3 config --write` writes `.mm3/config.yaml` only when it is missing (creating `.mm3/` and its
+  `.gitignore`, which un-ignores `config.yaml`): commented front matter (what the file is, how to edit it,
+  precedence env > file > defaults, safe to commit), then every setting commented out under live section headers,
+  top-level keys at column 0. It never overwrites: with a file present it prints a note naming the path and
+  exits 0; with no project it stops with `✖ config: ... → ...` at exit 2. The starter is built from the same
+  defaults table the display uses, is valid as written, and stays valid when any single value line is
+  uncommented. [C-226]
+- A config section with every child commented out (`sweep:`, `reuse:`, `budget:`, `mdl:`, `pricing:`, or a
+  `pricing`/`mdl` entry such as `jev-1.13.0:` with nothing under it) parses as null and means "no overrides", never
+  a `✖ config.<section>: is not a mapping` stop. [C-227]
+- A file in `.mm3/` named like the config but not `config.yaml` (`config.yml`, `config.ymal`, `config.yaml.txt`,
+  `config.json`), with no real `config.yaml` beside it, gets a note from `mm3 config` and `mm3 doctor`:
+  `found .mm3/config.ymal — did you mean config.yaml? → rename it`. It is never a stop, and the misnamed file is
+  never read. [C-228]
 - The TypeSafe client retries a 429, a 529, or another retryable status/timeout up to 2 more times (3 attempts
   total), honouring the server's own `Retry-After` when it sends one, else exponential backoff with jitter,
   capped at 10s per wait. 401, 422 and any other non-retryable status are never retried — the first failure is
   final. [C-096]
 - A key is resolved in order: `TYPESAFE_API_KEY`/`AI_GATEWAY_API_KEY` in env, then the OS keychain (macOS
-  `security`, Linux `secret-tool`; Windows always falls through), then `~/.config/sidewise/env` (or under
-  `$XDG_CONFIG_HOME`) — a shell env file `sidewise init` writes at mode 0600 in a 0700 directory, holding only
+  `security`, Linux `secret-tool`; Windows always falls through), then `~/.config/mm3/env` (or under
+  `$XDG_CONFIG_HOME`) — a shell env file `mm3 init` writes at mode 0600 in a 0700 directory, holding only
   lines of the exact shape `export NAME='value'` for an allowlisted name (`TYPESAFE_API_KEY`,
-  `AI_GATEWAY_API_KEY`, `SIDEWISE_BASE_URL`, `JEV_MODEL`, `JEV_GATEWAY_MODEL`, `SIDEWISE_PROVIDER`) plus `#`
-  comments; Sidewise parses this file itself and never sources or evals it, and a line it doesn't recognise is
+  `AI_GATEWAY_API_KEY`, `MM3_BASE_URL`, `JEV_MODEL`, `JEV_GATEWAY_MODEL`, `MM3_PROVIDER`) plus `#`
+  comments; MM3 parses this file itself and never sources or evals it, and a line it doesn't recognise is
   left untouched, not an error. The first hit wins, and its source (`env`/`keychain`/`file`) is carried
   alongside it. The resolved value never appears in any output, error, ledger line or note — the redaction list
   (`ledger/redact.ts`) also scrubs it as a literal, on top of its own secret-shaped patterns. [C-097]
 - A key resolved from the OS keychain or the user file (never env) is honored the same way everywhere a
-  provider is chosen or identified — not just by `sidewise doctor` and `sidewise agent`, which already looked
+  provider is chosen or identified — not just by `mm3 doctor` and `mm3 agent`, which already looked
   past env. Every `cli.ts` call to `selectProvider` (class/scan/drill/loop, and `replay`) and to `runView`
   passes the same `resolveStoredKey(runner, platform, env)` lookup those two commands use, via one shared
   `VerbContext`/`ViewContext` field (`resolveStored`) threaded through to every verb's own `providerIdentity`
   call (the route/adapter shown in `--dry-run`'s `plan:` and recorded on the ledger run) — so a key found only
-  in the keychain or `~/.config/sidewise/env`, with no env var set, is never silently treated as "no key" and
+  in the keychain or `~/.config/mm3/env`, with no env var set, is never silently treated as "no key" and
   answered by the fake provider while `doctor` reports `key: yes`. An env var still wins over a stored key,
   unchanged. [C-203]
 - The secret-shaped-key redaction pattern (`ledger/redact.ts`'s `KEY_VALUE`) refuses to start its value match on
-  `{` or `[`: a real secret is never itself a literal YAML mapping or list, so a Sidewise-chosen name that
+  `{` or `[`: a real secret is never itself a literal YAML mapping or list, so an MM3-chosen name that
   happens to contain a secret-ish word (a sweep item or category like `issue-token`, `verify-token`,
   `set-new-password`) no longer has the immediately-following structured value swallowed as if it were the
   secret (previously `issue-token: {depends: unsure, ...}` became `issue-token: [redacted] unsure, ...}`,
   destroying the category name — data loss, not a leak, since nothing there was ever a secret). A genuinely
   secret-shaped value after the same kind of key (`api_key: sk-...`) is still redacted exactly as before.
   [C-200]
-- `sidewise doctor` names where a resolved key came from (`key: yes · from OS keychain (encrypted, per user)`,
+- `mm3 doctor` names where a resolved key came from (`key: yes · from OS keychain (encrypted, per user)`,
   `from user file <path> (0600, not encrypted)`, or `from env TYPESAFE_API_KEY`, with `(overrides stored)` when
-  a stored key also exists but env won), or `key: no → run "sidewise init" to add one`; the env file gets its
-  own warning line if its mode is looser than 0600 or it has a line sidewise ignored. It also names the CLI's
+  a stored key also exists but env won), or `key: no → run "mm3 init" to add one`; the env file gets its
+  own warning line if its mode is looser than 0600 or it has a line mm3 ignored. It also names the CLI's
   own install (`cli: <path> · installed --<mode> ...`) and the Claude Code plugin's overall state (`plugin:
-  sidewise@mvp-scale · <scope> scope`, or `not installed → ...`). [C-098]
-- Using Sidewise is scoped per project, but Claude Code's own `/plugin install` UI (unlike `sidewise init`,
+  mm3@mvp-scale · <scope> scope`, or `not installed → ...`). [C-098]
+- Using MM3 is scoped per project, but Claude Code's own `/plugin install` UI (unlike `mm3 init`,
   which already defaults to `project` scope) defaults to `user` scope — so when doctor's `plugin:` line finds
-  the plugin installed at `user` scope only, it appends a nudge toward switching: `sidewise@mvp-scale · user
-  scope (every project) → for just this one, "sidewise init --scope project"`. No nudge once `project` or
+  the plugin installed at `user` scope only, it appends a nudge toward switching: `mm3@mvp-scale · user
+  scope (every project) → for just this one, "mm3 init --scope project"`. No nudge once `project` or
   `local` scope is present. [C-177]
-- `sidewise init` sets up two things per user, shared across every project — the CLI (`--global`/`--user`/
+- `mm3 init` sets up two things per user, shared across every project — the CLI (`--global`/`--user`/
   `--local`, offering `--user` instead of a sudo-needing global install) and the key (hidden input via
   `node:readline`, never argv; `--key-stdin` for automation, `--no-key` to skip; a sanity check on shape only —
   no live check against TypeSafe) — then, per project, the Claude Code plugin (`--claude`/`--no-claude`,
-  `--scope user|project` defaulting to `project`) and the project's `.sidewise/`. Run outside a git project, it
+  `--scope user|project` defaulting to `project`) and the project's `.mm3/`. Run outside a git project, it
   does only the two per-user steps, then stops with one line pointing the user at cding into a project. It is
   idempotent (a re-run that finds a step already done says so and changes nothing) and interactive by default;
   `--yes` takes the default answer everywhere. Every step prints exactly one line, glyph first: `✔ done`,
   `· already`, `– skipped (why)`, or `✖ problem → fix`. [C-099]
-- `sidewise init`'s final `next:` line points at `sidewise agent` — the minimum an agent needs (its enforced
+- `mm3 init`'s final `next:` line points at `mm3 agent` — the minimum an agent needs (its enforced
   rules and good/bad patterns) before writing a first real request — rather than inviting one straight off; if
   any step above logged a `✖ problem` line, `next:` never claims the setup is usable, instead pointing back at
-  the fix and at re-running `sidewise init`. [C-176]
-- `sidewise uninstall` reverses init, by default acting only on the current project: the Claude Code plugin's
+  the fix and at re-running `mm3 init`. [C-176]
+- `mm3 uninstall` reverses init, by default acting only on the current project: the Claude Code plugin's
   project-scope install, and (asked, default **no** — it's the user's run history) that project's
-  `.sidewise/`. The per-user parts — the stored key and the CLI itself — are only touched with `--all`, which
+  `.mm3/`. The per-user parts — the stored key and the CLI itself — are only touched with `--all`, which
   then also reaches every plugin scope found plus the `mvp-scale` marketplace and the plugin cache dir it left
-  behind; the CLI step uses whichever install mode `sidewise init` recorded in
-  `~/.config/sidewise/install.json` (which holds no secrets), or prints the exact commands to run by hand when
+  behind; the CLI step uses whichever install mode `mm3 init` recorded in
+  `~/.config/mm3/install.json` (which holds no secrets), or prints the exact commands to run by hand when
   there's no record. `--yes` takes the default answer everywhere: yes for removal steps that run, no for
-  `.sidewise/`. `--keep-key`/`--keep-data` skip their step outright, with no question asked. [C-100]
-- `.sidewise/` carries its own `.gitignore` (`*`), created the first time anything writes into it — the ledger,
-  the budget file, the id index, or `sidewise init`'s own explicit project step — so a project that never ran
+  `.mm3/`. `--keep-key`/`--keep-data` skip their step outright, with no question asked. [C-100]
+- `.mm3/` carries its own `.gitignore` (`*`), created the first time anything writes into it — the ledger,
+  the budget file, the id index, or `mm3 init`'s own explicit project step — so a project that never ran
   `init` is still covered on its very first run, not committing its run history by accident. [C-101]
-- `sidewise doctor`'s `project:` line names the project root and whether the Claude Code plugin is enabled for
+- `mm3 doctor`'s `project:` line names the project root and whether the Claude Code plugin is enabled for
   it — true for a project-scope install (checked from wherever this process runs, which is how Claude Code's
   own project scope is itself resolved), for a user-scope install (it covers every project, this one included),
   and, best-effort, for a local-scope install too (`claude plugin list --json` carries no per-entry project
   path to check against, so local scope is treated the same permissive way as project scope rather than guessed
-  at further) — separately from the `plugin:` line's overall install state. Using Sidewise is always scoped to
+  at further) — separately from the `plugin:` line's overall install state. Using MM3 is always scoped to
   a project, so this is the answer that actually matters day to day. [C-102]
-- The Claude Code plugin bundles a stdio MCP server (`sidewise mcp`, hand-rolled, no SDK dependency) with one
-  tool, `sidewise`, taking `{ args: string[], stdin?: string, project?: string }`. It runs exactly what
-  `sidewise <args…>` would run, in-process, treating `stdin` as what real stdin would have supplied, and
+- The Claude Code plugin bundles a stdio MCP server (`mm3 mcp`, hand-rolled, no SDK dependency) with one
+  tool, `mm3`, taking `{ args: string[], stdin?: string, project?: string }`. It runs exactly what
+  `mm3 <args…>` would run, in-process, treating `stdin` as what real stdin would have supplied, and
   returns the same text output the CLI would print plus the exit code as `isError` (true when the exit code
   isn't 0) — there is no second contract. [C-103]
-- The `sidewise` tool's own description opens with a directive, not a description: "First call args:
+- The `mm3` tool's own description opens with a directive, not a description: "First call args:
   ["agent"] to learn the commands and rules, then args: ["agent", "<command>"] before writing a request." —
   ahead of what the tool otherwise does (runs any CLI command in the project). The description is the first,
   and sometimes only, text a cold agent reads before its first call, so it has to name `agent` itself rather
   than assume the agent already knows to ask for it. [C-186]
 - Every tool call runs through the same error normalization the real CLI entrypoint uses, so a thrown
   provider, budget, ledger or usage error comes back as one clean `✖ field: problem → fix` line in the tool
-  result's `isError` text — never a doubled `✖ sidewise: ✖ field: ...` prefix. [C-140]
-- The `project` argument, when given, runs that one call against `project` as `SIDEWISE_HOME` instead of the
+  result's `isError` text — never a doubled `✖ mm3: ✖ field: ...` prefix. [C-140]
+- The `project` argument, when given, runs that one call against `project` as `MM3_HOME` instead of the
   server's own working directory — for a nested project the plugin's own cwd doesn't reach. Omitted, behavior
   is unchanged. [C-142]
 - A run or outcome made through the plugin is recorded under `claude`, not the literal `agent`, when
-  `SIDEWISE_ACTOR` isn't already set: the MCP server never infers an identity from the project's git config —
+  `MM3_ACTOR` isn't already set: the MCP server never infers an identity from the project's git config —
   doing so would attribute the call to whoever's git identity is configured there, typically the human owner,
-  not the agent making the call. An explicit `SIDEWISE_ACTOR` always wins over this default, and `sidewise
+  not the agent making the call. An explicit `MM3_ACTOR` always wins over this default, and `mm3
   doctor` shows the actor that will actually be used. [C-143]
 - The plugin's own configuration (`userConfig`) offers one masked, optional field — a TypeSafe API key. Leaving
   it empty means the free fake provider, exactly as on the terminal path. The AI Gateway route is env-only for
@@ -1268,18 +1290,18 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   rather than treating the empty string as a real, empty key. The same rule applies to `AI_GATEWAY_API_KEY`
   when a plugin user sets it directly in their own environment, even though it no longer comes from the
   plugin's own `userConfig` substitution. [C-105]
-- With no key configured, `doctor`'s `key:` line and `sidewise agent`'s overview (one extra `run:` line at the
+- With no key configured, `doctor`'s `key:` line and `mm3 agent`'s overview (one extra `run:` line at the
   end, only when there is no key) both say how to add one, from the same plugin-context check: inside the
   plugin's own bundled MCP server (`CLAUDE_PLUGIN_ROOT` set in the process environment — present there and
-  nowhere else, per Claude Code's plugins-reference docs) the hint is `/plugin → Sidewise → Configure → press
+  nowhere else, per Claude Code's plugins-reference docs) the hint is `/plugin → MM3 → Configure → press
   Enter on "TypeSafe API key", paste, Enter, Save configuration`; outside it (a bare terminal, or another MCP
-  client) the hint stays `sidewise init` to add one. [C-190]
+  client) the hint stays `mm3 init` to add one. [C-190]
 - Node ≥ 22.13 is a hard requirement, checked once at the top of the CLI's whole dispatch —
-  before any command does anything real, and again inside `sidewise mcp` for every `tools/call`. On an older
+  before any command does anything real, and again inside `mm3 mcp` for every `tools/call`. On an older
   Node, every command exits 2 with exactly `✖ node: v<version> is too old → install Node 22.13 or newer (it
   powers the ledger index); https://nodejs.org`, except `doctor`, which still runs (free, no call) and shows
   `node: v<version> ✖ too old → install Node 22.13+` and `index: none (needs Node 22.13+)` in its own output
-  before it, too, exits 2 rather than 0. `sidewise mcp` still answers `initialize`/`tools/list` on too old a
+  before it, too, exits 2 rather than 0. `mm3 mcp` still answers `initialize`/`tools/list` on too old a
   Node — a client's handshake never hangs — but every `tools/call` comes back `isError: true` with that same
   line, whatever command was actually asked for (`doctor` included): the guard runs before the requested
   command ever does. [C-106]
@@ -1288,5 +1310,5 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   self-heal's own resilience, unrelated to Node version), but when `node:sqlite` is genuinely unavailable (a
   real Node < 22.13), the index throws a `LedgerError` naming the same Node requirement instead of silently
   degrading. This is a backstop independent of the CLI's own guard (C-106): a library consumer that reaches the
-  ledger directly, without going through `sidewise`'s dispatch, gets the same loud failure rather than a
+  ledger directly, without going through `mm3`'s dispatch, gets the same loud failure rather than a
   quietly slower, never-persisted index. [C-107]

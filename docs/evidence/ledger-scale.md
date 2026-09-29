@@ -175,7 +175,7 @@ An exact SW id lookup (`replay`'s parent, `outcome`'s existence check) — one P
 
 ### appendOutcome
 
-One real `sidewise outcome`-equivalent call against the already-large ledger (one sample: it mutates the
+One real `mm3 outcome`-equivalent call against the already-large ledger (one sample: it mutates the
 ledger, so a repeat would skew).
 
 | n | samples | p50 ms | p95 ms |
@@ -185,7 +185,7 @@ ledger, so a repeat would skew).
 
 ### placeBroad
 
-`sidewise view <place>`, index-backed. **Noisy this round — see "What's noisy this round" above.**
+`mm3 view <place>`, index-backed. **Noisy this round — see "What's noisy this round" above.**
 
 | n | samples | p50 ms | p95 ms |
 |---|---|---|---|
@@ -237,7 +237,7 @@ not `triples`. Target (§5): **< 100 ms at 100k.**
 ### traverseDepth4
 
 `traverse(paths, { kind: 'component', label: 'hub-component', maxDepth: 4 })` — the one `WITH RECURSIVE` SQL
-CTE, from the fixed hub component every generated run's `wise.uses` chain starts at. Target (§5): **< 100 ms
+CTE, from the fixed hub component every generated run's `mdl.uses` chain starts at. Target (§5): **< 100 ms
 at 100k.** This round's `idx_triples_spo`/`idx_triples_o` fix (see top of file) is what moved this row from
 ~8x over target to right at it.
 
@@ -246,7 +246,7 @@ at 100k.** This round's `idx_triples_spo`/`idx_triples_o` fix (see top of file) 
 | 10000 | 30 | 25.864 | 28.375 |
 | 100000 | 30 | 102.733 | 109.176 |
 
-### wise json_extract query (group by $.wise.area)
+### mdl json_extract query (group by $.mdl.area)
 
 Opened directly against the built `index.db` (not through `IndexHandle` — no verb wires this up yet; the
 schema just makes it possible).
@@ -258,7 +258,7 @@ schema just makes it possible).
 
 ### class (real end-to-end paid call, fake provider)
 
-One full `sidewise class` equivalent through `runClass` with the fake provider — `checkLedger` (preflight),
+One full `mm3 class` equivalent through `runClass` with the fake provider — `checkLedger` (preflight),
 `lookupAnswers` (reuse check against a distinct never-before-asked goal, so it must pay), and the real append,
 all against the already-large ledger. `calls: 1` (not 0), `exit: 0` confirms this genuinely paid.
 

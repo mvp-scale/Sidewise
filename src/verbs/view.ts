@@ -1,6 +1,6 @@
 /**
  * view: "what do we already know here?" Free and read-only (no classifier call, no budget, no ledger write).
- * Three modes on one input string: a `side:`/JSON draft is request mode (the contract's own cache check —
+ * Three modes on one input string: a `mak:`/JSON draft is request mode (the contract's own cache check —
  * runs, per-category record, and `reuse` when the exact question set was asked before); otherwise the raw
  * string is a place (a folder or tag, showing the newest 10/20/30 runs with outcome counts) or a run id
  * (showing its lineage up and down). Rehearsal-adapter runs (fake, chaos) are labelled and counted apart.
@@ -16,32 +16,32 @@ import { resolveConfig } from '../config/load.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { fillBlanks } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
-import { effectiveWiseFields } from '../contract/wise-fields.ts';
+import { effectiveMdlFields } from '../contract/mdl-fields.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import type { Answer, Gate } from '../contract/types.ts';
 import { RUN_ID } from '../ledger/ids.ts';
 import { readRecordAt, stripLines, sweepPlaces, withIndex, type IndexHandle } from '../ledger/index.ts';
 import { appendLookup, findRun, isContractRun, isRun, latestOutcome, readLedger, type ContractRun, type Outcome, type RunRecord } from '../ledger/log.ts';
-import type { SidewisePaths } from '../ledger/paths.ts';
+import type { Mm3Paths } from '../ledger/paths.ts';
 import { exactReuse, reuseAge } from '../ledger/reuse.ts';
 import type { Level } from '../lens/request.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { loadRequest, stopText } from './request.ts';
-import { respondText, wiseRecorded } from './respond.ts';
+import { respondText, mdlRecorded } from './respond.ts';
 import type { VerbResult } from './types.ts';
 
 /** view never spends and never picks a live provider: just enough of VerbContext to read the ledger and evidence.
  *  `resolveStored`, when given, lets `providerIdentity` below see a keychain/user-file key too, the same as
  *  `doctor`/`agent` — see VerbContext's own note on why this matters for reuse-key matching. */
 export interface ViewContext {
-  paths: SidewisePaths;
+  paths: Mm3Paths;
   env: Record<string, string | undefined>;
   resolveStored?: ResolveStored;
 }
 
 type AnyRun = RunRecord | ContractRun;
 
-const REQUEST_MODE = /^side\s*:/mu;
+const REQUEST_MODE = /^mak\s*:/mu;
 
 function runLine(r: AnyRun, outcome: Outcome | 'open'): string {
   const rehearsal = isRehearsal(r.adapter) ? ' · rehearsal' : '';
@@ -70,11 +70,11 @@ function whereMatches(r: AnyRun, place: string): boolean {
 
 /** A folder, a tag or a path as a project-relative place; an absolute path inside the project is fine. */
 function toPlace(target: string, root: string): { place: string } | { stop: string } {
-  if (hasControlChars(target)) return { stop: stopText(['✖ view: the target has control characters → use a folder, a tag, or SW-####'], 'view') };
+  if (hasControlChars(target)) return { stop: stopText(['✖ view: the target has control characters → use a folder, a tag, or MM3-####'], 'view') };
   if (!path.isAbsolute(target) && !target.split(/[\\/]/).includes('..')) return { place: target.replace(/^\.\//, '').replace(/\/+$/, '') || '.' };
   const rel = path.relative(root, path.resolve(root, target));
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    return { stop: stopText([`✖ view: "${clip(target, 60)}" is outside the project → use a folder inside it, a tag, or SW-####`], 'view') };
+    return { stop: stopText([`✖ view: "${clip(target, 60)}" is outside the project → use a folder inside it, a tag, or MM3-####`], 'view') };
   }
   return { place: rel.split(path.sep).join('/') || '.' };
 }
@@ -82,14 +82,14 @@ function toPlace(target: string, root: string): { place: string } | { stop: stri
 /** Renders byPlace's response for `hits`, already in ledger append order (oldest first) — shared by the
  *  full-scan path ('.') and the index-backed path, which differ only in how `hits` and `outcomeOf` were built. */
 function renderPlace(place: string, hits: readonly AnyRun[], outcomeOf: (id: string) => Outcome | undefined, limit: number): VerbResult {
-  if (!hits.length) return { exit: 0, text: `sidewise view ${clip(place, 60)} · no runs yet → "sidewise class <request>" starts one` };
+  if (!hits.length) return { exit: 0, text: `mm3 view ${clip(place, 60)} · no runs yet → "mm3 class <request>" starts one` };
   const counts = { held: 0, overruled: 0, failed: 0, open: 0 };
   let rehearsal = 0;
   for (const r of hits) {
     if (isRehearsal(r.adapter)) rehearsal += 1;
     else counts[outcomeOf(r.id) ?? 'open'] += 1;
   }
-  const head = `sidewise view ${clip(place, 60)} · ${hits.length} run${hits.length === 1 ? '' : 's'} · held ${counts.held} · overruled ${counts.overruled} · failed ${counts.failed} · open ${counts.open}${rehearsal ? ` · rehearsal ${rehearsal}` : ''}`;
+  const head = `mm3 view ${clip(place, 60)} · ${hits.length} run${hits.length === 1 ? '' : 's'} · held ${counts.held} · overruled ${counts.overruled} · failed ${counts.failed} · open ${counts.open}${rehearsal ? ` · rehearsal ${rehearsal}` : ''}`;
   const shown = hits.slice(-limit).reverse();
   const older = hits.length - shown.length;
   return {
@@ -113,12 +113,12 @@ function renderSummary(scope: string, hits: readonly AnyRun[]): VerbResult {
     for (const w of r.where.map(stripLines)) latest.set(w, r);
     for (const p of sweepPlaces(r)) if (p.kind === 'where') latest.set(p.val, r);
   }
-  if (!latest.size) return { exit: 0, text: `sidewise view ${clip(scope, 60)} --summary · no runs yet → "sidewise class <request>" starts one` };
+  if (!latest.size) return { exit: 0, text: `mm3 view ${clip(scope, 60)} --summary · no runs yet → "mm3 class <request>" starts one` };
   const rows = [...latest.entries()].sort(([pa, ra], [pb, rb]) => GATE_RANK[ra.gate] - GATE_RANK[rb.gate] || pa.localeCompare(pb));
   return {
     exit: 0,
     text: [
-      `sidewise view ${clip(scope, 60)} --summary · ${rows.length} place${rows.length === 1 ? '' : 's'}`,
+      `mm3 view ${clip(scope, 60)} --summary · ${rows.length} place${rows.length === 1 ? '' : 's'}`,
       ...rows.map(([place, r]) => `${clip(place, 60)} · ${r.verb} ${r.gate} · ${r.id} "${clip(r.goal, 48)}"`),
     ].join('\n'),
   };
@@ -127,7 +127,7 @@ function renderSummary(scope: string, hits: readonly AnyRun[]): VerbResult {
 /** place mode, the full-scan way: every run in the ledger, filtered by whereMatches/tagsMatch. Used for '.'
  *  (every run — the index's place table has nothing narrower to offer there) and as byPlaceIndexed's own
  *  fallback if the index can't be used for some reason (paths.log missing is handled the same way either path). */
-function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number, summary: boolean): VerbResult {
+function byPlaceFullScan(place: string, paths: Mm3Paths, limit: number, summary: boolean): VerbResult {
   const records = readLedger(paths, { partialTail: true });
   const runs = records.filter((r): r is AnyRun => isRun(r) || isContractRun(r));
   const hits = runs.filter((r) => place === '.' || tagsMatch(r, place) || whereMatches(r, place));
@@ -144,7 +144,7 @@ function byPlaceFullScan(place: string, paths: SidewisePaths, limit: number, sum
  * wrong answer. `outcomesFor` replaces the old per-hit `latestOutcome(records, id)` rescan (O(hits × records))
  * with one batched query over just the hit ids.
  */
-function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number, summary: boolean): VerbResult {
+function byPlaceIndexed(place: string, paths: Mm3Paths, limit: number, summary: boolean): VerbResult {
   // readOnly: view is free and read-only (dry runs and free reads write nothing) — it must
   // never be the thing that persists a catch-up or rebuild of index.db to disk.
   return withIndex(
@@ -164,11 +164,11 @@ function byPlaceIndexed(place: string, paths: SidewisePaths, limit: number, summ
 }
 
 /** B4 (plan 2c): a place browse (a folder, a tag, or '.') is logged too, free — the same "what agents search
- *  for" signal request mode's own draft check already gave (`kind: 'lookup'`, no SW-#### id, never counted
+ *  for" signal request mode's own draft check already gave (`kind: 'lookup'`, no MM3-#### id, never counted
  *  toward the budget or any run total). There's no exact-answer reuse to report for a bare place browse (that
  *  concept only applies to a real draft check's own question set), so `hit`/`reused` are always false/null here
  *  — `goal` carries the place string itself, so the record still says WHAT was searched for. */
-function byPlace(place: string, paths: SidewisePaths, limit: number, summary: boolean): VerbResult {
+function byPlace(place: string, paths: Mm3Paths, limit: number, summary: boolean): VerbResult {
   const result = place === '.' ? byPlaceFullScan(place, paths, limit, summary) : byPlaceIndexed(place, paths, limit, summary);
   appendLookup(paths, { goal: place, where: [place], hit: false, reused: null });
   return result;
@@ -176,7 +176,7 @@ function byPlace(place: string, paths: SidewisePaths, limit: number, summary: bo
 
 /** The run at this id, from `handle`'s own offset — undefined for an id it doesn't have, or a stale offset whose
  *  real record no longer matches (never trusted blindly, same discipline as findRun's matchingRun). */
-function runAt(paths: SidewisePaths, handle: IndexHandle, id: string): AnyRun | undefined {
+function runAt(paths: Mm3Paths, handle: IndexHandle, id: string): AnyRun | undefined {
   const offset = handle.findOffset(id);
   if (offset === undefined) return undefined;
   const rec = readRecordAt(paths.log, offset);
@@ -185,7 +185,7 @@ function runAt(paths: SidewisePaths, handle: IndexHandle, id: string): AnyRun | 
 
 /** Every run whose real record's own `parent` is exactly `parentId`, oldest first — `handle.childrenOf` is a
  *  candidate set (see its own doc comment); each one is re-read and re-checked before being trusted. */
-function childrenAt(paths: SidewisePaths, handle: IndexHandle, parentId: string): AnyRun[] {
+function childrenAt(paths: Mm3Paths, handle: IndexHandle, parentId: string): AnyRun[] {
   const out: AnyRun[] = [];
   for (const { offset } of handle.childrenOf(parentId)) {
     const rec = readRecordAt(paths.log, offset);
@@ -289,12 +289,12 @@ function answersLines(self: AnyRun): string[] {
  *  failure — here, `id` not in the ledger — never writes a lookup, mirroring loadRequest's own early return
  *  before runRequestMode's appendLookup call). Called after withIndex returns (never nested inside its
  *  callback): appendLookup takes its own lock, and this avoids any question of lock re-entrancy across the two. */
-function byId(id: string, paths: SidewisePaths, level: Level, limit: number, answers: boolean): VerbResult {
+function byId(id: string, paths: Mm3Paths, level: Level, limit: number, answers: boolean): VerbResult {
   const result = withIndex<VerbResult>(
     paths,
     (handle) => {
       const self = runAt(paths, handle, id);
-      if (!self) return { exit: 2, text: stopText([`✖ view: ${id} is not in the ledger → "sidewise view <folder>" lists recent runs`], 'view') };
+      if (!self) return { exit: 2, text: stopText([`✖ view: ${id} is not in the ledger → "mm3 view <folder>" lists recent runs`], 'view') };
       const up: AnyRun[] = [];
       let cursor = self.parent ? runAt(paths, handle, self.parent) : undefined;
       while (cursor && up.length < limit) {
@@ -316,7 +316,7 @@ function byId(id: string, paths: SidewisePaths, level: Level, limit: number, ans
       return {
         exit: 0,
         text: [
-          `sidewise view ${id} · lineage ${up.length} up · ${down.length} down`,
+          `mm3 view ${id} · lineage ${up.length} up · ${down.length} down`,
           ...up.map((r) => `↑ ${runLine(r, outcomeOf(r))}`),
           `▶ ${runLine(self, outcomeOf(self))}`,
           ...detailLines(self, level),
@@ -356,7 +356,7 @@ function categoryEntry(name: string, runsHere: readonly ContractRun[]): [string,
  * runs (v2) count, same as before; a candidate whose real record doesn't actually match any requested place (a
  * place-table hit from a legacy tag, or the LIKE-prefix's own false positive) is dropped, never trusted blindly.
  */
-function runsForPlaces(paths: SidewisePaths, places: readonly string[]): ContractRun[] {
+function runsForPlaces(paths: Mm3Paths, places: readonly string[]): ContractRun[] {
   return withIndex(
     paths,
     (handle) => {
@@ -375,29 +375,29 @@ function runsForPlaces(paths: SidewisePaths, places: readonly string[]): Contrac
 
 /** Request mode: the contract's own view shape. loadRequest and readCodeEvidence stop it exactly as class does. */
 function runRequestMode(text: string, ctx: ViewContext): VerbResult {
-  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
-  const loaded = loadRequest(text, 'view', wiseFields);
+  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
+  const mdlFields = effectiveMdlFields(resolveConfig(ctx.paths, ctx.env).config.mdl);
+  const loaded = loadRequest(text, 'view', mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 
-  const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
+  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, 'view') };
 
-  const places = request.side.where.map(stripLines);
+  const places = request.mak.where.map(stripLines);
   const runsHere = runsForPlaces(ctx.paths, places);
 
-  const categoryNames = request.side.categories.length
-    ? request.side.categories.map((c) => c.name)
+  const categoryNames = request.mak.categories.length
+    ? request.mak.categories.map((c) => c.name)
     : [...new Set(runsHere.flatMap((r) => Object.keys(r.categories)))];
 
   let reuse: string | undefined;
   // plan 2c B3 N2: when there's no exact reuse, say why — "never asked" (no prior run touched this place at
-  // all) vs "code in where changed since SW-x" (a prior run is right there, its evidence just no longer
+  // all) vs "code in where changed since MM3-x" (a prior run is right there, its evidence just no longer
   // matches this exact question set) — instead of just omitting the field, as before.
   let reuseMiss: string | undefined;
-  if (request.side.categories.length > 0) {
-    const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
+  if (request.mak.categories.length > 0) {
+    const questions = [goalQuestion(request.mak.goal), ...subjectQuestions(request.mak.categories)];
     const evidenceStr = subjectEvidence(evidence.evidence.files);
     const keys = questions.map((q) => answerKey(evidenceStr, q));
     const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
@@ -406,9 +406,9 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
     reuse = exactReuse(ctx.paths, who, keys, { reuse: reuseLimits });
     if (reuse === undefined) reuseMiss = runsHere.length ? `code in where changed since ${runsHere.at(-1)!.id}` : 'never asked';
     // A real draft check (a full ask, not just a bare place/id lookup) is logged, free — CONTRACT's own claim
-    // ("the lookup is logged") was untrue until this: never a run (no SW-#### id, appendLookup's own comment),
+    // ("the lookup is logged") was untrue until this: never a run (no MM3-#### id, appendLookup's own comment),
     // never counted toward the budget or any report's run totals.
-    appendLookup(ctx.paths, { goal: request.side.goal, where: request.side.where, hit: reuse !== undefined, reused: reuse ?? null });
+    appendLookup(ctx.paths, { goal: request.mak.goal, where: request.mak.where, hit: reuse !== undefined, reused: reuse ?? null });
   }
 
   // plan 2c B3 D1: a found reuse also shows its own age/commits-since, right beside the id it already showed.
@@ -416,22 +416,22 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
   // exact question-key match), so its own record is looked up directly.
   const reuseRun = reuse ? findRun(ctx.paths, reuse) : undefined;
   const age = reuseRun && isContractRun(reuseRun) ? reuseAge(ctx.paths, { ts: reuseRun.ts, commit: reuseRun.commit ?? null, where: reuseRun.where }) : undefined;
-  const next = reuse ? `sidewise view ${reuse}` : 'sidewise class';
-  const side = m(
-    ['view', request.side.where.join(', ')],
+  const next = reuse ? `mm3 view ${reuse}` : 'mm3 class';
+  const mak = m(
+    ['view', request.mak.where.join(', ')],
     ...(reuse ? [['reuse', reuse] as [string, Value]] : reuseMiss ? [['reuse', reuseMiss] as [string, Value]] : []),
     ...(age ? [['reuseAge', m(['days', age.ageDays], ...(age.commitsSince !== null ? [['commits', age.commitsSince] as [string, Value]] : []))] as [string, Value]] : []),
     ['runs', runsHere.length],
     ['categories', m(...categoryNames.map((name) => categoryEntry(name, runsHere)))],
   );
-  return { exit: 0, text: respondText(side, wiseRecorded(null), next, ['free']) };
+  return { exit: 0, text: respondText(mak, mdlRecorded(null), next, ['free']) };
 }
 
 /**
- * `arg` is always the thing the caller actually named (a path, folder, tag or SW-####) — never overwritten by a
+ * `arg` is always the thing the caller actually named (a path, folder, tag or MM3-####) — never overwritten by a
  * file's own bytes. `content`, when given, is whatever text cli.ts already read for `arg` (a file's contents, or
- * stdin for `-`): it's used ONLY to test for request mode (a `side:`/JSON draft). Viewing a real source
- * file that isn't a request (no `side:`) must show it as a PLACE (`arg` itself), never misread its code as a
+ * stdin for `-`): it's used ONLY to test for request mode (a `mak:`/JSON draft). Viewing a real source
+ * file that isn't a request (no `mak:`) must show it as a PLACE (`arg` itself), never misread its code as a
  * garbled request just because cli.ts happened to read the file's bytes first. Omitting `content` (every
  * existing caller that already has the text in hand, e.g. a request string read from stdin) keeps checking
  * `arg` itself for request mode, unchanged. `summary` (`--summary`) only applies to place mode — a

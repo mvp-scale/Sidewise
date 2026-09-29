@@ -1,4 +1,4 @@
-side:
+mak:
   goal: src/api/orders.ts:40-90 is safe to merge
   depth: quick
   where:
@@ -32,6 +32,6 @@ side:
       12:
         choice: What should happen to this change?
         options: [ship, fix, block]
-wise:
+mdl:
   why: validate
   area: api

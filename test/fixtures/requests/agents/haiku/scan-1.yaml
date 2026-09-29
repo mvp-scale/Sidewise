@@ -1,4 +1,4 @@
-side:
+mak:
   goal: Find functions that skip auth checks or leak stack traces
   depth: quick
   over:

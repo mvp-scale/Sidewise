@@ -1,4 +1,4 @@
-side:
+mak:
   goal: no handler skips auth checks or leaks stack traces
   depth: quick
   over:
@@ -14,6 +14,6 @@ side:
         pass: no
         3: Can {function} return a stack trace or raw error message to the client?
         4: Does {function} send internal error details in its response body?
-wise:
+mdl:
   why: find
   area: auth

@@ -1,12 +1,12 @@
 /**
  * Measures the SQLite ledger index (src/ledger/index.ts, Task 29 revised) at scale: rebuild time, db size vs
  * log size, per-call catch-up after 1/50 new lines, reuse hit/miss, run-by-id, an outcome append, broad/narrow
- * place lookups, a dynamic Wise json_extract query without/with an expression index, one real end-to-end paid
+ * place lookups, a dynamic Mdl json_extract query without/with an expression index, one real end-to-end paid
  * `class` call through the fake provider, and (plan 2c "Before C3") the graph tier (src/ledger/graph.ts): a
  * full graph rebuild, graph catch-up after 50 new lines, `problemCounts` top-20, and a depth-4 `traverse` —
  * The graph targets (traversal < 100 ms, rebuild < 30 s at 100k runs) come from the internal scale plan. Not part of
  * `npm test` — 10k/100k ledgers take real time and real disk; run by hand (`npx tsx scripts/bench-ledger.ts`)
- * or `npm run bench:ledger`, into a throwaway temp project per size, never the repo. The Wise query and every
+ * or `npm run bench:ledger`, into a throwaway temp project per size, never the repo. The Mdl query and every
  * graph-tier row need node:sqlite for real (Node >= 22.13); on a host without it, those rows are skipped with
  * a note (graph.ts throws GraphUnavailableError, caught here), everything else still runs against the linear
  * fallback (slower, correct). Exports runLedgerBench/renderBenchTable so docs/evidence/ledger-scale.md can be
@@ -23,7 +23,7 @@ import { createFakeAdapter } from '../src/classifier/fake.ts';
 import { GraphUnavailableError, problemCounts, refreshGraph, traverse } from '../src/ledger/graph.ts';
 import { formatRunId } from '../src/ledger/ids.ts';
 import { appendOutcome, findRun, isContractRun, nextRunNumber } from '../src/ledger/log.ts';
-import { pathsFor, type SidewisePaths } from '../src/ledger/paths.ts';
+import { pathsFor, type Mm3Paths } from '../src/ledger/paths.ts';
 import { exactReuse, lookupAnswers, type Who } from '../src/ledger/reuse.ts';
 import { seededRandom } from '../src/util/prng.ts';
 import { runClass } from '../src/verbs/class.ts';
@@ -36,7 +36,7 @@ export interface BenchRow {
   p95Ms: number;
 }
 
-export interface WiseRow {
+export interface MdlRow {
   withoutIndexMs: number;
   withIndexMs: number;
 }
@@ -56,7 +56,7 @@ export interface BenchResult {
   dbLogRatio: number | undefined;
   rows: BenchRow[];
   /** undefined on a host with no node:sqlite (Node < 22.13): the query needs a real db file to open directly. */
-  wise: WiseRow | undefined;
+  mdl: MdlRow | undefined;
   classCall: ClassRow;
 }
 
@@ -78,7 +78,7 @@ const BROAD_AREA = AREAS[0];
 const NARROW_PATH = `src/${BROAD_AREA}/file0.ts`;
 
 // Graph-tier fixture (plan 2c "Before C3" bench task, research doc §5: "a few hundred components, heavy-tailed").
-// A bounded component/entity pool so `wise.uses`/`wise.touches` labels recur across runs the way a real
+// A bounded component/entity pool so `mdl.uses`/`mdl.touches` labels recur across runs the way a real
 // project's would — without this the graph tier would have too few non-trivial edges for `traverse` below to
 // be a meaningful depth-4 measurement (just a handful of disjoint one-hop chains).
 const COMPONENT_POOL_SIZE = 300;
@@ -133,7 +133,7 @@ function generateRealisticLedger(seed: string, n: number): GenResult {
     }
     const gate = rand() < 0.34 ? 'pass' : rand() < 0.5 ? 'fail' : 'unsure';
 
-    // wise.uses: a 2-4-edge C4 chain always starting at one fixed hub component (guarantees the graph-tier
+    // mdl.uses: a 2-4-edge C4 chain always starting at one fixed hub component (guarantees the graph-tier
     // traverse bench below always has a real, heavily-reused start node to walk from), then 1-3 more parts
     // drawn from the bounded, heavy-tailed pool above so mid/leaf labels also recur across runs.
     const chainEdges = 2 + Math.floor(rand() * 3); // 2-4 edges -> 3-5 parts, reaching the traverse bench's depth-4 cap
@@ -161,7 +161,7 @@ function generateRealisticLedger(seed: string, n: number): GenResult {
       parent: null,
       from: null,
       compare: null,
-      wise: { area, why: 'defect', uses, touches, blast },
+      mdl: { area, why: 'defect', uses, touches, blast },
       ask: { categories: [], layers: [] },
       over: null,
       items: null,
@@ -173,7 +173,7 @@ function generateRealisticLedger(seed: string, n: number): GenResult {
       goalGate: gate,
       goalP: 0.8,
       consensus: 'STRONG',
-      response: `side:\n  id: ${id}\n  gate: ${gate}\n`,
+      response: `mak:\n  id: ${id}\n  gate: ${gate}\n`,
       notes: [],
       adapter: who.adapter,
       model: who.model,
@@ -239,7 +239,7 @@ function rmDbFiles(dbPath: string): void {
   for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) if (existsSync(f)) rmSync(f, { force: true });
 }
 
-function benchRebuild(paths: SidewisePaths, n: number): BenchRow {
+function benchRebuild(paths: Mm3Paths, n: number): BenchRow {
   const samples = n >= 100_000 ? Math.max(3, Math.floor(REBUILD_SAMPLES / 2)) : REBUILD_SAMPLES;
   return toRow(
     'rebuild',
@@ -252,7 +252,7 @@ function benchRebuild(paths: SidewisePaths, n: number): BenchRow {
 
 /** Copies the already-warm (fully caught-up) log+index into a fresh temp dir, appends `extraLines` more
  *  realistic lines to the COPY's log only, fsyncs the copy, then times one fresh withIndex call catching it up.
- *  A new copy per sample — "fresh open" (design binding #2: every real Sidewise process opens its own
+ *  A new copy per sample — "fresh open" (design binding #2: every real MM3 process opens its own
  *  connection; there's no warm-WAL state to reuse between commands, see the spike's Surprise §1).
  *
  *  Bug fixed 2026-09-28 (plan 2c Phase C "before C3" step): this used to route through `timeCalls`, which times
@@ -271,7 +271,7 @@ function benchRebuild(paths: SidewisePaths, n: number): BenchRow {
 function benchCatchUp(fixture: { logPath: string; dbPath: string; extraText: string }, extraLines: number, samples: number): BenchRow {
   const durations: number[] = [];
   for (let i = 0; i < samples; i++) {
-    const dir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-bench-catchup-'));
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'mm3-bench-catchup-'));
     try {
       const paths = pathsFor(dir);
       mkdirSync(paths.dir, { recursive: true });
@@ -316,7 +316,7 @@ function benchGraphCatchUp(fixture: { logPath: string; dbPath: string; extraText
   const durations: number[] = [];
   try {
     for (let i = 0; i < samples; i++) {
-      const dir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-bench-graph-catchup-'));
+      const dir = mkdtempSync(path.join(os.tmpdir(), 'mm3-bench-graph-catchup-'));
       try {
         const paths = pathsFor(dir);
         mkdirSync(paths.dir, { recursive: true });
@@ -343,10 +343,10 @@ function benchGraphCatchUp(fixture: { logPath: string; dbPath: string; extraText
   return toRow(`graphCatchup${extraLines}`, durations);
 }
 
-/** The Wise dynamic-field query (design binding: runs.wise is a small JSON blob so json_extract can group/filter
+/** The mdl dynamic-field query (design binding: runs.mdl is a small JSON blob so json_extract can group/filter
  *  on it) — opened directly against the already-built index.db, since IndexHandle's public surface only exposes
  *  the bounded queries every verb actually needs. Only meaningful with real node:sqlite; undefined otherwise. */
-async function benchWiseQuery(dbPath: string): Promise<WiseRow | undefined> {
+async function benchMdlQuery(dbPath: string): Promise<MdlRow | undefined> {
   if (!existsSync(dbPath)) return undefined; // the fallback never persists a db file to open here
   let DatabaseSync: new (location: string) => { exec(sql: string): void; prepare(sql: string): { all(...p: unknown[]): unknown[] }; close(): void };
   try {
@@ -357,9 +357,9 @@ async function benchWiseQuery(dbPath: string): Promise<WiseRow | undefined> {
   }
   const db = new DatabaseSync(dbPath);
   try {
-    const query = `SELECT json_extract(wise, '$.wise.area') AS area, COUNT(*) AS n FROM runs GROUP BY area`;
+    const query = `SELECT json_extract(mdl, '$.mdl.area') AS area, COUNT(*) AS n FROM runs GROUP BY area`;
     const withoutIndexMs = timeCalls(1, () => void db.prepare(query).all())[0]!;
-    db.exec(`CREATE INDEX idx_wise_area ON runs(json_extract(wise, '$.wise.area'))`);
+    db.exec(`CREATE INDEX idx_mdl_area ON runs(json_extract(mdl, '$.mdl.area'))`);
     const withIndexMs = timeCalls(1, () => void db.prepare(query).all())[0]!;
     return { withoutIndexMs, withIndexMs };
   } finally {
@@ -370,7 +370,7 @@ async function benchWiseQuery(dbPath: string): Promise<WiseRow | undefined> {
 /** One real end-to-end paid `class` call through the fake provider (offline, free, deterministic): preflight's
  *  checkLedger, lookupAnswers' reuse check, and record's append, all against the already-large ledger — a
  *  distinct goal/evidence file each time so it can never be answered from reuse (calls must be 1, not 0). */
-async function benchClassCall(paths: SidewisePaths, n: number): Promise<ClassRow> {
+async function benchClassCall(paths: Mm3Paths, n: number): Promise<ClassRow> {
   writeFileSync(path.join(paths.root, 'bench-evidence.ts'), 'export const benchmarked = true;\n');
   // The synthetic ledger's own cost (0.01 USD/run x n) blows past the DEFAULT_CONFIG budget cap ($5/500 runs,
   // src/config/defaults.ts) long before this call even runs at 10k+ — checkBudget counts the WHOLE ledger, not
@@ -379,13 +379,13 @@ async function benchClassCall(paths: SidewisePaths, n: number): Promise<ClassRow
   // project-local override (never touching the real DEFAULT_CONFIG) keeps this row measuring the real call.
   writeFileSync(paths.config, `budget:\n  usd: ${Math.max(100, n) * 1}\n  runs: ${n + 1000}\n`);
   // depth: quick needs exactly 3 concerns categories of 3 probes each (3k x 3 — plan 2b's contract; see
-  // skills/sidewise/templates/class.yaml) — anything else is a validation stop (exit 2, calls never happen).
+  // skills/mm3/templates/class.yaml) — anything else is a validation stop (exit 2, calls never happen).
   // Fixed 2026-09-28 (plan 2c Phase C): this used the pre-2b flat `ask.reach` shape (10 questions, no
   // concerns/decisions split), which the current schema rejects outright — every run of this bench silently
   // timed a ~10ms validation STOP (exit 2, calls: -1), never a real paid call, and the doc's "class" row was
   // reporting that stop's cost as if it were the real end-to-end number.
   const classText = [
-    'side:',
+    'mak:',
     `  goal: bench paid call reaches the ledger end to end at ${n}`,
     '  depth: quick',
     '  where: [bench-evidence.ts]',
@@ -428,7 +428,7 @@ async function benchClassCall(paths: SidewisePaths, n: number): Promise<ClassRow
   return { exit: result.exit, calls, logGrewBytes: after - before, ms };
 }
 
-async function benchOne(paths: SidewisePaths, n: number, gen: GenResult): Promise<{ rows: BenchRow[]; wise: WiseRow | undefined; classCall: ClassRow }> {
+async function benchOne(paths: Mm3Paths, n: number, gen: GenResult): Promise<{ rows: BenchRow[]; mdl: MdlRow | undefined; classCall: ClassRow }> {
   const rows: BenchRow[] = [];
   rows.push(benchRebuild(paths, n));
   nextRunNumber(paths); // one more warm build: index.db now fully reflects the log, for everything below
@@ -450,7 +450,7 @@ async function benchOne(paths: SidewisePaths, n: number, gen: GenResult): Promis
   rows.push(toRow('placeBroad', timeCalls(VIEW_SAMPLES, () => runView(`src/${BROAD_AREA}`, 1, { paths, env: {} }))));
   rows.push(toRow('placeNarrow', timeCalls(VIEW_SAMPLES, () => runView(NARROW_PATH, 1, { paths, env: {} }))));
 
-  const wise = await benchWiseQuery(paths.index);
+  const mdl = await benchMdlQuery(paths.index);
 
   // Graph tier (plan 2c "Before C3" bench task): rebuild first (this paths' index.db has never had a graph
   // ingest before now, so this is a genuine first-ever full ingest, not a repeat), then — only if that worked,
@@ -470,22 +470,22 @@ async function benchOne(paths: SidewisePaths, n: number, gen: GenResult): Promis
 
   const classCall = await benchClassCall(paths, n);
 
-  return { rows, wise, classCall };
+  return { rows, mdl, classCall };
 }
 
 async function benchSize(n: number, seed: string): Promise<BenchResult> {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'sidewise-bench-ledger-'));
+  const root = mkdtempSync(path.join(os.tmpdir(), 'mm3-bench-ledger-'));
   try {
     const paths = pathsFor(root);
     const gen = generateRealisticLedger(`${seed}-${n}`, n);
     mkdirSync(paths.dir, { recursive: true });
     writeFileSync(paths.log, gen.text);
 
-    const { rows, wise, classCall } = await benchOne(paths, n, gen);
+    const { rows, mdl, classCall } = await benchOne(paths, n, gen);
 
     const dbBytes = existsSync(paths.index) ? statSync(paths.index).size : 0;
     const dbLogRatio = existsSync(paths.index) ? dbBytes / gen.logBytes : undefined;
-    return { n, logBytes: gen.logBytes, dbBytes, dbLogRatio, rows, wise, classCall };
+    return { n, logBytes: gen.logBytes, dbBytes, dbLogRatio, rows, mdl, classCall };
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -527,8 +527,8 @@ export function renderBenchTable(results: readonly BenchResult[]): string {
     for (const { result, row } of perSize) lines.push(`| ${result.n} | ${row.samples} | ${row.p50Ms.toFixed(3)} | ${row.p95Ms.toFixed(3)} |`);
     lines.push('');
   }
-  lines.push('### wise json_extract query (group by $.wise.area)', '', '| n | without index ms | with expression index ms |', '|---|---|---|');
-  for (const r of results) lines.push(`| ${r.n} | ${r.wise ? r.wise.withoutIndexMs.toFixed(3) : 'n/a'} | ${r.wise ? r.wise.withIndexMs.toFixed(3) : 'n/a'} |`);
+  lines.push('### mdl json_extract query (group by $.mdl.area)', '', '| n | without index ms | with expression index ms |', '|---|---|---|');
+  for (const r of results) lines.push(`| ${r.n} | ${r.mdl ? r.mdl.withoutIndexMs.toFixed(3) : 'n/a'} | ${r.mdl ? r.mdl.withIndexMs.toFixed(3) : 'n/a'} |`);
   lines.push('');
   lines.push('### class (real end-to-end paid call, fake provider)', '', '| n | exit | calls | log grew (bytes) | ms |', '|---|---|---|---|---|');
   for (const r of results) lines.push(`| ${r.n} | ${r.classCall.exit} | ${r.classCall.calls} | ${r.classCall.logGrewBytes} | ${r.classCall.ms.toFixed(3)} |`);

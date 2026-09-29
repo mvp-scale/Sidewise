@@ -55,7 +55,7 @@ const fmtDuration = (ms: number): string => `${(ms / 1000).toFixed(1)}s`;
 const cell = (s: string): string => s.replace(/\|/g, '\\|').replace(/\n/g, ' ');
 
 const CAPS = [
-  'Sidewise itself stays offline for this run (`SIDEWISE_PROVIDER=chaos`, no TypeSafe key) — only the agent',
+  'MM3 itself stays offline for this run (`MM3_PROVIDER=chaos`, no TypeSafe key) — only the agent',
   'CLIs call out, on their own login. Caps: 3 scenarios shared across both agents (not 3 each), one agent at a',
   'time, a 90s wall-clock `SIGKILL` timeout per run. `claude -p` is capped at $0.20/run via `--max-budget-usd`,',
   'the one cap that is both real and enforced. `gemini -p` has no cost or turn cap flag at all — its wall-clock',

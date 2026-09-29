@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { getSqliteCtor } from '../../src/ledger/index.ts';
 import { appendContractRun, appendOutcome } from '../../src/ledger/log.ts';
 import { refreshGraph } from '../../src/ledger/graph.ts';
-import type { SidewisePaths } from '../../src/ledger/paths.ts';
+import type { Mm3Paths } from '../../src/ledger/paths.ts';
 import type { Category } from '../../src/contract/types.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleContractRun } from '../helpers/runs.ts';
@@ -24,7 +24,7 @@ interface TestDb {
   close(): void;
 }
 
-function openDb(paths: SidewisePaths): TestDb {
+function openDb(paths: Mm3Paths): TestDb {
   const Ctor = getSqliteCtor() as unknown as new (location: string) => TestDb;
   return new Ctor(paths.index);
 }
@@ -65,22 +65,22 @@ describe('ledger/graph: one-subject run (rules 1-6, 10-14)', () => {
       sampleContractRun({
         where: ['src/a.ts:12-20'],
         ask: { categories: [INJECTION, OTHER_CHECK], layers: [] },
-        wise: { why: 'validate', area: 'api', uses: ['component:web-app/orders-handler -> code:handler.ts'], blast: 'component', touches: ['Order'] },
+        mdl: { why: 'validate', area: 'api', uses: ['component:web-app/orders-handler -> code:handler.ts'], blast: 'component', touches: ['Order'] },
         categories: { injection: 'fail', 'other-check': 'pass' },
         gate: 'fail',
       }),
       T,
       'b',
-    ); // SW-0001
+    ); // MM3-0001
 
     refreshGraph(paths, {});
     const db = openDb(paths);
     try {
       // 1. about
-      expect(hasTriple(db, 'about', ['run', 'SW-0001'], ['area', 'api'])).toBe(true);
+      expect(hasTriple(db, 'about', ['run', 'MM3-0001'], ['area', 'api'])).toBe(true);
       // 2/3. checks / is-a — run --checks--> category (the run checked this category)
-      expect(hasTriple(db, 'checks', ['run', 'SW-0001'], ['category', 'injection'])).toBe(true);
-      expect(hasTriple(db, 'checks', ['run', 'SW-0001'], ['category', 'other-check'])).toBe(true);
+      expect(hasTriple(db, 'checks', ['run', 'MM3-0001'], ['category', 'injection'])).toBe(true);
+      expect(hasTriple(db, 'checks', ['run', 'MM3-0001'], ['category', 'other-check'])).toBe(true);
       expect(hasTriple(db, 'is-a', ['category', 'injection'], ['family', 'input'])).toBe(true);
       // 4/5/6. judged/at — category's own verdict on a place (judged), and the where entry is
       // stripLines-normalized (":12-20" dropped)
@@ -88,17 +88,17 @@ describe('ledger/graph: one-subject run (rules 1-6, 10-14)', () => {
       expect(nodeIdOf(db, 'place', 'src/a.ts:12-20')).toBeUndefined();
       expect(allTriples(db).some((r) => r.p === 'judged' && r.s === nodeIdOf(db, 'category', 'injection') && r.o === nodeIdOf(db, 'place', 'src/a.ts') && r.score === 0)).toBe(true);
       expect(allTriples(db).some((r) => r.p === 'judged' && r.s === nodeIdOf(db, 'category', 'other-check') && r.o === nodeIdOf(db, 'place', 'src/a.ts') && r.score === 1)).toBe(true);
-      expect(hasTriple(db, 'at', ['run', 'SW-0001'], ['place', 'src/a.ts'])).toBe(true);
+      expect(hasTriple(db, 'at', ['run', 'MM3-0001'], ['place', 'src/a.ts'])).toBe(true);
       // 12. uses (adjacent chain parts)
       expect(hasTriple(db, 'uses', ['component', 'web-app/orders-handler'], ['code', 'handler.ts'])).toBe(true);
       // 13. contains (from '/' segments of the component part)
       expect(hasTriple(db, 'contains', ['container', 'web-app'], ['component', 'web-app/orders-handler'])).toBe(true);
       // 14. contains (inferred: place x component/code, same run)
-      expect(hasTriple(db, 'contains', ['place', 'src/a.ts'], ['component', 'web-app/orders-handler'], 'SW-0001')).toBe(true);
+      expect(hasTriple(db, 'contains', ['place', 'src/a.ts'], ['component', 'web-app/orders-handler'], 'MM3-0001')).toBe(true);
       expect(allTriples(db).some((r) => r.p === 'contains' && r.o === nodeIdOf(db, 'code', 'handler.ts') && r.provenance === 'inferred')).toBe(true);
       // 10/11. reaches / touches
-      expect(hasTriple(db, 'reaches', ['run', 'SW-0001'], ['level', 'component'])).toBe(true);
-      expect(hasTriple(db, 'touches', ['run', 'SW-0001'], ['entity', 'order'])).toBe(true);
+      expect(hasTriple(db, 'reaches', ['run', 'MM3-0001'], ['level', 'component'])).toBe(true);
+      expect(hasTriple(db, 'touches', ['run', 'MM3-0001'], ['entity', 'order'])).toBe(true);
       // 15. solves is never stored
       expect(allTriples(db).some((r) => r.p === 'solves')).toBe(false);
     } finally {
@@ -110,16 +110,16 @@ describe('ledger/graph: one-subject run (rules 1-6, 10-14)', () => {
 describe('ledger/graph: lineage (rule 8)', () => {
   it('drill -> narrows, replay -> replays, against the same parent', () => {
     const { paths } = tempProject();
-    appendContractRun(paths, sampleContractRun({ where: ['src/p.ts'] }), T, 'b'); // SW-0001
-    appendContractRun(paths, sampleContractRun({ verb: 'drill', parent: 'SW-0001', where: ['src/p.ts'] }), T, 'b'); // SW-0002
-    appendContractRun(paths, sampleContractRun({ verb: 'replay', parent: 'SW-0001', where: ['src/p.ts'] }), T, 'b'); // SW-0003
+    appendContractRun(paths, sampleContractRun({ where: ['src/p.ts'] }), T, 'b'); // MM3-0001
+    appendContractRun(paths, sampleContractRun({ verb: 'drill', parent: 'MM3-0001', where: ['src/p.ts'] }), T, 'b'); // MM3-0002
+    appendContractRun(paths, sampleContractRun({ verb: 'replay', parent: 'MM3-0001', where: ['src/p.ts'] }), T, 'b'); // MM3-0003
 
     refreshGraph(paths, {});
     const db = openDb(paths);
     try {
-      expect(hasTriple(db, 'narrows', ['run', 'SW-0002'], ['run', 'SW-0001'])).toBe(true);
-      expect(hasTriple(db, 'replays', ['run', 'SW-0003'], ['run', 'SW-0001'])).toBe(true);
-      expect(hasTriple(db, 'builds-on', ['run', 'SW-0002'], ['run', 'SW-0001'])).toBe(false);
+      expect(hasTriple(db, 'narrows', ['run', 'MM3-0002'], ['run', 'MM3-0001'])).toBe(true);
+      expect(hasTriple(db, 'replays', ['run', 'MM3-0003'], ['run', 'MM3-0001'])).toBe(true);
+      expect(hasTriple(db, 'builds-on', ['run', 'MM3-0002'], ['run', 'MM3-0001'])).toBe(false);
     } finally {
       db.close();
     }
@@ -129,23 +129,23 @@ describe('ledger/graph: lineage (rule 8)', () => {
 describe('ledger/graph: outcomes (rule 9)', () => {
   it('an outcome record becomes a resolved-as triple', () => {
     const { paths } = tempProject();
-    appendContractRun(paths, sampleContractRun(), T, 'b'); // SW-0001
-    appendOutcome(paths, 'SW-0001', 'held', 'owner');
+    appendContractRun(paths, sampleContractRun(), T, 'b'); // MM3-0001
+    appendOutcome(paths, 'MM3-0001', 'held', 'owner');
 
     refreshGraph(paths, {});
     const db = openDb(paths);
     try {
-      expect(hasTriple(db, 'resolved-as', ['run', 'SW-0001'], ['outcome', 'held'], 'SW-0001')).toBe(true);
+      expect(hasTriple(db, 'resolved-as', ['run', 'MM3-0001'], ['outcome', 'held'], 'MM3-0001')).toBe(true);
     } finally {
       db.close();
     }
   });
 });
 
-describe('ledger/graph: custom wise keys (rule 16)', () => {
+describe('ledger/graph: custom mdl keys (rule 16)', () => {
   it('an unconfigured custom key stays property-only; a configured one (with `as`) becomes a triple', () => {
     const { paths } = tempProject();
-    appendContractRun(paths, sampleContractRun({ wise: { why: 'validate', extras: { foo: 'bar' } } }), T, 'b'); // SW-0001, no config
+    appendContractRun(paths, sampleContractRun({ mdl: { why: 'validate', extras: { foo: 'bar' } } }), T, 'b'); // MM3-0001, no config
 
     refreshGraph(paths, {});
     let db = openDb(paths);
@@ -157,13 +157,13 @@ describe('ledger/graph: custom wise keys (rule 16)', () => {
     }
 
     mkdirSync(paths.dir, { recursive: true });
-    writeFileSync(paths.config, 'wise:\n  foo:\n    as: handles\n');
-    appendContractRun(paths, sampleContractRun({ wise: { why: 'validate', extras: { foo: 'Widget' } } }), T, 'b'); // SW-0002
+    writeFileSync(paths.config, 'mdl:\n  foo:\n    as: handles\n');
+    appendContractRun(paths, sampleContractRun({ mdl: { why: 'validate', extras: { foo: 'Widget' } } }), T, 'b'); // MM3-0002
 
     refreshGraph(paths, {});
     db = openDb(paths);
     try {
-      expect(hasTriple(db, 'handles', ['run', 'SW-0002'], ['value', 'widget'], 'SW-0002')).toBe(true);
+      expect(hasTriple(db, 'handles', ['run', 'MM3-0002'], ['value', 'widget'], 'MM3-0002')).toBe(true);
     } finally {
       db.close();
     }
@@ -173,7 +173,7 @@ describe('ledger/graph: custom wise keys (rule 16)', () => {
 describe('ledger/graph: watermark behavior', () => {
   it('a second refreshGraph with no new lines is a no-op', () => {
     const { paths } = tempProject();
-    appendContractRun(paths, sampleContractRun(), T, 'b'); // SW-0001
+    appendContractRun(paths, sampleContractRun(), T, 'b'); // MM3-0001
     refreshGraph(paths, {});
 
     let db = openDb(paths);
@@ -193,23 +193,23 @@ describe('ledger/graph: watermark behavior', () => {
 
   it('appending one more run and refreshing again ingests only the new one (incremental)', () => {
     const { paths } = tempProject();
-    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // SW-0001
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // MM3-0001
     refreshGraph(paths, {});
 
     let db = openDb(paths);
-    expect(nodeIdOf(db, 'run', 'SW-0001')).toBeDefined();
-    expect(nodeIdOf(db, 'run', 'SW-0002')).toBeUndefined();
+    expect(nodeIdOf(db, 'run', 'MM3-0001')).toBeDefined();
+    expect(nodeIdOf(db, 'run', 'MM3-0002')).toBeUndefined();
     db.close();
 
-    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'] }), T, 'b'); // SW-0002
+    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'] }), T, 'b'); // MM3-0002
     refreshGraph(paths, {});
 
     db = openDb(paths);
     try {
-      expect(nodeIdOf(db, 'run', 'SW-0001')).toBeDefined();
-      expect(nodeIdOf(db, 'run', 'SW-0002')).toBeDefined();
-      expect(hasTriple(db, 'at', ['run', 'SW-0001'], ['place', 'src/a.ts'])).toBe(true);
-      expect(hasTriple(db, 'at', ['run', 'SW-0002'], ['place', 'src/b.ts'])).toBe(true);
+      expect(nodeIdOf(db, 'run', 'MM3-0001')).toBeDefined();
+      expect(nodeIdOf(db, 'run', 'MM3-0002')).toBeDefined();
+      expect(hasTriple(db, 'at', ['run', 'MM3-0001'], ['place', 'src/a.ts'])).toBe(true);
+      expect(hasTriple(db, 'at', ['run', 'MM3-0002'], ['place', 'src/b.ts'])).toBe(true);
     } finally {
       db.close();
     }
@@ -217,7 +217,7 @@ describe('ledger/graph: watermark behavior', () => {
 
   it('a schema-version mismatch wipes and rebuilds cleanly rather than erroring', () => {
     const { paths } = tempProject();
-    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // SW-0001
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // MM3-0001
     refreshGraph(paths, {});
 
     let db = openDb(paths);
@@ -228,7 +228,7 @@ describe('ledger/graph: watermark behavior', () => {
     db = openDb(paths);
     try {
       expect(metaValue(db, 'graph_schema_version')).toBe('2');
-      expect(hasTriple(db, 'at', ['run', 'SW-0001'], ['place', 'src/a.ts'])).toBe(true);
+      expect(hasTriple(db, 'at', ['run', 'MM3-0001'], ['place', 'src/a.ts'])).toBe(true);
     } finally {
       db.close();
     }

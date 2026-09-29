@@ -1,9 +1,9 @@
 # drill --parent <sweep-run> --from <item>: goes one layer down from one flagged item. No where: — it inherits
 # the parent's own code. New, narrower questions go under ask:; "plumbing is filled in, the questions are yours".
-side:
+mak:
   goal: Find exactly where request text reaches the query   # required
   # verb: drill                               # optional — must match the command you run, or the request is sent back
-  parent: SW-0060                             # required — the sweep run this drills into
+  parent: MM3-0060                             # required — the sweep run this drills into
   from: src/handlers/user.ts/findUser         # required — an item id the parent flagged (names joined by /), not a category
   depth: quick                                # optional — at most 10 items asked per layer (standard 20, thorough 30); also sets the concerns count on the finest layer below
   over:                                       # optional — only when the parent was a sweep; a one-subject parent has none (see drill-subject.yaml)
@@ -11,7 +11,7 @@ side:
   ask:                                        # required — the parent's 3 angles become 3 new concerns here, each attacked from 3 angles of its own
                                                # questions are numbered 1…N across the WHOLE request, decisions included — no gaps, no restart at decisions
     call:
-      concerns:                                 # reach/guard/sink are injection's own 3 roles (sidewise agent probe) — named
+      concerns:                                 # reach/guard/sink are injection's own 3 roles (mm3 agent probe) — named
         reach:                                  # by role here, not by family, so family: is given explicitly on each
           family: injection
           pass: no
@@ -42,15 +42,15 @@ side:
             choice: What should happen to {call} next?
             options: [ship, fix, block]
                                                # drill never takes compare: or where: — it inherits the parent's own code
-wise:                                         # optional block; every field inside it is optional too
+mdl:                                         # optional block; every field inside it is optional too
   why: debug                                  # optional — validate | find | debug
   area: data                                  # optional — data | api | ui | auth | hosting | build | tests
   # stage: post-fix                           # optional — design | build | review | pre-merge | post-fix | release
   # change: fix                               # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
-  # parent: SW-0060                           # optional — a related run, for lineage (distinct from side.parent above)
+  # parent: MM3-0060                           # optional — a related run, for lineage (distinct from mak.parent above)
   # problem: Narrowing scan's injection flag on findUser down to the exact call that's unsafe   # optional
-  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `mm3 agent mdl` for the grammar
   #   - component:user-handler -> code:findUser -> container:db
   # touches: [findUser]                       # optional — up to 5 entities/objects this run is about
   # blast: code                               # optional — code | component | container | system | person

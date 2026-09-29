@@ -1,22 +1,22 @@
 /**
- * `.sidewise/config.yaml` → the effective `SidewiseConfig` (plan 2c B1): reads the file if present (never
+ * `.mm3/config.yaml` → the effective `Mm3Config` (plan 2c B1): reads the file if present (never
  * creates it — same free-and-optional spirit as everything else doctor/config touch), validates it
  * (validate.ts), and merges it over the one code defaults table (defaults.ts). Precedence is env > config >
- * default; the small set of settings that already have their own env var (SIDEWISE_PROVIDER,
- * SIDEWISE_BASE_URL, JEV_MODEL, JEV_TIMEOUT_MS) keep that env var as the actual runtime authority — this
+ * default; the small set of settings that already have their own env var (MM3_PROVIDER,
+ * MM3_BASE_URL, JEV_MODEL, JEV_TIMEOUT_MS) keep that env var as the actual runtime authority — this
  * module's `config.<field>` is the config-or-default LAYER only (never env), because the real routing already
  * has one owner (`src/classifier/typesafe/config.ts`'s `resolveJevConfig`, which re-checks env itself and
  * takes this module's value only as its own middle layer via `deps.fileConfig` — see that file). What this
  * module DOES do is label each of those fields' `source` as `'env'` whenever that env var is set, purely for
- * `sidewise config`'s own printer, even though the VALUE shown here is still the config/default one — a real
+ * `mm3 config`'s own printer, even though the VALUE shown here is still the config/default one — a real
  * run's actual value for those four fields comes from resolveJevConfig, not from reading this object alone.
  * Every other key (budget, pricing, timeoutMs's siblings retries/backoffMs, sweep, requestMaxBytes, reuse,
- * wise) has no env var at all, so config.<field> here IS the real effective value for those.
+ * mdl) has no env var at all, so config.<field> here IS the real effective value for those.
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { parseDocument } from 'yaml';
-import type { SidewisePaths } from '../ledger/paths.ts';
-import { CONFIG_KEYS, DEFAULT_CONFIG, type ConfigSource, type SidewiseConfig } from './defaults.ts';
+import type { Mm3Paths } from '../ledger/paths.ts';
+import { CONFIG_KEYS, DEFAULT_CONFIG, type ConfigSource, type Mm3Config } from './defaults.ts';
 import { validateConfig, type ConfigStop } from './validate.ts';
 
 interface FileReadResult {
@@ -28,7 +28,7 @@ interface FileReadResult {
 
 /** Reads and parses `paths.config` if it exists. Never throws, never writes, never creates the file. A YAML
  *  syntax error becomes one stop naming the line, the same style read.ts's request parser uses. */
-function readConfigFile(paths: SidewisePaths | undefined): FileReadResult {
+function readConfigFile(paths: Mm3Paths | undefined): FileReadResult {
   if (!paths || !existsSync(paths.config)) return { raw: undefined, stops: [], present: false };
   let text: string;
   try {
@@ -56,9 +56,9 @@ function readConfigFile(paths: SidewisePaths | undefined): FileReadResult {
 }
 
 export interface ResolvedConfig {
-  config: SidewiseConfig;
+  config: Mm3Config;
   /** Dotted-path → where the shown value (or, for the four env-aware fields, the value that WOULD win at
-   *  runtime) came from. Every leaf `sidewise config` prints has an entry. */
+   *  runtime) came from. Every leaf `mm3 config` prints has an entry. */
   sources: Record<string, ConfigSource>;
   /** Validation/parse stops from the file, if any — non-empty only when config.yaml exists and has a problem. */
   stops: ConfigStop[];
@@ -76,17 +76,17 @@ function positiveOr<T extends number | undefined>(v: number | undefined, fallbac
 }
 
 /** The full precedence resolution: env (where one exists) > config.yaml > DEFAULT_CONFIG. Never throws — a
- *  broken config.yaml surfaces as `stops` (the caller decides whether that's fatal, e.g. `sidewise doctor`
+ *  broken config.yaml surfaces as `stops` (the caller decides whether that's fatal, e.g. `mm3 doctor`
  *  reports it; most other callers just fall back to defaults and keep going, same as a missing key). */
-export function resolveConfig(paths: SidewisePaths | undefined, env: Record<string, string | undefined> = {}): ResolvedConfig {
+export function resolveConfig(paths: Mm3Paths | undefined, env: Record<string, string | undefined> = {}): ResolvedConfig {
   const file = readConfigFile(paths);
   const validated = file.raw !== undefined ? validateConfig(file.raw) : { stops: [], value: {} };
   const overrides = validated.value;
   const stops = [...file.stops, ...validated.stops];
   const sources: Record<string, ConfigSource> = {};
 
-  const envProvider = cleanEnv(env.SIDEWISE_PROVIDER);
-  const envBaseURL = cleanEnv(env.SIDEWISE_BASE_URL);
+  const envProvider = cleanEnv(env.MM3_PROVIDER);
+  const envBaseURL = cleanEnv(env.MM3_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
   const envTimeoutRaw = Number(cleanEnv(env.JEV_TIMEOUT_MS));
   const envTimeout = Number.isFinite(envTimeoutRaw) && envTimeoutRaw > 0 ? envTimeoutRaw : undefined;
@@ -98,7 +98,7 @@ export function resolveConfig(paths: SidewisePaths | undefined, env: Record<stri
     return configVal !== undefined ? configVal : defaultVal;
   }
 
-  const config: SidewiseConfig = {
+  const config: Mm3Config = {
     budget: {
       usd: layer('budget.usd', false, overrides.budget?.usd, DEFAULT_CONFIG.budget.usd),
       runs: layer('budget.runs', false, overrides.budget?.runs, DEFAULT_CONFIG.budget.runs),
@@ -121,7 +121,7 @@ export function resolveConfig(paths: SidewisePaths | undefined, env: Record<stri
       ...(overrides.reuse?.maxAgeDays !== undefined ? { maxAgeDays: overrides.reuse.maxAgeDays } : {}),
       ...(overrides.reuse?.maxCommits !== undefined ? { maxCommits: overrides.reuse.maxCommits } : {}),
     },
-    wise: { ...overrides.wise },
+    mdl: { ...overrides.mdl },
   };
   sources['sweep.maxItems'] = overrides.sweep?.maxItems !== undefined ? 'config' : 'default';
   sources['reuse.maxAgeDays'] = overrides.reuse?.maxAgeDays !== undefined ? 'config' : 'default';
@@ -130,14 +130,14 @@ export function resolveConfig(paths: SidewisePaths | undefined, env: Record<stri
   for (const model of new Set([...Object.keys(DEFAULT_CONFIG.pricing), ...Object.keys(overrides.pricing ?? {})])) {
     sources[`pricing.${model}`] = overrides.pricing && model in overrides.pricing ? 'config' : 'default';
   }
-  for (const field of Object.keys(overrides.wise ?? {})) sources[`wise.${field}`] = 'config';
+  for (const field of Object.keys(overrides.mdl ?? {})) sources[`mdl.${field}`] = 'config';
 
   return { config, sources, stops, present: file.present };
 }
 
 /** The subset `selectProvider`/`resolveJevConfig` accept as `deps.fileConfig` — see typesafe/config.ts. Reads
  *  straight off the resolved config; env still wins inside resolveJevConfig regardless of what's passed here. */
-export function classifierFileConfig(config: SidewiseConfig): { provider?: string; baseURL?: string; model?: string; timeoutMs?: number; retries?: number; backoffMs?: number } {
+export function classifierFileConfig(config: Mm3Config): { provider?: string; baseURL?: string; model?: string; timeoutMs?: number; retries?: number; backoffMs?: number } {
   return {
     ...(config.provider !== undefined ? { provider: config.provider } : {}),
     ...(config.baseURL !== undefined ? { baseURL: config.baseURL } : {}),

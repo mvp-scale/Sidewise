@@ -1,5 +1,5 @@
 /**
- * The fake provider (SIDEWISE_PROVIDER=fake, or no key): deterministic, seeded, free, no network. Its answers
+ * The fake provider (MM3_PROVIDER=fake, or no key): deterministic, seeded, free, no network. Its answers
  * are labeled "not evidence" wherever they are shown. A caller can pin an exact answer for one question id
  * under `state.__fake[id]` (a probability for noul, a level index for score, an option key for choice).
  */
@@ -16,7 +16,7 @@ import type {
   ScoreQuestionSpec,
 } from './port.ts';
 
-export const FAKE_MODEL = 'sidewise-fake-1';
+export const FAKE_MODEL = 'mm3-fake-1';
 
 function pinned(state: ClassifierState, id: string): unknown {
   const table = state.__fake;

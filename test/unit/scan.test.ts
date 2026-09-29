@@ -11,7 +11,7 @@ import { stubProvider, type Stub } from '../helpers/stub-provider.ts';
 /** Wraps a stub so its answer reports an estimated cost, without changing stub-provider.ts (shared by other crews). */
 const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }) });
 
-const env = { SIDEWISE_ACTOR: 'r' };
+const env = { MM3_ACTOR: 'r' };
 // A full, contract-valid finest-layer ask (quick: exactly 3 concerns categories x 3 probes, plus decisions
 // with >=1 scale and >=1 choice) — injection keeps probe "1" (the one every test's `yes` callback keys off
 // of, e.g. `q.id.endsWith('bad#1')`); access/leaks/severity/route all default to passing unless a test says
@@ -47,7 +47,7 @@ const ASK_LINES = [
   '            choice: Where should {function} go?',
   '            options: [ship, fix, block]',
 ].join('\n');
-const REQUEST = `side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n${ASK_LINES}\nwise:\n  why: find\n  area: api\n`;
+const REQUEST = `mak:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/*.ts\n    function: each\n${ASK_LINES}\nmdl:\n  why: find\n  area: api\n`;
 const FILES = {
   'src/a.ts': 'export function bad(req) { return db.query(`x ${req.id}`); }\n',
   'src/b.ts': 'export function good(req) { return db.query("x", [req.id]); }\n',
@@ -63,7 +63,7 @@ describe('scan', () => {
     expect(r.text).toContain('src/a.ts/bad: {injection: fail, 1: 0.90}');
     expect(r.text).toContain('passing: 1');
     expect(r.text).toContain('reused: 0');
-    expect(r.text).toContain('next: sidewise template drill --parent SW-0001 --from src/a.ts/bad');
+    expect(r.text).toContain('next: mm3 template drill --parent MM3-0001 --from src/a.ts/bad');
     expect(provider.calls).toHaveLength(1); // one call: the function layer (file has no ask categories)
   });
 
@@ -128,7 +128,7 @@ describe('scan', () => {
     expect(budgetAfterSecond.runs).toBe(budgetAfterFirst.runs);
     expect(budgetAfterSecond.spentUsd).toBe(budgetAfterFirst.spentUsd);
     const runs = readLedger(paths).filter(isContractRun);
-    expect(runs[1]).toMatchObject({ id: 'SW-0002', verb: 'scan', calls: 0 });
+    expect(runs[1]).toMatchObject({ id: 'MM3-0002', verb: 'scan', calls: 0 });
     // [C-073] a sweep run's own top-level categories stays empty; the per-function grading lives only
     // under items[id].categories (same shape loop.test.ts pins for C-083) — no folder/category query reads
     // this field for scan today.
@@ -139,7 +139,7 @@ describe('scan', () => {
   it('a fully-reused scan is never blocked by an already-reached cap [C-150]', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: (q) => (q.id.endsWith('bad#1') ? 0.9 : 0.1) });
-    await runScan(REQUEST, { paths, provider, env }); // SW-0001, 1 run
+    await runScan(REQUEST, { paths, provider, env }); // MM3-0001, 1 run
     setBudget(paths, { capRuns: 1 }); // already used up by the run above
     const r = await runScan(REQUEST, { paths, provider, env }); // fully reused: no call needed
     expect(r.exit).toBe(0);
@@ -189,17 +189,17 @@ describe('scan', () => {
   it('an invalid request exits 2 before any ledger read', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider();
-    const r = await runScan('side:\n  goal: x\n', { paths, provider, env });
+    const r = await runScan('mak:\n  goal: x\n', { paths, provider, env });
     expect(r.exit).toBe(2);
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
   });
 
-  it('wise: {recorded: [why, area]}', async () => {
+  it('mdl: {recorded: [why, area]}', async () => {
     const { paths } = tempProject(FILES);
     const provider = stubProvider({ yes: () => 0.9 });
     const r = await runScan(REQUEST, { paths, provider, env });
-    expect(r.text).toContain('wise: {recorded: [why, area]}');
+    expect(r.text).toContain('mdl: {recorded: [why, area]}');
   });
 
   it('a goal that misses the bar on an all-passing scan: next says so, not a passing item [C-071]', async () => {

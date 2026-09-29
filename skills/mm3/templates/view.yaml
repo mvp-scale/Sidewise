@@ -1,7 +1,7 @@
 # view <this file>: free — checks the ledger for a prior run of the exact same questions on this code, no call.
 # where is the only field view needs; depth/ask are optional here since a partial draft (view before class is
 # ready to spend) is exactly what view is for — the section/count rules below become notes, not stops.
-side:
+mak:
   goal: This login handler is safe to merge   # required — one line: what you want to be true
   # verb: view                                # optional — must match the command you run, or the request is sent back
   depth: quick                                # optional — if given, checked against ask: below (a note here; class would stop on it)
@@ -12,15 +12,15 @@ side:
         pass: no
         1: Is the user id taken from `req.query` without validation?
         2: Is the id concatenated into the SQL string instead of bound as a parameter?
-wise:                                         # optional block; every field inside it is optional too
+mdl:                                         # optional block; every field inside it is optional too
   why: validate                               # optional — validate | find | debug
   area: auth                                  # optional — data | api | ui | auth | hosting | build | tests
   # stage: build                              # optional — design | build | review | pre-merge | post-fix | release
   # change: fix                               # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
-  # parent: SW-0001                           # optional — a related run, for lineage
-  # problem: Checking whether the injection fix from SW-0040 is already proven here   # optional — one line, your own words
-  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  # parent: MM3-0001                           # optional — a related run, for lineage
+  # problem: Checking whether the injection fix from MM3-0040 is already proven here   # optional — one line, your own words
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `mm3 agent mdl` for the grammar
   #   - container:api -> component:user-handler
   # touches: [userId]                         # optional — up to 5 entities/objects this run is about
   # blast: component                          # optional — code | component | container | system | person

@@ -1,4 +1,4 @@
-// [C-103] the `sidewise` MCP tool: name/input shape, runs exactly what `sidewise <args...>` would run in-process
+// [C-103] the `mm3` MCP tool: name/input shape, runs exactly what `mm3 <args...>` would run in-process
 // against the same request YAML, and returns the same text output plus the exit code as `isError`.
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -12,20 +12,20 @@ const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8
 
 /** The first (and, in these tests, only) run line in the project's ledger, parsed. */
 function firstRun(root: string): { actor: string } {
-  const line = readFileSync(path.join(root, '.sidewise', 'log.jsonl'), 'utf8').trim().split('\n')[0]!;
+  const line = readFileSync(path.join(root, '.mm3', 'log.jsonl'), 'utf8').trim().split('\n')[0]!;
   return JSON.parse(line) as { actor: string };
 }
 
 function fakeCtx(env: Record<string, string | undefined> = {}): CliCtx {
   return {
-    env: { SIDEWISE_PROVIDER: 'fake', ...env },
+    env: { MM3_PROVIDER: 'fake', ...env },
     cwd: process.cwd(),
     platform: process.platform,
     runner: () => ({ status: 1, stdout: '', stderr: 'not used' }),
-    // The real repo root, not a placeholder: `template` reads skills/sidewise/templates/*.yaml from here (see
+    // The real repo root, not a placeholder: `template` reads skills/mm3/templates/*.yaml from here (see
     // src/verbs/template.ts's packageDir parameter) — a fixture placeholder would 404 that read for real.
     packageDir: process.cwd(),
-    pkg: { name: 'sidewise', version: '0.0.0-test' },
+    pkg: { name: 'mm3', version: '0.0.0-test' },
     homeDir: '/nonexistent-home',
     nodeVersion: process.version,
     stdin: () => Buffer.from(''),
@@ -37,7 +37,7 @@ function runOneFor(ctx: CliCtx): RunOne {
   return (args, stdin) => runCli(args, { ...ctx, stdin: () => Buffer.from(stdin ?? '', 'utf8') });
 }
 
-/** Drives the REAL `sidewise mcp` command (cli.ts's own `dispatch`, over real stdio streams — not a hand-rolled
+/** Drives the REAL `mm3 mcp` command (cli.ts's own `dispatch`, over real stdio streams — not a hand-rolled
  *  `runOne`): writes each message as one JSON-RPC line, closes stdin (so the server's own read loop resolves,
  *  same as a real client disconnecting), then parses whatever it wrote back, one response per line. */
 async function runMcpOverStdio(ctx: CliCtx, messages: readonly JsonRpcRequest[]): Promise<JsonRpcResponse[]> {
@@ -57,10 +57,10 @@ async function runMcpOverStdio(ctx: CliCtx, messages: readonly JsonRpcRequest[])
 }
 
 describe('mcp protocol: tools/list', () => {
-  it('lists exactly one tool named "sidewise" with the {args, stdin} shape', async () => {
+  it('lists exactly one tool named "mm3" with the {args, stdin} shape', async () => {
     const resp = await handleMessage({ jsonrpc: '2.0', id: 1, method: 'tools/list' }, { runOne: runOneFor(fakeCtx()), serverVersion: '0.0.0-test' });
     expect(resp?.result).toEqual({ tools: [toolDefinition()] });
-    expect(TOOL_NAME).toBe('sidewise');
+    expect(TOOL_NAME).toBe('mm3');
   });
 
   it('[C-186] the tool description opens with the agent directive, before anything else', () => {
@@ -104,7 +104,7 @@ describe('mcp protocol: tools/call [C-103]', () => {
     const ctx = fakeCtx();
     const direct = await runCli(['doctor'], ctx);
     const resp: JsonRpcResponse | undefined = await handleMessage(
-      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['doctor'] } } },
+      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['doctor'] } } },
       { runOne: runOneFor(ctx), serverVersion: '0.0.0-test' },
     );
     expect(direct.exit).toBe(0);
@@ -117,7 +117,7 @@ describe('mcp protocol: tools/call [C-103]', () => {
     const ctx = fakeCtx();
     const direct = await runCli(['template', 'class'], ctx);
     const resp = await handleMessage(
-      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['template', 'class'] } } },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['template', 'class'] } } },
       { runOne: runOneFor(ctx), serverVersion: '0.0.0-test' },
     );
     const result = resp?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
@@ -129,7 +129,7 @@ describe('mcp protocol: tools/call [C-103]', () => {
     const ctx = fakeCtx();
     const direct = await runCli(['agent', 'class'], ctx);
     const resp = await handleMessage(
-      { jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['agent', 'class'] } } },
+      { jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['agent', 'class'] } } },
       { runOne: runOneFor(ctx), serverVersion: '0.0.0-test' },
     );
     expect(direct.exit).toBe(0);
@@ -143,7 +143,7 @@ describe('mcp protocol: tools/call [C-103]', () => {
     const direct = await runCli(['not-a-real-command'], ctx);
     expect(direct.exit).not.toBe(0);
     const resp = await handleMessage(
-      { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['not-a-real-command'] } } },
+      { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['not-a-real-command'] } } },
       { runOne: runOneFor(ctx), serverVersion: '0.0.0-test' },
     );
     const result = resp?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
@@ -154,10 +154,10 @@ describe('mcp protocol: tools/call [C-103]', () => {
   it('a request YAML on stdin (args: ["class", "-"]) with no project stops the same way the CLI would', async () => {
     const ctx = fakeCtx();
     const resp = await handleMessage(
-      { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['class', '-'], stdin: 'side:\n  goal: x\n' } } },
+      { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['class', '-'], stdin: 'mak:\n  goal: x\n' } } },
       { runOne: runOneFor(ctx), serverVersion: '0.0.0-test' },
     );
-    const direct = await runCli(['class', '-'], { ...ctx, stdin: () => Buffer.from('side:\n  goal: x\n', 'utf8') });
+    const direct = await runCli(['class', '-'], { ...ctx, stdin: () => Buffer.from('mak:\n  goal: x\n', 'utf8') });
     const result = resp?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
     expect(result.content[0]?.text).toBe(direct.text);
     expect(result.isError).toBe(direct.exit !== 0);
@@ -165,14 +165,14 @@ describe('mcp protocol: tools/call [C-103]', () => {
 
   it('an unknown tool name is a protocol-level error, not a tool result', async () => {
     const resp = await handleMessage(
-      { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'not-sidewise', arguments: { args: [] } } },
+      { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'not-mm3', arguments: { args: [] } } },
       { runOne: runOneFor(fakeCtx()), serverVersion: '0.0.0-test' },
     );
     expect(resp?.error?.code).toBe(-32602);
   });
 
   // Fix #9: the plugin's own cwd is wherever Claude launched, which may not be the project — an optional
-  // `project` argument (meaning SIDEWISE_HOME for that one call) lets a caller point at a nested project
+  // `project` argument (meaning MM3_HOME for that one call) lets a caller point at a nested project
   // without relying on cwd. [C-142]
   it('an optional project argument is advertised in the tool schema and passed through to runOne', async () => {
     expect((toolDefinition().inputSchema as { properties: Record<string, unknown> }).properties.project).toBeDefined();
@@ -182,7 +182,7 @@ describe('mcp protocol: tools/call [C-103]', () => {
       return { exit: 0, text: '' };
     };
     await handleMessage(
-      { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['doctor'], project: '/some/nested/project' } } },
+      { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['doctor'], project: '/some/nested/project' } } },
       { runOne: spy, serverVersion: '0.0.0-test' },
     );
     expect(calls).toEqual([[['doctor'], undefined, '/some/nested/project']]);
@@ -195,7 +195,7 @@ describe('mcp protocol: tools/call [C-103]', () => {
       return { exit: 0, text: '' };
     };
     await handleMessage(
-      { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['doctor'] } } },
+      { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['doctor'] } } },
       { runOne: spy, serverVersion: '0.0.0-test' },
     );
     expect(calls).toEqual([undefined]);
@@ -233,10 +233,10 @@ describe('the Node ≥ 22.13 guard (owner ruling) [C-106]', () => {
     expect(r.text).toContain('index: none (needs Node 22.13+)');
   });
 
-  // These two run the REAL `sidewise mcp` command (cli.ts's own dispatch, not a hand-rolled runOne) over real
+  // These two run the REAL `mm3 mcp` command (cli.ts's own dispatch, not a hand-rolled runOne) over real
   // stdio streams — the version guard's mcp-specific wrapping lives inside that command's own branch, so
   // proving it needs the real loop, not protocol.ts's handleMessage in isolation.
-  it('sidewise mcp still answers initialize and tools/list on too old a Node, over the real stdio loop', async () => {
+  it('mm3 mcp still answers initialize and tools/list on too old a Node, over the real stdio loop', async () => {
     const ctx: CliCtx = { ...fakeCtx(), nodeVersion: 'v20.11.0' };
     const responses = await runMcpOverStdio(ctx, [
       { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} },
@@ -249,9 +249,9 @@ describe('the Node ≥ 22.13 guard (owner ruling) [C-106]', () => {
   it('every tools/call is isError with the same ✖ line on too old a Node, whatever command was asked — doctor included, over the real stdio loop', async () => {
     const ctx: CliCtx = { ...fakeCtx(), nodeVersion: 'v20.11.0' };
     const responses = await runMcpOverStdio(ctx, [
-      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['doctor'] } } },
-      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['template', 'class'] } } },
-      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['not-a-real-command'] } } },
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['doctor'] } } },
+      { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['template', 'class'] } } },
+      { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['not-a-real-command'] } } },
     ]);
     expect(responses).toHaveLength(3);
     for (const resp of responses) {
@@ -263,40 +263,40 @@ describe('the Node ≥ 22.13 guard (owner ruling) [C-106]', () => {
 });
 
 describe('one ✖ prefix on the real mcp stdio path', () => {
-  // Only the real `sidewise mcp` stdio loop exercises this: a thrown error must reach the client with its own
-  // single "✖ field: ..." line, never re-wrapped as "✖ sidewise: ✖ ...". [C-140]
+  // Only the real `mm3 mcp` stdio loop exercises this: a thrown error must reach the client with its own
+  // single "✖ field: ..." line, never re-wrapped as "✖ mm3: ✖ ...". [C-140]
   it('an outcome call on an unknown run id comes back with exactly one ✖, not two', async () => {
     const { root } = tempProject();
     const responses = await runMcpOverStdio(fakeCtx(), [
-      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['outcome', 'SW-9999', 'held', '--by', 'someone'], project: root } } },
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['outcome', 'MM3-9999', 'held', '--by', 'someone'], project: root } } },
     ]);
     const result = responses[0]?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toBe('✖ outcome: SW-9999 is not in the ledger → check the id with "sidewise view SW-9999"\n→ see: sidewise agent outcome\n');
+    expect(result.content[0]?.text).toBe('✖ outcome: MM3-9999 is not in the ledger → check the id with "mm3 view MM3-9999"\n→ see: mm3 agent outcome\n');
     expect(result.content[0]?.text.match(/✖/g)).toHaveLength(1);
   });
 });
 
 // An MCP-driven run used to record its actor from `git config user.name` in the project directory. When that
-// happened to be the owner's own name (the common case), the owner's own "sidewise outcome <id> held --by
+// happened to be the owner's own name (the common case), the owner's own "mm3 outcome <id> held --by
 // <their name>" was refused by the self-held rule (ledger/log.ts's appendOutcome) — the owner couldn't mark the
-// agent's own run held. Fix: an MCP-driven run now records "claude" instead, unless SIDEWISE_ACTOR is already
+// agent's own run held. Fix: an MCP-driven run now records "claude" instead, unless MM3_ACTOR is already
 // set (which still wins, for either path). [C-143]
 describe('MCP-driven runs get a real actor, not "agent" [C-143]', () => {
-  it('no SIDEWISE_ACTOR set: an MCP-driven run records "claude"', async () => {
+  it('no MM3_ACTOR set: an MCP-driven run records "claude"', async () => {
     const { root } = tempProject();
     const responses = await runMcpOverStdio(fakeCtx(), [
-      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
     ]);
     const result = responses[0]?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
     expect(result.isError).toBe(false);
     expect(firstRun(root).actor).toBe('claude');
   });
 
-  it('an explicit SIDEWISE_ACTOR still wins over the "claude" default', async () => {
+  it('an explicit MM3_ACTOR still wins over the "claude" default', async () => {
     const { root } = tempProject();
-    const responses = await runMcpOverStdio(fakeCtx({ SIDEWISE_ACTOR: 'reviewer-2' }), [
-      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
+    const responses = await runMcpOverStdio(fakeCtx({ MM3_ACTOR: 'reviewer-2' }), [
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
     ]);
     const result = responses[0]?.result as { content: Array<{ type: string; text: string }>; isError: boolean };
     expect(result.isError).toBe(false);
@@ -306,23 +306,23 @@ describe('MCP-driven runs get a real actor, not "agent" [C-143]', () => {
   it('a plain (non-MCP) CLI run is unaffected: still defaults to "agent"', async () => {
     const { root } = tempProject();
     const ctx = fakeCtx();
-    const r = await runCli(['class', '-'], { ...ctx, env: { ...ctx.env, SIDEWISE_HOME: root }, stdin: () => Buffer.from(CLASS_YAML, 'utf8') });
+    const r = await runCli(['class', '-'], { ...ctx, env: { ...ctx.env, MM3_HOME: root }, stdin: () => Buffer.from(CLASS_YAML, 'utf8') });
     expect(r.exit).toBe(0);
     expect(firstRun(root).actor).toBe('agent');
   });
 
   it('end to end: the owner can mark an MCP-driven run held under their own (git) name', async () => {
     const { root } = tempProject();
-    gitInit(root); // configures user.name "sidewise-test" — a stand-in for the owner's own git identity
+    gitInit(root); // configures user.name "mm3-test" — a stand-in for the owner's own git identity
     const classResp = await runMcpOverStdio(fakeCtx(), [
-      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'sidewise', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
+      { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'mm3', arguments: { args: ['class', '-'], stdin: CLASS_YAML, project: root } } },
     ]);
     expect((classResp[0]?.result as { isError: boolean }).isError).toBe(false);
     expect(firstRun(root).actor).toBe('claude');
-    // Before the fix, the run above would have recorded actor "sidewise-test" (this same git identity), and
+    // Before the fix, the run above would have recorded actor "mm3-test" (this same git identity), and
     // this call would have been refused: the asker can't mark its own run held.
-    const outcome = await runCli(['outcome', 'SW-0001', 'held', '--by', 'sidewise-test'], { ...fakeCtx(), env: { ...fakeCtx().env, SIDEWISE_HOME: root } });
+    const outcome = await runCli(['outcome', 'MM3-0001', 'held', '--by', 'mm3-test'], { ...fakeCtx(), env: { ...fakeCtx().env, MM3_HOME: root } });
     expect(outcome.exit).toBe(0);
-    expect(outcome.text).toContain('held · by sidewise-test');
+    expect(outcome.text).toContain('held · by mm3-test');
   });
 });

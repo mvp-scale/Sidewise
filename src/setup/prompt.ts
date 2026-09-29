@@ -1,5 +1,5 @@
 /**
- * The only place `sidewise init`/`uninstall` read from a terminal: yes/no confirmation, and the one hidden
+ * The only place `mm3 init`/`uninstall` read from a terminal: yes/no confirmation, and the one hidden
  * field (the API key). No new dependency (no inquirer) — `node:readline` already ships with Node, and hiding
  * input is the standard trick of muting everything `_writeToOutput` would otherwise echo except the prompt
  * itself and the final newline. Streams are always passed in (never a bare `process.stdin`/`stdout` default),

@@ -1,5 +1,5 @@
 /**
- * `sidewise agent [verb|tool]`: free, no project, no ledger, never spends — the terse, agent-facing twin of
+ * `mm3 agent [verb|tool]`: free, no project, no ledger, never spends — the terse, agent-facing twin of
  * `help` (src/help/index.ts). `help` is prose for a person reading a terminal; this is a dense card for the
  * agent about to write a request: the same enforced rules (rules.ts's RULES, shared with `help` so they can't
  * drift) then the same good/bad pairs (patterns.ts), why-only, no prose — atomic directives, one instruction
@@ -14,13 +14,13 @@
  * `agent` alone (no verb) gives the universal rules plus a `verbs (pick by goal):` list and a `tools:` list,
  * each entry one atomic line naming what it's for — not just its name — so an agent holding a goal ("is this
  * handler safe to merge?") rather than a verb name can map straight to the right one, and points at
- * `sidewise agent <verb>`/`<tool>` to go deeper, and explicitly at `sidewise agent probe` for the
+ * `mm3 agent <verb>`/`<tool>` to go deeper, and explicitly at `mm3 agent probe` for the
  * question-shape rules. Those purpose lines are never invented here: verbs.ts's `VERB_LINE` and report.ts's
  * `TOOL_LINE` are the one shared source `help`'s own one-screen card (card.ts) renders too, so the two views
  * can't state a different purpose for the same command. [C-189]
  *
  * The overview also carries one extra `run:` line, appended only when no key is configured: inside the
- * plugin's own MCP server it points at `/plugin → Sidewise → Configure`, everywhere else at `sidewise init` —
+ * plugin's own MCP server it points at `/plugin → MM3 → Configure`, everywhere else at `mm3 init` —
  * the same detection and the same wording `doctor`'s `key:` line uses (setup/plugin.ts's `inPluginContext` and
  * `NO_KEY_PLUGIN_HINT`), so the two views can't drift on how to add a key.
  *
@@ -42,15 +42,15 @@
  * neither RULES nor patterns.ts had anything tagged for either verb, even though `help <verb>` already had
  * real prose for both — SHARP was just unreachable from here). The overview's own `rules:` list carries one
  * hand-written line beyond RULES too (`PROJECT_SCOPE_RULE` below): `where:` resolves against the MCP `project`
- * argument or `SIDEWISE_HOME`, not session cwd — a runtime fact, not a request-schema one, so it doesn't
+ * argument or `MM3_HOME`, not session cwd — a runtime fact, not a request-schema one, so it doesn't
  * belong in rules.ts's RULES (built only from schema-check.ts/validate.ts constants); it's stated only here,
- * not in `help`'s card, since an agent is the one that actually passes `project`/sets `SIDEWISE_HOME`.
+ * not in `help`'s card, since an agent is the one that actually passes `project`/sets `MM3_HOME`.
  */
 import { hasKey, resolveJevConfig, type ResolveStored } from '../classifier/typesafe/client.ts';
 import { resolveConfig } from '../config/load.ts';
 import { BLASTS, VERBS, type Verb } from '../contract/types.ts';
-import { CHAIN_LEVELS, effectiveWiseFields, MAX_WISE_LINES, UNKNOWN_VALUE, WISE_FIELDS, closedValues, type WiseField } from '../contract/wise-fields.ts';
-import type { SidewisePaths } from '../ledger/paths.ts';
+import { CHAIN_LEVELS, effectiveMdlFields, MAX_MDL_LINES, UNKNOWN_VALUE, MDL_FIELDS, closedValues, type MdlField } from '../contract/mdl-fields.ts';
+import type { Mm3Paths } from '../ledger/paths.ts';
 import { inPluginContext, NO_KEY_PLUGIN_HINT } from '../setup/plugin.ts';
 import type { VerbResult } from '../verbs/types.ts';
 import { clip, hasControlChars } from '../util/text.ts';
@@ -75,7 +75,7 @@ export const AGENT_TOOLS = ['report', 'outcome', 'budget', 'template'] as const;
 
 /** One extra `run:` line, appended only when no key is configured: the same plugin-context detection doctor's
  *  `key:` line uses (setup/plugin.ts's `inPluginContext`), so a cold agent reading the overview sees how to add
- *  one without a separate `doctor` call. `resolveJevConfig` can throw on a bad `SIDEWISE_BASE_URL` — that's
+ *  one without a separate `doctor` call. `resolveJevConfig` can throw on a bad `MM3_BASE_URL` — that's
  *  `doctor`'s stop to report, not this free card's, so a bad config here just skips the hint rather than
  *  crashing the overview. */
 function noKeyRunLine(env: Record<string, string | undefined>, deps: { resolveStored?: ResolveStored }): string[] {
@@ -86,25 +86,25 @@ function noKeyRunLine(env: Record<string, string | undefined>, deps: { resolveSt
     return [];
   }
   if (hasKey(config)) return [];
-  return [inPluginContext(env) ? `run: no key (sample answers only) → ${NO_KEY_PLUGIN_HINT}` : 'run: no key → sidewise init to add one'];
+  return [inPluginContext(env) ? `run: no key (sample answers only) → ${NO_KEY_PLUGIN_HINT}` : 'run: no key → mm3 init to add one'];
 }
 
 /** `verbs (pick by goal):` then `tools:`, each followed by one `- name: purpose` bullet per entry, from the
  *  same VERB_LINE/TOOL_LINE text `help`'s card renders (verbs.ts, report.ts) — never a second, divergent
  *  copy. [C-189] */
-/** The `where:`/`SIDEWISE_HOME` fact: a runtime/environment rule, not a request-schema one, so it's hand-
+/** The `where:`/`MM3_HOME` fact: a runtime/environment rule, not a request-schema one, so it's hand-
  *  written rather than pulled from rules.ts's RULES (which is built only from schema-check.ts/validate.ts
  *  constants — see that file's own header comment). Defined once, here, since only `agent`'s overview states
- *  it: an agent is the one that actually passes the MCP `project` arg or sets `SIDEWISE_HOME`, so a cold
+ *  it: an agent is the one that actually passes the MCP `project` arg or sets `MM3_HOME`, so a cold
  *  agent — not a human reading `help` — is who needs this before its first call (round-4 finding: an agent
- *  had to fail once, `✖ side.where: cannot read "app/routes/contributions.js"`, to learn `where:` resolves
- *  against `project`/`SIDEWISE_HOME`, not session cwd). [C-195] */
+ *  had to fail once, `✖ mak.where: cannot read "app/routes/contributions.js"`, to learn `where:` resolves
+ *  against `project`/`MM3_HOME`, not session cwd). [C-195] */
 const PROJECT_SCOPE_RULE =
-  "- where: resolves against the MCP `project` argument or `SIDEWISE_HOME` (CLI), never your session cwd — pass `project` (or set `SIDEWISE_HOME`) when you started elsewhere.";
+  "- where: resolves against the MCP `project` argument or `MM3_HOME` (CLI), never your session cwd — pass `project` (or set `MM3_HOME`) when you started elsewhere.";
 
 /** Plan 2b: the overview points at the probe-writing skill in its first lines (the first bullet under
  *  `rules:`, right after the verb/tool lists) — before an agent writes a single probe, not after it fails one. */
-const PROBE_SKILL_RULE = '- before writing or editing any request, read the sidewise-probe skill (or run `sidewise agent probe`): what makes a probe worth asking.';
+const PROBE_SKILL_RULE = '- before writing or editing any request, read the mm3-probe skill (or run `mm3 agent probe`): what makes a probe worth asking.';
 
 function overview(env: Record<string, string | undefined>, deps: { resolveStored?: ResolveStored }): string {
   return renderCard(
@@ -117,9 +117,9 @@ function overview(env: Record<string, string | undefined>, deps: { resolveStored
     [PROBE_SKILL_RULE, ...ruleLines('card'), PROJECT_SCOPE_RULE],
     [],
     [
-      'run: sidewise agent <verb|tool> — before writing that request',
-      'run: sidewise agent probe — before writing questions: how to phrase one',
-      'run: sidewise agent verdict — before reading a response: how to read it',
+      'run: mm3 agent <verb|tool> — before writing that request',
+      'run: mm3 agent probe — before writing questions: how to phrase one',
+      'run: mm3 agent verdict — before reading a response: how to read it',
       ...noKeyRunLine(env, deps),
     ],
   );
@@ -135,7 +135,7 @@ function verbCard(verb: Verb): string {
 }
 
 /** PROBE_RULES (TypeSafe's own published guidance, cited in `help probe`, bare here) then `ruleLines('probe')`
- *  — Sidewise's own hard validator rules that also apply while writing a question (today: the per-question
+ *  — MM3's own hard validator rules that also apply while writing a question (today: the per-question
  *  character cap), tagged 'probe' in rules.ts so they reach this card without a second copy. [C-194] */
 function probeCard(): string {
   return renderCard(
@@ -146,7 +146,7 @@ function probeCard(): string {
       ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(' · ')}`),
       `- bad: "${BAD_PROBE_EXAMPLE.bad}" — ${BAD_PROBE_EXAMPLE.why}`,
       ...BAD_PROBE_EXAMPLE.good.map((g) => `- good: ${g}`),
-      '- see: the sidewise-probe skill for the full model and worked examples',
+      '- see: the mm3-probe skill for the full model and worked examples',
     ],
   );
 }
@@ -162,7 +162,7 @@ function outcomeCard(): string {
   return renderCard(
     ['tool: outcome'],
     [
-      '- syntax: sidewise outcome <SW-####> held|overruled|failed --by <actor>',
+      '- syntax: mm3 outcome <MM3-####> held|overruled|failed --by <actor>',
       '- no --note flag: keep a reason in your own notes, not here',
       "- an actor can't mark its own asked run held: use a different --by, or record overruled or failed",
       '- same outcome, same actor, twice: exit 0, no-op',
@@ -171,9 +171,9 @@ function outcomeCard(): string {
       'patterns:',
       '- why: held needs a second actor; never self-certify',
       '  bad:',
-      '    sidewise outcome SW-0002 held --by claude',
+      '    mm3 outcome MM3-0002 held --by claude',
       '  good:',
-      '    sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>',
+      '    mm3 outcome MM3-0002 held --by <the user or a reviewer agent, not you>',
     ],
   );
 }
@@ -191,24 +191,24 @@ function budgetCard(): string {
       'patterns:',
       '- why: set with no flags changes nothing',
       '  bad:',
-      '    sidewise budget set',
+      '    mm3 budget set',
       '  good:',
-      '    sidewise budget set --usd 5 --runs 500',
+      '    mm3 budget set --usd 5 --runs 500',
     ],
   );
 }
 
-/** `sidewise agent doctor`'s card (plan 2c B1b). Bare `doctor` is the full system report (provider/key/project/
+/** `mm3 agent doctor`'s card (plan 2c B1b). Bare `doctor` is the full system report (provider/key/project/
  *  node/config); `doctor <file|->` is a narrower, standalone check — no project, no ledger, no classifier — of
- *  ONE document, auto-detecting whether it's a request (`side:`) or a `.sidewise/config.yaml`-shaped file. */
+ *  ONE document, auto-detecting whether it's a request (`mak:`) or a `.mm3/config.yaml`-shaped file. */
 function doctorCard(): string {
   return renderCard(
     ['tool: doctor'],
     [
-      '- syntax: sidewise doctor  ·  or: sidewise doctor <file | ->',
+      '- syntax: mm3 doctor  ·  or: mm3 doctor <file | ->',
       '- free: no call, no spend, never writes',
-      '- bare form: reports provider/route/key/project/node/config in one pass — also validates .sidewise/config.yaml when present',
-      '- <file|-> form: checks ONE document, no project needed — a side: key means a request (same checks as --dry-run); anything else is checked as config',
+      '- bare form: reports provider/route/key/project/node/config in one pass — also validates .mm3/config.yaml when present',
+      '- <file|-> form: checks ONE document, no project needed — a mak: key means a request (same checks as --dry-run); anything else is checked as config',
       '- <file|-> never touches the ledger, reuse or budget, even inside a project',
     ],
   );
@@ -219,18 +219,18 @@ function reportCard(): string {
     ['tool: report'],
     [
       '- free: never calls a provider, never writes to the ledger',
-      '- views: hits (default), patterns, history, web, graph, problems, wise, calls, fields',
-      '- web writes one file, .sidewise/viewer.html, and tries to open it — the only view that writes anything',
-      '- graph/problems/wise/calls read the graph tier (its own watermark, refreshed on read, never on a paid call)',
-      '- fields: undeclared wise keys with counts/samples/a suggested type; --accept <field> writes it into config wise:',
+      '- views: hits (default), patterns, history, web, graph, problems, mdl, calls, fields',
+      '- web writes one file, .mm3/viewer.html, and tries to open it — the only view that writes anything',
+      '- graph/problems/mdl/calls read the graph tier (its own watermark, refreshed on read, never on a paid call)',
+      '- fields: undeclared mdl keys with counts/samples/a suggested type; --accept <field> writes it into config mdl:',
     ],
     [
       'patterns:',
-      '- why: no view beyond hits, patterns, history, web, graph, problems, wise, calls or fields exists',
+      '- why: no view beyond hits, patterns, history, web, graph, problems, mdl, calls or fields exists',
       '  bad:',
-      '    sidewise report level2',
+      '    mm3 report level2',
       '  good:',
-      '    sidewise report patterns',
+      '    mm3 report patterns',
     ],
   );
 }
@@ -239,8 +239,8 @@ function templateCard(): string {
   return renderCard(
     ['tool: template'],
     [
-      '- syntax: sidewise template <verb> [--parent SW-#### --from <item-or-category>]',
-      '- or: sidewise template <verb> --from <request.yaml> [--where <path>]... [--goal <text>]',
+      '- syntax: mm3 template <verb> [--parent MM3-#### --from <item-or-category>]',
+      '- or: mm3 template <verb> --from <request.yaml> [--where <path>]... [--goal <text>]',
       '- free: no project needed, never spends, never writes',
       '- --parent only applies to drill, and needs --from too',
       '- --where/--goal need --from; refused together with --parent',
@@ -249,34 +249,36 @@ function templateCard(): string {
       'patterns:',
       '- why: --parent only works with drill',
       '  bad:',
-      '    sidewise template class --parent SW-0002 --from injection',
+      '    mm3 template class --parent MM3-0002 --from injection',
       '  good:',
-      '    sidewise template drill --parent SW-0002 --from injection',
+      '    mm3 template drill --parent MM3-0002 --from injection',
     ],
   );
 }
 
-/** `sidewise agent config`'s card (plan 2c B1): `sidewise config` is free, never writes, and works with or
- *  without a project. Terse like every other tool card here — the full key list lives in `sidewise config`'s
+/** `mm3 agent config`'s card (plan 2c B1): `mm3 config` is free, never writes (`--write` writes only a missing
+ *  starter file), and works with or without a project. Terse like every other tool card here — the full key list lives in `mm3 config`'s
  *  own output (it prints every effective value plus its source), not repeated here. */
 function configCard(): string {
   return renderCard(
     ['tool: config'],
     [
-      '- syntax: sidewise config',
-      '- free: never writes, never spends, works with or without a project',
-      '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, wise) and which of default/config/env it came from',
-      '- reads .sidewise/config.yaml if present — sparse overrides only, precedence env > config > default',
+      '- syntax: mm3 config [--write]',
+      '- free: plain config never writes, never spends, works with or without a project',
+      '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, mdl) and which of default/config/env it came from',
+      '- reads .mm3/config.yaml if present — sparse overrides only, precedence env > config > default',
       '- a bad config.yaml shows its ✖ problems here too, then the rest of the effective table underneath',
+      '- the display is not a file: to customize run mm3 config --write → writes .mm3/config.yaml (commented guide) only if missing, never overwrites',
+      '- a misnamed .mm3/config.ymal (or config.yml, config.json) gets a did-you-mean note here and in doctor',
     ],
   );
 }
 
-/** `sidewise agent wise`'s legend card (plan 2c A5) — deliberately NOT built through `renderCard`: it has its
+/** `mm3 agent mdl`'s legend card (plan 2c A5) — deliberately NOT built through `renderCard`: it has its
  *  own fixed shape (FIELDS/ARCHITECTURE/WRITE IT FLAT/EXAMPLE, no `rules:`/`patterns:`/`run:`), spelled out
  *  verbatim by the plan, so it's exempt from the "every card follows the same key order" invariant
- *  (test/unit/agent.test.ts's NON_VERBS list deliberately leaves `wise` out for this reason). The FIELDS block's
- *  values and notes come from `wise-fields.ts`'s WISE_FIELDS table (not retyped here); a unit test cross-checks
+ *  (test/unit/agent.test.ts's NON_VERBS list deliberately leaves `mdl` out for this reason). The FIELDS block's
+ *  values and notes come from `mdl-fields.ts`'s MDL_FIELDS table (not retyped here); a unit test cross-checks
  *  every table entry still appears in this text, so the two can't silently drift apart. Phase B makes this
  *  config-aware (the table gains overrides); today it's the built-in defaults only. */
 /** blast's own values (types.ts's BLASTS) are ordered narrowest-first (validation only cares about set
@@ -284,29 +286,29 @@ function configCard(): string {
  *  order a reader scans the C4 levels in. Card-display order only; validation still goes through closedValues. */
 const BLAST_CARD_ORDER = ['person', 'system', 'container', 'component', 'code'];
 
-/** A field's note, plus its project alias (`wise.<field>.as`, plan 2c B1) when it has one — an alias ADDS a
- *  name (the original key still works too, per wise-fields.ts's effectiveWiseFields), so the card says so
+/** A field's note, plus its project alias (`mdl.<field>.as`, plan 2c B1) when it has one — an alias ADDS a
+ *  name (the original key still works too, per mdl-fields.ts's effectiveMdlFields), so the card says so
  *  rather than silently relabeling the field and hiding the original. */
-function noteWithAlias(field: WiseField): string {
-  return field.alias ? `${field.note ?? ''}${field.note ? ' ' : ''}(also: wise.${field.alias})` : (field.note ?? '');
+function noteWithAlias(field: MdlField): string {
+  return field.alias ? `${field.note ?? ''}${field.note ? ' ' : ''}(also: mdl.${field.alias})` : (field.note ?? '');
 }
 
-/** `wiseFields` (plan 2c B1, F2): the caller's effective (project-config-aware) table — defaults to the
- *  built-in WISE_FIELDS, the exact card `sidewise agent wise` always printed before config overrides existed.
+/** `mdlFields` (plan 2c B1, F2): the caller's effective (project-config-aware) table — defaults to the
+ *  built-in MDL_FIELDS, the exact card `mm3 agent mdl` always printed before config overrides existed.
  *  Values/notes come straight from whichever table is given; `blast`'s card-display order (below) falls back to
  *  the built-in widest-first BLAST_CARD_ORDER only when its values are still the built-in default — an override
  *  is shown in its own given order instead. */
-function wiseCard(wiseFields: readonly WiseField[] = WISE_FIELDS): string {
-  const [why, area, stage, change, risk, problem, uses, blast, touches] = wiseFields as unknown as [
-    WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField, WiseField,
+function mdlCard(mdlFields: readonly MdlField[] = MDL_FIELDS): string {
+  const [why, area, stage, change, risk, problem, uses, blast, touches] = mdlFields as unknown as [
+    MdlField, MdlField, MdlField, MdlField, MdlField, MdlField, MdlField, MdlField, MdlField,
   ];
   const blastValues = blast.values === BLASTS ? BLAST_CARD_ORDER : closedValues(blast).slice(0, -1);
   return [
-    `tool: wise — optional, free, ≤${MAX_WISE_LINES} lines. Flat keys; the only nesting is a list.`,
+    `tool: mdl — optional, free, ≤${MAX_MDL_LINES} lines. Flat keys; the only nesting is a list.`,
     "Every field is optional: fill what you know, omit what doesn't apply.",
     '',
     'FIELDS',
-    `  why      ${closedValues(why).slice(0, -1).join(' | ')}${why.alias ? `  (also: wise.${why.alias})` : ''}`,
+    `  why      ${closedValues(why).slice(0, -1).join(' | ')}${why.alias ? `  (also: mdl.${why.alias})` : ''}`,
     `  area     ${closedValues(area).slice(0, -1).join(' | ')}          (list ≤${area.maxList}; ${noteWithAlias(area)})`,
     `  stage    ${closedValues(stage).slice(0, -1).join(' | ')}   (${noteWithAlias(stage)})`,
     `  change   ${closedValues(change).slice(0, -1).join(' | ')}   (${noteWithAlias(change)})`,
@@ -340,7 +342,7 @@ function wiseCard(wiseFields: readonly WiseField[] = WISE_FIELDS): string {
     '  name    :=  lowercase kebab-case, or a code identifier at the code level',
     '',
     'EXAMPLE',
-    '  wise:',
+    '  mdl:',
     '    why: validate',
     '    problem: request input reaches a raw query in order creation',
     '    uses:',
@@ -351,8 +353,8 @@ function wiseCard(wiseFields: readonly WiseField[] = WISE_FIELDS): string {
   ].join('\n');
 }
 
-/** Non-verb targets `agent` recognizes, beyond the six verbs above. `wise` (plan 2c) is deliberately not a
- *  `renderCard`-shaped tool card — see wiseCard's own comment. */
+/** Non-verb targets `agent` recognizes, beyond the six verbs above. `mdl` (plan 2c) is deliberately not a
+ *  `renderCard`-shaped tool card — see mdlCard's own comment. */
 const AGENT_TOPICS: Record<string, () => string> = {
   probe: probeCard,
   verdict: verdictCard,
@@ -360,7 +362,7 @@ const AGENT_TOPICS: Record<string, () => string> = {
   budget: budgetCard,
   report: reportCard,
   template: templateCard,
-  wise: wiseCard,
+  mdl: mdlCard,
   config: configCard,
   doctor: doctorCard,
 };
@@ -371,18 +373,18 @@ export const AGENT_EXTRAS: readonly string[] = Object.keys(AGENT_TOPICS);
 /** `env`/`deps` default to an empty environment (no key, not inside the plugin) so every existing caller that
  *  doesn't care about the no-key hint — every verb/tool card is unaffected by either — keeps working
  *  unchanged; cli.ts's real wiring passes `ctx.env` and the same `resolveStored` doctor uses. `deps.paths`
- *  (plan 2c B1, additive): when given, `sidewise agent wise` reads that project's own `.sidewise/config.yaml`
- *  `wise:` overrides and generates the card from the EFFECTIVE table instead of the built-in one; omitted
+ *  (plan 2c B1, additive): when given, `mm3 agent mdl` reads that project's own `.mm3/config.yaml`
+ *  `mdl:` overrides and generates the card from the EFFECTIVE table instead of the built-in one; omitted
  *  (every existing caller/test), the card stays exactly the built-in one it always was. */
 export function runAgent(
   target?: string,
   env: Record<string, string | undefined> = {},
-  deps: { resolveStored?: ResolveStored; paths?: SidewisePaths } = {},
+  deps: { resolveStored?: ResolveStored; paths?: Mm3Paths } = {},
 ): VerbResult {
   if (target === undefined || target === '') return { exit: 0, text: overview(env, deps) };
   if (hasControlChars(target)) return { exit: 2, text: '✖ agent: the target has control characters → use a verb name' };
   if (isVerb(target)) return { exit: 0, text: verbCard(target) };
-  if (target === 'wise' && deps.paths) return { exit: 0, text: wiseCard(effectiveWiseFields(resolveConfig(deps.paths, env).config.wise)) };
+  if (target === 'mdl' && deps.paths) return { exit: 0, text: mdlCard(effectiveMdlFields(resolveConfig(deps.paths, env).config.mdl)) };
   if (Object.hasOwn(AGENT_TOPICS, target)) return { exit: 0, text: AGENT_TOPICS[target]!() };
   return { exit: 2, text: `✖ agent: "${clip(target, 40)}" is not a verb → one of ${VERBS.join(', ')}, or ${agentExtras().map((t) => `"${t}"`).join(', ')}` };
 }

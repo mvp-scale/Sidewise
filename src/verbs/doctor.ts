@@ -4,7 +4,7 @@
  * anything: which provider/route/base URL would answer, whether a key is set and where it came from (never its
  * value), the pinned model, whether a project/ledger is reachable from here, the Node/node:sqlite runtime, how
  * the CLI itself was installed, and whether the Claude Code plugin is set up. A bad config (a floating
- * JEV_MODEL, a bad SIDEWISE_BASE_URL) stops here at exit 2 with the exact same ✖ message a paid verb would
+ * JEV_MODEL, a bad MM3_BASE_URL) stops here at exit 2 with the exact same ✖ message a paid verb would
  * give, just without ever risking a spend to find it out.
  *
  * doctor is the one command cli.ts's own Node-version guard (util/node-version.ts) still runs on too old a
@@ -17,14 +17,14 @@
  * real keychain, npm or claude. Only cli.ts's own production call wires the real implementations
  * (setup/keystore.ts, setup/npm-info.ts, setup/plugin.ts).
  *
- * plan 2c B1b: bare `sidewise doctor` also validates `.sidewise/config.yaml` when present (free, offline,
- * reusing `config/load.ts`'s own `resolveConfig` — the exact same stops `sidewise config` would show). Given a
- * file or stdin (`runDoctorFile`, wired by cli.ts as `sidewise doctor <file|->`), doctor instead checks ONE
- * document and detects its kind: a `side:` top-level key means a REQUEST, checked with the same
+ * plan 2c B1b: bare `mm3 doctor` also validates `.mm3/config.yaml` when present (free, offline,
+ * reusing `config/load.ts`'s own `resolveConfig` — the exact same stops `mm3 config` would show). Given a
+ * file or stdin (`runDoctorFile`, wired by cli.ts as `mm3 doctor <file|->`), doctor instead checks ONE
+ * document and detects its kind: a `mak:` top-level key means a REQUEST, checked with the same
  * read+validate pipeline `--dry-run` uses (verbs/request.ts's `loadRequest` — no ledger, reuse or budget
  * lookups, since those happen later, inside each verb function, never inside `loadRequest`/`validateRequest`
  * themselves); anything else is checked as a CONFIG file, via `config/validate.ts`'s `validateConfig` directly
- * (no project needed at all for this path — it only validates YAML text, never touches `.sidewise/`).
+ * (no project needed at all for this path — it only validates YAML text, never touches `.mm3/`).
  */
 import path from 'node:path';
 import { parseDocument } from 'yaml';
@@ -34,10 +34,11 @@ import { hasKey, JevConfigError, resolveJevConfig, routeLabel, type JevConfig, t
 import { emit, m, type Value } from '../contract/emit.ts';
 import { VERBS, type Verb } from '../contract/types.ts';
 import type { ConfigSource } from '../config/defaults.ts';
+import { nearMissNotes } from '../config/config.ts';
 import { resolveConfig } from '../config/load.ts';
 import { validateConfig } from '../config/validate.ts';
 import { sqliteAvailable } from '../ledger/index.ts';
-import type { SidewisePaths } from '../ledger/paths.ts';
+import type { Mm3Paths } from '../ledger/paths.ts';
 import { envFilePath, looseFileModeWarning, readEnvFile } from '../setup/env-file.ts';
 import { readInstallRecord } from '../setup/install-record.ts';
 import { findOnPath } from '../setup/npm-info.ts';
@@ -57,7 +58,7 @@ interface Identity {
 
 /** Same key-selection rule as selectProvider (select.ts), but never builds a client — this never calls out. */
 function identityFor(env: Record<string, string | undefined>, config: JevConfig): Identity {
-  const wanted = env.SIDEWISE_PROVIDER?.trim();
+  const wanted = env.MM3_PROVIDER?.trim();
   if (wanted === 'chaos') return { adapter: 'chaos', route: 'chaos', model: CHAOS_MODEL, baseURL: null };
   const usingTypesafe = wanted === 'typesafe' || (wanted !== 'fake' && hasKey(config));
   if (!usingTypesafe) return { adapter: 'fake', route: 'fake', model: FAKE_MODEL, baseURL: null };
@@ -73,23 +74,23 @@ function identityFor(env: Record<string, string | undefined>, config: JevConfig)
 
 const octal4 = (mode: number): string => mode.toString(8).padStart(4, '0');
 
-/** The `actor:` value — every run/outcome defaults to `by: agent` unless SIDEWISE_ACTOR is set (the
+/** The `actor:` value — every run/outcome defaults to `by: agent` unless MM3_ACTOR is set (the
  *  same fallback pay.ts's actorOf uses; duplicated rather than imported, matching this module's own low-
  *  dependency style). On a real MCP call, cli.ts's mcp wiring sets this to "claude" before dispatch ever
  *  reaches here — see src/mcp/actor.ts — so this line shows what will actually be used. */
 function actorLine(env: Record<string, string | undefined>): string {
-  const set = env.SIDEWISE_ACTOR?.trim();
-  return set || 'agent (default) → set SIDEWISE_ACTOR to change';
+  const set = env.MM3_ACTOR?.trim();
+  return set || 'agent (default) → set MM3_ACTOR to change';
 }
 
 // Each of these builds the VALUE half only — emit()'s m() already renders "key: <value>" from the map entry,
 // so a literal "key: " here would double up (caught by doctor.test.ts before this file ever shipped it).
 
 /** The no-key hint: inside the plugin's own MCP server (CLAUDE_PLUGIN_ROOT set — see setup/plugin.ts's
- *  `inPluginContext`), `sidewise init` isn't reachable from here, so point at the config dialog instead; a bare
+ *  `inPluginContext`), `mm3 init` isn't reachable from here, so point at the config dialog instead; a bare
  *  terminal (or another MCP client) keeps the original hint. */
 function noKeyHint(env: Record<string, string | undefined>): string {
-  return inPluginContext(env) ? `none (sample answers only) → ${NO_KEY_PLUGIN_HINT}` : 'no  → run "sidewise init" to add one';
+  return inPluginContext(env) ? `none (sample answers only) → ${NO_KEY_PLUGIN_HINT}` : 'no  → run "mm3 init" to add one';
 }
 
 /** The `key:` value, plus, when the env file's mode is looser than 0600 or it has an ignored line, a matching
@@ -105,7 +106,7 @@ function keyLine(env: Record<string, string | undefined>, config: JevConfig, dep
     const read = readEnvFile(file);
     const mode = read?.mode ?? 0o600;
     const note = read
-      ? (looseFileModeWarning(file, mode) ?? (read.ignoredLines > 0 ? `✖ credentials: ${file} has ${read.ignoredLines} line(s) sidewise ignored (not "export NAME='value'" for an allowed name)` : undefined))
+      ? (looseFileModeWarning(file, mode) ?? (read.ignoredLines > 0 ? `✖ credentials: ${file} has ${read.ignoredLines} line(s) mm3 ignored (not "export NAME='value'" for an allowed name)` : undefined))
       : undefined;
     return { value: `yes · from user file ${file} (${octal4(mode)}, not encrypted)`, note };
   }
@@ -116,12 +117,12 @@ function keyLine(env: Record<string, string | undefined>, config: JevConfig, dep
   return { value: `yes · from env ${envVar}${stored ? ' (overrides stored)' : ''}` };
 }
 
-/** The `cli:` value: where `sidewise` resolves on PATH (a pure, always-safe filesystem walk — never gated on
+/** The `cli:` value: where `mm3` resolves on PATH (a pure, always-safe filesystem walk — never gated on
  *  deps), plus how init installed it, from install.json, when that record exists. */
 function cliLine(env: Record<string, string | undefined>, platform: NodeJS.Platform): string {
-  const resolved = findOnPath('sidewise', env, platform);
+  const resolved = findOnPath('mm3', env, platform);
   const record = readInstallRecord(env);
-  if (!resolved && !record) return 'not on PATH → run "sidewise init" to install it';
+  if (!resolved && !record) return 'not on PATH → run "mm3 init" to install it';
   const shown = resolved ?? '(not currently on PATH)';
   if (!record) return `${shown} · on PATH`;
   const flag = record.mode === 'global' ? '--global' : record.mode === 'user' ? '--user' : '--local';
@@ -131,17 +132,17 @@ function cliLine(env: Record<string, string | undefined>, platform: NodeJS.Platf
 
 /** The `plugin:` value. `deps.runner` omitted (every caller but cli.ts) never actually spawns `claude` — it
  *  reads the same as "not installed", which is also the honest answer when `claude` isn't on PATH at all.
- *  When the ONLY scope found is `user`, add a one-line nudge toward `project` scope: using Sidewise is scoped
+ *  When the ONLY scope found is `user`, add a one-line nudge toward `project` scope: using MM3 is scoped
  *  per project (see `stepPlugin` in setup/init.ts, which already defaults there), but `/plugin install` inside
  *  Claude Code's own UI defaults to `user` scope, so a manual install can land here without ever seeing that
  *  default questioned. [C-177] */
 function pluginLine(deps: { runner?: Runner }): string {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
-  if (!status.installed) return 'not installed → "sidewise init --claude"';
+  if (!status.installed) return 'not installed → "mm3 init --claude"';
   const scopes = status.scopes as string[];
   const scope = scopes[0] ?? 'user';
   const userOnly = scopes.length === 1 && scope === 'user';
-  return `sidewise@mvp-scale · ${scope} scope${userOnly ? ' (every project) → for just this one, "sidewise init --scope project"' : ''}`;
+  return `mm3@mvp-scale · ${scope} scope${userOnly ? ' (every project) → for just this one, "mm3 init --scope project"' : ''}`;
 }
 
 /** Using is per project: the `project:` value names the root, then whether the plugin is
@@ -168,9 +169,9 @@ function overrideCount(sources: Record<string, ConfigSource>): number {
 }
 
 /** The `config:` field (plan 2c B1b): a bad config.yaml shows every problem in one pass, same
- *  `✖ config.<path>: problem → fix` shape `sidewise config`/`doctor <file>` use; a clean or absent one shows
+ *  `✖ config.<path>: problem → fix` shape `mm3 config`/`doctor <file>` use; a clean or absent one shows
  *  just how many top-level keys it overrides, or "defaults" when none. */
-function configField(paths: SidewisePaths | undefined, env: Record<string, string | undefined>): Value {
+function configField(paths: Mm3Paths | undefined, env: Record<string, string | undefined>): Value {
   const resolved = resolveConfig(paths, env);
   if (resolved.stops.length) return resolved.stops.map((s) => s.text);
   const n = overrideCount(resolved.sources);
@@ -184,16 +185,16 @@ const MAX_DOCTOR_STOPS = 5;
  *  `AgentTarget` union and this module otherwise has no reason to depend on verbs/request.ts's own type. */
 function doctorStops(lines: readonly string[]): string {
   const capped = lines.length <= MAX_DOCTOR_STOPS ? [...lines] : [...lines.slice(0, MAX_DOCTOR_STOPS), `✖ request: ${lines.length - MAX_DOCTOR_STOPS} more problems → fix the ones above, then run again`];
-  return [...capped, '→ see: sidewise agent doctor'].join('\n');
+  return [...capped, '→ see: mm3 agent doctor'].join('\n');
 }
 
-/** A document's own top-level `side:` key names it a REQUEST (`wise:` alone, with no `side:`, is never valid on
+/** A document's own top-level `mak:` key names it a REQUEST (`mdl:` alone, with no `mak:`, is never valid on
  *  its own per the schema, so this one check is enough); anything else is checked as CONFIG. A plain regex, not
  *  a full parse: kind detection must work even on YAML `loadRequest`/`validateConfig` will themselves reject —
  *  the actual validator, not this sniff, is what reports the real problem either way. */
-const isRequestShaped = (text: string): boolean => /^side\s*:/mu.test(text);
+const isRequestShaped = (text: string): boolean => /^mak\s*:/mu.test(text);
 
-/** Best-effort `side.verb` sniff for picking which verb to validate a standalone request file against — never
+/** Best-effort `mak.verb` sniff for picking which verb to validate a standalone request file against — never
  *  the source of truth (loadRequest's own schema/cross checks are), just a hint so `doctor <file>` doesn't have
  *  to guess blindly when the file already names its verb. Any parse failure here is silently ignored: the real
  *  parse error is `loadRequest`'s to report, against the 'class' fallback. */
@@ -201,8 +202,8 @@ function sniffVerb(text: string): Verb {
   try {
     const doc = parseDocument(text, { version: '1.2', schema: 'core', uniqueKeys: true });
     if (doc.errors.length) return 'class';
-    const value = doc.toJS({ maxAliasCount: 50 }) as { side?: { verb?: unknown } } | null;
-    const verb = value?.side?.verb;
+    const value = doc.toJS({ maxAliasCount: 50 }) as { mak?: { verb?: unknown } } | null;
+    const verb = value?.mak?.verb;
     return typeof verb === 'string' && (VERBS as readonly string[]).includes(verb) ? (verb as Verb) : 'class';
   } catch {
     return 'class';
@@ -210,19 +211,19 @@ function sniffVerb(text: string): Verb {
 }
 
 /** Controller-found defect (plan 2c B): a contract cross-stop (validate.ts's checkCross) already embeds its own
- *  "→ see: sidewise agent probe" pointer in the stop line itself; loadRequest's own stopText then appends a
- *  SECOND, generic "→ see: sidewise agent <verb>" at the very end — deliberate for a real verb's own --dry-run
+ *  "→ see: mm3 agent probe" pointer in the stop line itself; loadRequest's own stopText then appends a
+ *  SECOND, generic "→ see: mm3 agent <verb>" at the very end — deliberate for a real verb's own --dry-run
  *  (schema-check.ts's header comment: that pointer is an ADDITIONAL, more specific one, and the generic trailing
  *  one "still fires afterward regardless"), but doctor is meant to be simpler: every problem in one pass, each
- *  stop printed once, a SINGLE trailing pointer. This strips any embedded "→ see: sidewise agent <word>" from
+ *  stop printed once, a SINGLE trailing pointer. This strips any embedded "→ see: mm3 agent <word>" from
  *  every line but the last (which is always stopText's own generic pointer, already exactly what doctor wants). */
 function singleTrailingPointer(text: string): string {
   const lines = text.split('\n');
   const last = lines.length - 1;
-  return lines.map((line, i) => (i === last ? line : line.replace(/ → see: sidewise agent \S+$/, ''))).join('\n');
+  return lines.map((line, i) => (i === last ? line : line.replace(/ → see: mm3 agent \S+$/, ''))).join('\n');
 }
 
-/** `sidewise doctor <file>` / `sidewise doctor -` (plan 2c B1b): checks ONE document, offline, and never writes
+/** `mm3 doctor <file>` / `mm3 doctor -` (plan 2c B1b): checks ONE document, offline, and never writes
  *  anything — works with no project at all. See the module doc for the kind-detection rule. */
 export function runDoctorFile(text: string): VerbResult {
   if (isRequestShaped(text)) {
@@ -251,7 +252,7 @@ export function runDoctorFile(text: string): VerbResult {
 
 export function runDoctor(
   env: Record<string, string | undefined>,
-  paths: SidewisePaths | undefined,
+  paths: Mm3Paths | undefined,
   nodeVersion: string = process.version,
   deps: { resolveStored?: ResolveStored; runner?: Runner; platform?: NodeJS.Platform } = {},
 ): VerbResult {
@@ -268,8 +269,9 @@ export function runDoctor(
   const { value: key, note: keyNote } = keyLine(env, config, deps);
   const notes = [
     'free: no call, no spend',
-    ...(paths ? [] : ['no project found here or above → run inside one, or set SIDEWISE_HOME']),
+    ...(paths ? [] : ['no project found here or above → run inside one, or set MM3_HOME']),
     ...(keyNote ? [keyNote] : []),
+    ...nearMissNotes(paths),
   ];
 
   const doc = m(

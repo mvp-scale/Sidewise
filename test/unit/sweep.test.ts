@@ -11,7 +11,7 @@ import { stubProvider } from '../helpers/stub-provider.ts';
 // part is not the finest layer (story is): a thin 2-probe ask is fine there. story needs the full contract:
 // 3 concerns categories x 3 probes + decisions.
 const LOOP =
-  'side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout, saved cards]\n      - name: payments\n        story: [refunds, retries, partial capture]\n      - ledger\n  ask:\n    part:\n      concerns:\n        boundaries:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n    story:\n      concerns:\n        done:\n          pass: yes\n          3: Is "{story}" testable against {part} as written?\n          4: Does "{story}" have a named owner?\n          5: Is "{story}" small enough to ship on its own?\n        risk:\n          pass: no\n          6: Does "{story}" need data {part} doesn\'t own?\n          7: Does "{story}" depend on another part\'s release order?\n          8: Could "{story}" fail silently in production?\n        fit:\n          pass: yes\n          9: Does "{story}" match how {part} is meant to be used?\n          10: Would "{story}" survive {part} being replaced later?\n          11: Is "{story}" covered by an existing test today?\n      decisions:\n        severity:\n          pass: [none]\n          12:\n            scale: How risky is "{story}"?\n            levels: [none, high]\n        route:\n          pass: [build-now]\n          13:\n            choice: What should happen to "{story}" next?\n            options: [build-now, rework]\n';
+  'mak:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - name: gateway\n        story: [guest checkout, saved cards]\n      - name: payments\n        story: [refunds, retries, partial capture]\n      - ledger\n  ask:\n    part:\n      concerns:\n        boundaries:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n    story:\n      concerns:\n        done:\n          pass: yes\n          3: Is "{story}" testable against {part} as written?\n          4: Does "{story}" have a named owner?\n          5: Is "{story}" small enough to ship on its own?\n        risk:\n          pass: no\n          6: Does "{story}" need data {part} doesn\'t own?\n          7: Does "{story}" depend on another part\'s release order?\n          8: Could "{story}" fail silently in production?\n        fit:\n          pass: yes\n          9: Does "{story}" match how {part} is meant to be used?\n          10: Would "{story}" survive {part} being replaced later?\n          11: Is "{story}" covered by an existing test today?\n      decisions:\n        severity:\n          pass: [none]\n          12:\n            scale: How risky is "{story}"?\n            levels: [none, high]\n        route:\n          pass: [build-now]\n          13:\n            choice: What should happen to "{story}" next?\n            options: [build-now, rework]\n';
 const req = () => {
   const v = validateRequest((readRequestText(LOOP) as { ok: true; value: unknown }).value, 'loop');
   if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
@@ -92,8 +92,8 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     const category = { name: 'boundaries', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Does {part} own one clear responsibility?' }] };
     const names = Array.from({ length: 15 }, (_, i) => `part${i}`);
     const makeRequest = (over: string[]): Request => ({
-      side: { goal: 'The parts are sound', depth: 'quick', where: [], categories: [], layers: [{ name: 'part', categories: [category] }], over: { part: over } },
-      wise: null,
+      mak: { goal: 'The parts are sound', depth: 'quick', where: [], categories: [], layers: [{ name: 'part', categories: [category] }], over: { part: over } },
+      mdl: null,
     });
 
     // Seed 3 items (part0-2) as already answered, through the real engine (runSweep alone never writes the
@@ -102,7 +102,7 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     // the other 2 concerns categories and the decisions just round out the depth: quick (3 x 3) + decisions
     // contract on this, the only (finest), layer.
     const SEED =
-      'side:\n  goal: The parts are sound\n  depth: quick\n  over:\n    part: [part0, part1, part2]\n  ask:\n    part:\n      concerns:\n        boundaries:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed alone?\n          3: Does {part} have a single owner?\n        clarity:\n          pass: yes\n          4: Is {part} documented?\n          5: Is {part} easy to test?\n          6: Is {part} loosely coupled?\n        fit:\n          pass: yes\n          7: Does {part} fit the design?\n          8: Would {part} survive a rewrite?\n          9: Is {part} used as intended?\n      decisions:\n        severity:\n          pass: [none]\n          10:\n            scale: How risky is {part}?\n            levels: [none, high]\n        route:\n          pass: [ship]\n          11:\n            choice: What should happen to {part}?\n            options: [ship, rework]\n';
+      'mak:\n  goal: The parts are sound\n  depth: quick\n  over:\n    part: [part0, part1, part2]\n  ask:\n    part:\n      concerns:\n        boundaries:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed alone?\n          3: Does {part} have a single owner?\n        clarity:\n          pass: yes\n          4: Is {part} documented?\n          5: Is {part} easy to test?\n          6: Is {part} loosely coupled?\n        fit:\n          pass: yes\n          7: Does {part} fit the design?\n          8: Would {part} survive a rewrite?\n          9: Is {part} used as intended?\n      decisions:\n        severity:\n          pass: [none]\n          10:\n            scale: How risky is {part}?\n            levels: [none, high]\n        route:\n          pass: [ship]\n          11:\n            choice: What should happen to {part}?\n            options: [ship, rework]\n';
     const seedRun = await runLoop(SEED, { paths, provider, env: {} });
     expect(seedRun.exit).toBe(0);
 
@@ -120,8 +120,8 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     const category = { name: 'boundaries', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Does {part} own one clear responsibility?' }] };
     const names = Array.from({ length: 15 }, (_, i) => `part${i}`);
     const makeRequest = (): Request => ({
-      side: { goal: 'The parts are sound', depth: 'quick', where: [], categories: [], layers: [{ name: 'part', categories: [category] }], over: { part: names } },
-      wise: null,
+      mak: { goal: 'The parts are sound', depth: 'quick', where: [], categories: [], layers: [{ name: 'part', categories: [category] }], over: { part: names } },
+      mdl: null,
     });
 
     it('a project maxItems below the depth cap (10 for quick) tightens it', () => {

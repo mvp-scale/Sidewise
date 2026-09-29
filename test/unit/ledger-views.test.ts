@@ -1,5 +1,5 @@
 // Phase B's index additions (ledger/index.ts): patternFingerprint, and the four IndexHandle methods
-// `sidewise report` is built on — distinctPlaces, patternCounts, recentReplays, recentOutcomes. Same discipline
+// `mm3 report` is built on — distinctPlaces, patternCounts, recentReplays, recentOutcomes. Same discipline
 // as ledger-index.test.ts: every read is checked on both engines (real SQLite and the in-memory fallback), via
 // the same `__testOnly.forceFallback` toggle.
 import { afterEach, describe, expect, it } from 'vitest';
@@ -21,11 +21,11 @@ describe('patternFingerprint', () => {
     const run1 = sampleContractRun({ ask: { categories: [a, b], layers: [] } });
     const run2 = sampleContractRun({ ask: { categories: [b, a], layers: [] } }); // reordered
     const run3 = sampleContractRun({ ask: { categories: [a], layers: [] } }); // fewer questions
-    expect(patternFingerprint({ ...run1, kind: 'run', v: 2, id: 'SW-0001', uid: 'u', ts: 't', response: '' })).toBe(
-      patternFingerprint({ ...run2, kind: 'run', v: 2, id: 'SW-0002', uid: 'u', ts: 't', response: '' }),
+    expect(patternFingerprint({ ...run1, kind: 'run', v: 2, id: 'MM3-0001', uid: 'u', ts: 't', response: '' })).toBe(
+      patternFingerprint({ ...run2, kind: 'run', v: 2, id: 'MM3-0002', uid: 'u', ts: 't', response: '' }),
     );
-    expect(patternFingerprint({ ...run1, kind: 'run', v: 2, id: 'SW-0001', uid: 'u', ts: 't', response: '' })).not.toBe(
-      patternFingerprint({ ...run3, kind: 'run', v: 2, id: 'SW-0003', uid: 'u', ts: 't', response: '' }),
+    expect(patternFingerprint({ ...run1, kind: 'run', v: 2, id: 'MM3-0001', uid: 'u', ts: 't', response: '' })).not.toBe(
+      patternFingerprint({ ...run3, kind: 'run', v: 2, id: 'MM3-0003', uid: 'u', ts: 't', response: '' }),
     );
   });
 });
@@ -45,10 +45,10 @@ describe('report views', () => {
 
   it('patternCounts groups by question set, with pass/fail/unsure, places and outcomes, on both engines', () => {
     const { paths } = tempProject({});
-    // SW-0001, SW-0002: the same question set (sampleContractRun's default ask), different places, both fail.
+    // MM3-0001, MM3-0002: the same question set (sampleContractRun's default ask), different places, both fail.
     appendContractRun(paths, sampleContractRun({ where: ['src/api/user.ts'] }), Date.now(), 'b');
     appendContractRun(paths, sampleContractRun({ where: ['src/other.ts'] }), Date.now(), 'b');
-    // SW-0003: a different question set, passes.
+    // MM3-0003: a different question set, passes.
     appendContractRun(
       paths,
       sampleContractRun({
@@ -59,7 +59,7 @@ describe('report views', () => {
       Date.now(),
       'b',
     );
-    appendOutcome(paths, 'SW-0001', 'held', 'owner');
+    appendOutcome(paths, 'MM3-0001', 'held', 'owner');
     for (const forceFallback of ENGINES) {
       __testOnly.forceFallback = forceFallback;
       const rows = withIndex(paths, (h) => h.patternCounts(), { readOnly: true });
@@ -74,33 +74,33 @@ describe('report views', () => {
 
   it('recentReplays lists only replay-verb runs, newest first, on both engines', () => {
     const { paths } = tempProject({});
-    appendContractRun(paths, sampleContractRun({}), Date.now(), 'b'); // SW-0001: class
-    appendContractRun(paths, sampleContractRun({ verb: 'replay', parent: 'SW-0001' }), Date.now(), 'b'); // SW-0002: replay
-    appendContractRun(paths, sampleContractRun({}), Date.now(), 'b'); // SW-0003: class again
-    appendContractRun(paths, sampleContractRun({ verb: 'replay', parent: 'SW-0001' }), Date.now(), 'b'); // SW-0004: replay
+    appendContractRun(paths, sampleContractRun({}), Date.now(), 'b'); // MM3-0001: class
+    appendContractRun(paths, sampleContractRun({ verb: 'replay', parent: 'MM3-0001' }), Date.now(), 'b'); // MM3-0002: replay
+    appendContractRun(paths, sampleContractRun({}), Date.now(), 'b'); // MM3-0003: class again
+    appendContractRun(paths, sampleContractRun({ verb: 'replay', parent: 'MM3-0001' }), Date.now(), 'b'); // MM3-0004: replay
     for (const forceFallback of ENGINES) {
       __testOnly.forceFallback = forceFallback;
       const rows = withIndex(paths, (h) => h.recentReplays(10), { readOnly: true });
-      expect(rows.map((r) => r.id)).toEqual(['SW-0004', 'SW-0002']);
+      expect(rows.map((r) => r.id)).toEqual(['MM3-0004', 'MM3-0002']);
     }
   });
 
   it('recentOutcomes lists every recorded outcome, newest first, capped at limit, on both engines', () => {
     const { paths } = tempProject({});
-    appendContractRun(paths, sampleContractRun({}), Date.now(), 'b'); // SW-0001
-    appendContractRun(paths, sampleContractRun({ where: ['src/other.ts'] }), Date.now(), 'b'); // SW-0002
-    appendOutcome(paths, 'SW-0001', 'held', 'owner');
-    appendOutcome(paths, 'SW-0002', 'overruled', 'owner');
+    appendContractRun(paths, sampleContractRun({}), Date.now(), 'b'); // MM3-0001
+    appendContractRun(paths, sampleContractRun({ where: ['src/other.ts'] }), Date.now(), 'b'); // MM3-0002
+    appendOutcome(paths, 'MM3-0001', 'held', 'owner');
+    appendOutcome(paths, 'MM3-0002', 'overruled', 'owner');
     for (const forceFallback of ENGINES) {
       __testOnly.forceFallback = forceFallback;
       const rows = withIndex(paths, (h) => h.recentOutcomes(10), { readOnly: true });
       expect(rows.map((r) => [r.runId, r.outcome])).toEqual([
-        ['SW-0002', 'overruled'],
-        ['SW-0001', 'held'],
+        ['MM3-0002', 'overruled'],
+        ['MM3-0001', 'held'],
       ]);
       const capped = withIndex(paths, (h) => h.recentOutcomes(1), { readOnly: true });
       expect(capped).toHaveLength(1);
-      expect(capped[0]!.runId).toBe('SW-0002');
+      expect(capped[0]!.runId).toBe('MM3-0002');
     }
   });
 });

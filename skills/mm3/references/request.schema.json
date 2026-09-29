@@ -1,19 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/mvp-scale/Sidewise/skills/sidewise/references/request.schema.json",
-  "title": "Sidewise request",
-  "description": "Two blocks. side: one goal plus plumbing to the TypeSafe classifier. wise: optional context so the ledger learns. ask has two sections: concerns (yes/no) and decisions (scale/choice). Checks JSON Schema can't express (exact counts per depth, per-section kind restrictions, numbers unique and 1..N with no gaps, a category holds one kind of question, paths inside the project) are done by the Sidewise validator, which answers '✖ field: problem → fix'.",
+  "$id": "https://github.com/mvp-scale/Sidewise/skills/mm3/references/request.schema.json",
+  "title": "MM3 request",
+  "description": "Two blocks. mak: one goal plus plumbing to the TypeSafe classifier. mdl: optional context so the ledger learns. ask has two sections: concerns (yes/no) and decisions (scale/choice). Checks JSON Schema can't express (exact counts per depth, per-section kind restrictions, numbers unique and 1..N with no gaps, a category holds one kind of question, paths inside the project) are done by the MM3 validator, which answers '✖ field: problem → fix'.",
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "side"
+    "mak"
   ],
   "properties": {
-    "side": {
-      "$ref": "#/$defs/side"
+    "mak": {
+      "$ref": "#/$defs/mak"
     },
-    "wise": {
-      "$ref": "#/$defs/wise"
+    "mdl": {
+      "$ref": "#/$defs/mdl"
     }
   },
   "$defs": {
@@ -36,14 +36,14 @@
     },
     "runId": {
       "type": "string",
-      "pattern": "^SW-\\d{4,}$"
+      "pattern": "^(?:MM3|SW)-\\d{4,}$"
     },
     "path": {
       "type": "string",
       "pattern": "^[^\\s:]+(:\\d+(-\\d+)?)?$",
       "description": "a project path, optional :start-end"
     },
-    "side": {
+    "mak": {
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -139,7 +139,7 @@
           "oneOf": [
             {
               "type": "array",
-              "minItems": 1,
+              "minItems": 0,
               "maxItems": 9,
               "items": {
                 "$ref": "#/$defs/tag"
@@ -328,7 +328,7 @@
         }
       ]
     },
-    "wise": {
+    "mdl": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -343,14 +343,14 @@
         "area": {
           "oneOf": [
             {
-              "$ref": "#/$defs/wiseArea"
+              "$ref": "#/$defs/mdlArea"
             },
             {
               "type": "array",
               "minItems": 1,
               "maxItems": 2,
               "items": {
-                "$ref": "#/$defs/wiseArea"
+                "$ref": "#/$defs/mdlArea"
               }
             }
           ]
@@ -395,14 +395,14 @@
         "uses": {
           "oneOf": [
             {
-              "$ref": "#/$defs/wiseChain"
+              "$ref": "#/$defs/mdlChain"
             },
             {
               "type": "array",
               "minItems": 1,
               "maxItems": 5,
               "items": {
-                "$ref": "#/$defs/wiseChain"
+                "$ref": "#/$defs/mdlChain"
               }
             }
           ],
@@ -452,7 +452,7 @@
         }
       }
     },
-    "wiseArea": {
+    "mdlArea": {
       "enum": [
         "data",
         "api",
@@ -464,7 +464,7 @@
         "unknown"
       ]
     },
-    "wiseChain": {
+    "mdlChain": {
       "type": "string",
       "maxLength": 160,
       "pattern": "^(?:person|system|container|component|code):[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\\??(?: -> (?:person|system|container|component|code):[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*\\??)*$",

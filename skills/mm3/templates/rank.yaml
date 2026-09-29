@@ -1,6 +1,6 @@
 # rank pattern (scan-shaped): add a scale question to the finest layer to rank findings by severity (level x
 # probability), worst first, instead of getting back an unordered map. No new verb or option; just run scan.
-side:
+mak:
   goal: Which of these handlers leaks the most on error
   depth: quick
   over:
@@ -34,6 +34,6 @@ side:
           11:
             choice: Where should {file} go?
             options: [ship, fix, block]
-wise:
+mdl:
   why: find
   area: api

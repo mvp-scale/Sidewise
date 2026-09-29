@@ -1,4 +1,4 @@
-side:
+mak:
   goal: Handlers don't trust request input
   depth: quick
   over:
@@ -33,6 +33,6 @@ side:
           11:
             choice: Where should {function} go?
             options: [ship, fix, block]
-wise:
+mdl:
   why: find
   area: api

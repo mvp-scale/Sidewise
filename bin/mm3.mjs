@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { createRequire as __sidewiseCreateRequire } from 'node:module';
-const require = __sidewiseCreateRequire(import.meta.url);
+import { createRequire as __mm3CreateRequire } from 'node:module';
+const require = __mm3CreateRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -7377,9 +7377,9 @@ import { parseArgs } from "node:util";
 
 // package.json
 var package_default = {
-  name: "@mvpscale/sidewise",
+  name: "@mvpscale/mm3",
   version: "0.0.0",
-  description: "Side answers for coding agents: compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
+  description: "MM3, a Knowledge One system for coding agents: MAK\xB3 uses what is proven, MDL\xB3 learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
   license: "Apache-2.0",
   type: "module",
   repository: {
@@ -7394,13 +7394,14 @@ var package_default = {
     "gemini-cli",
     "mcp",
     "agent-skills",
-    "decision-support"
+    "decision-support",
+    "knowledge-one"
   ],
   engines: {
     node: ">=22.13"
   },
   bin: {
-    sidewise: "dist/cli.js"
+    mm3: "dist/cli.js"
   },
   exports: {
     ".": {
@@ -7432,7 +7433,7 @@ var package_default = {
     "test:flows": "sh scripts/flows.sh",
     "bench:ledger": "tsx scripts/bench-ledger.ts",
     "bench:tokens": "tsx scripts/bench-tokens.ts",
-    sidewise: "tsx src/cli.ts",
+    mm3: "tsx src/cli.ts",
     "check:clean": "sh scripts/check-clean.sh",
     "check:trace": "tsx scripts/trace.ts",
     "check:pack": "tsx scripts/check-pack.ts",
@@ -7440,7 +7441,7 @@ var package_default = {
     "check:hygiene": "tsx scripts/check-hygiene.ts",
     "gen:evidence-index": "tsx scripts/evidence-index.ts",
     prepare: "git config core.hooksPath .githooks 2>/dev/null || true",
-    "dev:install": 'npm run build && tgz="$(pwd)/$(npm pack --silent | tail -1)" && cd "${INIT_CWD:-.}" && npx --yes --package "$tgz" sidewise init'
+    "dev:install": 'npm run build && tgz="$(pwd)/$(npm pack --silent | tail -1)" && cd "${INIT_CWD:-.}" && npx --yes --package "$tgz" mm3 init'
   },
   devDependencies: {
     "@types/node": "22.19.18",
@@ -7476,10 +7477,10 @@ var DEFAULT_CONFIG = {
   sweep: { maxQuestionsPerCall: 500 },
   requestMaxBytes: 1048576,
   reuse: {},
-  wise: {}
+  mdl: {}
 };
-var CONFIG_KEYS = ["budget", "provider", "baseURL", "model", "pricing", "timeoutMs", "retries", "backoffMs", "sweep", "requestMaxBytes", "reuse", "wise"];
-var CONTRACT_ONLY_KEYS = ["depth", "goal", "where", "ask", "over", "wise.parent"];
+var CONFIG_KEYS = ["budget", "provider", "baseURL", "model", "pricing", "timeoutMs", "retries", "backoffMs", "sweep", "requestMaxBytes", "reuse", "mdl"];
+var CONTRACT_ONLY_KEYS = ["depth", "goal", "where", "ask", "over", "mdl.parent"];
 var SECRET_LIKE_KEYS = ["apikey", "api_key", "key", "token", "secret", "password", "credential", "credentials"];
 
 // src/ledger/redact.ts
@@ -7583,7 +7584,9 @@ function checkNonEmptyString(path22, v, out) {
   if (checkSecretValue(path22, v, out)) return false;
   return true;
 }
+var isEmptySection = (v) => v === null || v === void 0;
 function checkBudget(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("budget", "is not a mapping", "write usd:, runs: and/or per: under budget:"));
     return {};
@@ -7606,6 +7609,7 @@ function checkBudget(v, out) {
   return result;
 }
 function checkPricing(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("pricing", "is not a mapping", "write <model>: {inputPerMTok: <n>} under pricing:"));
     return {};
@@ -7614,6 +7618,7 @@ function checkPricing(v, out) {
   for (const model of Object.keys(v)) {
     const rate = v[model];
     const path22 = `pricing.${model}`;
+    if (isEmptySection(rate)) continue;
     if (!isObj(rate)) {
       out.push(stop(path22, "is not a mapping", "write {inputPerMTok, outputPerMTok, perSecond, perCall}"));
       continue;
@@ -7634,6 +7639,7 @@ function checkPricing(v, out) {
   return result;
 }
 function checkSweep(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("sweep", "is not a mapping", "write maxItems: and/or maxQuestionsPerCall: under sweep:"));
     return {};
@@ -7651,6 +7657,7 @@ function checkSweep(v, out) {
   return result;
 }
 function checkReuse(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
     out.push(stop("reuse", "is not a mapping", "write maxAgeDays: and/or maxCommits: under reuse:"));
     return {};
@@ -7667,25 +7674,27 @@ function checkReuse(v, out) {
   }
   return result;
 }
-var WISE_OVERRIDE_FIELDS = ["values", "note", "as", "pattern", "link", "literal"];
-function checkWise(v, out) {
+var MDL_OVERRIDE_FIELDS = ["values", "note", "as", "pattern", "link", "literal"];
+function checkMdl(v, out) {
+  if (isEmptySection(v)) return {};
   if (!isObj(v)) {
-    out.push(stop("wise", "is not a mapping", 'write <field>: {values: [...], note: "..."} under wise:'));
+    out.push(stop("mdl", "is not a mapping", 'write <field>: {values: [...], note: "..."} under mdl:'));
     return {};
   }
   const result = {};
   for (const field of Object.keys(v)) {
     const override = v[field];
-    const path22 = `wise.${field}`;
+    const path22 = `mdl.${field}`;
+    if (isEmptySection(override)) continue;
     if (!isObj(override)) {
       out.push(stop(path22, "is not a mapping", "write {values?, note?, as?, pattern?, link?, literal?}"));
       continue;
     }
     const entry = {};
     for (const k of Object.keys(override)) {
-      if (!WISE_OVERRIDE_FIELDS.includes(k)) {
-        const hint = didYouMean(k, WISE_OVERRIDE_FIELDS);
-        out.push(stop(`${path22}.${k}`, `"${k}" is not a wise override field`, hint ? `did you mean ${hint}?` : `use ${WISE_OVERRIDE_FIELDS.join(", ")}`));
+      if (!MDL_OVERRIDE_FIELDS.includes(k)) {
+        const hint = didYouMean(k, MDL_OVERRIDE_FIELDS);
+        out.push(stop(`${path22}.${k}`, `"${k}" is not an mdl override field`, hint ? `did you mean ${hint}?` : `use ${MDL_OVERRIDE_FIELDS.join(", ")}`));
         continue;
       }
       const val = override[k];
@@ -7747,8 +7756,8 @@ function validateConfig(raw) {
       case "reuse":
         value.reuse = checkReuse(v, out);
         break;
-      case "wise":
-        value.wise = checkWise(v, out);
+      case "mdl":
+        value.mdl = checkMdl(v, out);
         break;
     }
   }
@@ -7795,8 +7804,8 @@ function resolveConfig(paths, env = {}) {
   const overrides = validated.value;
   const stops = [...file.stops, ...validated.stops];
   const sources = {};
-  const envProvider = cleanEnv(env.SIDEWISE_PROVIDER);
-  const envBaseURL = cleanEnv(env.SIDEWISE_BASE_URL);
+  const envProvider = cleanEnv(env.MM3_PROVIDER);
+  const envBaseURL = cleanEnv(env.MM3_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
   const envTimeoutRaw = Number(cleanEnv(env.JEV_TIMEOUT_MS));
   const envTimeout = Number.isFinite(envTimeoutRaw) && envTimeoutRaw > 0 ? envTimeoutRaw : void 0;
@@ -7827,7 +7836,7 @@ function resolveConfig(paths, env = {}) {
       ...overrides.reuse?.maxAgeDays !== void 0 ? { maxAgeDays: overrides.reuse.maxAgeDays } : {},
       ...overrides.reuse?.maxCommits !== void 0 ? { maxCommits: overrides.reuse.maxCommits } : {}
     },
-    wise: { ...overrides.wise }
+    mdl: { ...overrides.mdl }
   };
   sources["sweep.maxItems"] = overrides.sweep?.maxItems !== void 0 ? "config" : "default";
   sources["reuse.maxAgeDays"] = overrides.reuse?.maxAgeDays !== void 0 ? "config" : "default";
@@ -7836,7 +7845,7 @@ function resolveConfig(paths, env = {}) {
   for (const model of /* @__PURE__ */ new Set([...Object.keys(DEFAULT_CONFIG.pricing), ...Object.keys(overrides.pricing ?? {})])) {
     sources[`pricing.${model}`] = overrides.pricing && model in overrides.pricing ? "config" : "default";
   }
-  for (const field of Object.keys(overrides.wise ?? {})) sources[`wise.${field}`] = "config";
+  for (const field of Object.keys(overrides.mdl ?? {})) sources[`mdl.${field}`] = "config";
   return { config, sources, stops, present: file.present };
 }
 function classifierFileConfig(config) {
@@ -7873,7 +7882,7 @@ var shownStore = (file) => `${path.basename(path.dirname(file))}/${path.basename
 function storeError(e, file, action) {
   const code = e?.code;
   if (typeof code !== "string") return e;
-  return new StoreError(`\u2716 files: cannot ${action} ${shownStore(file)} (${code}) \u2192 make .sidewise/ a writable folder, with log.jsonl and budget.json as files`);
+  return new StoreError(`\u2716 files: cannot ${action} ${shownStore(file)} (${code}) \u2192 make .mm3/ a writable folder, with log.jsonl and budget.json as files`);
 }
 function onStore(file, action, fn) {
   try {
@@ -7990,7 +7999,7 @@ function withLock(lockPath, fn, opts = {}) {
 import { existsSync as existsSync2, mkdirSync as mkdirSync2, writeFileSync } from "node:fs";
 import path2 from "node:path";
 function pathsFor(root) {
-  const dir = path2.join(root, ".sidewise");
+  const dir = path2.join(root, ".mm3");
   return {
     root,
     dir,
@@ -8009,14 +8018,14 @@ function ensureDir(paths) {
 function findRoot(cwd) {
   let dir = path2.resolve(cwd);
   for (; ; ) {
-    if (existsSync2(path2.join(dir, ".sidewise")) || existsSync2(path2.join(dir, ".git"))) return dir;
+    if (existsSync2(path2.join(dir, ".mm3")) || existsSync2(path2.join(dir, ".git"))) return dir;
     const up = path2.dirname(dir);
     if (up === dir) return void 0;
     dir = up;
   }
 }
 function resolvePaths(cwd = process.cwd(), env = process.env) {
-  const home = env.SIDEWISE_HOME?.trim();
+  const home = env.MM3_HOME?.trim();
   const root = home ? path2.resolve(home) : findRoot(cwd);
   return root === void 0 ? void 0 : pathsFor(root);
 }
@@ -8060,9 +8069,9 @@ var DECISIONS_MAX = 5;
 var FAMILIES = ["access", "injection", "secrets", "input", "output", "availability", "correctness", "design", "design-risk", "done", "other"];
 var BLASTS = ["code", "component", "container", "system", "person"];
 
-// src/contract/wise-fields.ts
+// src/contract/mdl-fields.ts
 var UNKNOWN_VALUE = "unknown";
-var WISE_FIELDS = [
+var MDL_FIELDS = [
   { key: "why", kind: "closed-single", values: WHYS },
   { key: "area", kind: "closed-list", values: AREAS, maxList: 2, note: "omit for whole-system questions: uses carries the map" },
   { key: "stage", kind: "closed-single", values: STAGES, note: "operate = live production/incident" },
@@ -8073,11 +8082,11 @@ var WISE_FIELDS = [
   { key: "blast", kind: "closed-single", values: BLASTS, note: "the widest level one failure reaches (person = users' data or accounts)" },
   { key: "touches", kind: "freetext-list", maxList: 5, note: 'list \u22645 domain objects/fields (not concepts like "authentication", not language built-ins)' }
 ];
-var WISE_PARENT_KEY = "parent";
-var WISE_KEYS = [...WISE_FIELDS.map((f) => f.key), WISE_PARENT_KEY];
-function effectiveWiseFields(overrides) {
-  if (!overrides || Object.keys(overrides).length === 0) return WISE_FIELDS;
-  return WISE_FIELDS.map((f) => {
+var MDL_PARENT_KEY = "parent";
+var MDL_KEYS = [...MDL_FIELDS.map((f) => f.key), MDL_PARENT_KEY];
+function effectiveMdlFields(overrides) {
+  if (!overrides || Object.keys(overrides).length === 0) return MDL_FIELDS;
+  return MDL_FIELDS.map((f) => {
     const o = overrides[f.key];
     if (!o) return f;
     return {
@@ -8095,7 +8104,7 @@ var CHAIN_LEVELS = ["person", "system", "container", "component", "code"];
 var NAME = "[A-Za-z0-9._-]+";
 var PART = `(?:${CHAIN_LEVELS.join("|")}):${NAME}(?:/${NAME})*\\??`;
 var CHAIN_RE = new RegExp(`^${PART}(?: -> ${PART})*$`, "u");
-var MAX_WISE_LINES = 25;
+var MAX_MDL_LINES = 25;
 var MAX_CUSTOM_KEY_LEN = 20;
 var MAX_FREETEXT_LEN = 160;
 var MAX_TOUCH_LEN = 40;
@@ -8104,9 +8113,9 @@ var isCustomKey = (k) => CUSTOM_KEY_RE.test(k) && k.length <= MAX_CUSTOM_KEY_LEN
 function closedValues(field) {
   return [...field.values ?? [], UNKNOWN_VALUE];
 }
-function normalizeWise(wise2) {
-  if (wise2.uses !== void 0 || wise2.nodes === void 0) return wise2;
-  const { nodes, ...rest } = wise2;
+function normalizeMdl(mdl2) {
+  if (mdl2.uses !== void 0 || mdl2.nodes === void 0) return mdl2;
+  const { nodes, ...rest } = mdl2;
   return { ...rest, uses: [nodes] };
 }
 
@@ -8117,7 +8126,7 @@ import path3 from "node:path";
 // src/ledger/ids.ts
 import { randomBytes } from "node:crypto";
 var CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-var RUN_ID = /^SW-(\d{4,})$/;
+var RUN_ID = /^(?:MM3|SW)-(\d{4,})$/;
 function ulid(now = Date.now(), random = (n) => randomBytes(n)) {
   let t = now;
   let time = "";
@@ -8131,7 +8140,7 @@ function ulid(now = Date.now(), random = (n) => randomBytes(n)) {
   return time + rand;
 }
 function formatRunId(n) {
-  return `SW-${String(n).padStart(4, "0")}`;
+  return `MM3-${String(n).padStart(4, "0")}`;
 }
 
 // src/ledger/log.ts
@@ -8181,7 +8190,7 @@ function readLedger(paths, opts = {}) {
       if (inProgress) return;
       throw new LedgerError(`\u2716 ledger: line ${i + 1} of ${shown2} is not a ledger record \u2192 fix or remove that line`);
     }
-    records.push(normalizeRecordWise(value));
+    records.push(normalizeRecordMdl(value));
   });
   return records;
 }
@@ -8308,12 +8317,12 @@ function appendLookup(paths, lookup, now = Date.now()) {
 function appendOutcome(paths, of, outcome, by, now = Date.now()) {
   return withLock(paths.lock, () => {
     const run = findRun(paths, of);
-    if (!run) throw new LedgerError(`\u2716 outcome: ${of} is not in the ledger \u2192 check the id with "sidewise view ${of}"
-\u2192 see: sidewise agent outcome`, 2);
+    if (!run) throw new LedgerError(`\u2716 outcome: ${of} is not in the ledger \u2192 check the id with "mm3 view ${of}"
+\u2192 see: mm3 agent outcome`, 2);
     const who = redactSecrets(by);
     if (outcome === "held" && who === run.actor) {
       throw new LedgerError(`\u2716 outcome: ${who} asked ${of}, so it can't mark it held \u2192 another agent or the owner records "held"
-\u2192 see: sidewise agent outcome`);
+\u2192 see: mm3 agent outcome`);
     }
     onStore(paths.log, "read", () => {
       const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));
@@ -8394,10 +8403,15 @@ var CHUNK_BYTES = 1 << 20;
 function countsTowardBudget(rec) {
   return !isContractRun(rec) || rec.calls > 0;
 }
-function normalizeRecordWise(value) {
-  const w = value.wise;
+function normalizeRecordMdl(value) {
+  const legacy = value;
+  for (const [oldKey, newKey] of [["wise", "mdl"], ["side", "mak"]]) {
+    if (oldKey in legacy && !(newKey in legacy)) legacy[newKey] = legacy[oldKey];
+    delete legacy[oldKey];
+  }
+  const w = value.mdl;
   if (w && typeof w === "object" && !Array.isArray(w)) {
-    value.wise = normalizeWise(w);
+    value.mdl = normalizeMdl(w);
   }
   return value;
 }
@@ -8411,7 +8425,7 @@ function parseLedgerLine(raw, lineNo, shown2) {
   if (!isRecord(value)) {
     throw new LedgerError(`\u2716 ledger: line ${lineNo} of ${shown2} is not a ledger record \u2192 fix or remove that line`);
   }
-  return normalizeRecordWise(value);
+  return normalizeRecordMdl(value);
 }
 function applyLine(sink, raw, startByte, lineNo, shown2) {
   const value = parseLedgerLine(raw, lineNo, shown2);
@@ -8495,7 +8509,7 @@ function readRecordAt(logPath, offset) {
       const complete = nl !== -1 ? buf.toString("utf8", 0, nl) : offset + got >= size ? buf.toString("utf8", 0, got) : null;
       if (complete !== null) {
         try {
-          return normalizeRecordWise(JSON.parse(complete));
+          return normalizeRecordMdl(JSON.parse(complete));
         } catch {
           return void 0;
         }
@@ -8674,7 +8688,7 @@ function buildMemoryHandle(paths) {
   memoryCache = { logPath: paths.log, size, mtimeMs, state };
   return handleFromMemory(state);
 }
-var SCHEMA_VERSION = 6;
+var SCHEMA_VERSION = 7;
 var SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE runs (
@@ -8686,7 +8700,7 @@ CREATE TABLE runs (
   ts TEXT NOT NULL,
   gate TEXT,
   blocked INTEGER NOT NULL DEFAULT 0,
-  wise TEXT,
+  mdl TEXT,
   parent TEXT,
   pattern TEXT
 );
@@ -8782,7 +8796,7 @@ function setMeta(db, key2, value) {
 }
 function prepStatements(db) {
   return {
-    insertRun: db.prepare("INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, wise, parent, pattern) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)"),
+    insertRun: db.prepare("INSERT OR REPLACE INTO runs (id, offset, adapter, model, verb, ts, gate, blocked, mdl, parent, pattern) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)"),
     insertKey: db.prepare("INSERT OR REPLACE INTO answer_keys (adapter, model, key, run_id, qid) VALUES (?, ?, ?, ?, ?)"),
     insertOutcome: db.prepare("INSERT OR REPLACE INTO outcomes (run_id, outcome, uid, ts, by) VALUES (?, ?, ?, ?, ?)"),
     insertPlace: db.prepare("INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)"),
@@ -8791,17 +8805,17 @@ function prepStatements(db) {
     insertSpend: db.prepare("INSERT OR REPLACE INTO spend (id, ts, cost) VALUES (?, ?, ?)")
   };
 }
-function wiseJson(rec) {
+function mdlJson(rec) {
   if (!isContractRun(rec)) return null;
   const categories = Object.keys(rec.categories ?? {});
-  if (rec.wise === null && categories.length === 0) return null;
-  return JSON.stringify({ wise: rec.wise, categories });
+  if (rec.mdl === null && categories.length === 0) return null;
+  return JSON.stringify({ mdl: rec.mdl, categories });
 }
 function sqlSink(stmts) {
   return {
     run(rec, offset) {
       const gate = "gate" in rec ? rec.gate ?? null : null;
-      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, wiseJson(rec), rec.parent ?? null, patternFingerprint(rec));
+      stmts.insertRun.run(rec.id, offset, rec.adapter, rec.model, rec.verb, rec.ts, gate, mdlJson(rec), rec.parent ?? null, patternFingerprint(rec));
       if (countsTowardBudget(rec)) stmts.insertSpend.run(rec.id, rec.ts, rec.costUsd ?? 0);
       if (isContractRun(rec)) {
         for (const [qid, key2] of Object.entries(rec.keys)) stmts.insertKey.run(rec.adapter, rec.model, key2, rec.reusedFrom[qid] ?? rec.id, qid);
@@ -9142,7 +9156,7 @@ var BudgetError = class extends Error {
 var iso2 = (now) => new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z");
 var money = (n) => `$${n.toFixed(2)}`;
 var EPOCH = iso2(0);
-var AGENT_POINTER = "\n\u2192 see: sidewise agent budget";
+var AGENT_POINTER = "\n\u2192 see: mm3 agent budget";
 function readLegacyBudgetJson(paths) {
   if (!existsSync6(paths.budget)) return void 0;
   try {
@@ -9203,7 +9217,7 @@ function checkBudget2(s) {
   const runsCapped = s.runs >= s.capRuns;
   const usdCapped = s.spentUsd >= s.capUsd;
   if (runsCapped || usdCapped) {
-    const hint = runsCapped && !usdCapped ? 'the owner runs "sidewise budget set --runs <n>"' : 'the owner runs "sidewise budget reset"';
+    const hint = runsCapped && !usdCapped ? 'the owner runs "mm3 budget set --runs <n>"' : 'the owner runs "mm3 budget reset"';
     return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 ${hint}${AGENT_POINTER}` };
   }
   return { ok: true };
@@ -9263,7 +9277,7 @@ function seededRandom(seed) {
 }
 
 // src/classifier/fake.ts
-var FAKE_MODEL = "sidewise-fake-1";
+var FAKE_MODEL = "mm3-fake-1";
 function pinned(state, id) {
   const table = state.__fake;
   return table && typeof table === "object" ? table[id] : void 0;
@@ -9309,7 +9323,7 @@ function createFakeAdapter() {
 // src/classifier/typesafe/config.ts
 var JevConfigError = class extends Error {
   /** 1 (default): a provider problem (no key) — bucketed with other provider errors. 2: a config value the
-   *  caller must fix before anything runs (a bad SIDEWISE_BASE_URL) — a usage mistake, not a runtime provider
+   *  caller must fix before anything runs (a bad MM3_BASE_URL) — a usage mistake, not a runtime provider
    *  failure. */
   exit;
   constructor(message, exit = 1) {
@@ -9360,18 +9374,18 @@ function resolveTimeoutMs(env, fileConfig) {
 }
 var LOCAL_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 function resolveBaseURL(env, baseDefault, fileConfig) {
-  const raw = clean(env.SIDEWISE_BASE_URL) ?? fileConfig?.baseURL;
+  const raw = clean(env.MM3_BASE_URL) ?? fileConfig?.baseURL;
   if (raw === void 0) return baseDefault;
   let url;
   try {
     url = new URL(raw);
   } catch {
-    throw new JevConfigError(`\u2716 SIDEWISE_BASE_URL: "${raw}" is not a valid URL \u2192 use an https URL, e.g. https://api.example.com`, 2);
+    throw new JevConfigError(`\u2716 MM3_BASE_URL: "${raw}" is not a valid URL \u2192 use an https URL, e.g. https://api.example.com`, 2);
   }
   const local = LOCAL_HOSTS.has(url.hostname);
   if (url.protocol === "https:" || url.protocol === "http:" && local) return raw.replace(/\/+$/, "");
   throw new JevConfigError(
-    `\u2716 SIDEWISE_BASE_URL: "${raw}" is ${url.protocol.replace(":", "")}, not https \u2192 use https, or http only for localhost/127.0.0.1/[::1]`,
+    `\u2716 MM3_BASE_URL: "${raw}" is ${url.protocol.replace(":", "")}, not https \u2192 use https, or http only for localhost/127.0.0.1/[::1]`,
     2
   );
 }
@@ -9407,7 +9421,7 @@ function routeLabel(config) {
 
 // src/classifier/chaos.ts
 var CHAOS_STEPS = ["ok", "401", "429", "503", "529", "timeout", "malformed", "missing"];
-var CHAOS_MODEL = "sidewise-chaos-1";
+var CHAOS_MODEL = "mm3-chaos-1";
 var HTTP = {
   "401": { status: 401, text: "invalid API key", retryable: false },
   "429": { status: 429, text: "rate limited", retryable: true },
@@ -9419,7 +9433,7 @@ function parseSchedule(raw) {
   if (!text) return { steps: [] };
   const steps = text.split(",").map((s) => s.trim());
   const bad = steps.find((s) => !CHAOS_STEPS.includes(s));
-  if (bad !== void 0) return { stop: `\u2716 provider: SIDEWISE_CHAOS has "${clip(bad, 20)}" \u2192 use a comma list of ${CHAOS_STEPS.join(", ")}` };
+  if (bad !== void 0) return { stop: `\u2716 provider: MM3_CHAOS has "${clip(bad, 20)}" \u2192 use a comma list of ${CHAOS_STEPS.join(", ")}` };
   return { steps };
 }
 function stepper(steps, stateFile) {
@@ -9648,7 +9662,7 @@ function parseAnswers(raw, questions, pricing = DEFAULT_CONFIG.pricing) {
 }
 
 // src/classifier/typesafe/client.ts
-var NO_KEY_MESSAGE = "\u2716 provider: no TypeSafe key \u2192 set TYPESAFE_API_KEY (direct) or AI_GATEWAY_API_KEY (gateway), or SIDEWISE_PROVIDER=fake to try requests";
+var NO_KEY_MESSAGE = "\u2716 provider: no TypeSafe key \u2192 set TYPESAFE_API_KEY (direct) or AI_GATEWAY_API_KEY (gateway), or MM3_PROVIDER=fake to try requests";
 var MAX_RETRIES = 2;
 var BASE_BACKOFF_MS = 1e3;
 var MAX_BACKOFF_MS = 1e4;
@@ -9684,7 +9698,7 @@ function createJevClient(config, deps = {}) {
 }
 
 // src/classifier/typesafe/adapter.ts
-var NO_TYPESAFE_KEY_MESSAGE = "\u2716 provider: no TypeSafe key \u2192 set TYPESAFE_API_KEY or AI_GATEWAY_API_KEY, or SIDEWISE_PROVIDER=fake to try requests";
+var NO_TYPESAFE_KEY_MESSAGE = "\u2716 provider: no TypeSafe key \u2192 set TYPESAFE_API_KEY or AI_GATEWAY_API_KEY, or MM3_PROVIDER=fake to try requests";
 function createTypesafeAdapter(env = process.env, deps = {}) {
   const config = resolveJevConfig(env, { resolveStored: deps.resolveStored, fileConfig: deps.fileConfig });
   if (!hasKey(config)) throw new JevConfigError(NO_TYPESAFE_KEY_MESSAGE);
@@ -9715,13 +9729,13 @@ function createTypesafeAdapter(env = process.env, deps = {}) {
 
 // src/classifier/select.ts
 function wantedProvider(env, deps) {
-  return env.SIDEWISE_PROVIDER?.trim() || deps.fileConfig?.provider;
+  return env.MM3_PROVIDER?.trim() || deps.fileConfig?.provider;
 }
 function selectProvider(env = process.env, deps = {}) {
   const wanted = wantedProvider(env, deps);
   if (wanted === "fake") return createFakeAdapter();
   if (wanted === "chaos") {
-    const s = parseSchedule(env.SIDEWISE_CHAOS);
+    const s = parseSchedule(env.MM3_CHAOS);
     if ("stop" in s) throw new Error(s.stop);
     return createChaosAdapter(s.steps, deps.chaosState);
   }
@@ -9742,12 +9756,15 @@ function providerIdentity(env = process.env, deps = {}) {
   return { adapter: "fake", model: FAKE_MODEL, route: "fake", baseURL: null };
 }
 
+// src/config/config.ts
+import { existsSync as existsSync7, readdirSync, writeFileSync as writeFileSync4 } from "node:fs";
+
 // src/contract/emit.ts
 var m = (...entries) => new Map(entries);
 var RESERVED = /^(?:true|false|null|~|yes|no|on|off|y|n)$/iu;
 var NUMBER_LIKE = /^(?:[-+]?(?:\d+|\d*\.\d+|\d+\.\d*)(?:[eE][-+]?\d+)?|0x[0-9a-fA-F]+|0o[0-7]+|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/u;
 var INDICATOR = /^[-?:,[\]{}#&*!|>'"%@`]/u;
-var BLOCK_TOP = /* @__PURE__ */ new Set(["side", "plan", "doctor", "config"]);
+var BLOCK_TOP = /* @__PURE__ */ new Set(["mak", "plan", "doctor", "config"]);
 function scalar(s, flow2) {
   const plain = s !== "" && s === s.trim() && !RESERVED.test(s) && !NUMBER_LIKE.test(s) && !INDICATOR.test(s) && !/: |:$| #|[\n\r\t]/u.test(s) && !(flow2 && /[,[\]{}]/u.test(s));
   return plain ? s : JSON.stringify(s);
@@ -9797,6 +9814,16 @@ function fieldLine(indent3, key2, source, value, example) {
   if (source === "env") return `${indent3}# ${key2}: (set via env, not config.yaml)`;
   return `${indent3}# ${key2}: ${valueText(example)}  # example`;
 }
+var EXAMPLES = {
+  "budget.since": "2026-01-01T00:00:00Z",
+  provider: "typesafe",
+  baseURL: "https://api.typesafe.ai",
+  model: "jev-1.13.0",
+  "sweep.maxItems": 30,
+  "reuse.maxAgeDays": 30,
+  "reuse.maxCommits": 20
+};
+var ex = (key2) => EXAMPLES[key2];
 var PRICING_FIELDS = ["inputPerMTok", "outputPerMTok", "perSecond", "perCall"];
 function pricingLines(resolved) {
   const lines = ["  pricing:"];
@@ -9811,10 +9838,10 @@ function pricingLines(resolved) {
   }
   return lines;
 }
-function wiseLines(resolved) {
-  const entries = Object.entries(resolved.config.wise);
-  if (!entries.length) return ["  # wise:", "  #   risk: {values: [low, medium, high]}  # example override"];
-  const lines = ["  wise:"];
+function mdlLines(resolved) {
+  const entries = Object.entries(resolved.config.mdl);
+  if (!entries.length) return ["  # mdl:", "  #   risk: {values: [low, medium, high]}  # example override"];
+  const lines = ["  mdl:"];
   for (const [field, override] of entries) {
     lines.push(`    ${scalar(field, false)}:`);
     for (const [k, v] of Object.entries(override)) {
@@ -9824,7 +9851,9 @@ function wiseLines(resolved) {
   }
   return lines;
 }
-function formatConfig(resolved, projectLine2) {
+var configFileLabel = (projectLine2) => projectLine2 === "." || projectLine2 === "none" ? ".mm3/config.yaml" : `${projectLine2}/.mm3/config.yaml`;
+var customizeNote = (projectLine2) => projectLine2 === "none" ? "to customize: run mm3 config --write inside a project \u2192 writes .mm3/config.yaml with a commented guide" : "to customize: run mm3 config --write \u2192 writes .mm3/config.yaml with a commented guide";
+function formatConfig(resolved, projectLine2, extraNotes = []) {
   const c = resolved.config;
   const s = resolved.sources;
   const lines = [
@@ -9835,11 +9864,11 @@ function formatConfig(resolved, projectLine2) {
     fieldLine("    ", "usd", s["budget.usd"], c.budget.usd, 5),
     fieldLine("    ", "runs", s["budget.runs"], c.budget.runs, 500),
     fieldLine("    ", "per", s["budget.per"], c.budget.per, "total"),
-    fieldLine("    ", "since", s["budget.since"], c.budget.since, "2026-01-01T00:00:00Z"),
+    fieldLine("    ", "since", s["budget.since"], c.budget.since, ex("budget.since")),
     "",
-    fieldLine("  ", "provider", s.provider, c.provider, "typesafe"),
-    fieldLine("  ", "baseURL", s.baseURL, c.baseURL, "https://api.typesafe.ai"),
-    fieldLine("  ", "model", s.model, c.model, "jev-1.13.0"),
+    fieldLine("  ", "provider", s.provider, c.provider, ex("provider")),
+    fieldLine("  ", "baseURL", s.baseURL, c.baseURL, ex("baseURL")),
+    fieldLine("  ", "model", s.model, c.model, ex("model")),
     "",
     ...pricingLines(resolved),
     "",
@@ -9848,34 +9877,160 @@ function formatConfig(resolved, projectLine2) {
     fieldLine("  ", "backoffMs", s.backoffMs, c.backoffMs, 1e3),
     "",
     "  sweep:",
-    fieldLine("    ", "maxItems", s["sweep.maxItems"], c.sweep.maxItems, 30),
+    fieldLine("    ", "maxItems", s["sweep.maxItems"], c.sweep.maxItems, ex("sweep.maxItems")),
     fieldLine("    ", "maxQuestionsPerCall", s["sweep.maxQuestionsPerCall"], c.sweep.maxQuestionsPerCall, 500),
     "",
     fieldLine("  ", "requestMaxBytes", s.requestMaxBytes, c.requestMaxBytes, 1048576),
     "",
     "  reuse:",
-    fieldLine("    ", "maxAgeDays", s["reuse.maxAgeDays"], c.reuse.maxAgeDays, 30),
-    fieldLine("    ", "maxCommits", s["reuse.maxCommits"], c.reuse.maxCommits, 20),
+    fieldLine("    ", "maxAgeDays", s["reuse.maxAgeDays"], c.reuse.maxAgeDays, ex("reuse.maxAgeDays")),
+    fieldLine("    ", "maxCommits", s["reuse.maxCommits"], c.reuse.maxCommits, ex("reuse.maxCommits")),
     "",
-    ...wiseLines(resolved),
+    ...mdlLines(resolved),
     "",
     "notes:",
-    "  - free: never writes, never spends",
-    ...resolved.present ? [] : ["  - no config.yaml here \u2192 every value is a default or env var"]
+    "  - free: never spends; plain config never writes",
+    ...resolved.present ? [`  - customized in ${configFileLabel(projectLine2)} \u2192 edit it, then run mm3 config to check`] : ["  - no config.yaml here \u2192 every value is a default or env var", `  - ${customizeNote(projectLine2)}`],
+    ...extraNotes.map((n) => `  - ${n}`)
   ];
   return `${lines.join("\n")}
 `;
 }
+function nearMissNotes(paths) {
+  if (!paths || existsSync7(paths.config)) return [];
+  let names;
+  try {
+    names = readdirSync(paths.dir);
+  } catch {
+    return [];
+  }
+  return names.filter((n) => n.toLowerCase().startsWith("config") && n !== "config.yaml").sort().slice(0, 3).map((n) => `found .mm3/${n} \u2014 did you mean config.yaml? \u2192 rename it`);
+}
 function runConfig(env, paths, projectLine2) {
   const resolved = resolveConfig(paths, env);
+  const notes = nearMissNotes(paths);
   if (resolved.stops.length) {
     const stopLines = resolved.stops.map((st) => st.text).join("\n");
     return { exit: 2, text: `${stopLines}
 
-${formatConfig(resolved, projectLine2)}
-\u2192 see: sidewise agent config` };
+${formatConfig(resolved, projectLine2, notes)}
+\u2192 see: mm3 agent config` };
   }
-  return { exit: 0, text: formatConfig(resolved, projectLine2) };
+  return { exit: 0, text: formatConfig(resolved, projectLine2, notes) };
+}
+var HINTS = {
+  budget: "spending caps",
+  "budget.usd": "dollars MM3 may spend",
+  "budget.runs": "paid runs MM3 may make",
+  "budget.per": "count the caps: total | day | hour",
+  "budget.since": "only count spend after this moment",
+  provider: "typesafe | fake (free sample answers)",
+  baseURL: "where classifier calls go (https)",
+  model: "the pinned classifier model",
+  pricing: "what a call costs, per model, for budget estimates (dollars)",
+  timeoutMs: "give up on one call after this many ms",
+  retries: "extra tries after a retryable failure",
+  backoffMs: "first wait between tries, in ms",
+  sweep: "limits on scan and loop",
+  "sweep.maxItems": "most items one sweep may look at (can only lower the built-in cap)",
+  "sweep.maxQuestionsPerCall": "most questions in one classifier call",
+  requestMaxBytes: "largest request file MM3 will read",
+  reuse: "when a stored answer is too old to reuse (off unless set)",
+  "reuse.maxAgeDays": "re-ask answers older than this many days",
+  "reuse.maxCommits": "re-ask after this many commits",
+  mdl: "per-field overrides of the mdl catalog (see mm3 agent mdl)"
+};
+var PRICING_HINTS = {
+  inputPerMTok: "dollars per million input tokens",
+  outputPerMTok: "dollars per million output tokens",
+  perSecond: "dollars per second of compute",
+  perCall: "dollars per call"
+};
+var STARTER_FRONT = [
+  "# MM3 project settings (.mm3/config.yaml).",
+  "#",
+  "# Every setting below is commented out, so MM3 runs on its built-in defaults. To change one, uncomment its",
+  '# line (delete the leading "# ") and change the value. To go back to the default, delete the line or comment it',
+  "# out again. Run mm3 config any time to check the file; it lists every problem and where each value comes from.",
+  "#",
+  "# Precedence: environment variable > this file > built-in default.",
+  "# Safe to commit: it holds settings only, never keys (those go in env or the keychain). The ledger is not committed.",
+  ""
+];
+function getIn(root, dotted) {
+  let cur = root;
+  for (const k of dotted.split(".")) cur = typeof cur === "object" && cur !== null ? cur[k] : void 0;
+  return cur;
+}
+function starterConfig() {
+  const val = (key2) => valueText(getIn(DEFAULT_CONFIG, key2) ?? ex(key2));
+  const header = (indent3, label, hintKey, hint = HINTS[hintKey]) => `${indent3}${label}:${hint ? `  # ${hint}` : ""}`;
+  const setting = (indent3, key2, dotted) => `# ${indent3}${key2}: ${val(dotted)}  # ${HINTS[dotted]}`;
+  const top = (key2) => setting("", key2, key2);
+  const lines = [
+    ...STARTER_FRONT,
+    header("", "budget", "budget"),
+    setting("  ", "usd", "budget.usd"),
+    setting("  ", "runs", "budget.runs"),
+    setting("  ", "per", "budget.per"),
+    setting("  ", "since", "budget.since"),
+    "",
+    top("provider"),
+    top("baseURL"),
+    top("model"),
+    "",
+    header("", "pricing", "pricing")
+  ];
+  for (const [model, rate] of Object.entries(DEFAULT_CONFIG.pricing)) {
+    lines.push(header("  ", scalar(model, false), "", `also: ${PRICING_FIELDS.filter((f) => rate[f] === void 0).join(", ")}`));
+    for (const f of PRICING_FIELDS) {
+      const v = rate[f];
+      if (v !== void 0) lines.push(`#     ${f}: ${valueText(v)}  # ${PRICING_HINTS[f]}`);
+    }
+  }
+  lines.push(
+    "",
+    top("timeoutMs"),
+    top("retries"),
+    top("backoffMs"),
+    "",
+    header("", "sweep", "sweep"),
+    setting("  ", "maxItems", "sweep.maxItems"),
+    setting("  ", "maxQuestionsPerCall", "sweep.maxQuestionsPerCall"),
+    "",
+    top("requestMaxBytes"),
+    "",
+    header("", "reuse", "reuse"),
+    setting("  ", "maxAgeDays", "reuse.maxAgeDays"),
+    setting("  ", "maxCommits", "reuse.maxCommits"),
+    "",
+    header("", "mdl", "mdl"),
+    "#   risk: {values: [low, medium, high]}  # example: your own values for one field"
+  );
+  return `${lines.join("\n")}
+`;
+}
+function runConfigWrite(paths, projectLine2) {
+  if (!paths) return { exit: 2, text: "\u2716 config: no project here \u2192 run inside a project (a folder with .git or .mm3), or set MM3_HOME" };
+  const label = configFileLabel(projectLine2);
+  const exists = { exit: 0, text: `config: ${label} already exists \u2192 not overwritten; edit it, then run mm3 config to check
+` };
+  if (existsSync7(paths.config)) return exists;
+  const wrote = onStore(paths.config, "write", () => {
+    ensureDir(paths);
+    try {
+      writeFileSync4(paths.config, starterConfig(), { flag: "wx" });
+      return true;
+    } catch (e) {
+      if (e.code === "EEXIST") return false;
+      throw e;
+    }
+  });
+  if (!wrote) return exists;
+  return { exit: 0, text: `wrote: ${label}
+notes:
+  - every setting is commented out \u2192 uncomment a line and change its value, then run mm3 config to check
+` };
 }
 
 // src/mcp/stdio.ts
@@ -9884,17 +10039,17 @@ import readline from "node:readline";
 // src/mcp/protocol.ts
 var SUPPORTED_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
 var DEFAULT_VERSION = "2025-06-18";
-var TOOL_NAME = "sidewise";
+var TOOL_NAME = "mm3";
 function toolDefinition() {
   return {
     name: TOOL_NAME,
-    description: 'First call args: ["agent"] to learn the commands and rules, then args: ["agent", "<command>"] before writing a request. Otherwise runs any sidewise CLI command in this project \u2014 the same arguments and stdin the sidewise CLI takes (e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). Returns the same text output sidewise would print, and marks the result an error when the exit code is not 0.',
+    description: 'First call args: ["agent"] to learn the commands and rules, then args: ["agent", "<command>"] before writing a request. Otherwise runs any mm3 CLI command in this project \u2014 the same arguments and stdin the mm3 CLI takes (e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). Returns the same text output mm3 would print, and marks the result an error when the exit code is not 0.',
     inputSchema: {
       type: "object",
       properties: {
-        args: { type: "array", items: { type: "string" }, description: 'sidewise CLI arguments, e.g. ["doctor"] or ["class","-"]' },
+        args: { type: "array", items: { type: "string" }, description: 'mm3 CLI arguments, e.g. ["doctor"] or ["class","-"]' },
         stdin: { type: "string", description: 'Text to feed as stdin, for a "-" argument (e.g. the request YAML).' },
-        project: { type: "string", description: "The project directory to use (SIDEWISE_HOME), when it is not the current working directory." }
+        project: { type: "string", description: "The project directory to use (MM3_HOME), when it is not the current working directory." }
       },
       required: ["args"]
     }
@@ -9912,7 +10067,7 @@ async function handleMessage(msg, deps) {
     const params = msg.params ?? {};
     const requested = typeof params.protocolVersion === "string" ? params.protocolVersion : void 0;
     const protocolVersion = requested && SUPPORTED_VERSIONS.includes(requested) ? requested : DEFAULT_VERSION;
-    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "sidewise", version: deps.serverVersion } });
+    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "mm3", version: deps.serverVersion } });
   }
   if (method === "ping") return ok(id, {});
   if (method === "tools/list") return ok(id, { tools: [toolDefinition()] });
@@ -9928,7 +10083,7 @@ async function handleMessage(msg, deps) {
       return ok(id, { content: [{ type: "text", text }], isError: exit !== 0 });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      return ok(id, { content: [{ type: "text", text: `\u2716 sidewise: ${message}` }], isError: true });
+      return ok(id, { content: [{ type: "text", text: `\u2716 mm3: ${message}` }], isError: true });
     }
   }
   return err(id, -32601, `Method not found: ${method}`);
@@ -9963,21 +10118,21 @@ function runMcpServer(io, runOne, serverVersion) {
 }
 
 // src/setup/env-file.ts
-import { chmodSync, existsSync as existsSync7, mkdirSync as mkdirSync4, readFileSync as readFileSync8, rmSync as rmSync2, statSync as statSync4, writeFileSync as writeFileSync4 } from "node:fs";
+import { chmodSync, existsSync as existsSync8, mkdirSync as mkdirSync4, readFileSync as readFileSync8, rmSync as rmSync2, statSync as statSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import os from "node:os";
 import path5 from "node:path";
-var ALLOWED_NAMES = ["TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "SIDEWISE_BASE_URL", "JEV_MODEL", "JEV_GATEWAY_MODEL", "SIDEWISE_PROVIDER"];
+var ALLOWED_NAMES = ["TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "MM3_BASE_URL", "JEV_MODEL", "JEV_GATEWAY_MODEL", "MM3_PROVIDER"];
 var isAllowedName = (s) => ALLOWED_NAMES.includes(s);
 var EXPORT_LINE = /^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)='([^']*)'\s*$/u;
-function sidewiseConfigDir(env = process.env) {
+function mm3ConfigDir(env = process.env) {
   const xdg = env.XDG_CONFIG_HOME?.trim();
-  return xdg ? path5.join(xdg, "sidewise") : path5.join(os.homedir(), ".config", "sidewise");
+  return xdg ? path5.join(xdg, "mm3") : path5.join(os.homedir(), ".config", "mm3");
 }
 function envFilePath(env = process.env) {
-  return path5.join(sidewiseConfigDir(env), "env");
+  return path5.join(mm3ConfigDir(env), "env");
 }
 function readEnvFile(file) {
-  if (!existsSync7(file)) return void 0;
+  if (!existsSync8(file)) return void 0;
   let mode;
   let raw;
   try {
@@ -10006,7 +10161,7 @@ function setEnvFileValue(file, name, value) {
   const dir = path5.dirname(file);
   mkdirSync4(dir, { recursive: true });
   chmodSync(dir, 448);
-  const existing = existsSync7(file) ? readFileSync8(file, "utf8").split("\n") : [];
+  const existing = existsSync8(file) ? readFileSync8(file, "utf8").split("\n") : [];
   const newLine = `export ${name}='${value}'`;
   let replaced = false;
   const next = existing.map((line3) => {
@@ -10018,12 +10173,12 @@ function setEnvFileValue(file, name, value) {
     return line3;
   });
   if (!replaced) next.push(newLine);
-  writeFileSync4(file, `${next.join("\n").replace(/\n+$/u, "")}
+  writeFileSync5(file, `${next.join("\n").replace(/\n+$/u, "")}
 `);
   chmodSync(file, 384);
 }
 function removeEnvFileValue(file, name) {
-  if (!existsSync7(file)) return "absent";
+  if (!existsSync8(file)) return "absent";
   const lines = readFileSync8(file, "utf8").split("\n");
   let found = false;
   const next = lines.filter((line3) => {
@@ -10039,7 +10194,7 @@ function removeEnvFileValue(file, name) {
     rmSync2(file, { force: true });
     return "file-removed";
   }
-  writeFileSync4(file, `${next.join("\n").replace(/\n+$/u, "")}
+  writeFileSync5(file, `${next.join("\n").replace(/\n+$/u, "")}
 `);
   chmodSync(file, 384);
   return "removed";
@@ -10054,28 +10209,28 @@ var TIMEOUT_MS = 3e3;
 var cleanLine = (s) => s.replace(/\r?\n+$/u, "");
 function keychainLookup(runner, platform) {
   if (platform === "darwin") {
-    const r = runner("security", ["find-generic-password", "-s", "sidewise", "-a", "typesafe", "-w"], { timeoutMs: TIMEOUT_MS });
+    const r = runner("security", ["find-generic-password", "-s", "mm3", "-a", "typesafe", "-w"], { timeoutMs: TIMEOUT_MS });
     return r.status === 0 && r.stdout.trim() ? cleanLine(r.stdout) : void 0;
   }
   if (platform === "linux") {
-    const r = runner("secret-tool", ["lookup", "service", "sidewise", "account", "typesafe"], { timeoutMs: TIMEOUT_MS });
+    const r = runner("secret-tool", ["lookup", "service", "mm3", "account", "typesafe"], { timeoutMs: TIMEOUT_MS });
     return r.status === 0 && r.stdout.trim() ? cleanLine(r.stdout) : void 0;
   }
   return void 0;
 }
 function keychainStore(runner, platform, secret) {
   if (platform === "linux") {
-    const r = runner("secret-tool", ["store", "--label=Sidewise", "service", "sidewise", "account", "typesafe"], { input: secret, timeoutMs: TIMEOUT_MS });
+    const r = runner("secret-tool", ["store", "--label=MM3", "service", "mm3", "account", "typesafe"], { input: secret, timeoutMs: TIMEOUT_MS });
     return r.status === 0 ? "stored" : "unavailable";
   }
   return "unavailable";
 }
 function keychainRemove(runner, platform) {
   if (platform === "darwin") {
-    return runner("security", ["delete-generic-password", "-s", "sidewise", "-a", "typesafe"], { timeoutMs: TIMEOUT_MS }).status === 0;
+    return runner("security", ["delete-generic-password", "-s", "mm3", "-a", "typesafe"], { timeoutMs: TIMEOUT_MS }).status === 0;
   }
   if (platform === "linux") {
-    return runner("secret-tool", ["clear", "service", "sidewise", "account", "typesafe"], { timeoutMs: TIMEOUT_MS }).status === 0;
+    return runner("secret-tool", ["clear", "service", "mm3", "account", "typesafe"], { timeoutMs: TIMEOUT_MS }).status === 0;
   }
   return false;
 }
@@ -10108,7 +10263,7 @@ function removeStoredKey(runner, platform, env) {
 }
 
 // src/setup/init.ts
-import { existsSync as existsSync10, readFileSync as readFileSync11, realpathSync } from "node:fs";
+import { existsSync as existsSync11, readFileSync as readFileSync11, realpathSync } from "node:fs";
 import path10 from "node:path";
 
 // src/verbs/doctor.ts
@@ -10116,10 +10271,10 @@ var import_yaml4 = __toESM(require_dist(), 1);
 import path9 from "node:path";
 
 // src/setup/install-record.ts
-import { existsSync as existsSync8, mkdirSync as mkdirSync5, readFileSync as readFileSync9, rmSync as rmSync3, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync9, mkdirSync as mkdirSync5, readFileSync as readFileSync9, rmSync as rmSync3, writeFileSync as writeFileSync6 } from "node:fs";
 import path6 from "node:path";
 function installRecordPath(env = process.env) {
-  return path6.join(sidewiseConfigDir(env), "install.json");
+  return path6.join(mm3ConfigDir(env), "install.json");
 }
 function isInstallRecord(v) {
   if (!v || typeof v !== "object") return false;
@@ -10128,7 +10283,7 @@ function isInstallRecord(v) {
 }
 function readInstallRecord(env = process.env) {
   const file = installRecordPath(env);
-  if (!existsSync8(file)) return void 0;
+  if (!existsSync9(file)) return void 0;
   try {
     const parsed = JSON.parse(readFileSync9(file, "utf8"));
     return isInstallRecord(parsed) ? parsed : void 0;
@@ -10139,12 +10294,12 @@ function readInstallRecord(env = process.env) {
 function writeInstallRecord(env, record2) {
   const file = installRecordPath(env);
   mkdirSync5(path6.dirname(file), { recursive: true });
-  writeFileSync5(file, `${JSON.stringify(record2, null, 2)}
+  writeFileSync6(file, `${JSON.stringify(record2, null, 2)}
 `);
 }
 function clearInstallRecord(env = process.env) {
   const file = installRecordPath(env);
-  if (existsSync8(file)) rmSync3(file, { force: true });
+  if (existsSync9(file)) rmSync3(file, { force: true });
 }
 
 // src/setup/npm-info.ts
@@ -10202,7 +10357,7 @@ function npmGlobalPrefix(runner) {
 }
 
 // src/setup/plugin.ts
-import { existsSync as existsSync9, rmSync as rmSync4 } from "node:fs";
+import { existsSync as existsSync10, rmSync as rmSync4 } from "node:fs";
 import os2 from "node:os";
 import path8 from "node:path";
 var SCOPES = ["user", "project", "local"];
@@ -10215,7 +10370,7 @@ function walk(value, scopes, found) {
   if (!value || typeof value !== "object") return;
   const obj = value;
   const name = typeof obj.name === "string" ? obj.name : typeof obj.id === "string" ? obj.id : "";
-  if (name === "sidewise" || name.startsWith("sidewise@")) {
+  if (name === "mm3" || name.startsWith("mm3@")) {
     found.any = true;
     if (isScope(obj.scope)) scopes.add(obj.scope);
   }
@@ -10238,32 +10393,32 @@ function marketplaceExists(runner) {
   return r.status === 0 && /\bmvp-scale\b/u.test(r.stdout);
 }
 var addMarketplace = (runner, packageDir) => runner("claude", ["plugin", "marketplace", "add", packageDir]);
-var installPlugin = (runner, scope) => runner("claude", ["plugin", "install", "sidewise@mvp-scale", "--scope", scope]);
-var uninstallPlugin = (runner, scope) => runner("claude", ["plugin", "uninstall", "sidewise@mvp-scale", ...scope ? ["--scope", scope] : []]);
+var installPlugin = (runner, scope) => runner("claude", ["plugin", "install", "mm3@mvp-scale", "--scope", scope]);
+var uninstallPlugin = (runner, scope) => runner("claude", ["plugin", "uninstall", "mm3@mvp-scale", ...scope ? ["--scope", scope] : []]);
 var removeMarketplace = (runner) => runner("claude", ["plugin", "marketplace", "remove", "mvp-scale"]);
 function pluginCacheDir(homeDir = os2.homedir()) {
   return path8.join(homeDir, ".claude", "plugins", "cache", "mvp-scale");
 }
 function removePluginCacheDir(homeDir = os2.homedir()) {
   const dir = pluginCacheDir(homeDir);
-  if (!existsSync9(dir)) return false;
+  if (!existsSync10(dir)) return false;
   rmSync4(dir, { recursive: true, force: true });
   return true;
 }
 function inPluginContext(env) {
   return Boolean(env.CLAUDE_PLUGIN_ROOT?.trim());
 }
-var NO_KEY_PLUGIN_HINT = '/plugin \u2192 Sidewise \u2192 Configure \u2192 press Enter on "TypeSafe API key", paste, Enter, Save configuration';
+var NO_KEY_PLUGIN_HINT = '/plugin \u2192 MM3 \u2192 Configure \u2192 press Enter on "TypeSafe API key", paste, Enter, Save configuration';
 
 // src/contract/read.ts
 var import_yaml3 = __toESM(require_dist(), 1);
 
 // src/contract/schema-check.ts
 var TAG = /^[a-z0-9]+(-[a-z0-9]+)*$/u;
-var RUN_ID2 = /^SW-\d{4,}$/u;
+var RUN_ID2 = /^(?:MM3|SW)-\d{4,}$/u;
 var PATH = /^[^\s:]+(:\d+(-\d+)?)?$/u;
 var QNUM = /^[1-9][0-9]*$/u;
-var SIDE_KEYS = ["goal", "depth", "where", "parent", "ask", "over", "from", "compare", "verb", "expect"];
+var MAK_KEYS = ["goal", "depth", "where", "parent", "ask", "over", "from", "compare", "verb", "expect"];
 var CATEGORY_KEYS = ["pass", "need", "tags", "family"];
 var SECTION_NAMES = ["concerns", "decisions"];
 var NOT_QUESTIONS = /^(yes|no|true|false|on|off|y|n)$/iu;
@@ -10274,14 +10429,14 @@ var list = (xs) => `${xs.slice(0, -1).join(", ")} or ${xs.at(-1)}`;
 var isTag = (k) => TAG.test(k) && len(k) <= 20;
 var Out = class {
   stops = [];
-  /** A `wise.*` stop (or the bare `wise` block-cap stop) earns its own deeper pointer, the same way
-   *  validate.ts's cross stops already embed "→ see: sidewise agent probe" directly in their own text (plan 2c
-   *  A5 follow-up F3) — the generic trailing "→ see: sidewise agent <verb>" that stopText (verbs/request.ts)
+  /** A `mdl.*` stop (or the bare `mdl` block-cap stop) earns its own deeper pointer, the same way
+   *  validate.ts's cross stops already embed "→ see: mm3 agent probe" directly in their own text (plan 2c
+   *  A5 follow-up F3) — the generic trailing "→ see: mm3 agent <verb>" that stopText (verbs/request.ts)
    *  appends to the whole response still fires afterward regardless; this is an ADDITIONAL, more specific line
-   *  for wise fields, since the wise legend lives at `sidewise agent wise`, not at the verb's own card. */
+   *  for mdl fields, since the mdl legend lives at `mm3 agent mdl`, not at the verb's own card. */
   add(field, problem, fix) {
-    const wisePointer = field === "wise" || field.startsWith("wise.") ? " \u2192 see: sidewise agent wise" : "";
-    this.stops.push({ cls: "schema", text: `\u2716 ${field}: ${problem} \u2192 ${fix}${wisePointer}` });
+    const mdlPointer = field === "mdl" || field.startsWith("mdl.") ? " \u2192 see: mm3 agent mdl" : "";
+    this.stops.push({ cls: "schema", text: `\u2716 ${field}: ${problem} \u2192 ${fix}${mdlPointer}` });
   }
 };
 var MAX_QUESTION_CHARS = 160;
@@ -10366,18 +10521,37 @@ function checkSectionsBlock(v, field, out) {
   if ("decisions" in v) checkCategoriesMap(v.decisions, `${field}.decisions`, out);
 }
 function checkAsk(ask2, verb, out) {
-  const templateHint = `sidewise template ${verb ?? "<verb>"}`;
-  if (!isObj3(ask2)) return out.add("side.ask", "is not a mapping", `add concerns: and decisions: (${templateHint})`);
-  if (Object.keys(ask2).length === 0) return out.add("side.ask", "is empty", `add concerns: and decisions: (${templateHint})`);
+  const templateHint = `mm3 template ${verb ?? "<verb>"}`;
+  if (!isObj3(ask2)) return out.add("mak.ask", "is not a mapping", `add concerns: and decisions: (${templateHint})`);
+  if (Object.keys(ask2).length === 0) return out.add("mak.ask", "is empty", `add concerns: and decisions: (${templateHint})`);
   if ("concerns" in ask2 || "decisions" in ask2) {
-    checkSectionsBlock(ask2, "side.ask", out);
+    const layerKeys = Object.keys(ask2).filter((k) => !SECTION_NAMES.includes(k) && isObj3(ask2[k]));
+    if (layerKeys.length > 0) {
+      const many = layerKeys.length > 1;
+      const names = layerKeys.map((k) => `${clip(k, 20)}:`).join(", ");
+      for (const sec of SECTION_NAMES) {
+        if (!(sec in ask2)) continue;
+        out.add(
+          `mak.ask.${sec}`,
+          `sits beside the layer${many ? "s" : ""} ${names}`,
+          many ? "move it under a layer (a sweep) or drop the layers (one subject)" : `move it under ${names} (a sweep) or drop ${names} (one subject)`
+        );
+      }
+      for (const k of Object.keys(ask2)) {
+        if (!SECTION_NAMES.includes(k) && !isObj3(ask2[k])) out.add(`mak.ask.${clip(k, 20)}`, "not concerns or decisions", "use concerns: or decisions:");
+      }
+      if ("concerns" in ask2) checkCategoriesMap(ask2.concerns, "mak.ask.concerns", out);
+      if ("decisions" in ask2) checkCategoriesMap(ask2.decisions, "mak.ask.decisions", out);
+      return;
+    }
+    checkSectionsBlock(ask2, "mak.ask", out);
     return;
   }
   const looksFlat = Object.values(ask2).some((v) => isObj3(v) && "pass" in v);
-  if (looksFlat) return out.add("side.ask", "put categories under concerns: (yes/no) and decisions: (scale/choice)", templateHint);
-  checkTagKeys(ask2, "side.ask", "layer", out);
+  if (looksFlat) return out.add("mak.ask", "put categories under concerns: (yes/no) and decisions: (scale/choice)", templateHint);
+  checkTagKeys(ask2, "mak.ask", "layer", out);
   for (const [layer, v] of Object.entries(ask2)) {
-    const field = `side.ask.${clip(layer, 20)}`;
+    const field = `mak.ask.${clip(layer, 20)}`;
     if (layer === "concerns" || layer === "decisions") {
       out.add(field, '"concerns"/"decisions" are reserved for ask sections', "use a different layer name");
       continue;
@@ -10390,34 +10564,34 @@ function checkAsk(ask2, verb, out) {
   }
 }
 function checkOverShape(over, out) {
-  if (!isObj3(over) || Object.keys(over).length === 0) return out.add("side.over", "is not a mapping of layers", "write over: with a layer name and its items, e.g. part: [a, b]");
-  checkTagKeys(over, "side.over", "layer", out);
+  if (!isObj3(over) || Object.keys(over).length === 0) return out.add("mak.over", "is not a mapping of layers", "write over: with a layer name and its items, e.g. part: [a, b]");
+  checkTagKeys(over, "mak.over", "layer", out);
   for (const [layer, v] of Object.entries(over)) {
-    if (layer === "concerns" || layer === "decisions") out.add(`side.over.${layer}`, '"concerns"/"decisions" are reserved for ask sections', "use a different layer name");
+    if (layer === "concerns" || layer === "decisions") out.add(`mak.over.${layer}`, '"concerns"/"decisions" are reserved for ask sections', "use a different layer name");
     if (typeof v === "string") continue;
-    if (!Array.isArray(v)) out.add(`side.over.${clip(layer, 20)}`, "is not a list or a pattern", "write a list of items, a file pattern, or each");
-    else if (v.length < 1 || v.length > 30) out.add(`side.over.${clip(layer, 20)}`, `${v.length} items`, "give 1\u201330 items");
+    if (!Array.isArray(v)) out.add(`mak.over.${clip(layer, 20)}`, "is not a list or a pattern", "write a list of items, a file pattern, or each");
+    else if (v.length < 1 || v.length > 30) out.add(`mak.over.${clip(layer, 20)}`, `${v.length} items`, "give 1\u201330 items");
   }
 }
 function checkTouches(v, out) {
-  if (!Array.isArray(v)) return out.add("wise.touches", "must be a list", "write [a, b]");
-  if (v.length > 5) out.add("wise.touches", `${v.length} entries`, "give up to 5");
+  if (!Array.isArray(v)) return out.add("mdl.touches", "must be a list", "write [a, b]");
+  if (v.length > 5) out.add("mdl.touches", `${v.length} entries`, "give up to 5");
   v.forEach((x, i) => {
     if (typeof x !== "string" || x.includes("\n") || len(x) < 1 || len(x) > MAX_TOUCH_LEN) {
-      out.add(`wise.touches[${i}]`, show(x), `each entry is 1\u2013${MAX_TOUCH_LEN} characters, one line`);
+      out.add(`mdl.touches[${i}]`, show(x), `each entry is 1\u2013${MAX_TOUCH_LEN} characters, one line`);
     }
   });
 }
 function checkUses(v, out) {
   const list3 = typeof v === "string" ? [v] : v;
-  if (!Array.isArray(list3)) return void out.add("wise.uses", show(v), "write a level:name chain, e.g. container:api -> component:dao");
+  if (!Array.isArray(list3)) return void out.add("mdl.uses", show(v), "write a level:name chain, e.g. container:api -> component:dao");
   if (list3.length < 1 || list3.length > 5) {
-    out.add("wise.uses", `${list3.length} chains`, "give 1\u20135");
+    out.add("mdl.uses", `${list3.length} chains`, "give 1\u20135");
     return void 0;
   }
   let ok2 = true;
   list3.forEach((x, i) => {
-    const field = typeof v === "string" ? "wise.uses" : `wise.uses[${i}]`;
+    const field = typeof v === "string" ? "mdl.uses" : `mdl.uses[${i}]`;
     if (typeof x !== "string") {
       out.add(field, show(x), "write level:name, e.g. container:web-app");
       ok2 = false;
@@ -10433,57 +10607,57 @@ function checkUses(v, out) {
 }
 function checkClosedSingle(field, v, out) {
   const allowed = closedValues(field);
-  if (!allowed.includes(v)) out.add(`wise.${field.key}`, show(v), `use ${list(field.values)}`);
+  if (!allowed.includes(v)) out.add(`mdl.${field.key}`, show(v), `use ${list(field.values)}`);
 }
 function checkClosedList(field, v, out) {
   const allowed = closedValues(field);
   if (Array.isArray(v) && (v.length < 1 || v.length > (field.maxList ?? Infinity))) {
-    out.add(`wise.${field.key}`, show(v), `one value or a list of \u2264${field.maxList}: [${field.values.slice(0, field.maxList).join(", ")}]`);
+    out.add(`mdl.${field.key}`, show(v), `one value or a list of \u2264${field.maxList}: [${field.values.slice(0, field.maxList).join(", ")}]`);
     return;
   }
   const entries = Array.isArray(v) ? v : [v];
   const bad = entries.find((x) => !allowed.includes(x));
-  if (bad !== void 0) out.add(`wise.${field.key}`, show(v), `use ${list(field.values)}, or a list of \u2264${field.maxList}`);
+  if (bad !== void 0) out.add(`mdl.${field.key}`, show(v), `use ${list(field.values)}, or a list of \u2264${field.maxList}`);
 }
-function checkSide(side, verb, out) {
-  if (!isObj3(side)) return out.add("side", "is not a mapping", "put goal: and the other fields under side:");
-  for (const k of Object.keys(side)) {
-    if (!SIDE_KEYS.includes(k)) out.add(`side.${clip(k, 20)}`, "not a field", `use ${list(SIDE_KEYS)}`);
+function checkMak(mak, verb, out) {
+  if (!isObj3(mak)) return out.add("mak", "is not a mapping", "put goal: and the other fields under mak:");
+  for (const k of Object.keys(mak)) {
+    if (!MAK_KEYS.includes(k)) out.add(`mak.${clip(k, 20)}`, "not a field", `use ${list(MAK_KEYS)}`);
   }
-  if (!("goal" in side)) out.add("side.goal", "missing", "add one line: what you want to be true");
+  if (!("goal" in mak)) out.add("mak.goal", "missing", "add one line: what you want to be true");
   else {
-    const bad = lineProblem(side.goal);
-    if (bad) out.add("side.goal", bad, "write one line of 3\u2013160 characters: what you want to be true");
+    const bad = lineProblem(mak.goal);
+    if (bad) out.add("mak.goal", bad, "write one line of 3\u2013160 characters: what you want to be true");
   }
-  if ("depth" in side && !DEPTHS.includes(side.depth)) out.add("side.depth", show(side.depth), `use ${list(DEPTHS)}`);
-  if ("where" in side) {
-    const w = side.where;
-    if (!Array.isArray(w) || w.length < 1 || w.length > 5) out.add("side.where", "needs 1\u20135 paths", "write where: [path/to/file.ts]");
-    else for (const p of w) if (typeof p !== "string" || !PATH.test(p)) out.add("side.where", `${show(p)} is not a path`, "use a project path, optionally :start-end, with no spaces");
+  if ("depth" in mak && !DEPTHS.includes(mak.depth)) out.add("mak.depth", show(mak.depth), `use ${list(DEPTHS)}`);
+  if ("where" in mak) {
+    const w = mak.where;
+    if (!Array.isArray(w) || w.length < 1 || w.length > 5) out.add("mak.where", "needs 1\u20135 paths", "write where: [path/to/file.ts]");
+    else for (const p of w) if (typeof p !== "string" || !PATH.test(p)) out.add("mak.where", `${show(p)} is not a path`, "use a project path, optionally :start-end, with no spaces");
   }
-  if ("parent" in side && !(typeof side.parent === "string" && RUN_ID2.test(side.parent))) out.add("side.parent", `${show(side.parent)} is not a run id`, "use SW-####");
-  if ("from" in side && !(typeof side.from === "string" && len(side.from) >= 1 && len(side.from) <= 200)) out.add("side.from", show(side.from), "name an item id or a category of the parent run");
-  if ("compare" in side) {
-    const c = side.compare;
+  if ("parent" in mak && !(typeof mak.parent === "string" && RUN_ID2.test(mak.parent))) out.add("mak.parent", `${show(mak.parent)} is not a run id`, "use MM3-####");
+  if ("from" in mak && !(typeof mak.from === "string" && len(mak.from) >= 1 && len(mak.from) <= 200)) out.add("mak.from", show(mak.from), "name an item id or a category of the parent run");
+  if ("compare" in mak) {
+    const c = mak.compare;
     const ok2 = isObj3(c) && typeof c.before === "string" && typeof c.after === "string" && Object.keys(c).every((k) => k === "before" || k === "after");
-    if (!ok2) out.add("side.compare", show(c), "write compare: {before: main, after: HEAD}");
+    if (!ok2) out.add("mak.compare", show(c), "write compare: {before: main, after: HEAD}");
   }
-  if ("expect" in side) {
-    const e = side.expect;
-    if (e === "none") {
+  if ("expect" in mak) {
+    const e = mak.expect;
+    if (e === "none" || Array.isArray(e) && e.length === 0) {
     } else if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === "string" && isTag(x))) {
-      out.add("side.expect", show(e), 'give 1\u20139 concern names, lowercase kebab-case, \u2264 20 characters, or the word "none"');
+      out.add("mak.expect", show(e), 'give 1\u20139 concern names, lowercase kebab-case, \u2264 20 characters, or the word "none"');
     } else if (new Set(e).size !== e.length) {
-      out.add("side.expect", "repeated concern name", "make each one different");
+      out.add("mak.expect", "repeated concern name", "make each one different");
     }
   }
-  if ("verb" in side && !VERBS.includes(side.verb)) out.add("side.verb", show(side.verb), `use ${list(VERBS)}, or leave it out`);
-  if ("ask" in side) checkAsk(side.ask, verb, out);
-  if ("over" in side) checkOverShape(side.over, out);
+  if ("verb" in mak && !VERBS.includes(mak.verb)) out.add("mak.verb", show(mak.verb), `use ${list(VERBS)}, or leave it out`);
+  if ("ask" in mak) checkAsk(mak.ask, verb, out);
+  if ("over" in mak) checkOverShape(mak.over, out);
 }
-function checkWiseField(field, v, out) {
+function checkMdlField(field, v, out) {
   if (field.literal) {
-    checkCustomWiseValue(field.key, v, out);
+    checkCustomMdlValue(field.key, v, out);
     return;
   }
   switch (field.kind) {
@@ -10496,7 +10670,7 @@ function checkWiseField(field, v, out) {
     case "freetext": {
       const bad = lineProblem(v);
       if (bad) {
-        out.add(`wise.${field.key}`, bad, "write one line of 3\u2013160 characters: what you're solving now");
+        out.add(`mdl.${field.key}`, bad, "write one line of 3\u2013160 characters: what you're solving now");
         return;
       }
       if (field.pattern !== void 0 && typeof v === "string") {
@@ -10506,7 +10680,7 @@ function checkWiseField(field, v, out) {
         } catch {
           matches = true;
         }
-        if (!matches) out.add(`wise.${field.key}`, show(v), `must match the project's pattern for this field: ${field.pattern}`);
+        if (!matches) out.add(`mdl.${field.key}`, show(v), `must match the project's pattern for this field: ${field.pattern}`);
       }
       return;
     }
@@ -10518,20 +10692,20 @@ function checkWiseField(field, v, out) {
       return;
   }
 }
-function checkUnknownWiseKey(k, out, keys = WISE_KEYS) {
-  out.add(`wise.${clip(k, 20)}`, "not a field", `use ${list(keys)}, or a lower-kebab key \u2264${MAX_CUSTOM_KEY_LEN} characters`);
+function checkUnknownMdlKey(k, out, keys = MDL_KEYS) {
+  out.add(`mdl.${clip(k, 20)}`, "not a field", `use ${list(keys)}, or a lower-kebab key \u2264${MAX_CUSTOM_KEY_LEN} characters`);
 }
-function checkCustomWiseValue(k, v, out) {
-  if (Array.isArray(v) && (v.length < 1 || v.length > 5)) return out.add(`wise.${k}`, `${v.length} entries`, "give 1\u20135");
+function checkCustomMdlValue(k, v, out) {
+  if (Array.isArray(v) && (v.length < 1 || v.length > 5)) return out.add(`mdl.${k}`, `${v.length} entries`, "give 1\u20135");
   const entries = Array.isArray(v) ? v : [v];
   const bad = entries.find((x) => typeof x !== "string" || x.includes("\n") || len(x) > MAX_FREETEXT_LEN);
-  if (bad !== void 0) out.add(`wise.${k}`, show(bad), `write one line \u2264${MAX_FREETEXT_LEN} characters, or a list of \u22645`);
+  if (bad !== void 0) out.add(`mdl.${k}`, show(bad), `write one line \u2264${MAX_FREETEXT_LEN} characters, or a list of \u22645`);
 }
-function wiseBlockLineCount(rawText) {
+function mdlBlockLineCount(rawText) {
   if (!rawText) return void 0;
   const lines = rawText.split(/\r?\n/u);
   if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
-  const start = lines.findIndex((l) => /^wise\s*:/u.test(l));
+  const start = lines.findIndex((l) => /^mdl\s*:/u.test(l));
   if (start === -1) return void 0;
   let count = 1;
   for (let i = start + 1; i < lines.length; i++) {
@@ -10541,50 +10715,52 @@ function wiseBlockLineCount(rawText) {
   }
   return count;
 }
-function checkWise2(wise2, out, rawText, wiseFields = WISE_FIELDS) {
-  if (!isObj3(wise2)) return out.add("wise", "is not a mapping", "write why:, area: or parent: under wise:, or leave wise out");
-  const byKey = new Map(wiseFields.map((f) => [f.key, f]));
-  const byAlias = new Map(wiseFields.filter((f) => f.alias !== void 0).map((f) => [f.alias, f]));
-  const isKnown = (k) => k === WISE_PARENT_KEY || byKey.has(k) || byAlias.has(k);
-  const effectiveKeys = [...wiseFields.flatMap((f) => f.alias !== void 0 ? [f.key, f.alias] : [f.key]), WISE_PARENT_KEY];
-  for (const k of Object.keys(wise2)) if (!isKnown(k) && !isCustomKey(k)) checkUnknownWiseKey(k, out, effectiveKeys);
-  for (const f of wiseFields) {
-    const hasKey2 = f.key in wise2;
-    const hasAlias = f.alias !== void 0 && f.alias in wise2;
+function checkMdl2(mdl2, out, rawText, mdlFields = MDL_FIELDS) {
+  if (!isObj3(mdl2)) return out.add("mdl", "is not a mapping", "write why:, area: or parent: under mdl:, or leave mdl out");
+  const byKey = new Map(mdlFields.map((f) => [f.key, f]));
+  const byAlias = new Map(mdlFields.filter((f) => f.alias !== void 0).map((f) => [f.alias, f]));
+  const isKnown = (k) => k === MDL_PARENT_KEY || byKey.has(k) || byAlias.has(k);
+  const effectiveKeys = [...mdlFields.flatMap((f) => f.alias !== void 0 ? [f.key, f.alias] : [f.key]), MDL_PARENT_KEY];
+  for (const k of Object.keys(mdl2)) if (!isKnown(k) && !isCustomKey(k)) checkUnknownMdlKey(k, out, effectiveKeys);
+  for (const f of mdlFields) {
+    const hasKey2 = f.key in mdl2;
+    const hasAlias = f.alias !== void 0 && f.alias in mdl2;
     if (hasKey2 && hasAlias) {
-      out.add(`wise.${f.alias}`, `given alongside its own alias wise.${f.key}`, `use one of wise.${f.key} or wise.${f.alias}, not both`);
+      out.add(`mdl.${f.alias}`, `given alongside its own alias mdl.${f.key}`, `use one of mdl.${f.key} or mdl.${f.alias}, not both`);
     } else if (hasKey2) {
-      checkWiseField(f, wise2[f.key], out);
+      checkMdlField(f, mdl2[f.key], out);
     } else if (hasAlias) {
-      checkWiseField(f, wise2[f.alias], out);
+      checkMdlField(f, mdl2[f.alias], out);
     }
   }
-  if (WISE_PARENT_KEY in wise2 && !(typeof wise2[WISE_PARENT_KEY] === "string" && RUN_ID2.test(wise2[WISE_PARENT_KEY]))) {
-    out.add(`wise.${WISE_PARENT_KEY}`, `${show(wise2[WISE_PARENT_KEY])} is not a run id`, "use SW-####");
+  if (MDL_PARENT_KEY in mdl2 && !(typeof mdl2[MDL_PARENT_KEY] === "string" && RUN_ID2.test(mdl2[MDL_PARENT_KEY]))) {
+    out.add(`mdl.${MDL_PARENT_KEY}`, `${show(mdl2[MDL_PARENT_KEY])} is not a run id`, "use MM3-####");
   }
-  for (const [k, v] of Object.entries(wise2)) if (!isKnown(k) && isCustomKey(k)) checkCustomWiseValue(k, v, out);
-  const lineCount = wiseBlockLineCount(rawText);
-  if (lineCount !== void 0 && lineCount > MAX_WISE_LINES) {
-    out.add("wise", `${lineCount} lines`, `the wise block is capped at ${MAX_WISE_LINES} lines`);
+  for (const [k, v] of Object.entries(mdl2)) if (!isKnown(k) && isCustomKey(k)) checkCustomMdlValue(k, v, out);
+  const lineCount = mdlBlockLineCount(rawText);
+  if (lineCount !== void 0 && lineCount > MAX_MDL_LINES) {
+    out.add("mdl", `${lineCount} lines`, `the mdl block is capped at ${MAX_MDL_LINES} lines`);
   }
 }
-function checkSchema(value, verb, rawText, wiseFields = WISE_FIELDS) {
+var RENAMED_BLOCKS = { side: "mak", wise: "mdl" };
+function checkSchema(value, verb, rawText, mdlFields = MDL_FIELDS) {
   const out = new Out();
   if (!isObj3(value)) {
-    out.add("request", "is not a mapping", "start with side:");
+    out.add("request", "is not a mapping", "start with mak:");
     return out.stops;
   }
   for (const k of Object.keys(value)) {
-    if (k !== "side" && k !== "wise") out.add(clip(k, 20), "not a block", "the request holds only side: and wise:; put fields under side:");
+    if (Object.hasOwn(RENAMED_BLOCKS, k)) out.add(k, "renamed", `use ${RENAMED_BLOCKS[k]}:`);
+    else if (k !== "mak" && k !== "mdl") out.add(clip(k, 20), "not a block", "the request holds only mak: and mdl:; put fields under mak:");
   }
-  if (!("side" in value)) out.add("side", "missing", "start with side: and a goal");
-  else checkSide(value.side, verb, out);
-  if ("wise" in value) checkWise2(value.wise, out, rawText, wiseFields);
+  if ("mak" in value) checkMak(value.mak, verb, out);
+  else if (!("side" in value)) out.add("mak", "missing", "start with mak: and a goal");
+  if ("mdl" in value) checkMdl2(value.mdl, out, rawText, mdlFields);
   return out.stops;
 }
 
 // src/contract/read.ts
-var SKELETON = "(sidewise template class prints a skeleton)";
+var SKELETON = "(mm3 template class prints a skeleton)";
 var QUESTION_LINE = /^\s*(\d+)\s*:\s?(.*)$/u;
 var MAX_STOPS = 5;
 function isQuotedWhole(s) {
@@ -10647,8 +10823,8 @@ function describeParseError(lines, code, line3) {
 }
 function readRequestText(text) {
   const src = text.replace(/^﻿/u, "");
-  if (!src.trim()) return { ok: false, stops: [`\u2716 request: empty \u2192 start with "side:" ${SKELETON}`] };
-  if (/^\s*sidewise\s+\w+\s+L\d/u.test(src)) return { ok: false, stops: [`\u2716 request: this is the old text format \u2192 send YAML ${SKELETON}`] };
+  if (!src.trim()) return { ok: false, stops: [`\u2716 request: empty \u2192 start with "mak:" ${SKELETON}`] };
+  if (/^\s*mm3\s+\w+\s+L\d/u.test(src)) return { ok: false, stops: [`\u2716 request: this is the old text format \u2192 send YAML ${SKELETON}`] };
   const scanned = scanLines(src);
   if (scanned.length) return { ok: false, stops: capStops(scanned) };
   const doc = (0, import_yaml3.parseDocument)(src, { version: "1.2", schema: "core", uniqueKeys: true });
@@ -10660,8 +10836,8 @@ function readRequestText(text) {
   } catch {
     return { ok: false, stops: ["\u2716 yaml: too many aliases (*) \u2192 write the request out in full"] };
   }
-  if (value === null || value === void 0) return { ok: false, stops: [`\u2716 request: empty \u2192 start with "side:" ${SKELETON}`] };
-  if (typeof value !== "object" || Array.isArray(value)) return { ok: false, stops: [`\u2716 request: not a YAML mapping \u2192 start with "side:" ${SKELETON}`] };
+  if (value === null || value === void 0) return { ok: false, stops: [`\u2716 request: empty \u2192 start with "mak:" ${SKELETON}`] };
+  if (typeof value !== "object" || Array.isArray(value)) return { ok: false, stops: [`\u2716 request: not a YAML mapping \u2192 start with "mak:" ${SKELETON}`] };
   return { ok: true, value };
 }
 
@@ -10711,7 +10887,7 @@ function mapLayers(over) {
       if ("problem" in it) continue;
       for (const [child, v] of Object.entries(it.children)) {
         if (chain.includes(child)) {
-          problems.push(`\u2716 side.over.${clip(child, 20)}: used at the top and inside "${clip(it.name, 30)}" \u2192 pick one`);
+          problems.push(`\u2716 mak.over.${clip(child, 20)}: used at the top and inside "${clip(it.name, 30)}" \u2192 pick one`);
           continue;
         }
         if (!layers.includes(child)) layers.push(child);
@@ -10721,8 +10897,8 @@ function mapLayers(over) {
     }
   };
   for (const l of chain) walk2(l, over[l]);
-  if (layers.length > MAX_LAYERS) problems.push(`\u2716 side.over: ${layers.length} layers \u2192 at most ${MAX_LAYERS}; split the request`);
-  for (const l of layers) if (l === "concerns" || l === "decisions") problems.push(`\u2716 side.over.${l}: "${l}" is reserved for ask sections \u2192 use a different layer name`);
+  if (layers.length > MAX_LAYERS) problems.push(`\u2716 mak.over: ${layers.length} layers \u2192 at most ${MAX_LAYERS}; split the request`);
+  for (const l of layers) if (l === "concerns" || l === "decisions") problems.push(`\u2716 mak.over.${l}: "${l}" is reserved for ask sections \u2192 use a different layer name`);
   return { layers, chain, ancestors, problems: [...new Set(problems)] };
 }
 function firstStringLayer(over) {
@@ -10745,19 +10921,19 @@ function checkOver(over, rule, cap2) {
   chain.forEach((layer, i) => {
     const v = over[layer];
     if (typeof v !== "string") {
-      if (i > 0) out.push(`\u2716 side.over.${layer}: a list at the top applies to nothing \u2192 nest it under its parent items (- name: x, ${layer}: [...]), or use each`);
+      if (i > 0) out.push(`\u2716 mak.over.${layer}: a list at the top applies to nothing \u2192 nest it under its parent items (- name: x, ${layer}: [...]), or use each`);
       return;
     }
-    if (rule === "none") out.push(`\u2716 side.over.${layer}: loop sweeps ideas you list \u2192 write the items as a list; use scan for files`);
-    else if (rule === "scan" && i === 0 && v === "each") out.push(`\u2716 side.over.${layer}: scan needs a file pattern first \u2192 e.g. ${layer}: src/**/*.ts`);
-    else if ((rule === "each-only" || i > 0) && v !== "each") out.push(`\u2716 side.over.${layer}: "${clip(v, 30)}" \u2192 use each (we split the layer above)`);
-    else if (rule === "scan" && i === 0 && (v.startsWith("/") || v.split("/").includes(".."))) out.push(`\u2716 side.over.${layer}: "${clip(v, 40)}" is outside the project \u2192 use a pattern inside it`);
+    if (rule === "none") out.push(`\u2716 mak.over.${layer}: loop sweeps ideas you list \u2192 write the items as a list; use scan for files`);
+    else if (rule === "scan" && i === 0 && v === "each") out.push(`\u2716 mak.over.${layer}: scan needs a file pattern first \u2192 e.g. ${layer}: src/**/*.ts`);
+    else if ((rule === "each-only" || i > 0) && v !== "each") out.push(`\u2716 mak.over.${layer}: "${clip(v, 30)}" \u2192 use each (we split the layer above)`);
+    else if (rule === "scan" && i === 0 && (v.startsWith("/") || v.split("/").includes(".."))) out.push(`\u2716 mak.over.${layer}: "${clip(v, 40)}" is outside the project \u2192 use a pattern inside it`);
   });
-  if (rule === "scan" && typeof over[chain[0]] !== "string") out.push(`\u2716 side.over.${chain[0]}: scan needs a file pattern first \u2192 e.g. ${chain[0]}: src/**/*.ts`);
+  if (rule === "scan" && typeof over[chain[0]] !== "string") out.push(`\u2716 mak.over.${chain[0]}: scan needs a file pattern first \u2192 e.g. ${chain[0]}: src/**/*.ts`);
   const walk2 = (layer, value, under) => {
     if (typeof value === "string") return;
     if (!Array.isArray(value)) {
-      out.push(`\u2716 side.over.${layer}: under ${under}, ${layer} must be a list \u2192 ${layer}: [a, b]`);
+      out.push(`\u2716 mak.over.${layer}: under ${under}, ${layer} must be a list \u2192 ${layer}: [a, b]`);
       return;
     }
     counts.set(layer, (counts.get(layer) ?? 0) + value.length);
@@ -10765,15 +10941,15 @@ function checkOver(over, rule, cap2) {
     for (const raw of value) {
       const it = parseItem(raw);
       if ("problem" in it) {
-        out.push(`\u2716 side.over.${layer}: ${it.problem}`);
+        out.push(`\u2716 mak.over.${layer}: ${it.problem}`);
         continue;
       }
-      if (!NAME2.test(it.name)) out.push(`\u2716 side.over.${layer}: item "${clip(it.name, 30)}" \u2192 names are 1\u201380 characters, without "/" or "#"`);
-      if (seen.has(it.name)) out.push(`\u2716 side.over.${layer}: "${clip(it.name, 30)}" twice under ${under} \u2192 give each item its own name`);
+      if (!NAME2.test(it.name)) out.push(`\u2716 mak.over.${layer}: item "${clip(it.name, 30)}" \u2192 names are 1\u201380 characters, without "/" or "#"`);
+      if (seen.has(it.name)) out.push(`\u2716 mak.over.${layer}: "${clip(it.name, 30)}" twice under ${under} \u2192 give each item its own name`);
       seen.add(it.name);
       for (const [child, v] of Object.entries(it.children)) {
         if (!TAG2.test(child) || child.length > 20) {
-          out.push(`\u2716 side.over.${layer}: under "${clip(it.name, 30)}", "${clip(child, 20)}" is not a layer name \u2192 lowercase, one word or kebab-case`);
+          out.push(`\u2716 mak.over.${layer}: under "${clip(it.name, 30)}", "${clip(child, 20)}" is not a layer name \u2192 lowercase, one word or kebab-case`);
           continue;
         }
         walk2(child, v, `"${clip(it.name, 30)}"`);
@@ -10782,7 +10958,7 @@ function checkOver(over, rule, cap2) {
   };
   for (const l of chain) walk2(l, over[l], "the top");
   for (const [layer, n] of counts) {
-    if (n > cap2) out.push(`\u2716 side.over.${layer}: ${n} items \u2192 at most ${cap2} per layer at this depth; raise depth or split the request`);
+    if (n > cap2) out.push(`\u2716 mak.over.${layer}: ${n} items \u2192 at most ${cap2} per layer at this depth; raise depth or split the request`);
   }
   return [...new Set(out)];
 }
@@ -10855,13 +11031,13 @@ function how(field, verb) {
     case "where":
       return 'add "where: [path/to/file.ts]"';
     case "ask":
-      return `add ask: with concerns: and decisions: (sidewise template ${verb})`;
+      return `add ask: with concerns: and decisions: (mm3 template ${verb})`;
     case "parent":
-      return 'add "parent: SW-####" (the run this builds on)';
+      return 'add "parent: MM3-####" (the run this builds on)';
     case "compare":
       return 'add "compare: {before: main, after: HEAD}"';
     case "over":
-      return `add over: with the layers to sweep (sidewise template ${verb})`;
+      return `add over: with the layers to sweep (mm3 template ${verb})`;
     case "from":
       return 'add "from: <an item id or a category of the parent run>"';
     case "expect":
@@ -10869,17 +11045,17 @@ function how(field, verb) {
   }
 }
 function never(field, verb) {
-  if (verb === "replay" && field === "ask") return "\u2716 side.ask: replay re-runs the parent's questions \u2192 remove ask; for new questions, use class";
-  if (field === "expect") return "\u2716 side.expect: only replay predicts fixed concerns \u2192 remove it";
-  if (field === "over") return `\u2716 side.over: ${verb} asks about one subject \u2192 remove over, or use loop or scan to sweep`;
-  if (field === "where" && verb === "scan") return "\u2716 side.where: scan reads the files in over \u2192 remove where";
-  if (field === "where") return `\u2716 side.where: ${verb} reads the parent run's code \u2192 remove where`;
-  return `\u2716 side.${field}: ${verb} doesn't take it \u2192 remove it`;
+  if (verb === "replay" && field === "ask") return "\u2716 mak.ask: replay re-runs the parent's questions \u2192 remove ask; for new questions, use class";
+  if (field === "expect") return "\u2716 mak.expect: only replay predicts fixed concerns \u2192 remove it";
+  if (field === "over") return `\u2716 mak.over: ${verb} asks about one subject \u2192 remove over, or use loop or scan to sweep`;
+  if (field === "where" && verb === "scan") return "\u2716 mak.where: scan reads the files in over \u2192 remove where";
+  if (field === "where") return `\u2716 mak.where: ${verb} reads the parent run's code \u2192 remove where`;
+  return `\u2716 mak.${field}: ${verb} doesn't take it \u2192 remove it`;
 }
 var cross = (text) => ({ cls: "cross", text });
 function findBlanks(v, path22, out) {
   const label = (p) => {
-    const q = /^side\.ask\..*\.(\d+)$/u.exec(p);
+    const q = /^mak\.ask\..*\.(\d+)$/u.exec(p);
     return q ? `question ${q[1]}` : p;
   };
   if (typeof v === "string") {
@@ -11008,18 +11184,18 @@ function contractIssues(categories, depth, field) {
 function checkCross(raw, verb) {
   const out = [];
   const notes = [];
-  const side = raw.side;
-  if (side.verb !== void 0 && side.verb !== verb) out.push(cross(`\u2716 side.verb: says "${side.verb}" but you ran ${verb} \u2192 remove side.verb, or run sidewise ${side.verb}`));
-  for (const f of NEEDS[verb]) if (!(f in side)) out.push(cross(`\u2716 side.${f}: ${verb} needs it \u2192 ${how(f, verb)}`));
-  for (const f of NEVER[verb]) if (f in side) out.push(cross(never(f, verb)));
-  const over = side.over;
-  const ask2 = side.ask ?? {};
-  const depth = side.depth;
+  const mak = raw.mak;
+  if (mak.verb !== void 0 && mak.verb !== verb) out.push(cross(`\u2716 mak.verb: says "${mak.verb}" but you ran ${verb} \u2192 remove mak.verb, or run mm3 ${mak.verb}`));
+  for (const f of NEEDS[verb]) if (!(f in mak)) out.push(cross(`\u2716 mak.${f}: ${verb} needs it \u2192 ${how(f, verb)}`));
+  for (const f of NEVER[verb]) if (f in mak) out.push(cross(never(f, verb)));
+  const over = mak.over;
+  const ask2 = mak.ask ?? {};
+  const depth = mak.depth;
   const categories = [];
   const layers = [];
   if (over === void 0) {
     const categoriesGiven = Object.keys(ask2).length > 0;
-    const cats = buildCategories(ask2, "side.ask", out);
+    const cats = buildCategories(ask2, "mak.ask", out);
     categories.push(...cats);
     for (const c of cats) {
       for (const q of c.questions) {
@@ -11029,11 +11205,11 @@ function checkCross(raw, verb) {
     }
     checkNumbers(cats, out);
     if (categoriesGiven) {
-      const issues = contractIssues(cats, depth, "side.ask");
+      const issues = contractIssues(cats, depth, "mak.ask");
       if (verb === "view") {
         for (const i of issues) notes.push(`${i.field}: ${i.problem} (${i.fix}); class will stop on this`);
       } else {
-        for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix} \u2192 see: sidewise agent probe`));
+        for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix} \u2192 see: mm3 agent probe`));
       }
     }
   } else {
@@ -11042,15 +11218,15 @@ function checkCross(raw, verb) {
     const finest = map.layers.at(-1);
     for (const [name, v] of Object.entries(ask2)) {
       if (name === "concerns" || name === "decisions" || isObj3(v) && "pass" in v) {
-        out.push(cross(`\u2716 side.ask.${name}: a sweep keys categories by layer \u2192 ask: {<layer>: {concerns: ..., decisions: ...}}`));
+        out.push(cross(`\u2716 mak.ask.${name}: a sweep keys categories by layer \u2192 ask: {<layer>: {concerns: ..., decisions: ...}}`));
         continue;
       }
       if (!map.layers.includes(name)) {
-        out.push(cross(`\u2716 side.ask.${name}: not a layer in over \u2192 use one of ${map.layers.join(", ")}`));
+        out.push(cross(`\u2716 mak.ask.${name}: not a layer in over \u2192 use one of ${map.layers.join(", ")}`));
         continue;
       }
       const sections = v ?? {};
-      const cats = buildCategories(sections, `side.ask.${name}`, out);
+      const cats = buildCategories(sections, `mak.ask.${name}`, out);
       const allowed = [name, ...map.ancestors.get(name) ?? []];
       for (const c of cats) {
         for (const q of c.questions) {
@@ -11065,11 +11241,11 @@ function checkCross(raw, verb) {
       categories.push(...cats);
       if (cats.length > 0) {
         const isFinest = name === finest;
-        const issues = contractIssues(cats, isFinest ? depth : void 0, `side.ask.${name}`);
+        const issues = contractIssues(cats, isFinest ? depth : void 0, `mak.ask.${name}`);
         if (isFinest) {
-          for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix} \u2192 see: sidewise agent probe`));
+          for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix} \u2192 see: mm3 agent probe`));
         } else if (issues.length) {
-          notes.push(`side.ask.${name} ask is thin (optional layer; counts aren't enforced) \u2014 e.g. ${issues[0].field}: ${issues[0].problem}`);
+          notes.push(`mak.ask.${name} ask is thin (optional layer; counts aren't enforced) \u2014 e.g. ${issues[0].field}: ${issues[0].problem}`);
         }
       }
     }
@@ -11080,35 +11256,35 @@ function checkCross(raw, verb) {
   return {
     stops: [],
     notes,
-    side: {
-      ...side.verb !== void 0 ? { verb: side.verb } : {},
-      goal: side.goal,
+    mak: {
+      ...mak.verb !== void 0 ? { verb: mak.verb } : {},
+      goal: mak.goal,
       ...depth ? { depth } : {},
-      where: side.where ?? [],
-      ...side.parent !== void 0 ? { parent: side.parent } : {},
-      ...side.from !== void 0 ? { from: side.from } : {},
-      ...side.compare !== void 0 ? { compare: side.compare } : {},
-      ...side.expect !== void 0 ? { expect: side.expect } : {},
+      where: mak.where ?? [],
+      ...mak.parent !== void 0 ? { parent: mak.parent } : {},
+      ...mak.from !== void 0 ? { from: mak.from } : {},
+      ...mak.compare !== void 0 ? { compare: mak.compare } : {},
+      ...mak.expect !== void 0 ? { expect: Array.isArray(mak.expect) && mak.expect.length === 0 ? "none" : mak.expect } : {},
       categories: over === void 0 ? categories : [],
       layers,
       ...over !== void 0 ? { over } : {}
     }
   };
 }
-function validateRequest(value, verb, rawText, wiseFields) {
+function validateRequest(value, verb, rawText, mdlFields) {
   const blanks = [];
   findBlanks(value, "", blanks);
   if (blanks.length) return { ok: false, stops: blanks };
-  const schema = checkSchema(value, verb, rawText, wiseFields);
+  const schema = checkSchema(value, verb, rawText, mdlFields);
   if (schema.length) return { ok: false, stops: schema };
   const raw = value;
-  const { stops, side, notes: crossNotes } = checkCross(raw, verb);
-  if (!side) return { ok: false, stops };
+  const { stops, mak, notes: crossNotes } = checkCross(raw, verb);
+  if (!mak) return { ok: false, stops };
   const notes = [...crossNotes];
-  const risky = IRREVERSIBLE.exec(side.goal);
+  const risky = IRREVERSIBLE.exec(mak.goal);
   if (risky) notes.push(`${IRREVERSIBLE_NOTE} ("${risky[0].toLowerCase()}")`);
-  const w = raw.wise;
-  return { ok: true, request: { side, wise: w && Object.keys(w).length ? w : null }, notes };
+  const w = raw.mdl;
+  return { ok: true, request: { mak, mdl: w && Object.keys(w).length ? w : null }, notes };
 }
 
 // src/verbs/request.ts
@@ -11116,19 +11292,19 @@ var MAX_STOPS2 = 5;
 function stopText(stops, verb) {
   if (!stops.length) return "";
   const lines = stops.length <= MAX_STOPS2 ? [...stops] : [...stops.slice(0, MAX_STOPS2), `\u2716 request: ${stops.length - MAX_STOPS2} more problems \u2192 fix the ones above, then run again`];
-  return [...lines, `\u2192 see: sidewise agent ${verb}`].join("\n");
+  return [...lines, `\u2192 see: mm3 agent ${verb}`].join("\n");
 }
-function loadRequest(text, verb, wiseFields) {
+function loadRequest(text, verb, mdlFields) {
   const read = readRequestText(text);
   if (!read.ok) return { ok: false, result: { exit: 2, text: stopText(read.stops, verb) } };
-  const v = validateRequest(read.value, verb, text, wiseFields);
+  const v = validateRequest(read.value, verb, text, mdlFields);
   if (!v.ok) return { ok: false, result: { exit: 2, text: stopText(v.stops.map((s) => s.text), verb) } };
   return { ok: true, request: v.request, notes: v.notes };
 }
 
 // src/verbs/doctor.ts
 function identityFor(env, config) {
-  const wanted = env.SIDEWISE_PROVIDER?.trim();
+  const wanted = env.MM3_PROVIDER?.trim();
   if (wanted === "chaos") return { adapter: "chaos", route: "chaos", model: CHAOS_MODEL, baseURL: null };
   const usingTypesafe = wanted === "typesafe" || wanted !== "fake" && hasKey(config);
   if (!usingTypesafe) return { adapter: "fake", route: "fake", model: FAKE_MODEL, baseURL: null };
@@ -11143,11 +11319,11 @@ function identityFor(env, config) {
 }
 var octal4 = (mode) => mode.toString(8).padStart(4, "0");
 function actorLine(env) {
-  const set = env.SIDEWISE_ACTOR?.trim();
-  return set || "agent (default) \u2192 set SIDEWISE_ACTOR to change";
+  const set = env.MM3_ACTOR?.trim();
+  return set || "agent (default) \u2192 set MM3_ACTOR to change";
 }
 function noKeyHint(env) {
-  return inPluginContext(env) ? `none (sample answers only) \u2192 ${NO_KEY_PLUGIN_HINT}` : 'no  \u2192 run "sidewise init" to add one';
+  return inPluginContext(env) ? `none (sample answers only) \u2192 ${NO_KEY_PLUGIN_HINT}` : 'no  \u2192 run "mm3 init" to add one';
 }
 function keyLine(env, config, deps) {
   if (!config.apiKey) return { value: noKeyHint(env) };
@@ -11158,7 +11334,7 @@ function keyLine(env, config, deps) {
     const file = envFilePath(env);
     const read = readEnvFile(file);
     const mode = read?.mode ?? 384;
-    const note = read ? looseFileModeWarning(file, mode) ?? (read.ignoredLines > 0 ? `\u2716 credentials: ${file} has ${read.ignoredLines} line(s) sidewise ignored (not "export NAME='value'" for an allowed name)` : void 0) : void 0;
+    const note = read ? looseFileModeWarning(file, mode) ?? (read.ignoredLines > 0 ? `\u2716 credentials: ${file} has ${read.ignoredLines} line(s) mm3 ignored (not "export NAME='value'" for an allowed name)` : void 0) : void 0;
     return { value: `yes \xB7 from user file ${file} (${octal4(mode)}, not encrypted)`, note };
   }
   const envVar = config.route === "gateway" ? "AI_GATEWAY_API_KEY" : "TYPESAFE_API_KEY";
@@ -11166,9 +11342,9 @@ function keyLine(env, config, deps) {
   return { value: `yes \xB7 from env ${envVar}${stored ? " (overrides stored)" : ""}` };
 }
 function cliLine(env, platform) {
-  const resolved = findOnPath("sidewise", env, platform);
+  const resolved = findOnPath("mm3", env, platform);
   const record2 = readInstallRecord(env);
-  if (!resolved && !record2) return 'not on PATH \u2192 run "sidewise init" to install it';
+  if (!resolved && !record2) return 'not on PATH \u2192 run "mm3 init" to install it';
   const shown2 = resolved ?? "(not currently on PATH)";
   if (!record2) return `${shown2} \xB7 on PATH`;
   const flag = record2.mode === "global" ? "--global" : record2.mode === "user" ? "--user" : "--local";
@@ -11177,11 +11353,11 @@ function cliLine(env, platform) {
 }
 function pluginLine(deps) {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
-  if (!status.installed) return 'not installed \u2192 "sidewise init --claude"';
+  if (!status.installed) return 'not installed \u2192 "mm3 init --claude"';
   const scopes = status.scopes;
   const scope = scopes[0] ?? "user";
   const userOnly = scopes.length === 1 && scope === "user";
-  return `sidewise@mvp-scale \xB7 ${scope} scope${userOnly ? ' (every project) \u2192 for just this one, "sidewise init --scope project"' : ""}`;
+  return `mm3@mvp-scale \xB7 ${scope} scope${userOnly ? ' (every project) \u2192 for just this one, "mm3 init --scope project"' : ""}`;
 }
 function projectLine(root, deps) {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
@@ -11203,15 +11379,15 @@ function configField(paths, env) {
 var MAX_DOCTOR_STOPS = 5;
 function doctorStops(lines) {
   const capped = lines.length <= MAX_DOCTOR_STOPS ? [...lines] : [...lines.slice(0, MAX_DOCTOR_STOPS), `\u2716 request: ${lines.length - MAX_DOCTOR_STOPS} more problems \u2192 fix the ones above, then run again`];
-  return [...capped, "\u2192 see: sidewise agent doctor"].join("\n");
+  return [...capped, "\u2192 see: mm3 agent doctor"].join("\n");
 }
-var isRequestShaped = (text) => /^side\s*:/mu.test(text);
+var isRequestShaped = (text) => /^mak\s*:/mu.test(text);
 function sniffVerb(text) {
   try {
     const doc = (0, import_yaml4.parseDocument)(text, { version: "1.2", schema: "core", uniqueKeys: true });
     if (doc.errors.length) return "class";
     const value = doc.toJS({ maxAliasCount: 50 });
-    const verb = value?.side?.verb;
+    const verb = value?.mak?.verb;
     return typeof verb === "string" && VERBS.includes(verb) ? verb : "class";
   } catch {
     return "class";
@@ -11220,7 +11396,7 @@ function sniffVerb(text) {
 function singleTrailingPointer(text) {
   const lines = text.split("\n");
   const last = lines.length - 1;
-  return lines.map((line3, i) => i === last ? line3 : line3.replace(/ → see: sidewise agent \S+$/, "")).join("\n");
+  return lines.map((line3, i) => i === last ? line3 : line3.replace(/ → see: mm3 agent \S+$/, "")).join("\n");
 }
 function runDoctorFile(text) {
   if (isRequestShaped(text)) {
@@ -11260,8 +11436,9 @@ function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
   const { value: key2, note: keyNote } = keyLine(env, config, deps);
   const notes = [
     "free: no call, no spend",
-    ...paths ? [] : ["no project found here or above \u2192 run inside one, or set SIDEWISE_HOME"],
-    ...keyNote ? [keyNote] : []
+    ...paths ? [] : ["no project found here or above \u2192 run inside one, or set MM3_HOME"],
+    ...keyNote ? [keyNote] : [],
+    ...nearMissNotes(paths)
   ];
   const doc = m(
     [
@@ -11338,13 +11515,13 @@ var GLYPH = { done: "\u2714", already: "\xB7", skipped: "\u2013", problem: "\u27
 var line = (status, label, text) => `${GLYPH[status]} ${label}: ${text}`;
 var nowIso = (ctx) => (ctx.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
 var firstLine = (s) => s.trim().split("\n")[0] ?? "";
-var insideGitProject = (cwd) => existsSync10(path10.join(cwd, ".git"));
+var insideGitProject = (cwd) => existsSync11(path10.join(cwd, ".git"));
 function isPackageBin(binPath, pkgName) {
   try {
     let dir = path10.dirname(realpathSync(binPath));
     for (let i = 0; i < 6; i++) {
       const pj = path10.join(dir, "package.json");
-      if (existsSync10(pj)) {
+      if (existsSync11(pj)) {
         const meta = JSON.parse(readFileSync11(pj, "utf8"));
         return meta.name === pkgName;
       }
@@ -11358,14 +11535,14 @@ function isPackageBin(binPath, pkgName) {
   return false;
 }
 function defaultMode(cwd, prefixWritable) {
-  if (existsSync10(path10.join(cwd, "package.json"))) return "local";
+  if (existsSync11(path10.join(cwd, "package.json"))) return "local";
   return prefixWritable ? "global" : "user";
 }
 function isNpxCache(binPath) {
   return binPath.split(path10.sep).includes("_npx");
 }
 async function stepCli(flags, ctx) {
-  const onPath = findOnPath("sidewise", ctx.env, ctx.platform);
+  const onPath = findOnPath("mm3", ctx.env, ctx.platform);
   if (onPath && !isNpxCache(onPath) && isPackageBin(onPath, ctx.pkg.name) && !flags.mode) {
     return [line("already", "cli", `already reachable as ${onPath}`)];
   }
@@ -11375,7 +11552,7 @@ async function stepCli(flags, ctx) {
   const self = detectSelfSpec(ctx.packageDir, ctx.pkg);
   if (mode === "global") {
     if (!globalWritable) {
-      return [line("problem", "cli", 'the global npm prefix needs sudo \u2192 re-run "sidewise init --user" instead (never runs sudo for you)')];
+      return [line("problem", "cli", 'the global npm prefix needs sudo \u2192 re-run "mm3 init --user" instead (never runs sudo for you)')];
     }
     const r2 = ctx.runner("npm", ["install", "-g", self.spec]);
     if (r2.status !== 0) return [line("problem", "cli", `npm install -g ${self.spec} failed \u2192 ${firstLine(r2.stderr) || "see npm's own output"}`)];
@@ -11396,7 +11573,7 @@ async function stepCli(flags, ctx) {
   const r = ctx.runner("npm", ["install", "-D", self.spec]);
   if (r.status !== 0) return [line("problem", "cli", `npm install -D ${self.spec} failed \u2192 ${firstLine(r.stderr) || "see npm's own output"}`)];
   writeInstallRecord(ctx.env, { mode: "local", projectDir: ctx.cwd, installedAt: nowIso(ctx) });
-  return [line("done", "cli", `installed --local (run it as npx sidewise, in ${ctx.cwd})`)];
+  return [line("done", "cli", `installed --local (run it as npx mm3, in ${ctx.cwd})`)];
 }
 async function stepKey(flags, ctx) {
   if (flags.key === "no") return [line("skipped", "key", "skipped (--no-key)")];
@@ -11441,20 +11618,20 @@ async function stepPlugin(flags, ctx) {
   const scope = flags.scope ?? "project";
   const status = pluginStatus(ctx.runner);
   if (status.installed && status.scopes.includes(scope)) {
-    lines.push(line("already", "plugin", `sidewise@mvp-scale already installed (${scope} scope)`));
+    lines.push(line("already", "plugin", `mm3@mvp-scale already installed (${scope} scope)`));
     return lines;
   }
   const r = installPlugin(ctx.runner, scope);
-  lines.push(r.status === 0 ? line("done", "plugin", `installed sidewise@mvp-scale (${scope} scope)`) : line("problem", "plugin", `could not install the plugin \u2192 ${firstLine(r.stderr)}`));
+  lines.push(r.status === 0 ? line("done", "plugin", `installed mm3@mvp-scale (${scope} scope)`) : line("problem", "plugin", `could not install the plugin \u2192 ${firstLine(r.stderr)}`));
   return lines;
 }
 function stepProject(ctx) {
   const paths = pathsFor(ctx.cwd);
-  const already = existsSync10(paths.dir);
+  const already = existsSync11(paths.dir);
   ensureDir(paths);
-  return [line(already ? "already" : "done", "project", `${already ? "already has" : "created"} .sidewise/ (self-ignoring: .sidewise/.gitignore)`)];
+  return [line(already ? "already" : "done", "project", `${already ? "already has" : "created"} .mm3/ (self-ignoring: .mm3/.gitignore)`)];
 }
-var NOT_A_PROJECT = line("skipped", "project", 'not in a git project \u2192 cd into one and run "sidewise init" there to enable Sidewise for it');
+var NOT_A_PROJECT = line("skipped", "project", 'not in a git project \u2192 cd into one and run "mm3 init" there to enable MM3 for it');
 async function runInit(flags, ctx) {
   const lines = [];
   lines.push(...await stepCli(flags, ctx));
@@ -11472,7 +11649,7 @@ async function runInit(flags, ctx) {
     platform: ctx.platform
   });
   const partial = lines.some((l) => l.startsWith(GLYPH.problem));
-  const next = partial ? 'next: not usable yet \u2014 fix the \u2716 line(s) above, then re-run "sidewise init"' : 'next: run "sidewise agent" for the rules and good/bad patterns before your first request, or "sidewise template class" to start by hand';
+  const next = partial ? 'next: not usable yet \u2014 fix the \u2716 line(s) above, then re-run "mm3 init"' : 'next: run "mm3 agent" for the rules and good/bad patterns before your first request, or "mm3 template class" to start by hand';
   return { exit: 0, text: `${lines.join("\n")}
 
 ${doctorOut.text}
@@ -11499,7 +11676,7 @@ var realRunner = (cmd, args2, opts = {}) => {
 };
 
 // src/setup/uninstall.ts
-import { existsSync as existsSync11, realpathSync as realpathSync2, rmSync as rmSync5 } from "node:fs";
+import { existsSync as existsSync12, realpathSync as realpathSync2, rmSync as rmSync5 } from "node:fs";
 import path11 from "node:path";
 var GLYPH2 = { done: "\u2714", already: "\xB7", skipped: "\u2013", problem: "\u2716" };
 var line2 = (status, label, text) => `${GLYPH2[status]} ${label}: ${text}`;
@@ -11507,7 +11684,7 @@ async function ask(promptText, defaultAnswer, flags, io) {
   return flags.yes ? defaultAnswer : confirm(promptText, defaultAnswer, io);
 }
 function detectInstallMode(ctx) {
-  const onPath = findOnPath("sidewise", ctx.env, ctx.platform);
+  const onPath = findOnPath("mm3", ctx.env, ctx.platform);
   if (!onPath) return void 0;
   let real;
   try {
@@ -11527,15 +11704,15 @@ async function stepPlugin2(flags, ctx, manual) {
   const status = pluginStatus(ctx.runner);
   const scopesToRemove = flags.all ? status.scopes : status.scopes.filter((s) => s === "project");
   const marketplace = flags.all && marketplaceExists(ctx.runner);
-  const cacheDirExists = flags.all && existsSync11(pluginCacheDir(ctx.homeDir));
+  const cacheDirExists = flags.all && existsSync12(pluginCacheDir(ctx.homeDir));
   if (!scopesToRemove.length && !marketplace && !cacheDirExists) return [line2("already", "plugin", "nothing to remove here")];
   const manualCmds = [
-    ...scopesToRemove.map((s) => `claude plugin uninstall sidewise@mvp-scale --scope ${s}`),
+    ...scopesToRemove.map((s) => `claude plugin uninstall mm3@mvp-scale --scope ${s}`),
     ...marketplace ? ["claude plugin marketplace remove mvp-scale"] : [],
     ...cacheDirExists ? [`rm -rf ${pluginCacheDir(ctx.homeDir)}`] : []
   ];
   const found = [
-    scopesToRemove.length ? `sidewise@mvp-scale at ${scopesToRemove.join(", ")} scope` : "",
+    scopesToRemove.length ? `mm3@mvp-scale at ${scopesToRemove.join(", ")} scope` : "",
     marketplace ? "the mvp-scale marketplace" : "",
     cacheDirExists ? "a leftover plugin cache dir" : ""
   ].filter(Boolean).join(", ");
@@ -11548,10 +11725,10 @@ async function stepPlugin2(flags, ctx, manual) {
   for (const scope of scopesToRemove) {
     const r = uninstallPlugin(ctx.runner, scope);
     if (r.status === 0) {
-      lines.push(line2("done", "plugin", `uninstalled sidewise@mvp-scale (${scope} scope)`));
+      lines.push(line2("done", "plugin", `uninstalled mm3@mvp-scale (${scope} scope)`));
     } else {
       lines.push(line2("problem", "plugin", `could not uninstall (${scope} scope)`));
-      manual.push(`plugin (${scope} scope): claude plugin uninstall sidewise@mvp-scale --scope ${scope}`);
+      manual.push(`plugin (${scope} scope): claude plugin uninstall mm3@mvp-scale --scope ${scope}`);
     }
   }
   if (marketplace) {
@@ -11576,7 +11753,7 @@ async function stepKey2(flags, ctx, manual) {
   if (!found) return [line2("already", "key", "nothing stored")];
   const remove = await ask(`Found a stored key (${found.source === "keychain" ? "OS keychain" : "the env file"}). Remove it?`, true, flags, ctx.io);
   if (!remove) {
-    manual.push("key: remove it by hand \u2014 the OS keychain entry, and/or TYPESAFE_API_KEY/AI_GATEWAY_API_KEY in the env file sidewise init wrote");
+    manual.push("key: remove it by hand \u2014 the OS keychain entry, and/or TYPESAFE_API_KEY/AI_GATEWAY_API_KEY in the env file mm3 init wrote");
     return [line2("skipped", "key", "skipped (kept)")];
   }
   const { removed } = removeStoredKey(ctx.runner, ctx.platform, ctx.env);
@@ -11590,22 +11767,22 @@ async function stepKey2(flags, ctx, manual) {
 }
 async function stepData(flags, ctx, manual) {
   if (flags.keepData) return [line2("skipped", "project", "skipped (--keep-data)")];
-  const dir = `${ctx.cwd}/.sidewise`;
-  if (!existsSync11(dir)) return [line2("already", "project", "no .sidewise/ here")];
-  const remove = flags.yes ? false : await confirm("Remove this project's .sidewise/ (your run history)? This cannot be undone.", false, ctx.io);
+  const dir = `${ctx.cwd}/.mm3`;
+  if (!existsSync12(dir)) return [line2("already", "project", "no .mm3/ here")];
+  const remove = flags.yes ? false : await confirm("Remove this project's .mm3/ (your run history)? This cannot be undone.", false, ctx.io);
   if (!remove) {
     manual.push(`project data: rm -rf ${dir}`);
-    return [line2("skipped", "project", "kept .sidewise/ (default: no)")];
+    return [line2("skipped", "project", "kept .mm3/ (default: no)")];
   }
   try {
     rmSync5(dir, { recursive: true, force: true });
   } catch {
   }
-  if (existsSync11(dir)) {
+  if (existsSync12(dir)) {
     manual.push(`project data: rm -rf ${dir}`);
     return [line2("problem", "project", `could not remove ${dir} \u2192 remove it by hand: rm -rf ${dir}`)];
   }
-  return [line2("done", "project", "removed .sidewise/")];
+  return [line2("done", "project", "removed .mm3/")];
 }
 async function stepCli2(flags, ctx, manual) {
   if (!flags.all) return [line2("skipped", "cli", "skipped (per-user; use --all to remove it)")];
@@ -11631,7 +11808,7 @@ async function stepCli2(flags, ctx, manual) {
   }
   clearInstallRecord(ctx.env);
   const lines = [line2("done", "cli", `uninstalled (was --${loc.mode}${guessedNote})`)];
-  const stillOnPath = findOnPath("sidewise", ctx.env, ctx.platform);
+  const stillOnPath = findOnPath("mm3", ctx.env, ctx.platform);
   if (stillOnPath) {
     lines.push(line2("problem", "cli", `still resolves on PATH at ${stillOnPath} \u2192 a stale PATH entry or a second copy elsewhere; remove it by hand if a shell still finds it`));
     manual.push(`cli: still on PATH at ${stillOnPath} \u2014 check for a second install or a stale shell hash`);
@@ -11837,14 +12014,14 @@ function readCodeEvidence(root, where, opts = {}) {
     const { path: rawPath, lines } = splitWhere(entry);
     const full = path13.resolve(root, rawPath);
     const rel = path13.relative(root, full);
-    const outside = `\u2716 side.where: "${rawPath}" is outside the project \u2192 use a path inside the project`;
+    const outside = `\u2716 mak.where: "${rawPath}" is outside the project \u2192 use a path inside the project`;
     if (isOutside(rel)) {
       errors.push(outside);
       continue;
     }
     const range = lines ? lineRange(lines) : void 0;
     if (lines && !range) {
-      errors.push(`\u2716 side.where: "${entry}" has a bad line range \u2192 use start-end with 1 \u2264 start \u2264 end`);
+      errors.push(`\u2716 mak.where: "${entry}" has a bad line range \u2192 use start-end with 1 \u2264 start \u2264 end`);
       continue;
     }
     let text;
@@ -11854,12 +12031,12 @@ function readCodeEvidence(root, where, opts = {}) {
         continue;
       }
       if (statSync6(full).isDirectory()) {
-        errors.push(`\u2716 side.where: "${rawPath}" is a folder \u2192 name a file (scan covers folders)`);
+        errors.push(`\u2716 mak.where: "${rawPath}" is a folder \u2192 name a file (scan covers folders)`);
         continue;
       }
       text = readFileSync12(full, "utf8");
     } catch {
-      errors.push(`\u2716 side.where: cannot read "${rawPath}" \u2192 check the path`);
+      errors.push(`\u2716 mak.where: cannot read "${rawPath}" \u2192 check the path`);
       continue;
     }
     const shown2 = `${rel.split(path13.sep).join("/")}${lines ? `:${lines}` : ""}`;
@@ -11867,9 +12044,9 @@ function readCodeEvidence(root, where, opts = {}) {
     if (body.length > EVIDENCE_LIMITS.perFileChars) {
       if (stopOnOversize) {
         if (range) {
-          errors.push(`\u2716 side.where: "${entry}" is ${fmt(range.end - range.start + 1)} lines, too big to send \u2192 narrow the range`);
+          errors.push(`\u2716 mak.where: "${entry}" is ${fmt(range.end - range.start + 1)} lines, too big to send \u2192 narrow the range`);
         } else {
-          errors.push(`\u2716 side.where: "${rawPath}" is ${fmt(text.split("\n").length)} lines, too big to send whole \u2192 name a range (${rawPath}:start-end)`);
+          errors.push(`\u2716 mak.where: "${rawPath}" is ${fmt(text.split("\n").length)} lines, too big to send whole \u2192 name a range (${rawPath}:start-end)`);
         }
         continue;
       }
@@ -11879,7 +12056,7 @@ function readCodeEvidence(root, where, opts = {}) {
     const room = EVIDENCE_LIMITS.totalChars - total;
     if (room <= 0) {
       if (stopOnOversize) {
-        errors.push(`\u2716 side.where: "${shown2}" doesn't fit \u2014 where: is over ${fmt(EVIDENCE_LIMITS.totalChars)} chars total \u2192 send fewer paths or narrower ranges`);
+        errors.push(`\u2716 mak.where: "${shown2}" doesn't fit \u2014 where: is over ${fmt(EVIDENCE_LIMITS.totalChars)} chars total \u2192 send fewer paths or narrower ranges`);
         continue;
       }
       notes.push(`${shown2} skipped: evidence limit reached`);
@@ -11887,7 +12064,7 @@ function readCodeEvidence(root, where, opts = {}) {
     }
     if (body.length > room) {
       if (stopOnOversize) {
-        errors.push(`\u2716 side.where: "${shown2}" doesn't fit \u2014 where: is over ${fmt(EVIDENCE_LIMITS.totalChars)} chars total \u2192 send fewer paths or narrower ranges`);
+        errors.push(`\u2716 mak.where: "${shown2}" doesn't fit \u2014 where: is over ${fmt(EVIDENCE_LIMITS.totalChars)} chars total \u2192 send fewer paths or narrower ranges`);
         continue;
       }
       body = body.slice(0, room);
@@ -11965,7 +12142,7 @@ function keep(shown2, text, total, notes) {
 }
 function readGitEvidence(root, ref, field, paths, deps) {
   if (ref !== "worktree" && isGitOption(ref)) {
-    return { ok: false, errors: [`\u2716 side.compare.${field}: "${ref}" looks like an option, not a ref \u2192 use a branch, tag or commit`] };
+    return { ok: false, errors: [`\u2716 mak.compare.${field}: "${ref}" looks like an option, not a ref \u2192 use a branch, tag or commit`] };
   }
   const spawn = deps?.spawn ?? spawnSync;
   const errors = [];
@@ -11976,7 +12153,7 @@ function readGitEvidence(root, ref, field, paths, deps) {
   for (const rawPath of paths) {
     const full = path14.resolve(root, rawPath);
     const rel = path14.relative(root, full);
-    const outside = `\u2716 side.compare.${field}: "${rawPath}" is outside the project \u2192 use a path inside the project`;
+    const outside = `\u2716 mak.compare.${field}: "${rawPath}" is outside the project \u2192 use a path inside the project`;
     if (isOutside(rel)) {
       errors.push(outside);
       continue;
@@ -11990,12 +12167,12 @@ function readGitEvidence(root, ref, field, paths, deps) {
           continue;
         }
         if (statSync7(full).isDirectory()) {
-          errors.push(`\u2716 side.compare.${field}: "${rawPath}" is a folder \u2192 name a file`);
+          errors.push(`\u2716 mak.compare.${field}: "${rawPath}" is a folder \u2192 name a file`);
           continue;
         }
         text = readFileSync13(full, "utf8");
       } catch {
-        errors.push(`\u2716 side.compare.${field}: cannot read "${rawPath}" \u2192 check the path`);
+        errors.push(`\u2716 mak.compare.${field}: cannot read "${rawPath}" \u2192 check the path`);
         continue;
       }
       read = true;
@@ -12011,7 +12188,7 @@ function readGitEvidence(root, ref, field, paths, deps) {
     const result = spawn("git", ["show", `${ref}:${gitRel}`], { cwd: gitRoot, encoding: "utf8" });
     const stderr = typeof result.stderr === "string" ? result.stderr : "";
     if (result.status !== 0 || FATAL.test(stderr)) {
-      errors.push(`\u2716 side.compare.${field}: "${ref}" not found by git (or the path doesn't exist there) \u2192 check the ref and the path`);
+      errors.push(`\u2716 mak.compare.${field}: "${ref}" not found by git (or the path doesn't exist there) \u2192 check the ref and the path`);
       continue;
     }
     read = true;
@@ -12031,9 +12208,9 @@ import { readFileSync as readFileSync14, realpathSync as realpathSync5 } from "n
 import path16 from "node:path";
 
 // src/evidence/glob.ts
-import { readdirSync } from "node:fs";
+import { readdirSync as readdirSync2 } from "node:fs";
 import path15 from "node:path";
-var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", ".sidewise", "dist"]);
+var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", ".mm3", "dist"]);
 var MAX_FILES = 500;
 var escape = (s) => s.replace(/[.+^$()|[\]\\]/gu, "\\$&");
 function globToRegExp(pattern) {
@@ -12078,7 +12255,7 @@ function expandGlob(root, pattern) {
     if (dir !== rootResolved && !dir.startsWith(rootResolved + path15.sep)) return;
     let entries;
     try {
-      entries = readdirSync(dir, { withFileTypes: true });
+      entries = readdirSync2(dir, { withFileTypes: true });
     } catch {
       return;
     }
@@ -12700,7 +12877,7 @@ function oneLine(e) {
   const text = redact((e instanceof Error ? e.message : String(e)).split("\n")[0].trim());
   return text.length > 200 ? `${text.slice(0, 199)}\u2026` : text;
 }
-var actorOf = (ctx) => ctx.env.SIDEWISE_ACTOR?.trim() || "agent";
+var actorOf = (ctx) => ctx.env.MM3_ACTOR?.trim() || "agent";
 function splitReuse(keyed, reused, answers, reusedFrom) {
   const toAsk = [];
   for (const [q, k] of keyed) {
@@ -12807,7 +12984,7 @@ async function askAll(ctx, verb, calls) {
     try {
       result = await ctx.provider.ask(call.questions.map(toClassifierQuestion), call.state);
     } catch (e) {
-      if (paid === 0) return fail(1, `\u2716 classifier: ${oneLine(e)} \u2192 retry later, or set SIDEWISE_PROVIDER=fake to check the request`);
+      if (paid === 0) return fail(1, `\u2716 classifier: ${oneLine(e)} \u2192 retry later, or set MM3_PROVIDER=fake to check the request`);
       return logFailed(ctx, verb, costUsd, `call ${i + 1} of ${calls.length}: ${oneLine(e)}`);
     }
     const latencyMs = Date.now() - startedAt;
@@ -12882,7 +13059,7 @@ function shownValue(s) {
 function categoryEntry(g) {
   return [g.name, m(["gate", g.gate], ...[...g.values].map(([n, v]) => [String(n), shownValue(v)]))];
 }
-function subjectSide(id, gate, subject, extra) {
+function subjectMak(id, gate, subject, extra) {
   return m(
     ["id", id],
     ["gate", gate],
@@ -12900,24 +13077,24 @@ function consensusAndEscalate(categories, answers, depth, notes) {
   const escalate = consensus !== "STRONG" || depth === "thorough" || notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
   return { consensus, escalate };
 }
-function wiseRecorded(wise2, extra) {
+function mdlRecorded(mdl2, extra) {
   const fields = [
-    ...wise2?.why ? ["why"] : [],
-    ...wise2?.area && (!Array.isArray(wise2.area) || wise2.area.length) ? ["area"] : [],
-    ...wise2?.stage ? ["stage"] : [],
-    ...wise2?.change ? ["change"] : [],
-    ...wise2?.risk ? ["risk"] : [],
-    ...wise2?.problem ? ["problem"] : [],
-    ...wise2?.uses?.length ? ["uses"] : [],
-    ...wise2?.touches?.length ? ["touches"] : [],
-    ...wise2?.blast ? ["blast"] : [],
-    ...wise2?.extras ? Object.keys(wise2.extras).sort() : [],
+    ...mdl2?.why ? ["why"] : [],
+    ...mdl2?.area && (!Array.isArray(mdl2.area) || mdl2.area.length) ? ["area"] : [],
+    ...mdl2?.stage ? ["stage"] : [],
+    ...mdl2?.change ? ["change"] : [],
+    ...mdl2?.risk ? ["risk"] : [],
+    ...mdl2?.problem ? ["problem"] : [],
+    ...mdl2?.uses?.length ? ["uses"] : [],
+    ...mdl2?.touches?.length ? ["touches"] : [],
+    ...mdl2?.blast ? ["blast"] : [],
+    ...mdl2?.extras ? Object.keys(mdl2.extras).sort() : [],
     ...extra ?? []
   ];
   return fields.length ? fields : "none";
 }
-function respondText(side, wise2, next, notes) {
-  return emit(m(["side", side], ["wise", m(["recorded", wise2])], ["next", next], ["notes", [...notes]]));
+function respondText(mak, mdl2, next, notes) {
+  return emit(m(["mak", mak], ["mdl", m(["recorded", mdl2])], ["next", next], ["notes", [...notes]]));
 }
 function commonNotes(notes, budgetNote, adapter) {
   return [...notes, ...adapter && isRehearsal(adapter) ? [`adapter ${adapter} \xB7 not evidence`] : [], budgetNote];
@@ -12932,7 +13109,7 @@ function outcomeNext(id, gate, graded, categories, onPass) {
   return categories.every((c) => gateOf2.get(c.name) === "pass") ? GOAL_ONLY_NEXT : drillNext(id, categories[0].name);
 }
 function drillNext(id, target) {
-  return `sidewise template drill --parent ${id} --from ${target}`;
+  return `mm3 template drill --parent ${id} --from ${target}`;
 }
 function regressionNext(id, regressed, categories) {
   const first = regressed[0];
@@ -12992,20 +13169,20 @@ function looksLikeFilePath(text) {
   if (dot <= 0 || dot === text.length - 1) return false;
   return PATH_EXTENSIONS.has(text.slice(dot + 1).toLowerCase());
 }
-function allQuestions(side) {
-  return [...side.categories, ...side.layers.flatMap((l) => l.categories)].flatMap((c) => c.questions);
+function allQuestions(mak) {
+  return [...mak.categories, ...mak.layers.flatMap((l) => l.categories)].flatMap((c) => c.questions);
 }
-function probeWarnings(side) {
+function probeWarnings(mak) {
   const warnings = [];
-  for (const q of allQuestions(side)) {
+  for (const q of allQuestions(mak)) {
     const marks = q.text.match(/\?/g)?.length ?? 0;
     if (marks >= 2 || / and /.test(q.text)) {
       warnings.push(`probe: "${clip(q.text, 60)}" reads as two questions joined into one \u2014 split it`);
     }
-    if (side.where.length > 0) {
+    if (mak.where.length > 0) {
       for (const m2 of q.text.matchAll(/`([^`]+)`/g)) {
         const named = m2[1];
-        if (looksLikeFilePath(named) && !side.where.includes(named) && !side.where.some((w) => w.startsWith(`${named}:`))) {
+        if (looksLikeFilePath(named) && !mak.where.includes(named) && !mak.where.some((w) => w.startsWith(`${named}:`))) {
           warnings.push(`probe: "${clip(named, 60)}" is named in a question but not in where: \u2014 it has nothing to answer from`);
         }
       }
@@ -13040,28 +13217,28 @@ function chunk(arr, size) {
   return out;
 }
 function planSweep(request, who, paths, dryRun, opts = {}, limits = {}) {
-  const { layers, items } = expand(request.side.over, opts);
+  const { layers, items } = expand(request.mak.over, opts);
   const itemsByLayer = groupByLayer(items);
   const reuseLimits = limits.reuse;
   const projectMaxItems = limits.sweep?.maxItems;
   const maxQuestionsPerCall = limits.sweep?.maxQuestionsPerCall ?? DEFAULT_CONFIG.sweep.maxQuestionsPerCall;
   const asksByItem = /* @__PURE__ */ new Map();
   const allKeys = [];
-  for (const layer of request.side.layers) {
+  for (const layer of request.mak.layers) {
     for (const item of itemsByLayer.get(layer.name) ?? []) {
       const asks = itemQuestions(item, layer.categories).map((q) => ({ q, key: answerKey(item.text, q) }));
       asksByItem.set(item.id, asks);
       for (const a of asks) allKeys.push(a.key);
     }
   }
-  const goalQ = goalQuestion(request.side.goal);
+  const goalQ = goalQuestion(request.mak.goal);
   const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun, reuse: reuseLimits });
-  const cap2 = projectMaxItems !== void 0 ? Math.min(SWEEP_ITEM_CAP[request.side.depth ?? "quick"], projectMaxItems) : SWEEP_ITEM_CAP[request.side.depth ?? "quick"];
+  const cap2 = projectMaxItems !== void 0 ? Math.min(SWEEP_ITEM_CAP[request.mak.depth ?? "quick"], projectMaxItems) : SWEEP_ITEM_CAP[request.mak.depth ?? "quick"];
   const keys = /* @__PURE__ */ new Map();
   const reusedFrom = /* @__PURE__ */ new Map();
   const answers = {};
   let askedQuestions = 0;
-  const work = request.side.layers.map((layer) => {
+  const work = request.mak.layers.map((layer) => {
     let askedCount = 0;
     const callItems = [];
     const callQuestions = [];
@@ -13130,7 +13307,7 @@ function planSweep(request, who, paths, dryRun, opts = {}, limits = {}) {
       const notes = [];
       const wanted = new Set(qs.map((q) => q.item).filter((id) => id !== void 0));
       const chunkItems = wanted.size ? callItems.filter((it) => wanted.has(it.id)) : callItems;
-      const state = { ...i === 0 && hasGoal ? { goal: redact(request.side.goal) } : {}, items: itemsState(chunkItems, notes) };
+      const state = { ...i === 0 && hasGoal ? { goal: redact(request.mak.goal) } : {}, items: itemsState(chunkItems, notes) };
       return { state, questions: qs };
     });
     return { layer, call: calls[0], extraCalls: calls.slice(1), itemIds, skipped };
@@ -13236,25 +13413,25 @@ function gradeReplay(categories, answers) {
 }
 async function runReplay(text, ctx) {
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, "replay", wiseFields);
+  const mdlFields = effectiveMdlFields(cfg.mdl);
+  const loaded = loadRequest(text, "replay", mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
-  const parent = findRun(ctx.paths, request.side.parent);
-  if (!parent) return { exit: 2, text: stopText([`\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id`], "replay") };
-  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code`], "replay") };
+  const parent = findRun(ctx.paths, request.mak.parent);
+  if (!parent) return { exit: 2, text: stopText([`\u2716 mak.parent: ${request.mak.parent} is not in the ledger \u2192 check the id`], "replay") };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 mak.parent: ${parent.id} predates the YAML contract \u2192 run class again on this code`], "replay") };
   if (parent.items !== null) return runSweepReplay(ctx, request, loaded, parent, cfg);
   const categories = parent.ask.categories;
   const concernNames = categories.filter((c) => c.section === "concerns").map((c) => c.name);
-  const expect = request.side.expect;
+  const expect = request.mak.expect;
   const expectList = expect === "none" ? [] : expect;
   const badExpect = expectList.find((name) => !concernNames.includes(name));
   if (badExpect !== void 0) {
-    return { exit: 2, text: stopText([`\u2716 side.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "replay") };
+    return { exit: 2, text: stopText([`\u2716 mak.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "replay") };
   }
   const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const compare = request.side.compare;
+  const compare = request.mak.compare;
   const before = readGitEvidence(ctx.paths.root, compare.before, "before", paths);
   const after = readGitEvidence(ctx.paths.root, compare.after, "after", paths);
   if (!before.ok || !after.ok) {
@@ -13265,7 +13442,7 @@ async function runReplay(text, ctx) {
   const beforeEvidenceStr = subjectEvidence(before.files);
   const afterEvidenceStr = subjectEvidence(after.files);
   const beforeQuestions = subjectQuestions(categories, "before:");
-  const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, "after:")];
+  const afterQuestions = [goalQuestion(request.mak.goal), ...subjectQuestions(categories, "after:")];
   const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)]);
   const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)]);
   const beforeReused = lookupAnswers(ctx.paths, who, beforeKeyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
@@ -13273,7 +13450,7 @@ async function runReplay(text, ctx) {
   const answers = {};
   const reusedFrom = {};
   const beforeCall = planCall(beforeKeyed, beforeReused, { code: before.files }, answers, reusedFrom);
-  const afterCall = planCall(afterKeyed, afterReused, { goal: redact(request.side.goal), code: after.files }, answers, reusedFrom);
+  const afterCall = planCall(afterKeyed, afterReused, { goal: redact(request.mak.goal), code: after.files }, answers, reusedFrom);
   const calls = [...beforeCall ? [beforeCall] : [], ...afterCall ? [afterCall] : []];
   if (ctx.dryRun) {
     const total = beforeKeyed.length + afterKeyed.length;
@@ -13345,11 +13522,11 @@ async function runReplay(text, ctx) {
       ["regressed", regressed],
       ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
     ),
-    wiseRecorded(request.wise, ["parent"]),
+    mdlRecorded(request.mdl, ["parent"]),
     // A regression alone can fail the gate even when every "after" category passes on its own (C-064) —
     // outcomeNext's gate-matching search would then find nothing and wrongly blame the goal (GOAL_ONLY_NEXT).
     // regressed takes priority: name it, per C-065 (revert or drill into it). [C-091]
-    regressed.length ? regressionNext(id, regressed, categories) : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
+    regressed.length ? regressionNext(id, regressed, categories) : outcomeNext(id, gate, afterCatsGrade.categories, categories, `mm3 outcome ${request.mak.parent} held --by <you>`),
     commonNotes(
       [...loaded.notes, ...evidenceNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       `2 states \xB7 ${budget}`,
@@ -13361,15 +13538,15 @@ async function runReplay(text, ctx) {
   const run = {
     verb: "replay",
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
     depth: null,
     where: parent.where,
-    parent: request.side.parent,
+    parent: request.mak.parent,
     from: null,
     compare,
     expect,
-    wise: request.wise,
+    mdl: request.mdl,
     ask: { categories, layers: [] },
     over: null,
     items: null,
@@ -13442,29 +13619,29 @@ async function runSweepReplay(ctx, request, loaded, parent, cfg) {
   if (chain0 !== void 0 && over[chain0] === "each") {
     return {
       exit: 2,
-      text: stopText([`\u2716 side.parent: ${parent.id} is a drill continuation (over: starts with "each") \u2192 replay can't rebuild its root item; run the sweep again instead`], "replay")
+      text: stopText([`\u2716 mak.parent: ${parent.id} is a drill continuation (over: starts with "each") \u2192 replay can't rebuild its root item; run the sweep again instead`], "replay")
     };
   }
   const concernNames = [...new Set(layers.flatMap((l) => l.categories.filter((c) => c.section === "concerns").map((c) => c.name)))];
-  const expect = request.side.expect;
+  const expect = request.mak.expect;
   const expectList = expect === "none" ? [] : expect;
   const badExpect = expectList.find((name) => !concernNames.includes(name));
   if (badExpect !== void 0) {
-    return { exit: 2, text: stopText([`\u2716 side.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "replay") };
+    return { exit: 2, text: stopText([`\u2716 mak.expect: "${badExpect}" is not a concern of ${parent.id} \u2192 use one of ${concernNames.join(", ")}`], "replay") };
   }
   const itemPaths = [...new Set(Object.values(parent.items ?? {}).flatMap((it) => it.unit ? [it.unit.path] : []))];
-  const compare = request.side.compare;
+  const compare = request.mak.compare;
   const needsCode = firstStringLayer(over) !== null;
   if (needsCode) {
     const checkRef = (ref, field) => {
       if (ref === "worktree") return void 0;
-      if (isGitOption(ref)) return `\u2716 side.compare.${field}: "${ref}" looks like an option, not a ref \u2192 use a branch, tag or commit`;
-      return resolveRefSha(ctx.paths.root, ref, itemPaths) === null ? `\u2716 side.compare.${field}: "${ref}" not found by git (or the project isn't a repo there) \u2192 check the ref` : void 0;
+      if (isGitOption(ref)) return `\u2716 mak.compare.${field}: "${ref}" looks like an option, not a ref \u2192 use a branch, tag or commit`;
+      return resolveRefSha(ctx.paths.root, ref, itemPaths) === null ? `\u2716 mak.compare.${field}: "${ref}" not found by git (or the project isn't a repo there) \u2192 check the ref` : void 0;
     };
     const errors = [checkRef(compare.before, "before"), checkRef(compare.after, "after")].filter((e) => e !== void 0);
     if (errors.length) return { exit: 2, text: stopText(errors, "replay") };
   }
-  const sweepRequest = { side: { goal: request.side.goal, where: [], categories: [], layers, over }, wise: request.wise };
+  const sweepRequest = { mak: { goal: request.mak.goal, where: [], categories: [], layers, over }, mdl: request.mdl };
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const beforeNotes = [];
@@ -13575,8 +13752,8 @@ async function runSweepReplay(ctx, request, loaded, parent, cfg) {
       ["regressed", regressedFlat],
       ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
     ),
-    wiseRecorded(request.wise, ["parent"]),
-    regressedFlat.length ? drillNext(id, regressedFlat[0].split("#")[0]) : sweepNext(id, gate, worstFirst(afterGrades.values()), afterGraded, `sidewise outcome ${request.side.parent} held --by <you>`),
+    mdlRecorded(request.mdl, ["parent"]),
+    regressedFlat.length ? drillNext(id, regressedFlat[0].split("#")[0]) : sweepNext(id, gate, worstFirst(afterGrades.values()), afterGraded, `mm3 outcome ${request.mak.parent} held --by <you>`),
     commonNotes(
       [
         ...loaded.notes,
@@ -13608,15 +13785,15 @@ async function runSweepReplay(ctx, request, loaded, parent, cfg) {
   const run = {
     verb: "replay",
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
     depth: null,
     where,
-    parent: request.side.parent,
+    parent: request.mak.parent,
     from: null,
     compare,
     expect,
-    wise: request.wise,
+    mdl: request.mdl,
     ask: { categories: [], layers },
     over,
     items: itemRecords(afterPlan.items, afterGrades),
@@ -13690,16 +13867,16 @@ function staleNotes(paths, where, toAsk) {
 var CAP_NOTE = "would be blocked: the budget cap is already reached";
 async function runClass(text, ctx) {
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, "class", wiseFields);
+  const mdlFields = effectiveMdlFields(cfg.mdl);
+  const loaded = loadRequest(text, "class", mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
-  const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
+  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "class") };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
-  const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
+  const questions = [goalQuestion(request.mak.goal), ...subjectQuestions(request.mak.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)]);
   const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: cfg.reuse });
   const answers = {};
@@ -13715,13 +13892,13 @@ async function runClass(text, ctx) {
       exit: 0,
       text: dryRunText(
         { calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL },
-        [...capNote, ...probeWarnings(request.side)]
+        [...capNote, ...probeWarnings(request.mak)]
       )
     };
   }
   const pre = preflight(ctx, { needsBudget: toAsk.length > 0 });
   if (!pre.ok) return pre.result;
-  const stale = staleNotes(ctx.paths, request.side.where, toAsk);
+  const stale = staleNotes(ctx.paths, request.mak.where, toAsk);
   let costUsd;
   let costEstimated = false;
   let calls;
@@ -13730,7 +13907,7 @@ async function runClass(text, ctx) {
     costUsd = 0;
     calls = 0;
   } else {
-    const call = { state: { goal: redact(request.side.goal), code: evidence.evidence.files }, questions: toAsk.map(([q]) => q) };
+    const call = { state: { goal: redact(request.mak.goal), code: evidence.evidence.files }, questions: toAsk.map(([q]) => q) };
     const asked2 = await askAll(ctx, "class", [call]);
     if (!asked2.ok) return asked2.result;
     Object.assign(answers, asked2.value.answers);
@@ -13741,19 +13918,19 @@ async function runClass(text, ctx) {
   }
   const keys = {};
   for (const [q, k] of keyed) keys[q.id] = k;
-  const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
-  const subject = gradeSubject(request.side.categories, answers);
+  const { consensus, escalate } = consensusAndEscalate(request.mak.categories, answers, request.mak.depth, loaded.notes);
+  const subject = gradeSubject(request.mak.categories, answers);
   const reusedRunIds = reusedIds(reusedFrom);
   const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
   telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id, budget) => respondText(
-    subjectSide(id, subject.gate, subject, [
+    subjectMak(id, subject.gate, subject, [
       ["consensus", consensus],
       ["escalate", escalate],
       ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
     ]),
-    wiseRecorded(request.wise),
-    outcomeNext(id, subject.gate, subject.categories, request.side.categories, "act on it"),
+    mdlRecorded(request.mdl),
+    outcomeNext(id, subject.gate, subject.categories, request.mak.categories, "act on it"),
     commonNotes(
       [...loaded.notes, ...evidence.evidence.notes, ...stale, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
       budget,
@@ -13763,16 +13940,16 @@ async function runClass(text, ctx) {
   const run = {
     verb: "class",
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
-    depth: request.side.depth ?? null,
-    where: request.side.where,
-    parent: request.side.parent ?? request.wise?.parent ?? null,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
+    depth: request.mak.depth ?? null,
+    where: request.mak.where,
+    parent: request.mak.parent ?? request.mdl?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root, request.side.where),
-    wise: request.wise,
-    ask: { categories: request.side.categories, layers: [] },
+    commit: currentCommitSha(ctx.paths.root, request.mak.where),
+    mdl: request.mdl,
+    ask: { categories: request.mak.categories, layers: [] },
     over: null,
     items: null,
     answers,
@@ -13810,7 +13987,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reu
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const evidenceStr = subjectEvidence(evidence.evidence.files);
-  const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
+  const questions = [goalQuestion(request.mak.goal), ...subjectQuestions(request.mak.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)]);
   const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: reuseLimits });
   const answers = {};
@@ -13821,7 +13998,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reu
       exit: 0,
       text: dryRunText(
         { calls: toAsk.length ? 1 : 0, questions: toAsk.length, reused: keyed.length - toAsk.length, route: identity.route, baseURL: identity.baseURL },
-        probeWarnings(request.side)
+        probeWarnings(request.mak)
       )
     };
   }
@@ -13835,7 +14012,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reu
     costUsd = 0;
     calls = 0;
   } else {
-    const call = { state: { goal: redact(request.side.goal), code: evidence.evidence.files }, questions: toAsk.map(([q]) => q) };
+    const call = { state: { goal: redact(request.mak.goal), code: evidence.evidence.files }, questions: toAsk.map(([q]) => q) };
     const asked2 = await askAll(ctx, "drill", [call]);
     if (!asked2.ok) return asked2.result;
     Object.assign(answers, asked2.value.answers);
@@ -13846,19 +14023,19 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reu
   }
   const keys = {};
   for (const [q, k] of keyed) keys[q.id] = k;
-  const { consensus, escalate } = consensusAndEscalate(request.side.categories, answers, request.side.depth, loaded.notes);
-  const subject = gradeSubject(request.side.categories, answers);
-  const oneSubjectNext = (gate, id) => gate === "pass" ? "act on it" : `fix it, then sidewise replay --parent ${replayParent(id)} --compare <before>..<after>`;
+  const { consensus, escalate } = consensusAndEscalate(request.mak.categories, answers, request.mak.depth, loaded.notes);
+  const subject = gradeSubject(request.mak.categories, answers);
+  const oneSubjectNext = (gate, id) => gate === "pass" ? "act on it" : `fix it, then mm3 replay --parent ${replayParent(id)} --compare <before>..<after>`;
   const reusedRunIds = reusedIds(reusedFrom);
   const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
   telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id, budget) => respondText(
-    subjectSide(id, subject.gate, subject, [
+    subjectMak(id, subject.gate, subject, [
       ["consensus", consensus],
       ["escalate", escalate],
       ...reusedRunIds.length ? [["reused", reusedRunIds]] : []
     ]),
-    wiseRecorded(request.wise),
+    mdlRecorded(request.mdl),
     oneSubjectNext(subject.gate, id),
     commonNotes(
       [...loaded.notes, ...evidence.evidence.notes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
@@ -13869,16 +14046,16 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reu
   const run = {
     verb: "drill",
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
-    depth: request.side.depth ?? null,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
+    depth: request.mak.depth ?? null,
     where: [...where],
-    parent: request.side.parent,
-    from: request.side.from,
+    parent: request.mak.parent,
+    from: request.mak.from,
     compare: null,
     commit: currentCommitSha(ctx.paths.root, where),
-    wise: request.wise,
-    ask: { categories: request.side.categories, layers: [] },
+    mdl: request.mdl,
+    ask: { categories: request.mak.categories, layers: [] },
     over: null,
     items: null,
     answers,
@@ -13905,31 +14082,31 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reu
 }
 async function runDrill(text, ctx) {
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, "drill", wiseFields);
+  const mdlFields = effectiveMdlFields(cfg.mdl);
+  const loaded = loadRequest(text, "drill", mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
-  const parent = findRun(ctx.paths, request.side.parent);
-  if (!parent) return { exit: 2, text: stopText([`\u2716 side.parent: ${request.side.parent} is not in the ledger \u2192 check the id`], "drill") };
-  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 side.parent: ${parent.id} predates the YAML contract \u2192 run class or scan again`], "drill") };
+  const parent = findRun(ctx.paths, request.mak.parent);
+  if (!parent) return { exit: 2, text: stopText([`\u2716 mak.parent: ${request.mak.parent} is not in the ledger \u2192 check the id`], "drill") };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`\u2716 mak.parent: ${parent.id} predates the YAML contract \u2192 run class or scan again`], "drill") };
   if (parent.items !== null) {
-    const itemRec = parent.items[request.side.from];
+    const itemRec = parent.items[request.mak.from];
     if (!itemRec) {
       return {
         exit: 2,
         text: stopText(
-          [`\u2716 side.from: "${clip(request.side.from, 40)}" is not an item ${parent.id} listed \u2192 use one of: ${clip(Object.keys(parent.items).join(", "), 80)}`],
+          [`\u2716 mak.from: "${clip(request.mak.from, 40)}" is not an item ${parent.id} listed \u2192 use one of: ${clip(Object.keys(parent.items).join(", "), 80)}`],
           "drill"
         )
       };
     }
-    if (!request.side.over) {
+    if (!request.mak.over) {
       if (!itemRec.unit) {
         return {
           exit: 2,
           text: stopText(
             [
-              `\u2716 side.from: "${clip(request.side.from, 40)}" has no code \u2192 add over: with the next layer down, or drill an item scan found (sidewise template drill --parent ${parent.id} --from ${request.side.from})`
+              `\u2716 mak.from: "${clip(request.mak.from, 40)}" has no code \u2192 add over: with the next layer down, or drill an item scan found (mm3 template drill --parent ${parent.id} --from ${request.mak.from})`
             ],
             "drill"
           )
@@ -13937,23 +14114,23 @@ async function runDrill(text, ctx) {
       }
       return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, cfg.reuse, { stopOnOversize: false });
     }
-    const from = request.side.from;
+    const from = request.mak.from;
     const name = from.includes("/") ? from.slice(from.lastIndexOf("/") + 1) : from;
     const parentId = from.includes("/") ? from.slice(0, from.lastIndexOf("/")) : null;
     let itemText = name;
     if (itemRec.unit) {
       const read = readUnit(ctx.paths.root, itemRec.unit);
-      if (!read.ok) return { exit: 2, text: stopText([`\u2716 side.from: the code has changed since ${parent.id} (${read.error}) \u2192 run scan again`], "drill") };
+      if (!read.ok) return { exit: 2, text: stopText([`\u2716 mak.from: the code has changed since ${parent.id} (${read.error}) \u2192 run scan again`], "drill") };
       itemText = read.text;
     }
     const root = { id: from, layer: itemRec.layer, name, parent: parentId, fill: itemRec.fill, text: itemText, ...itemRec.unit ? { unit: itemRec.unit } : {} };
     if (!itemRec.unit) {
-      const badLayer = firstStringLayer(request.side.over);
+      const badLayer = firstStringLayer(request.mak.over);
       if (badLayer) {
         return {
           exit: 2,
           text: stopText(
-            [`\u2716 side.over.${badLayer}: "${clip(from, 40)}" is an idea, not code \u2192 give ${badLayer} as a list of items (there is nothing to split with each)`],
+            [`\u2716 mak.over.${badLayer}: "${clip(from, 40)}" is an idea, not code \u2192 give ${badLayer} as a list of items (there is nothing to split with each)`],
             "drill"
           )
         };
@@ -13970,13 +14147,13 @@ async function runDrill(text, ctx) {
       itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root },
       { sweep: cfg.sweep, reuse: cfg.reuse }
     );
-    if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
+    if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.mak));
     const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
     if (!pre.ok) return pre.result;
     const swept = await runSweep(ctx, "drill", plan);
     if (!swept.ok) return swept.result;
     const { answers, costUsd, costEstimated, telemetry, statusOf } = swept.value;
-    const categoriesOf = (layer) => request.side.layers.find((l) => l.name === layer)?.categories ?? [];
+    const categoriesOf = (layer) => request.mak.layers.find((l) => l.name === layer)?.categories ?? [];
     const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
     const goalAnswer = answers["goal"];
     const goalGrade = goalGate(goalAnswer.p);
@@ -13992,7 +14169,7 @@ async function runDrill(text, ctx) {
     const fullTelemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFromObj)];
     const response = (id, budget) => respondText(
       m(["id", id], ["gate", gate], ["goal", m(["gate", goalGrade], ["p", goalAnswer.p])], ["failing", failing], ["passing", passing]),
-      wiseRecorded(request.wise),
+      mdlRecorded(request.mdl),
       worst.length ? REDRILL_NEXT : sweepNext(id, gate, worst, graded, "act on it"),
       commonNotes(
         [...loaded.notes, ...notes, ...plan.splitNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
@@ -14004,17 +14181,17 @@ async function runDrill(text, ctx) {
     const run = {
       verb: "drill",
       actor: actorOf(ctx),
-      task: ctx.env.SIDEWISE_TASK?.trim() || null,
-      goal: request.side.goal,
-      depth: request.side.depth ?? null,
+      task: ctx.env.MM3_TASK?.trim() || null,
+      goal: request.mak.goal,
+      depth: request.mak.depth ?? null,
       where,
-      parent: request.side.parent,
-      from: request.side.from,
+      parent: request.mak.parent,
+      from: request.mak.from,
       compare: null,
       commit: currentCommitSha(ctx.paths.root, where),
-      wise: request.wise,
-      ask: { categories: [], layers: request.side.layers },
-      over: request.side.over,
+      mdl: request.mdl,
+      ask: { categories: [], layers: request.mak.layers },
+      over: request.mak.over,
       items,
       answers,
       keys: Object.fromEntries(plan.keys),
@@ -14036,36 +14213,36 @@ async function runDrill(text, ctx) {
     };
     return recordSweep(ctx, calls, costUsd, run);
   }
-  if (request.side.over) return { exit: 2, text: stopText([`\u2716 side.over: ${parent.id} wasn't a sweep \u2192 remove over`], "drill") };
-  if (!parent.ask.categories.some((c) => c.name === request.side.from)) {
+  if (request.mak.over) return { exit: 2, text: stopText([`\u2716 mak.over: ${parent.id} wasn't a sweep \u2192 remove over`], "drill") };
+  if (!parent.ask.categories.some((c) => c.name === request.mak.from)) {
     return {
       exit: 2,
       text: stopText(
-        [`\u2716 side.from: "${clip(request.side.from, 40)}" is not a category of ${parent.id} \u2192 use one of: ${parent.ask.categories.map((c) => c.name).join(", ")}`],
+        [`\u2716 mak.from: "${clip(request.mak.from, 40)}" is not a category of ${parent.id} \u2192 use one of: ${parent.ask.categories.map((c) => c.name).join(", ")}`],
         "drill"
       )
     };
   }
-  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.side.parent, cfg.reuse);
+  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.mak.parent, cfg.reuse);
 }
 
 // src/verbs/loop.ts
 async function runLoop(text, ctx) {
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, "loop", wiseFields);
+  const mdlFields = effectiveMdlFields(cfg.mdl);
+  const loaded = loadRequest(text, "loop", mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, {}, { sweep: cfg.sweep, reuse: cfg.reuse });
-  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
+  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.mak));
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
   const ran = await runSweep(ctx, "loop", plan);
   if (!ran.ok) return ran.result;
   const { answers, costUsd, costEstimated, telemetry, statusOf } = ran.value;
-  const categoriesOf = (layer) => request.side.layers.find((l) => l.name === layer).categories;
+  const categoriesOf = (layer) => request.mak.layers.find((l) => l.name === layer).categories;
   const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
   const goalAnswer = answers["goal"];
   const goal = goalAnswer ? goalGate(goalAnswer.p) : "pass";
@@ -14082,7 +14259,7 @@ async function runLoop(text, ctx) {
   const fullTelemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFromObj)];
   const response = (id, budget) => respondText(
     m(["id", id], ["gate", gate], ["goal", m(["gate", goal], ["p", goalAnswer?.p ?? 0])], ["failing", failing], ["passing", passing]),
-    wiseRecorded(request.wise),
+    mdlRecorded(request.mdl),
     sweepNext(id, gate, worst, graded, "act on it"),
     commonNotes(
       [...loaded.notes, ...plan.splitNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
@@ -14093,17 +14270,17 @@ async function runLoop(text, ctx) {
   const run = {
     verb: "loop",
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
-    depth: request.side.depth ?? null,
-    where: request.side.where,
-    parent: request.side.parent ?? request.wise?.parent ?? null,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
+    depth: request.mak.depth ?? null,
+    where: request.mak.where,
+    parent: request.mak.parent ?? request.mdl?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root, request.side.where),
-    wise: request.wise,
-    ask: { categories: [], layers: request.side.layers },
-    over: request.side.over,
+    commit: currentCommitSha(ctx.paths.root, request.mak.where),
+    mdl: request.mdl,
+    ask: { categories: [], layers: request.mak.layers },
+    over: request.mak.over,
     items,
     answers,
     keys: Object.fromEntries(plan.keys),
@@ -14127,7 +14304,7 @@ async function runLoop(text, ctx) {
 }
 
 // src/ledger/graph.ts
-import { existsSync as existsSync12, readFileSync as readFileSync15, statSync as statSync8 } from "node:fs";
+import { existsSync as existsSync13, readFileSync as readFileSync15, statSync as statSync8 } from "node:fs";
 var GRAPH_SCHEMA_VERSION = "2";
 var GRAPH_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS nodes (
@@ -14208,18 +14385,18 @@ function parseChainPart(part) {
   const name = raw.endsWith("?") ? raw.slice(0, -1) : raw;
   return { level, name };
 }
-function isLiteral(wiseConfig, key2) {
-  return wiseConfig[key2]?.literal === true;
+function isLiteral(mdlConfig, key2) {
+  return mdlConfig[key2]?.literal === true;
 }
 function gateScore(gate) {
   return gate === "pass" ? 1 : gate === "fail" ? 0 : gate === "unsure" ? 0.5 : null;
 }
-function ingestContractRun(db, rec, wiseConfig) {
+function ingestContractRun(db, rec, mdlConfig) {
   const RUN = rec.id;
   const runNode = nodeId(db, "run", RUN);
-  const wise2 = rec.wise;
-  if (wise2?.area !== void 0 && !isLiteral(wiseConfig, "area")) {
-    const areas = Array.isArray(wise2.area) ? wise2.area : [wise2.area];
+  const mdl2 = rec.mdl;
+  if (mdl2?.area !== void 0 && !isLiteral(mdlConfig, "area")) {
+    const areas = Array.isArray(mdl2.area) ? mdl2.area : [mdl2.area];
     for (const a of areas) addTriple(db, "about", runNode, nodeId(db, "area", a), RUN, "extracted", null);
   }
   const cats = runCategories2(rec);
@@ -14268,15 +14445,15 @@ function ingestContractRun(db, rec, wiseConfig) {
     const pred = rec.verb === "replay" ? "replays" : rec.verb === "drill" ? "narrows" : "builds-on";
     addTriple(db, pred, runNode, nodeId(db, "run", rec.parent), RUN, "extracted", null);
   }
-  if (wise2?.blast !== void 0 && !isLiteral(wiseConfig, "blast")) {
-    addTriple(db, "reaches", runNode, nodeId(db, "level", wise2.blast), RUN, "extracted", null);
+  if (mdl2?.blast !== void 0 && !isLiteral(mdlConfig, "blast")) {
+    addTriple(db, "reaches", runNode, nodeId(db, "level", mdl2.blast), RUN, "extracted", null);
   }
-  if (wise2?.touches !== void 0 && !isLiteral(wiseConfig, "touches")) {
-    for (const t of wise2.touches) addTriple(db, "touches", runNode, nodeId(db, "entity", t.toLowerCase().trim()), RUN, "extracted", null);
+  if (mdl2?.touches !== void 0 && !isLiteral(mdlConfig, "touches")) {
+    for (const t of mdl2.touches) addTriple(db, "touches", runNode, nodeId(db, "entity", t.toLowerCase().trim()), RUN, "extracted", null);
   }
   const compOrCode = /* @__PURE__ */ new Set();
-  if (wise2?.uses !== void 0 && !isLiteral(wiseConfig, "uses")) {
-    for (const chain of wise2.uses) {
+  if (mdl2?.uses !== void 0 && !isLiteral(mdlConfig, "uses")) {
+    for (const chain of mdl2.uses) {
       const parts = chain.split(" -> ").map(parseChainPart);
       const partNodeIds = parts.map((part) => nodeId(db, part.level, part.name));
       for (let i = 0; i < partNodeIds.length - 1; i++) addTriple(db, "uses", partNodeIds[i], partNodeIds[i + 1], RUN, "declared", null);
@@ -14298,11 +14475,11 @@ function ingestContractRun(db, rec, wiseConfig) {
     }
   }
   for (const placeId of placeNodeIds) for (const compId of compOrCode) addTriple(db, "contains", placeId, compId, RUN, "inferred", null);
-  const extras = wise2?.extras;
+  const extras = mdl2?.extras;
   if (extras) {
     const places = runPlaces(rec);
     for (const [key2, rawValue] of Object.entries(extras)) {
-      const override = wiseConfig[key2];
+      const override = mdlConfig[key2];
       if (!override) continue;
       const predicate = override.as ?? key2;
       const values = Array.isArray(rawValue) ? rawValue : [rawValue];
@@ -14339,7 +14516,7 @@ function scanCompleteLines(buf, from, to) {
   return { consumed: pos, lines };
 }
 function needsCatchUp(paths, logSize) {
-  if (!existsSync12(paths.index)) return true;
+  if (!existsSync13(paths.index)) return true;
   let db;
   try {
     db = openGraphDb(paths.index);
@@ -14363,11 +14540,11 @@ function catchUpGraph(paths, env) {
     db.exec(META_TABLE_SQL);
     if (getMeta2(db, "graph_schema_version") !== GRAPH_SCHEMA_VERSION) resetGraphSchema(db);
     const upto = Number(getMeta2(db, "graph_upto") ?? "0");
-    const size = existsSync12(paths.log) ? statSync8(paths.log).size : 0;
+    const size = existsSync13(paths.log) ? statSync8(paths.log).size : 0;
     if (upto >= size) return;
     const buf = readFileSync15(paths.log);
     const { consumed, lines } = scanCompleteLines(buf, upto, size);
-    const wiseConfig = resolveConfig(paths, env).config.wise;
+    const mdlConfig = resolveConfig(paths, env).config.mdl;
     db.exec("BEGIN");
     try {
       for (const raw of lines) {
@@ -14380,8 +14557,8 @@ function catchUpGraph(paths, env) {
           continue;
         }
         if (!parsed || typeof parsed !== "object") continue;
-        const rec = normalizeRecordWise(parsed);
-        if (rec.kind === "run" && isContractRun(rec)) ingestContractRun(db, rec, wiseConfig);
+        const rec = normalizeRecordMdl(parsed);
+        if (rec.kind === "run" && isContractRun(rec)) ingestContractRun(db, rec, mdlConfig);
         else if (rec.kind === "outcome") ingestOutcome(db, rec);
       }
       setMeta2(db, "graph_upto", String(consumed));
@@ -14395,14 +14572,14 @@ function catchUpGraph(paths, env) {
   }
 }
 function refreshGraph(paths, env = process.env) {
-  const logStat = existsSync12(paths.log) ? statSync8(paths.log) : void 0;
+  const logStat = existsSync13(paths.log) ? statSync8(paths.log) : void 0;
   if (!logStat || logStat.size === 0) return;
   if (!needsCatchUp(paths, logStat.size)) return;
   withLock(paths.lock, () => catchUpGraph(paths, env));
 }
 var EMPTY_NEIGHBORHOOD = { nodes: [], edges: [] };
 function graphAround(paths, opts) {
-  if (!existsSync12(paths.index)) return EMPTY_NEIGHBORHOOD;
+  if (!existsSync13(paths.index)) return EMPTY_NEIGHBORHOOD;
   const db = openGraphDb(paths.index);
   try {
     const label = normalizeLabel(opts.kind, opts.label);
@@ -14444,20 +14621,20 @@ function graphAround(paths, opts) {
     db.close();
   }
 }
-function wiseRows(paths, opts = {}) {
-  if (!existsSync12(paths.index)) return [];
+function mdlRows(paths, opts = {}) {
+  if (!existsSync13(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const limit = Math.min(Math.max(opts.limit ?? 100, 1), 1e3);
     const rows = db.prepare(
       `SELECT id, verb, ts,
-           json_extract(wise, '$.wise.why') AS why,
-           json_extract(wise, '$.wise.area') AS area,
-           json_extract(wise, '$.wise.stage') AS stage,
-           json_extract(wise, '$.wise.change') AS change,
-           json_extract(wise, '$.wise.risk') AS risk,
-           json_extract(wise, '$.wise.problem') AS problem,
-           json_extract(wise, '$.wise.blast') AS blast
+           json_extract(mdl, '$.mdl.why') AS why,
+           json_extract(mdl, '$.mdl.area') AS area,
+           json_extract(mdl, '$.mdl.stage') AS stage,
+           json_extract(mdl, '$.mdl.change') AS change,
+           json_extract(mdl, '$.mdl.risk') AS risk,
+           json_extract(mdl, '$.mdl.problem') AS problem,
+           json_extract(mdl, '$.mdl.blast') AS blast
          FROM runs ORDER BY ts DESC LIMIT ?`
     ).all(limit);
     return rows.map((r) => ({
@@ -14479,7 +14656,7 @@ function wiseRows(paths, opts = {}) {
   }
 }
 function problemCounts(paths, opts = {}) {
-  if (!existsSync12(paths.index)) return [];
+  if (!existsSync13(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const limit = Math.min(Math.max(opts.limit ?? 20, 1), 500);
@@ -14503,7 +14680,7 @@ function problemCounts(paths, opts = {}) {
   }
 }
 function callStats(paths, opts = {}) {
-  if (!existsSync12(paths.index)) return [];
+  if (!existsSync13(paths.index)) return [];
   const since = opts.sinceIso ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3).toISOString();
   const limit = Math.min(Math.max(opts.limit ?? 500, 1), 5e3);
   let rows;
@@ -14549,20 +14726,20 @@ var MAX_UNDECLARED_KEYS = 50;
 var MAX_VALUES_PER_KEY = 200;
 var MAX_SAMPLES_PER_KEY = 5;
 function undeclaredFieldSamples(paths, opts) {
-  if (!existsSync12(paths.index)) return [];
+  if (!existsSync13(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const known = new Set(opts.knownKeys);
-    const rows = db.prepare("SELECT wise FROM runs WHERE wise IS NOT NULL").all();
+    const rows = db.prepare("SELECT mdl FROM runs WHERE mdl IS NOT NULL").all();
     const byKey = /* @__PURE__ */ new Map();
     for (const row of rows) {
       let parsed;
       try {
-        parsed = JSON.parse(String(row.wise));
+        parsed = JSON.parse(String(row.mdl));
       } catch {
         continue;
       }
-      const extras = parsed?.wise?.extras;
+      const extras = parsed?.mdl?.extras;
       if (!extras || typeof extras !== "object") continue;
       for (const [key2, rawValue] of Object.entries(extras)) {
         if (known.has(key2)) continue;
@@ -14589,7 +14766,7 @@ function undeclaredFieldSamples(paths, opts) {
 }
 
 // src/verbs/report-web.ts
-import { writeFileSync as writeFileSync6 } from "node:fs";
+import { writeFileSync as writeFileSync7 } from "node:fs";
 import path18 from "node:path";
 var DAY_MS = 24 * 60 * 60 * 1e3;
 var LIST_CAP = 12;
@@ -14603,8 +14780,8 @@ function placeSummary(rec) {
   const sweep = sweepPlaces(rec).filter((p) => p.kind === "where").map((p) => p.val);
   return sweep.length ? sweep.join(", ") : "(no place)";
 }
-function wiseTags(rec) {
-  const w = rec.wise;
+function mdlTags(rec) {
+  const w = rec.mdl;
   if (!w) return [];
   const tags = [];
   if (w.why) tags.push(`why:${w.why}`);
@@ -14629,7 +14806,7 @@ function collectEdges(runs) {
   const edges = [];
   const runTags = /* @__PURE__ */ new Map();
   for (const rec of runs) {
-    runTags.set(rec.id, wiseTags(rec));
+    runTags.set(rec.id, mdlTags(rec));
     if (rec.items) {
       const layerCats = /* @__PURE__ */ new Map();
       for (const layer of rec.ask.layers) layerCats.set(layer.name, layer.categories);
@@ -14973,7 +15150,7 @@ ul.story-list li { padding:3px 0; border-bottom:1px solid var(--border); overflo
 var BODY = `
 <header class="topbar">
   <div class="topbar-left">
-    <span class="brand">SIDEWISE</span>
+    <span class="brand">MM3</span>
     <nav class="tabs" role="tablist">
       <button class="tab-btn" type="button" data-tab="map" aria-selected="true" role="tab">Map</button>
       <button class="tab-btn" type="button" data-tab="heat" aria-selected="false" role="tab">Heat map</button>
@@ -15028,7 +15205,7 @@ var BODY = `
     </div>
   </aside>
 </div>
-<footer class="viewer-footer">A System One needs a Knowledge One. \xB7 Sidewise</footer>
+<footer class="viewer-footer">A System One needs a Knowledge One. \xB7 MM3</footer>
 `;
 var CLIENT_JS = `
 (function () {
@@ -15180,7 +15357,7 @@ var CLIENT_JS = `
     else document.documentElement.removeAttribute('data-theme');
   }
   var saved = null;
-  try { saved = localStorage.getItem('sidewise-viewer-theme'); } catch (e) { saved = null; }
+  try { saved = localStorage.getItem('mm3-viewer-theme'); } catch (e) { saved = null; }
   if (saved === 'light' || saved === 'dark') applyTheme(saved);
   themeBtn.addEventListener('click', function () {
     var current = document.documentElement.getAttribute('data-theme');
@@ -15188,8 +15365,8 @@ var CLIENT_JS = `
     var next = current === 'dark' ? 'light' : current === 'light' ? null : (prefersDark ? 'light' : 'dark');
     applyTheme(next);
     try {
-      if (next) localStorage.setItem('sidewise-viewer-theme', next);
-      else localStorage.removeItem('sidewise-viewer-theme');
+      if (next) localStorage.setItem('mm3-viewer-theme', next);
+      else localStorage.removeItem('mm3-viewer-theme');
     } catch (e) { /* per-viewer convenience only; a blocked store just means the toggle doesn't persist */ }
   });
 
@@ -15203,7 +15380,7 @@ function renderViewerHtml(data) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sidewise ledger viewer</title>
+<title>MM3 ledger viewer</title>
 <style>${CSS}</style>
 </head>
 <body>
@@ -15229,25 +15406,25 @@ function runReportWeb(ctx) {
   const html = renderViewerHtml(data);
   ensureDir(ctx.paths);
   const viewerPath = path18.join(ctx.paths.dir, "viewer.html");
-  writeFileSync6(viewerPath, html);
+  writeFileSync7(viewerPath, html);
   const shown2 = path18.relative(ctx.paths.root, viewerPath).split(path18.sep).join("/");
   const opened = tryOpen(viewerPath, ctx.platform, ctx.runner, ctx.env);
   const runCount = data.windows.all.story.runs;
   const placeCount = data.windows.all.layers.reduce((n, l) => n + l.cards.length, 0);
-  const summary = `sidewise report web \xB7 wrote ${shown2} (${runCount} run${runCount === 1 ? "" : "s"}, ${placeCount} place${placeCount === 1 ? "" : "s"})`;
+  const summary = `mm3 report web \xB7 wrote ${shown2} (${runCount} run${runCount === 1 ? "" : "s"}, ${placeCount} place${placeCount === 1 ? "" : "s"})`;
   return { exit: 0, text: opened ? `${summary} \u2192 opened in your browser` : `${summary} \u2192 open it yourself, no browser available` };
 }
 
 // src/verbs/report.ts
-var VIEWS = ["hits", "patterns", "history", "web", "graph", "problems", "wise", "calls", "fields"];
+var VIEWS = ["hits", "patterns", "history", "web", "graph", "problems", "mdl", "calls", "fields"];
 var isView = (s) => VIEWS.includes(s);
-var VIEW_LIST_TEXT = "hits, patterns, history, web, graph, problems, wise, calls or fields";
+var VIEW_LIST_TEXT = "hits, patterns, history, web, graph, problems, mdl, calls or fields";
 var ROW_LIMIT = 30;
 function withCap(lines, total) {
   const shown2 = lines.slice(0, ROW_LIMIT);
   return total > shown2.length ? [...shown2, `\u2026 ${total - shown2.length} more not shown`] : [...shown2];
 }
-var heading = (view, n, noun) => `sidewise report ${view} \xB7 ${n} ${noun}${n === 1 ? "" : "s"}`;
+var heading = (view, n, noun) => `mm3 report ${view} \xB7 ${n} ${noun}${n === 1 ? "" : "s"}`;
 function isStale3(root, rec, categoryName) {
   const cat = rec.ask.categories.find((c) => c.name === categoryName);
   if (!cat || !cat.questions.length) return false;
@@ -15284,7 +15461,7 @@ function reportHits(paths) {
     },
     { readOnly: true }
   );
-  if (!rows.length) return { exit: 0, text: 'sidewise report hits \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
+  if (!rows.length) return { exit: 0, text: 'mm3 report hits \xB7 no runs yet \u2192 "mm3 class <request>" starts one' };
   rows.sort((a, b) => GATE_RANK2[a.gate] - GATE_RANK2[b.gate] || a.place.localeCompare(b.place) || a.category.localeCompare(b.category));
   const shown2 = rows.slice(0, ROW_LIMIT);
   const lines = shown2.map((r) => {
@@ -15295,7 +15472,7 @@ function reportHits(paths) {
 }
 function reportPatterns(paths) {
   const rows = withIndex(paths, (h) => h.patternCounts(), { readOnly: true });
-  if (!rows.length) return { exit: 0, text: 'sidewise report patterns \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
+  if (!rows.length) return { exit: 0, text: 'mm3 report patterns \xB7 no runs yet \u2192 "mm3 class <request>" starts one' };
   const lines = rows.map(
     (r) => `${r.pattern} \xB7 runs ${r.runs} \xB7 places ${r.places} \xB7 pass ${r.pass} fail ${r.fail} unsure ${r.unsure} \xB7 held ${r.outcomes.held} overruled ${r.outcomes.overruled} failed ${r.outcomes.failed} open ${r.outcomes.open}`
   );
@@ -15336,7 +15513,7 @@ function reportHistory(paths) {
     },
     { readOnly: true }
   );
-  if (!rows.length) return { exit: 0, text: 'sidewise report history \xB7 nothing yet \u2192 run "replay" or "outcome" to start one' };
+  if (!rows.length) return { exit: 0, text: 'mm3 report history \xB7 nothing yet \u2192 run "replay" or "outcome" to start one' };
   rows.sort((a, b) => a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0);
   return { exit: 0, text: [heading("history", rows.length, "event"), ...withCap(rows.map((r) => r.text), rows.length)].join("\n") };
 }
@@ -15344,7 +15521,7 @@ function ensureHotIndexFresh(paths) {
   withIndex(paths, () => void 0);
 }
 function graphUnavailableText(view) {
-  return `sidewise report ${view} \xB7 graph needs node:sqlite (Node \u2265 22.13) \u2192 see "sidewise doctor"`;
+  return `mm3 report ${view} \xB7 graph needs node:sqlite (Node \u2265 22.13) \u2192 see "mm3 doctor"`;
 }
 function withGraphView(paths, env, view, fn) {
   try {
@@ -15359,25 +15536,25 @@ function withGraphView(paths, env, view, fn) {
 function reportProblems(paths, env) {
   return withGraphView(paths, env, "problems", () => {
     const rows = problemCounts(paths, { limit: 500 });
-    if (!rows.length) return { exit: 0, text: 'sidewise report problems \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
+    if (!rows.length) return { exit: 0, text: 'mm3 report problems \xB7 no runs yet \u2192 "mm3 class <request>" starts one' };
     const lines = rows.map((r) => `${r.family} \xD7 ${clip(r.place, 50)} \xB7 fail ${r.fail} unsure ${r.unsure} pass ${r.pass}`);
     return { exit: 0, text: [heading("problems", rows.length, "row"), ...withCap(lines, rows.length)].join("\n") };
   });
 }
-function reportWise(paths, env) {
-  return withGraphView(paths, env, "wise", () => {
-    const rows = wiseRows(paths, { limit: 1e3 });
-    if (!rows.length) return { exit: 0, text: 'sidewise report wise \xB7 no runs yet \u2192 "sidewise class <request>" starts one' };
+function reportMdl(paths, env) {
+  return withGraphView(paths, env, "mdl", () => {
+    const rows = mdlRows(paths, { limit: 1e3 });
+    if (!rows.length) return { exit: 0, text: 'mm3 report mdl \xB7 no runs yet \u2192 "mm3 class <request>" starts one' };
     const lines = rows.map(
       (r) => `${r.id} ${r.verb} \xB7 why:${r.why ?? "\u2014"} area:${r.area ?? "\u2014"} stage:${r.stage ?? "\u2014"} change:${r.change ?? "\u2014"} risk:${r.risk ?? "\u2014"} blast:${r.blast ?? "\u2014"}` + (r.problem ? ` \xB7 ${clip(r.problem, 60)}` : "")
     );
-    return { exit: 0, text: [heading("wise", rows.length, "run"), ...withCap(lines, rows.length)].join("\n") };
+    return { exit: 0, text: [heading("mdl", rows.length, "run"), ...withCap(lines, rows.length)].join("\n") };
   });
 }
 function reportCalls(paths, env) {
   return withGraphView(paths, env, "calls", () => {
     const rows = callStats(paths, {});
-    if (!rows.length) return { exit: 0, text: 'sidewise report calls \xB7 no calls in the last 30 days \u2192 "sidewise class <request>" starts one' };
+    if (!rows.length) return { exit: 0, text: 'mm3 report calls \xB7 no calls in the last 30 days \u2192 "mm3 class <request>" starts one' };
     rows.sort((a, b) => b.day.localeCompare(a.day) || a.verb.localeCompare(b.verb) || a.model.localeCompare(b.model) || a.source.localeCompare(b.source));
     const lines = rows.map((r) => `${r.day} \xB7 ${r.verb} \xB7 ${r.model} (${r.source}) \xB7 calls ${r.calls} \xB7 tokens ${r.tokens} \xB7 cost $${r.costUsd.toFixed(4)} \xB7 saved $${r.savedUsd.toFixed(4)}`);
     return { exit: 0, text: [heading("calls", rows.length, "row"), ...withCap(lines, rows.length)].join("\n") };
@@ -15417,7 +15594,7 @@ function renderEdge(byId2, g) {
 function reportGraph(paths, env, target) {
   return withGraphView(paths, env, "graph", () => {
     const t = target?.trim();
-    if (!t) return { exit: 0, text: "sidewise report graph \xB7 name a target \u2192 sidewise report graph <kind>:<label> (e.g. category:injection)" };
+    if (!t) return { exit: 0, text: "mm3 report graph \xB7 name a target \u2192 mm3 report graph <kind>:<label> (e.g. category:injection)" };
     const colon = t.indexOf(":");
     if (colon <= 0 || colon === t.length - 1) {
       return { exit: 2, text: stopText([`\u2716 report graph: "${clip(t, 40)}" is not kind:label \u2192 e.g. category:injection`], "report") };
@@ -15425,11 +15602,11 @@ function reportGraph(paths, env, target) {
     const kind = t.slice(0, colon);
     const label = t.slice(colon + 1);
     const { nodes, edges } = graphAround(paths, { kind, label, depth: 2 });
-    if (!nodes.length) return { exit: 0, text: `sidewise report graph ${t} \xB7 not found \u2192 run "sidewise class <request>" first, or check the kind:label spelling` };
+    if (!nodes.length) return { exit: 0, text: `mm3 report graph ${t} \xB7 not found \u2192 run "mm3 class <request>" first, or check the kind:label spelling` };
     const byId2 = new Map(nodes.map((n) => [n.id, `${n.kind}:${n.label}`]));
     const groups = groupEdges(edges);
     const lines = groups.map((g) => renderEdge(byId2, g));
-    const headingLine = `sidewise report graph ${t} \xB7 ${groups.length} edge${groups.length === 1 ? "" : "s"} (depth 2, ${nodes.length} node${nodes.length === 1 ? "" : "s"})`;
+    const headingLine = `mm3 report graph ${t} \xB7 ${groups.length} edge${groups.length === 1 ? "" : "s"} (depth 2, ${nodes.length} node${nodes.length === 1 ? "" : "s"})`;
     return { exit: 0, text: [headingLine, ...withCap(lines, groups.length)].join("\n") };
   });
 }
@@ -15462,23 +15639,23 @@ function suggestionText(s) {
 function reportFields(paths, env, accept) {
   ensureHotIndexFresh(paths);
   const { config } = resolveConfig(paths, env);
-  const knownKeys = [...WISE_KEYS, ...Object.keys(config.wise)];
+  const knownKeys = [...MDL_KEYS, ...Object.keys(config.mdl)];
   const fields = undeclaredFieldSamples(paths, { knownKeys });
   if (accept !== void 0) {
     const field = fields.find((f) => f.key === accept);
     if (!field) {
-      return { exit: 2, text: stopText([`\u2716 report fields --accept: "${clip(accept, 40)}" is not an undeclared field \u2192 run "sidewise report fields" to see what's available`], "report") };
+      return { exit: 2, text: stopText([`\u2716 report fields --accept: "${clip(accept, 40)}" is not an undeclared field \u2192 run "mm3 report fields" to see what's available`], "report") };
     }
     const suggestion = classifyField(field.count, field.values);
     if (!suggestion) {
       return { exit: 2, text: stopText([`\u2716 report fields --accept: "${clip(accept, 40)}" has no suggestion yet \u2192 not enough signal, keep collecting runs`], "report") };
     }
-    const patch = suggestion.kind === "closed" ? { wise: { [accept]: { values: suggestion.values } } } : suggestion.kind === "pattern" ? { wise: { [accept]: { pattern: suggestion.pattern } } } : { wise: { [accept]: { link: "where" } } };
+    const patch = suggestion.kind === "closed" ? { mdl: { [accept]: { values: suggestion.values } } } : suggestion.kind === "pattern" ? { mdl: { [accept]: { pattern: suggestion.pattern } } } : { mdl: { [accept]: { link: "where" } } };
     writeConfigOverride(paths, patch);
     const shown2 = suggestion.kind === "closed" ? `values: [${suggestion.values.join(", ")}]` : suggestion.kind === "pattern" ? `pattern: ${suggestion.pattern}` : "link: where";
-    return { exit: 0, text: `sidewise report fields --accept ${accept} \xB7 wrote wise.${accept} (${shown2}) to .sidewise/config.yaml` };
+    return { exit: 0, text: `mm3 report fields --accept ${accept} \xB7 wrote mdl.${accept} (${shown2}) to .mm3/config.yaml` };
   }
-  if (!fields.length) return { exit: 0, text: "sidewise report fields \xB7 no undeclared fields yet \u2192 every wise key so far is a base field or already configured" };
+  if (!fields.length) return { exit: 0, text: "mm3 report fields \xB7 no undeclared fields yet \u2192 every mdl key so far is a base field or already configured" };
   const lines = fields.map((f) => `${f.key} (${f.count} run${f.count === 1 ? "" : "s"}) \xB7 samples: ${f.samples.join(", ") || "(no values)"} \xB7 suggest: ${suggestionText(classifyField(f.count, f.values))}`);
   return { exit: 0, text: [heading("fields", fields.length, "field"), ...withCap(lines, fields.length)].join("\n") };
 }
@@ -15492,7 +15669,7 @@ function runReport(view, ctx, target, accept) {
   if (requested === "history") return reportHistory(ctx.paths);
   if (requested === "graph") return reportGraph(ctx.paths, env, target);
   if (requested === "problems") return reportProblems(ctx.paths, env);
-  if (requested === "wise") return reportWise(ctx.paths, env);
+  if (requested === "mdl") return reportMdl(ctx.paths, env);
   if (requested === "calls") return reportCalls(ctx.paths, env);
   if (requested === "fields") return reportFields(ctx.paths, env, accept);
   return runReportWeb({ paths: ctx.paths, env, runner: ctx.runner ?? realRunner, platform: ctx.platform ?? process.platform });
@@ -15515,15 +15692,15 @@ function unlookedEntrypoints(root, items) {
 }
 async function runScan(text, ctx) {
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, "scan", wiseFields);
+  const mdlFields = effectiveMdlFields(cfg.mdl);
+  const loaded = loadRequest(text, "scan", mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const notes = [];
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) }, { sweep: cfg.sweep, reuse: cfg.reuse });
-  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
+  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.mak));
   const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
   if (entrypointNote) notes.push(entrypointNote);
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
@@ -15531,7 +15708,7 @@ async function runScan(text, ctx) {
   const swept = await runSweep(ctx, "scan", plan);
   if (!swept.ok) return swept.result;
   const { answers, costUsd, costEstimated, telemetry, statusOf } = swept.value;
-  const categoriesOf = (layer) => request.side.layers.find((l) => l.name === layer)?.categories ?? [];
+  const categoriesOf = (layer) => request.mak.layers.find((l) => l.name === layer)?.categories ?? [];
   const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
   const goalAnswer = answers["goal"];
   const goalGrade = goalGate(goalAnswer.p);
@@ -15557,7 +15734,7 @@ async function runScan(text, ctx) {
       ["passing", passing],
       ["reused", reused]
     ),
-    wiseRecorded(request.wise),
+    mdlRecorded(request.mdl),
     sweepNext(id, gate, worst, graded, "act on it"),
     commonNotes(
       [...loaded.notes, ...notes, ...plan.splitNotes, ...reusedAges, ...pre.value.created ? [createdNote(pre.value.state)] : [], ...costEstimated ? [COST_ESTIMATED_NOTE] : []],
@@ -15569,17 +15746,17 @@ async function runScan(text, ctx) {
   const run = {
     verb: "scan",
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
-    depth: request.side.depth ?? null,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
+    depth: request.mak.depth ?? null,
     where,
-    parent: request.side.parent ?? request.wise?.parent ?? null,
+    parent: request.mak.parent ?? request.mdl?.parent ?? null,
     from: null,
     compare: null,
     commit: currentCommitSha(ctx.paths.root, where),
-    wise: request.wise,
-    ask: { categories: [], layers: request.side.layers },
-    over: request.side.over,
+    mdl: request.mdl,
+    ask: { categories: [], layers: request.mak.layers },
+    over: request.mak.over,
     items,
     answers,
     keys: Object.fromEntries(plan.keys),
@@ -15649,7 +15826,7 @@ function fromRunId(id, flags, paths) {
   if (!isContractRun(run)) return { exit: 2, text: stopText([`\u2716 template: --from "${id}" predates the YAML contract \u2192 point --from at a request file instead`], "template") };
   const replayExpect = run.expect;
   const echoesWhere = run.verb !== "scan" && run.verb !== "drill";
-  const side = run.verb === "replay" ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare, ...replayExpect ? { expect: replayExpect } : {} } : {
+  const mak = run.verb === "replay" ? { verb: run.verb, goal: run.goal, parent: run.parent, compare: run.compare, ...replayExpect ? { expect: replayExpect } : {} } : {
     verb: run.verb,
     goal: run.goal,
     ...run.depth ? { depth: run.depth } : {},
@@ -15660,9 +15837,9 @@ function fromRunId(id, flags, paths) {
     ...run.over ? { over: run.over } : {},
     ask: askToWire(run)
   };
-  const doc = (0, import_yaml5.parseDocument)((0, import_yaml5.stringify)({ side, ...run.wise ? { wise: run.wise } : {} }));
-  if (flags.goal !== void 0) doc.setIn(["side", "goal"], flags.goal);
-  if (flags.where !== void 0) doc.setIn(["side", "where"], flags.where);
+  const doc = (0, import_yaml5.parseDocument)((0, import_yaml5.stringify)({ mak, ...run.mdl ? { mdl: run.mdl } : {} }));
+  if (flags.goal !== void 0) doc.setIn(["mak", "goal"], flags.goal);
+  if (flags.where !== void 0) doc.setIn(["mak", "where"], flags.where);
   return { exit: 0, text: doc.toString() };
 }
 function fromFile(from, flags) {
@@ -15678,21 +15855,21 @@ function fromFile(from, flags) {
   try {
     doc = (0, import_yaml5.parseDocument)(raw);
   } catch {
-    return { exit: 2, text: stopText([`\u2716 template: --from "${clip(from, 60)}" is not valid YAML \u2192 point at a Sidewise request file`], "template") };
+    return { exit: 2, text: stopText([`\u2716 template: --from "${clip(from, 60)}" is not valid YAML \u2192 point at an MM3 request file`], "template") };
   }
-  if (!doc.has("side")) return { exit: 2, text: stopText([`\u2716 template: --from "${clip(from, 60)}" has no side: block \u2192 point at a Sidewise request file`], "template") };
-  if (flags.goal !== void 0) doc.setIn(["side", "goal"], flags.goal);
-  if (flags.where !== void 0) doc.setIn(["side", "where"], flags.where);
+  if (!doc.has("mak")) return { exit: 2, text: stopText([`\u2716 template: --from "${clip(from, 60)}" has no mak: block \u2192 point at an MM3 request file`], "template") };
+  if (flags.goal !== void 0) doc.setIn(["mak", "goal"], flags.goal);
+  if (flags.where !== void 0) doc.setIn(["mak", "where"], flags.where);
   return { exit: 0, text: doc.toString() };
 }
 function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR) {
   if (!VERBS.includes(target)) return { exit: 2, text: stopText([`\u2716 template: "${clip(target, 30)}" is not a verb \u2192 one of ${VERBS.join(", ")}`], "template") };
   if (flags.parent !== void 0) {
-    if (target !== "drill") return { exit: 2, text: stopText([`\u2716 template: --parent only applies to drill \u2192 sidewise template ${target}`], "template") };
+    if (target !== "drill") return { exit: 2, text: stopText([`\u2716 template: --parent only applies to drill \u2192 mm3 template ${target}`], "template") };
     if (flags.from === void 0) {
       return {
         exit: 2,
-        text: stopText(["\u2716 template drill: needs both --parent and --from, or neither \u2192 sidewise template drill --parent SW-#### --from <item or category>"], "template")
+        text: stopText(["\u2716 template drill: needs both --parent and --from, or neither \u2192 mm3 template drill --parent MM3-#### --from <item or category>"], "template")
       };
     }
     if (flags.where !== void 0 || flags.goal !== void 0) {
@@ -15702,22 +15879,22 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
       };
     }
     const file = drillSampleFile(flags.parent, paths);
-    const raw = readFileSync16(path19.join(packageDir, "skills", "sidewise", "templates", file), "utf8");
+    const raw = readFileSync16(path19.join(packageDir, "skills", "mm3", "templates", file), "utf8");
     const doc = (0, import_yaml5.parseDocument)(raw);
-    doc.setIn(["side", "parent"], flags.parent);
-    doc.setIn(["side", "from"], flags.from);
+    doc.setIn(["mak", "parent"], flags.parent);
+    doc.setIn(["mak", "from"], flags.from);
     return { exit: 0, text: doc.toString() };
   }
   if (flags.from !== void 0) return RUN_ID.test(flags.from) ? fromRunId(flags.from, flags, paths) : fromFile(flags.from, flags);
   if (flags.where !== void 0 || flags.goal !== void 0) {
-    return { exit: 2, text: stopText([`\u2716 template: --where/--goal need --from \u2192 sidewise template ${target} --from <request.yaml>`], "template") };
+    return { exit: 2, text: stopText([`\u2716 template: --where/--goal need --from \u2192 mm3 template ${target} --from <request.yaml>`], "template") };
   }
-  return { exit: 0, text: readFileSync16(path19.join(packageDir, "skills", "sidewise", "templates", `${target}.yaml`), "utf8") };
+  return { exit: 0, text: readFileSync16(path19.join(packageDir, "skills", "mm3", "templates", `${target}.yaml`), "utf8") };
 }
 
 // src/verbs/view.ts
 import path20 from "node:path";
-var REQUEST_MODE = /^side\s*:/mu;
+var REQUEST_MODE = /^mak\s*:/mu;
 function runLine(r, outcome) {
   const rehearsal = isRehearsal(r.adapter) ? " \xB7 rehearsal" : "";
   const line3 = isRun(r) ? `${r.id} ${r.ts.slice(0, 10)} ${r.verb} L${r.level} ${r.consensus} ${r.verdict} "${clip(r.focus, 48)}" \xB7 ${outcome}` : `${r.id} ${r.ts.slice(0, 10)} ${r.verb} ${r.depth ?? "-"} ${r.gate} "${clip(r.goal, 48)}" \xB7 ${outcome}`;
@@ -15734,23 +15911,23 @@ function whereMatches(r, place) {
   return isContractRun(r) && !!r.items && Object.values(r.items).some((it) => !!it.unit && pathMatches(it.unit.path, place));
 }
 function toPlace(target, root) {
-  if (hasControlChars(target)) return { stop: stopText(["\u2716 view: the target has control characters \u2192 use a folder, a tag, or SW-####"], "view") };
+  if (hasControlChars(target)) return { stop: stopText(["\u2716 view: the target has control characters \u2192 use a folder, a tag, or MM3-####"], "view") };
   if (!path20.isAbsolute(target) && !target.split(/[\\/]/).includes("..")) return { place: target.replace(/^\.\//, "").replace(/\/+$/, "") || "." };
   const rel = path20.relative(root, path20.resolve(root, target));
   if (rel.startsWith("..") || path20.isAbsolute(rel)) {
-    return { stop: stopText([`\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or SW-####`], "view") };
+    return { stop: stopText([`\u2716 view: "${clip(target, 60)}" is outside the project \u2192 use a folder inside it, a tag, or MM3-####`], "view") };
   }
   return { place: rel.split(path20.sep).join("/") || "." };
 }
 function renderPlace(place, hits, outcomeOf, limit) {
-  if (!hits.length) return { exit: 0, text: `sidewise view ${clip(place, 60)} \xB7 no runs yet \u2192 "sidewise class <request>" starts one` };
+  if (!hits.length) return { exit: 0, text: `mm3 view ${clip(place, 60)} \xB7 no runs yet \u2192 "mm3 class <request>" starts one` };
   const counts = { held: 0, overruled: 0, failed: 0, open: 0 };
   let rehearsal = 0;
   for (const r of hits) {
     if (isRehearsal(r.adapter)) rehearsal += 1;
     else counts[outcomeOf(r.id) ?? "open"] += 1;
   }
-  const head = `sidewise view ${clip(place, 60)} \xB7 ${hits.length} run${hits.length === 1 ? "" : "s"} \xB7 held ${counts.held} \xB7 overruled ${counts.overruled} \xB7 failed ${counts.failed} \xB7 open ${counts.open}${rehearsal ? ` \xB7 rehearsal ${rehearsal}` : ""}`;
+  const head = `mm3 view ${clip(place, 60)} \xB7 ${hits.length} run${hits.length === 1 ? "" : "s"} \xB7 held ${counts.held} \xB7 overruled ${counts.overruled} \xB7 failed ${counts.failed} \xB7 open ${counts.open}${rehearsal ? ` \xB7 rehearsal ${rehearsal}` : ""}`;
   const shown2 = hits.slice(-limit).reverse();
   const older = hits.length - shown2.length;
   return {
@@ -15766,12 +15943,12 @@ function renderSummary(scope, hits) {
     for (const w of r.where.map(stripLines)) latest.set(w, r);
     for (const p of sweepPlaces(r)) if (p.kind === "where") latest.set(p.val, r);
   }
-  if (!latest.size) return { exit: 0, text: `sidewise view ${clip(scope, 60)} --summary \xB7 no runs yet \u2192 "sidewise class <request>" starts one` };
+  if (!latest.size) return { exit: 0, text: `mm3 view ${clip(scope, 60)} --summary \xB7 no runs yet \u2192 "mm3 class <request>" starts one` };
   const rows = [...latest.entries()].sort(([pa, ra], [pb, rb]) => GATE_RANK3[ra.gate] - GATE_RANK3[rb.gate] || pa.localeCompare(pb));
   return {
     exit: 0,
     text: [
-      `sidewise view ${clip(scope, 60)} --summary \xB7 ${rows.length} place${rows.length === 1 ? "" : "s"}`,
+      `mm3 view ${clip(scope, 60)} --summary \xB7 ${rows.length} place${rows.length === 1 ? "" : "s"}`,
       ...rows.map(([place, r]) => `${clip(place, 60)} \xB7 ${r.verb} ${r.gate} \xB7 ${r.id} "${clip(r.goal, 48)}"`)
     ].join("\n")
   };
@@ -15876,7 +16053,7 @@ function byId(id, paths, level, limit, answers) {
     paths,
     (handle) => {
       const self = runAt(paths, handle, id);
-      if (!self) return { exit: 2, text: stopText([`\u2716 view: ${id} is not in the ledger \u2192 "sidewise view <folder>" lists recent runs`], "view") };
+      if (!self) return { exit: 2, text: stopText([`\u2716 view: ${id} is not in the ledger \u2192 "mm3 view <folder>" lists recent runs`], "view") };
       const up = [];
       let cursor = self.parent ? runAt(paths, handle, self.parent) : void 0;
       while (cursor && up.length < limit) {
@@ -15898,7 +16075,7 @@ function byId(id, paths, level, limit, answers) {
       return {
         exit: 0,
         text: [
-          `sidewise view ${id} \xB7 lineage ${up.length} up \xB7 ${down.length} down`,
+          `mm3 view ${id} \xB7 lineage ${up.length} up \xB7 ${down.length} down`,
           ...up.map((r) => `\u2191 ${runLine(r, outcomeOf(r))}`),
           `\u25B6 ${runLine(self, outcomeOf(self))}`,
           ...detailLines(self, level),
@@ -15944,38 +16121,38 @@ function runsForPlaces(paths, places) {
   );
 }
 function runRequestMode(text, ctx) {
-  const wiseFields = effectiveWiseFields(resolveConfig(ctx.paths, ctx.env).config.wise);
-  const loaded = loadRequest(text, "view", wiseFields);
+  const mdlFields = effectiveMdlFields(resolveConfig(ctx.paths, ctx.env).config.mdl);
+  const loaded = loadRequest(text, "view", mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
-  const evidence = readCodeEvidence(ctx.paths.root, request.side.where);
+  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where);
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "view") };
-  const places = request.side.where.map(stripLines);
+  const places = request.mak.where.map(stripLines);
   const runsHere = runsForPlaces(ctx.paths, places);
-  const categoryNames = request.side.categories.length ? request.side.categories.map((c) => c.name) : [...new Set(runsHere.flatMap((r) => Object.keys(r.categories)))];
+  const categoryNames = request.mak.categories.length ? request.mak.categories.map((c) => c.name) : [...new Set(runsHere.flatMap((r) => Object.keys(r.categories)))];
   let reuse2;
   let reuseMiss;
-  if (request.side.categories.length > 0) {
-    const questions = [goalQuestion(request.side.goal), ...subjectQuestions(request.side.categories)];
+  if (request.mak.categories.length > 0) {
+    const questions = [goalQuestion(request.mak.goal), ...subjectQuestions(request.mak.categories)];
     const evidenceStr = subjectEvidence(evidence.evidence.files);
     const keys = questions.map((q) => answerKey(evidenceStr, q));
     const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
     const reuseLimits = resolveConfig(ctx.paths, ctx.env).config.reuse;
     reuse2 = exactReuse(ctx.paths, who, keys, { reuse: reuseLimits });
     if (reuse2 === void 0) reuseMiss = runsHere.length ? `code in where changed since ${runsHere.at(-1).id}` : "never asked";
-    appendLookup(ctx.paths, { goal: request.side.goal, where: request.side.where, hit: reuse2 !== void 0, reused: reuse2 ?? null });
+    appendLookup(ctx.paths, { goal: request.mak.goal, where: request.mak.where, hit: reuse2 !== void 0, reused: reuse2 ?? null });
   }
   const reuseRun = reuse2 ? findRun(ctx.paths, reuse2) : void 0;
   const age = reuseRun && isContractRun(reuseRun) ? reuseAge(ctx.paths, { ts: reuseRun.ts, commit: reuseRun.commit ?? null, where: reuseRun.where }) : void 0;
-  const next = reuse2 ? `sidewise view ${reuse2}` : "sidewise class";
-  const side = m(
-    ["view", request.side.where.join(", ")],
+  const next = reuse2 ? `mm3 view ${reuse2}` : "mm3 class";
+  const mak = m(
+    ["view", request.mak.where.join(", ")],
     ...reuse2 ? [["reuse", reuse2]] : reuseMiss ? [["reuse", reuseMiss]] : [],
     ...age ? [["reuseAge", m(["days", age.ageDays], ...age.commitsSince !== null ? [["commits", age.commitsSince]] : [])]] : [],
     ["runs", runsHere.length],
     ["categories", m(...categoryNames.map((name) => categoryEntry2(name, runsHere)))]
   );
-  return { exit: 0, text: respondText(side, wiseRecorded(null), next, ["free"]) };
+  return { exit: 0, text: respondText(mak, mdlRecorded(null), next, ["free"]) };
 }
 function runView(arg, level, ctx, content, summary = false, answers = false) {
   const probe2 = (content ?? arg).trim();
@@ -15994,8 +16171,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["class", "authoring"],
     catchable: true,
-    bad: "side:\n  goal: This function is safe to merge\n  where: [src/pay/validate.ts]\n",
-    good: "side:\n  goal: This function is safe to merge\n  where: [src/pay/validate.ts:120-180]\n"
+    bad: "mak:\n  goal: This function is safe to merge\n  where: [src/pay/validate.ts]\n",
+    good: "mak:\n  goal: This function is safe to merge\n  where: [src/pay/validate.ts:120-180]\n"
   },
   {
     rule: "`where:` is all the code a run sees \u2014 a question about anything outside it has nothing to answer from.",
@@ -16003,8 +16180,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["class", "authoring"],
     catchable: false,
-    bad: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does validateInput() sanitize the amount field?\n",
-    good: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does validateInput() sanitize the amount field?\n"
+    bad: "mak:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does validateInput() sanitize the amount field?\n",
+    good: "mak:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does validateInput() sanitize the amount field?\n"
   },
   {
     rule: "With more than one file in `where:`, a question that never names one leaves the classifier guessing which file it means.",
@@ -16012,8 +16189,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["class", "authoring"],
     catchable: false,
-    bad: "side:\n  goal: The payment path is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does it sanitize the amount field before use?\n",
-    good: "side:\n  goal: The payment path is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does `src/pay/validate.ts` sanitize the amount field before use?\n"
+    bad: "mak:\n  goal: The payment path is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does it sanitize the amount field before use?\n",
+    good: "mak:\n  goal: The payment path is safe to merge\n  where: [src/pay/handler.ts, src/pay/validate.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does `src/pay/validate.ts` sanitize the amount field before use?\n"
   },
   {
     rule: "`{function}` is filled in per item \u2014 asking about something outside it answers from evidence that item never sent.",
@@ -16021,8 +16198,8 @@ var PATTERNS2 = [
     verb: "scan",
     in: ["scan"],
     catchable: false,
-    bad: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does the caller of {function} sanitize its input first?\n          2: Does {function} put request text straight into a query?\n          3: Does {function} run that query with db.query?\n        access:\n          pass: no\n          4: Does {function} return a record without checking its owner?\n          5: Does {function} skip comparing the record owner to the caller?\n          6: Could {function} be called without a permission check?\n        leaks:\n          pass: no\n          7: Does {function} return a raw database error?\n          8: Does {function} log the request body?\n          9: Does {function}'s response include unrequested fields?\n      decisions:\n        severity:\n          pass: [none]\n          10:\n            scale: How severe is the worst issue?\n            levels: [none, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where should this go?\n            options: [ship, block]\n",
-    good: "side:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does {function} sanitize its input before use?\n          2: Does {function} put request text straight into a query?\n          3: Does {function} run that query with db.query?\n        access:\n          pass: no\n          4: Does {function} return a record without checking its owner?\n          5: Does {function} skip comparing the record owner to the caller?\n          6: Could {function} be called without a permission check?\n        leaks:\n          pass: no\n          7: Does {function} return a raw database error?\n          8: Does {function} log the request body?\n          9: Does {function}'s response include unrequested fields?\n      decisions:\n        severity:\n          pass: [none]\n          10:\n            scale: How severe is the worst issue?\n            levels: [none, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where should this go?\n            options: [ship, block]\n"
+    bad: "mak:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does the caller of {function} sanitize its input first?\n          2: Does {function} put request text straight into a query?\n          3: Does {function} run that query with db.query?\n        access:\n          pass: no\n          4: Does {function} return a record without checking its owner?\n          5: Does {function} skip comparing the record owner to the caller?\n          6: Could {function} be called without a permission check?\n        leaks:\n          pass: no\n          7: Does {function} return a raw database error?\n          8: Does {function} log the request body?\n          9: Does {function}'s response include unrequested fields?\n      decisions:\n        severity:\n          pass: [none]\n          10:\n            scale: How severe is the worst issue?\n            levels: [none, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where should this go?\n            options: [ship, block]\n",
+    good: "mak:\n  goal: Handlers don't trust request input\n  depth: quick\n  over:\n    file: src/handlers/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does {function} sanitize its input before use?\n          2: Does {function} put request text straight into a query?\n          3: Does {function} run that query with db.query?\n        access:\n          pass: no\n          4: Does {function} return a record without checking its owner?\n          5: Does {function} skip comparing the record owner to the caller?\n          6: Could {function} be called without a permission check?\n        leaks:\n          pass: no\n          7: Does {function} return a raw database error?\n          8: Does {function} log the request body?\n          9: Does {function}'s response include unrequested fields?\n      decisions:\n        severity:\n          pass: [none]\n          10:\n            scale: How severe is the worst issue?\n            levels: [none, high]\n        route:\n          pass: [ship]\n          11:\n            choice: Where should this go?\n            options: [ship, block]\n"
   },
   {
     rule: "`view` checks reuse for one subject against the code in `where:` \u2014 with none named, it has nothing to check.",
@@ -16030,8 +16207,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["view"],
     catchable: true,
-    bad: "side:\n  goal: This handler is safe to merge\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler sanitize the amount field before use?\n",
-    good: "side:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler sanitize the amount field before use?\n"
+    bad: "mak:\n  goal: This handler is safe to merge\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler sanitize the amount field before use?\n",
+    good: "mak:\n  goal: This handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler sanitize the amount field before use?\n"
   },
   {
     rule: "`over:` builds a sweep across many items \u2014 `view` checks one subject and rejects `over:` outright.",
@@ -16039,8 +16216,8 @@ var PATTERNS2 = [
     verb: "view",
     in: ["view"],
     catchable: true,
-    bad: "side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  over:\n    file: src/pay/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does {function} put request text straight into a query?\n",
-    good: "side:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler put request text straight into a query?\n"
+    bad: "mak:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  over:\n    file: src/pay/*.ts\n    function: each\n  ask:\n    function:\n      concerns:\n        injection:\n          pass: no\n          1: Does {function} put request text straight into a query?\n",
+    good: "mak:\n  goal: The handler is safe to merge\n  where: [src/pay/handler.ts]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does the handler put request text straight into a query?\n"
   },
   {
     rule: "`loop` sweeps ideas you write yourself, not files on disk \u2014 a code-glob layer belongs to `scan`, not `loop`.",
@@ -16048,8 +16225,8 @@ var PATTERNS2 = [
     verb: "loop",
     in: ["loop"],
     catchable: true,
-    bad: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    file: src/checkout/*.ts\n  ask:\n    file:\n      concerns:\n        done:\n          pass: yes\n          1: Does {file} own one clear responsibility?\n",
-    good: "side:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part: [gateway, payments, ledger]\n  ask:\n    part:\n      concerns:\n        responsibility:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n          3: Would another part need to change if {part} changed?\n        dependency:\n          pass: no\n          4: Does {part} reach into another part's own data?\n          5: Does {part} depend on another part's release order?\n          6: Would removing another part break {part} silently?\n        testability:\n          pass: yes\n          7: Can {part} be tested without standing up the others?\n          8: Does {part} expose a clear boundary to test against?\n          9: Is {part} small enough to review on its own?\n      decisions:\n        risk:\n          pass: [none]\n          10:\n            scale: How risky is {part}?\n            levels: [none, high]\n        route:\n          pass: [build-now]\n          11:\n            choice: What should happen to {part} next?\n            options: [build-now, rework]\n"
+    bad: "mak:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    file: src/checkout/*.ts\n  ask:\n    file:\n      concerns:\n        done:\n          pass: yes\n          1: Does {file} own one clear responsibility?\n",
+    good: "mak:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part: [gateway, payments, ledger]\n  ask:\n    part:\n      concerns:\n        responsibility:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n          3: Would another part need to change if {part} changed?\n        dependency:\n          pass: no\n          4: Does {part} reach into another part's own data?\n          5: Does {part} depend on another part's release order?\n          6: Would removing another part break {part} silently?\n        testability:\n          pass: yes\n          7: Can {part} be tested without standing up the others?\n          8: Does {part} expose a clear boundary to test against?\n          9: Is {part} small enough to review on its own?\n      decisions:\n        risk:\n          pass: [none]\n          10:\n            scale: How risky is {part}?\n            levels: [none, high]\n        route:\n          pass: [build-now]\n          11:\n            choice: What should happen to {part} next?\n            options: [build-now, rework]\n"
   },
   // Round-4 finding: `agent drill`/`agent change` had no patterns section at all — the two pairs below close
   // that gap, one each, both caught outright by validate.ts's NEEDS/NEVER cross-validator checks. [C-193]
@@ -16059,8 +16236,8 @@ var PATTERNS2 = [
     verb: "drill",
     in: ["drill"],
     catchable: true,
-    bad: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  ask:\n    concerns:\n      source:\n        pass: no\n        1: Is the value concatenated straight into the string?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n    decisions:\n      severity:\n        pass: [none]\n        4:\n          scale: How severe is this?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        5:\n          choice: Where should this go?\n          options: [ship, block]\n",
-    good: "side:\n  goal: Find exactly where request text reaches the query\n  parent: SW-0051\n  from: access\n  ask:\n    concerns:\n      source:\n        pass: no\n        1: Is the value concatenated straight into the string?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n    decisions:\n      severity:\n        pass: [none]\n        4:\n          scale: How severe is this?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        5:\n          choice: Where should this go?\n          options: [ship, block]\n"
+    bad: "mak:\n  goal: Find exactly where request text reaches the query\n  parent: MM3-0051\n  ask:\n    concerns:\n      source:\n        pass: no\n        1: Is the value concatenated straight into the string?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n    decisions:\n      severity:\n        pass: [none]\n        4:\n          scale: How severe is this?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        5:\n          choice: Where should this go?\n          options: [ship, block]\n",
+    good: "mak:\n  goal: Find exactly where request text reaches the query\n  parent: MM3-0051\n  from: access\n  ask:\n    concerns:\n      source:\n        pass: no\n        1: Is the value concatenated straight into the string?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n    decisions:\n      severity:\n        pass: [none]\n        4:\n          scale: How severe is this?\n          levels: [none, high]\n      route:\n        pass: [ship]\n        5:\n          choice: Where should this go?\n          options: [ship, block]\n"
   },
   {
     rule: "`replay` re-runs the parent run's own questions \u2014 it never takes `ask:`; write new questions with `class` instead.",
@@ -16068,8 +16245,8 @@ var PATTERNS2 = [
     verb: "replay",
     in: ["replay"],
     catchable: true,
-    bad: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  expect: [injection]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does it still concatenate the value into the query?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n",
-    good: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}\n  expect: [injection]\n"
+    bad: "mak:\n  goal: The injection fix works\n  parent: MM3-0042\n  compare: {before: main, after: HEAD}\n  expect: [injection]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Does it still concatenate the value into the query?\n        2: Does it skip a parameterized query?\n        3: Is the value taken from request input without validation?\n",
+    good: "mak:\n  goal: The injection fix works\n  parent: MM3-0042\n  compare: {before: main, after: HEAD}\n  expect: [injection]\n"
   }
 ];
 var indent = (text, pad) => text.trimEnd().split("\n").map((l) => `${pad}${l}`);
@@ -16107,37 +16284,37 @@ var TOOL_LINE = {
 };
 var REPORT_PAIRS = [
   {
-    rule: "there is no view beyond hits, patterns, history, web, graph, problems, wise, calls and fields \u2014 nothing else to ask it for.",
+    rule: "there is no view beyond hits, patterns, history, web, graph, problems, mdl, calls and fields \u2014 nothing else to ask it for.",
     bad: [
-      "sidewise report level2",
-      '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns, history, web, graph, problems, wise, calls or fields'
+      "mm3 report level2",
+      '\u2192 \u2716 report: "level2" is not a view \u2192 use hits, patterns, history, web, graph, problems, mdl, calls or fields'
     ],
-    good: ["sidewise report patterns"]
+    good: ["mm3 report patterns"]
   }
 ];
 var OUTCOME_PAIRS = [
   {
     rule: "an agent can't certify its own run as correct \u2014 `held` needs a second party.",
     bad: [
-      "sidewise outcome SW-0002 held --by claude   # claude is the actor that asked SW-0002",
-      `\u2192 \u2716 outcome: claude asked SW-0002, so it can't mark it held \u2192 another agent or the owner records "held"`
+      "mm3 outcome MM3-0002 held --by claude   # claude is the actor that asked MM3-0002",
+      `\u2192 \u2716 outcome: claude asked MM3-0002, so it can't mark it held \u2192 another agent or the owner records "held"`
     ],
-    good: ["sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>"]
+    good: ["mm3 outcome MM3-0002 held --by <the user or a reviewer agent, not you>"]
   },
   {
     rule: "`outcome` takes no reason field.",
     bad: [
-      'sidewise outcome SW-0002 overruled --by claude --note "wrong file blamed"',
-      "\u2192 \u2716 args: unknown flag --note \u2192 sidewise outcome <SW-####> held|overruled|failed --by <actor>"
+      'mm3 outcome MM3-0002 overruled --by claude --note "wrong file blamed"',
+      "\u2192 \u2716 args: unknown flag --note \u2192 mm3 outcome <MM3-####> held|overruled|failed --by <actor>"
     ],
-    good: ["sidewise outcome SW-0002 overruled --by claude   # keep the reason in your own notes"]
+    good: ["mm3 outcome MM3-0002 overruled --by claude   # keep the reason in your own notes"]
   }
 ];
 var BUDGET_PAIRS = [
   {
     rule: "`set` with no flags changes nothing and has nothing to report.",
-    bad: ["sidewise budget set", "\u2192 \u2716 budget: set needs --usd or --runs \u2192 e.g. sidewise budget set --usd 5 --runs 500"],
-    good: ["sidewise budget set --usd 5 --runs 500"]
+    bad: ["mm3 budget set", "\u2192 \u2716 budget: set needs --usd or --runs \u2192 e.g. mm3 budget set --usd 5 --runs 500"],
+    good: ["mm3 budget set --usd 5 --runs 500"]
   }
 ];
 var indent2 = (lines, pad) => lines.map((l) => `${pad}${l}`);
@@ -16155,10 +16332,10 @@ function reportHelp() {
     "When: briefing a teammate or picking up a codebase cold, instead of hand-assembling several `view` calls.",
     "",
     "Example:",
-    "sidewise report            # same as: sidewise report hits",
-    "sidewise report patterns",
-    "sidewise report history",
-    "sidewise report web        # writes .sidewise/viewer.html and tries to open it",
+    "mm3 report            # same as: mm3 report hits",
+    "mm3 report patterns",
+    "mm3 report history",
+    "mm3 report web        # writes .mm3/viewer.html and tries to open it",
     "",
     "Sharp rules:",
     "- free: never calls a provider, never writes to the ledger, and works even with no on-disk index.",
@@ -16166,7 +16343,7 @@ function reportHelp() {
     "- `hits`: the newest run's own gate per place, worst first; a one-subject answer is flagged `stale` once the code there has changed since.",
     "- `patterns`: every distinct question set ever run, with its pass/fail/unsure split, places touched, and outcomes.",
     "- `history`: a merged, newest-first feed of `replay` results (fixed/regressed) and recorded outcomes.",
-    "- `web`: writes one self-contained `.sidewise/viewer.html` (a place x concern consensus map, a heat map, a session summary) and tries to open it in a browser; always prints the file's path, opened or not. The only view that writes anything, and only ever that one file \u2014 never the ledger.",
+    "- `web`: writes one self-contained `.mm3/viewer.html` (a place x concern consensus map, a heat map, a session summary) and tries to open it in a browser; always prints the file's path, opened or not. The only view that writes anything, and only ever that one file \u2014 never the ledger.",
     "- every view caps its rows and says plainly how many more exist, rather than dropping them silently.",
     ...proseCliPairs(REPORT_PAIRS)
   ].join("\n");
@@ -16174,14 +16351,14 @@ function reportHelp() {
 function outcomeHelp() {
   return [
     "## outcome",
-    "Records what happened to a run after the fact, so weak spots roll up later in `sidewise report history`: `held` (it was right), `overruled` (it was wrong) or `failed` (it was useless). Not a side:-YAML verb: it never calls a provider, only appends one line to the ledger.",
+    "Records what happened to a run after the fact, so weak spots roll up later in `mm3 report history`: `held` (it was right), `overruled` (it was wrong) or `failed` (it was useless). Not a mak:-YAML verb: it never calls a provider, only appends one line to the ledger.",
     "",
     "Example:",
-    "sidewise outcome SW-0002 overruled --by claude",
-    "sidewise outcome SW-0002 held --by the-owner       # a different actor than the one who asked it",
+    "mm3 outcome MM3-0002 overruled --by claude",
+    "mm3 outcome MM3-0002 held --by the-owner       # a different actor than the one who asked it",
     "",
     "Sharp rules:",
-    "- exact form: sidewise outcome <SW-####> held|overruled|failed --by <actor> \u2014 no other flags (there is no `--note`; keep a reason in your own notes, not here).",
+    "- exact form: mm3 outcome <MM3-####> held|overruled|failed --by <actor> \u2014 no other flags (there is no `--note`; keep a reason in your own notes, not here).",
     "- the agent that asked a run can't mark it `held` itself \u2014 `overruled` and `failed` have no such restriction.",
     '- recording the exact same outcome, by the exact same actor, again is a no-op (exit 0, "already recorded by <actor>"), not a second entry.',
     ...proseCliPairs(OUTCOME_PAIRS)
@@ -16190,28 +16367,28 @@ function outcomeHelp() {
 function doctorHelp() {
   return [
     "## doctor",
-    "Free, offline, no key needed. Not a side:-YAML verb: it never calls a provider. Bare `doctor` reports which provider/key/project would answer a real call, plus the Node/node:sqlite runtime and, when a project is found, whether `.sidewise/config.yaml` is valid. `doctor <file>` (or `-` for stdin) instead checks just that one document, with no project needed at all: a `side:` key means a request, checked the same way --dry-run would; anything else is checked as a config.yaml-shaped file.",
+    "Free, offline, no key needed. Not a mak:-YAML verb: it never calls a provider. Bare `doctor` reports which provider/key/project would answer a real call, plus the Node/node:sqlite runtime and, when a project is found, whether `.mm3/config.yaml` is valid. `doctor <file>` (or `-` for stdin) instead checks just that one document, with no project needed at all: a `mak:` key means a request, checked the same way --dry-run would; anything else is checked as a config.yaml-shaped file.",
     "",
     "Example:",
-    "sidewise doctor                    # the full system report",
-    "sidewise doctor .sidewise/config.yaml",
-    "sidewise doctor my-request.yaml",
-    "cat my-request.yaml | sidewise doctor -",
+    "mm3 doctor                    # the full system report",
+    "mm3 doctor .mm3/config.yaml",
+    "mm3 doctor my-request.yaml",
+    "cat my-request.yaml | mm3 doctor -",
     "",
     "Sharp rules:",
     "- exit 0 clean, exit 2 with every problem found in one pass \u2014 never calls the classifier, never writes anything.",
     "- `doctor <file|->` never touches the ledger, reuse or budget, even from inside a real project.",
-    "- kind is auto-detected (a top-level `side:` key means a request); it is never guessed from the file name or extension."
+    "- kind is auto-detected (a top-level `mak:` key means a request); it is never guessed from the file name or extension."
   ].join("\n");
 }
 function budgetHelp() {
   return [
     "## budget",
-    "Shows or changes the project's spend cap. Not a side:-YAML verb: it never calls a provider. `show` (the default) prints the current spend and run count; `reset` zeroes both but keeps the caps; `set` changes either or both caps without touching the spend already counted.",
+    "Shows or changes the project's spend cap. Not a mak:-YAML verb: it never calls a provider. `show` (the default) prints the current spend and run count; `reset` zeroes both but keeps the caps; `set` changes either or both caps without touching the spend already counted.",
     "",
     "Example:",
-    "sidewise budget                          # same as: sidewise budget show",
-    "sidewise budget set --usd 5 --runs 500   # the defaults",
+    "mm3 budget                          # same as: mm3 budget show",
+    "mm3 budget set --usd 5 --runs 500   # the defaults",
     "",
     "Sharp rules:",
     "- three subcommands only: `show` (default), `reset`, `set`.",
@@ -16228,15 +16405,15 @@ var RULES = [
   {
     // Plan 2b resolution: each concerns category's 3 probes plays a distinct role, named by the category's
     // family (given, or defaulted from the category name — see FAMILIES below); the role table itself (3 named
-    // roles per family) is too wide for one dense-card bullet, so it lives in `sidewise agent probe`/`help
-    // probe` (FAMILY_ROLES below, same file, one source) and the sidewise-probe skill, both pointed at here.
-    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories, each with 3 probes in a distinct role \u2014 family: ${list2(FAMILIES)} (role table: sidewise agent probe) \u2014 a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer`,
+    // roles per family) is too wide for one dense-card bullet, so it lives in `mm3 agent probe`/`help
+    // probe` (FAMILY_ROLES below, same file, one source) and the mm3-probe skill, both pointed at here.
+    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories, each with 3 probes in a distinct role \u2014 family: ${list2(FAMILIES)} (role table: mm3 agent probe) \u2014 a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer`,
     in: ["card", "authoring", "class", "scan", "loop"]
   },
   { text: `where: at most 5 path entries \u2014 this is all the code a run sees`, in: ["card", "authoring", "class", "view"] },
   {
     // Round-4 finding: a cold agent hit `✖ question 1: is longer than 160 characters` with zero prior warning
-    // in `agent view`/`agent probe` — this is Sidewise's own hard validator cap (schema-check.ts's
+    // in `agent view`/`agent probe` — this is MM3's own hard validator cap (schema-check.ts's
     // MAX_QUESTION_CHARS), not TypeSafe guidance, so it lives here rather than in PROBE_RULES below; tagged
     // 'probe' too so `agent probe`/`help probe` carry it alongside TypeSafe's own question-shape rules. [C-194]
     text: `a question (or the goal) is at most ${MAX_QUESTION_CHARS} characters, one line \u2014 longer text is rejected outright`,
@@ -16244,13 +16421,13 @@ var RULES = [
   },
   { text: `pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between is unsure`, in: ["card", "verdict"] },
   { text: `every question in a category must point the same way as its pass:`, in: ["authoring"] },
-  { text: `wise.why is one of ${list2(WHYS)}`, in: ["wise"] },
-  { text: `wise.area is one of ${list2(AREAS)}, single or a list of up to 2`, in: ["wise"] },
-  { text: `wise.stage is one of ${list2(STAGES)}`, in: ["wise"] },
-  { text: `wise.change is one of ${list2(CHANGES)}`, in: ["wise"] },
-  { text: `wise.risk is one of ${list2(RISKS)}`, in: ["wise"] },
-  { text: `every closed wise field also accepts "${UNKNOWN_VALUE}"`, in: ["wise"] },
-  { text: `the wise block is capped at ${MAX_WISE_LINES} YAML lines`, in: ["wise"] },
+  { text: `mdl.why is one of ${list2(WHYS)}`, in: ["mdl"] },
+  { text: `mdl.area is one of ${list2(AREAS)}, single or a list of up to 2`, in: ["mdl"] },
+  { text: `mdl.stage is one of ${list2(STAGES)}`, in: ["mdl"] },
+  { text: `mdl.change is one of ${list2(CHANGES)}`, in: ["mdl"] },
+  { text: `mdl.risk is one of ${list2(RISKS)}`, in: ["mdl"] },
+  { text: `every closed mdl field also accepts "${UNKNOWN_VALUE}"`, in: ["mdl"] },
+  { text: `the mdl block is capped at ${MAX_MDL_LINES} YAML lines`, in: ["mdl"] },
   { text: `decisions: ${DECISIONS_MIN}\u2013${DECISIONS_MAX} categories, scale or choice only, at least one scale and one choice`, in: ["authoring"] },
   { text: "questions are numbered 1\u2026N across the whole request, decisions included", in: ["card", "authoring", "class", "scan", "drill", "loop"] }
 ];
@@ -16320,28 +16497,28 @@ var VERDICT_FACTS = [
   "a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes \u2014 that's exactly why it lands in `unsure` rather than a weak pass",
   "the answer's shape is guaranteed (a number in range, a level that's really one of yours) \u2014 whether it's the RIGHT number is what consensus, escalate and your own reading are for, not the schema",
   "`replay`'s per-category grade: `fixed` (failed or unsure before, passes now), `still` (failed or unsure before, still doesn't), `regressed` (passed before, not any more \u2014 regressed alone fails the gate even when every `after` category passes)",
-  "`reused: [SW-####]` names prior runs an answer's evidence and question text matched exactly \u2014 free, not a new call",
+  "`reused: [MM3-####]` names prior runs an answer's evidence and question text matched exactly \u2014 free, not a new call",
   "the cache returns old answers to old questions; learning comes from new ones",
-  "`sidewise report hits` flags a one-subject answer `stale` once the code at its own `where` has changed since \u2014 re-run it rather than trust it",
+  "`mm3 report hits` flags a one-subject answer `stale` once the code at its own `where` has changed since \u2014 re-run it rather than trust it",
   "a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) \u2014 read which one you got before treating a stop as `unsure`",
-  "a stop always reads `\u2716 field: problem \u2192 fix`; run `sidewise help <verb>` when one doesn't make sense"
+  "a stop always reads `\u2716 field: problem \u2192 fix`; run `mm3 help <verb>` when one doesn't make sense"
 ];
 
 // src/help/verbs.ts
-var EXAMPLES = {
-  view: "sidewise view src/handlers          # what does the ledger already know about this folder?\nsidewise view SW-0042               # this run's own lineage, up and down",
+var EXAMPLES2 = {
+  view: "mm3 view src/handlers          # what does the ledger already know about this folder?\nmm3 view MM3-0042               # this run's own lineage, up and down",
   class: [
-    "side:",
+    "mak:",
     "  goal: This login handler is safe to merge   # phrase as the exact claim to prove",
     "  depth: quick                                # => exactly 10 yes/no below",
     "  where: [src/user.ts:1-3]                     # include the wiring, not just the handler",
     "  ask:",
     "    injection: {pass: no, 1: Is request text put into a query unvalidated?, ...}",
-    "wise: {why: validate, area: auth}"
+    "mdl: {why: validate, area: auth}"
   ].join("\n"),
-  replay: "side:\n  goal: The injection fix works\n  parent: SW-0042\n  compare: {before: main, after: HEAD}",
+  replay: "mak:\n  goal: The injection fix works\n  parent: MM3-0042\n  compare: {before: main, after: HEAD}",
   scan: [
-    "side:",
+    "mak:",
     "  goal: Handlers don't trust request input",
     "  depth: quick",
     "  over: {file: src/handlers/*.ts, function: each}     # scan by file when the file itself is the unit",
@@ -16349,9 +16526,9 @@ var EXAMPLES = {
     "    function:",
     "      injection: {pass: no, 1: Does {function} put request text straight into a query?}"
   ].join("\n"),
-  drill: "sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser   # follow next:, don't hand-author the ids",
+  drill: "mm3 template drill --parent MM3-0060 --from src/handlers/user.ts/findUser   # follow next:, don't hand-author the ids",
   loop: [
-    "side:",
+    "mak:",
     "  goal: The checkout redesign is sound",
     "  depth: quick",
     "  over:",
@@ -16364,7 +16541,7 @@ var EXAMPLES = {
   ].join("\n")
 };
 var SHARP = {
-  view: ['a code file (not a request) is a place, not a request \u2014 view <folder>, ".", a tag, or SW-#### all work'],
+  view: ['a code file (not a request) is a place, not a request \u2014 view <folder>, ".", a tag, or MM3-#### all work'],
   class: ["goal wording changes the verdict (that's a feature, not a bug) \u2014 phrase it as the claim you need proven"],
   replay: [
     'the files must be committed at the ref you name (or use "worktree" for the working tree) \u2014 replay runs git in the repo that actually holds them',
@@ -16380,12 +16557,12 @@ var SHARP = {
   ]
 };
 var PURPOSE = {
-  view: "Side x Know: what do we already know here? Free \u2014 it reads the ledger and never calls out.",
-  class: "Side x Judge: does the evidence support this one goal? One call, one subject.",
-  replay: "Side x Prove: did the change work? It replays a parent run's questions on two states.",
-  scan: "Wise x Know: where in this code should we look? A sweep across code, read by us.",
-  drill: "Wise x Judge: why did this one thing fail? It goes down from one item in a parent run.",
-  loop: "Wise x Prove: does this idea hold up? A sweep across layers of ideas the agent writes."
+  view: "MAK\xB3 x Know: what do we already know here? Free \u2014 it reads the ledger and never calls out.",
+  class: "MAK\xB3 x Judge: does the evidence support this one goal? One call, one subject.",
+  replay: "MAK\xB3 x Prove: did the change work? It replays a parent run's questions on two states.",
+  scan: "MDL\xB3 x Know: where in this code should we look? A sweep across code, read by us.",
+  drill: "MDL\xB3 x Judge: why did this one thing fail? It goes down from one item in a parent run.",
+  loop: "MDL\xB3 x Prove: does this idea hold up? A sweep across layers of ideas the agent writes."
 };
 var WHEN = {
   view: "before any paid call, when entering unfamiliar code, or to find proven questions.",
@@ -16405,13 +16582,13 @@ var VERB_LINE = {
 };
 function verbHelp(verb) {
   return [
-    `Agents: sidewise agent ${verb}`,
+    `Agents: mm3 agent ${verb}`,
     `## ${verb}`,
     PURPOSE[verb],
     `When: ${WHEN[verb]}`,
     "",
     "Example:",
-    EXAMPLES[verb],
+    EXAMPLES2[verb],
     "",
     "Sharp rules:",
     ...SHARP[verb].map((s) => `- ${s}.`),
@@ -16434,10 +16611,10 @@ function noKeyRunLine(env, deps) {
     return [];
   }
   if (hasKey(config)) return [];
-  return [inPluginContext(env) ? `run: no key (sample answers only) \u2192 ${NO_KEY_PLUGIN_HINT}` : "run: no key \u2192 sidewise init to add one"];
+  return [inPluginContext(env) ? `run: no key (sample answers only) \u2192 ${NO_KEY_PLUGIN_HINT}` : "run: no key \u2192 mm3 init to add one"];
 }
-var PROJECT_SCOPE_RULE = "- where: resolves against the MCP `project` argument or `SIDEWISE_HOME` (CLI), never your session cwd \u2014 pass `project` (or set `SIDEWISE_HOME`) when you started elsewhere.";
-var PROBE_SKILL_RULE = "- before writing or editing any request, read the sidewise-probe skill (or run `sidewise agent probe`): what makes a probe worth asking.";
+var PROJECT_SCOPE_RULE = "- where: resolves against the MCP `project` argument or `MM3_HOME` (CLI), never your session cwd \u2014 pass `project` (or set `MM3_HOME`) when you started elsewhere.";
+var PROBE_SKILL_RULE = "- before writing or editing any request, read the mm3-probe skill (or run `mm3 agent probe`): what makes a probe worth asking.";
 function overview(env, deps) {
   return renderCard(
     [
@@ -16449,9 +16626,9 @@ function overview(env, deps) {
     [PROBE_SKILL_RULE, ...ruleLines("card"), PROJECT_SCOPE_RULE],
     [],
     [
-      "run: sidewise agent <verb|tool> \u2014 before writing that request",
-      "run: sidewise agent probe \u2014 before writing questions: how to phrase one",
-      "run: sidewise agent verdict \u2014 before reading a response: how to read it",
+      "run: mm3 agent <verb|tool> \u2014 before writing that request",
+      "run: mm3 agent probe \u2014 before writing questions: how to phrase one",
+      "run: mm3 agent verdict \u2014 before reading a response: how to read it",
       ...noKeyRunLine(env, deps)
     ]
   );
@@ -16468,7 +16645,7 @@ function probeCard() {
       ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(" \xB7 ")}`),
       `- bad: "${BAD_PROBE_EXAMPLE.bad}" \u2014 ${BAD_PROBE_EXAMPLE.why}`,
       ...BAD_PROBE_EXAMPLE.good.map((g) => `- good: ${g}`),
-      "- see: the sidewise-probe skill for the full model and worked examples"
+      "- see: the mm3-probe skill for the full model and worked examples"
     ]
   );
 }
@@ -16479,7 +16656,7 @@ function outcomeCard() {
   return renderCard(
     ["tool: outcome"],
     [
-      "- syntax: sidewise outcome <SW-####> held|overruled|failed --by <actor>",
+      "- syntax: mm3 outcome <MM3-####> held|overruled|failed --by <actor>",
       "- no --note flag: keep a reason in your own notes, not here",
       "- an actor can't mark its own asked run held: use a different --by, or record overruled or failed",
       "- same outcome, same actor, twice: exit 0, no-op"
@@ -16488,9 +16665,9 @@ function outcomeCard() {
       "patterns:",
       "- why: held needs a second actor; never self-certify",
       "  bad:",
-      "    sidewise outcome SW-0002 held --by claude",
+      "    mm3 outcome MM3-0002 held --by claude",
       "  good:",
-      "    sidewise outcome SW-0002 held --by <the user or a reviewer agent, not you>"
+      "    mm3 outcome MM3-0002 held --by <the user or a reviewer agent, not you>"
     ]
   );
 }
@@ -16507,9 +16684,9 @@ function budgetCard() {
       "patterns:",
       "- why: set with no flags changes nothing",
       "  bad:",
-      "    sidewise budget set",
+      "    mm3 budget set",
       "  good:",
-      "    sidewise budget set --usd 5 --runs 500"
+      "    mm3 budget set --usd 5 --runs 500"
     ]
   );
 }
@@ -16517,10 +16694,10 @@ function doctorCard() {
   return renderCard(
     ["tool: doctor"],
     [
-      "- syntax: sidewise doctor  \xB7  or: sidewise doctor <file | ->",
+      "- syntax: mm3 doctor  \xB7  or: mm3 doctor <file | ->",
       "- free: no call, no spend, never writes",
-      "- bare form: reports provider/route/key/project/node/config in one pass \u2014 also validates .sidewise/config.yaml when present",
-      "- <file|-> form: checks ONE document, no project needed \u2014 a side: key means a request (same checks as --dry-run); anything else is checked as config",
+      "- bare form: reports provider/route/key/project/node/config in one pass \u2014 also validates .mm3/config.yaml when present",
+      "- <file|-> form: checks ONE document, no project needed \u2014 a mak: key means a request (same checks as --dry-run); anything else is checked as config",
       "- <file|-> never touches the ledger, reuse or budget, even inside a project"
     ]
   );
@@ -16530,18 +16707,18 @@ function reportCard() {
     ["tool: report"],
     [
       "- free: never calls a provider, never writes to the ledger",
-      "- views: hits (default), patterns, history, web, graph, problems, wise, calls, fields",
-      "- web writes one file, .sidewise/viewer.html, and tries to open it \u2014 the only view that writes anything",
-      "- graph/problems/wise/calls read the graph tier (its own watermark, refreshed on read, never on a paid call)",
-      "- fields: undeclared wise keys with counts/samples/a suggested type; --accept <field> writes it into config wise:"
+      "- views: hits (default), patterns, history, web, graph, problems, mdl, calls, fields",
+      "- web writes one file, .mm3/viewer.html, and tries to open it \u2014 the only view that writes anything",
+      "- graph/problems/mdl/calls read the graph tier (its own watermark, refreshed on read, never on a paid call)",
+      "- fields: undeclared mdl keys with counts/samples/a suggested type; --accept <field> writes it into config mdl:"
     ],
     [
       "patterns:",
-      "- why: no view beyond hits, patterns, history, web, graph, problems, wise, calls or fields exists",
+      "- why: no view beyond hits, patterns, history, web, graph, problems, mdl, calls or fields exists",
       "  bad:",
-      "    sidewise report level2",
+      "    mm3 report level2",
       "  good:",
-      "    sidewise report patterns"
+      "    mm3 report patterns"
     ]
   );
 }
@@ -16549,8 +16726,8 @@ function templateCard() {
   return renderCard(
     ["tool: template"],
     [
-      "- syntax: sidewise template <verb> [--parent SW-#### --from <item-or-category>]",
-      "- or: sidewise template <verb> --from <request.yaml> [--where <path>]... [--goal <text>]",
+      "- syntax: mm3 template <verb> [--parent MM3-#### --from <item-or-category>]",
+      "- or: mm3 template <verb> --from <request.yaml> [--where <path>]... [--goal <text>]",
       "- free: no project needed, never spends, never writes",
       "- --parent only applies to drill, and needs --from too",
       "- --where/--goal need --from; refused together with --parent"
@@ -16559,9 +16736,9 @@ function templateCard() {
       "patterns:",
       "- why: --parent only works with drill",
       "  bad:",
-      "    sidewise template class --parent SW-0002 --from injection",
+      "    mm3 template class --parent MM3-0002 --from injection",
       "  good:",
-      "    sidewise template drill --parent SW-0002 --from injection"
+      "    mm3 template drill --parent MM3-0002 --from injection"
     ]
   );
 }
@@ -16569,27 +16746,29 @@ function configCard() {
   return renderCard(
     ["tool: config"],
     [
-      "- syntax: sidewise config",
-      "- free: never writes, never spends, works with or without a project",
-      "- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, wise) and which of default/config/env it came from",
-      "- reads .sidewise/config.yaml if present \u2014 sparse overrides only, precedence env > config > default",
-      "- a bad config.yaml shows its \u2716 problems here too, then the rest of the effective table underneath"
+      "- syntax: mm3 config [--write]",
+      "- free: plain config never writes, never spends, works with or without a project",
+      "- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, mdl) and which of default/config/env it came from",
+      "- reads .mm3/config.yaml if present \u2014 sparse overrides only, precedence env > config > default",
+      "- a bad config.yaml shows its \u2716 problems here too, then the rest of the effective table underneath",
+      "- the display is not a file: to customize run mm3 config --write \u2192 writes .mm3/config.yaml (commented guide) only if missing, never overwrites",
+      "- a misnamed .mm3/config.ymal (or config.yml, config.json) gets a did-you-mean note here and in doctor"
     ]
   );
 }
 var BLAST_CARD_ORDER = ["person", "system", "container", "component", "code"];
 function noteWithAlias(field) {
-  return field.alias ? `${field.note ?? ""}${field.note ? " " : ""}(also: wise.${field.alias})` : field.note ?? "";
+  return field.alias ? `${field.note ?? ""}${field.note ? " " : ""}(also: mdl.${field.alias})` : field.note ?? "";
 }
-function wiseCard(wiseFields = WISE_FIELDS) {
-  const [why, area, stage, change, risk, problem, uses, blast, touches] = wiseFields;
+function mdlCard(mdlFields = MDL_FIELDS) {
+  const [why, area, stage, change, risk, problem, uses, blast, touches] = mdlFields;
   const blastValues = blast.values === BLASTS ? BLAST_CARD_ORDER : closedValues(blast).slice(0, -1);
   return [
-    `tool: wise \u2014 optional, free, \u2264${MAX_WISE_LINES} lines. Flat keys; the only nesting is a list.`,
+    `tool: mdl \u2014 optional, free, \u2264${MAX_MDL_LINES} lines. Flat keys; the only nesting is a list.`,
     "Every field is optional: fill what you know, omit what doesn't apply.",
     "",
     "FIELDS",
-    `  why      ${closedValues(why).slice(0, -1).join(" | ")}${why.alias ? `  (also: wise.${why.alias})` : ""}`,
+    `  why      ${closedValues(why).slice(0, -1).join(" | ")}${why.alias ? `  (also: mdl.${why.alias})` : ""}`,
     `  area     ${closedValues(area).slice(0, -1).join(" | ")}          (list \u2264${area.maxList}; ${noteWithAlias(area)})`,
     `  stage    ${closedValues(stage).slice(0, -1).join(" | ")}   (${noteWithAlias(stage)})`,
     `  change   ${closedValues(change).slice(0, -1).join(" | ")}   (${noteWithAlias(change)})`,
@@ -16623,7 +16802,7 @@ function wiseCard(wiseFields = WISE_FIELDS) {
     "  name    :=  lowercase kebab-case, or a code identifier at the code level",
     "",
     "EXAMPLE",
-    "  wise:",
+    "  mdl:",
     "    why: validate",
     "    problem: request input reaches a raw query in order creation",
     "    uses:",
@@ -16640,7 +16819,7 @@ var AGENT_TOPICS = {
   budget: budgetCard,
   report: reportCard,
   template: templateCard,
-  wise: wiseCard,
+  mdl: mdlCard,
   config: configCard,
   doctor: doctorCard
 };
@@ -16650,31 +16829,33 @@ function runAgent(target, env = {}, deps = {}) {
   if (target === void 0 || target === "") return { exit: 0, text: overview(env, deps) };
   if (hasControlChars(target)) return { exit: 2, text: "\u2716 agent: the target has control characters \u2192 use a verb name" };
   if (isVerb(target)) return { exit: 0, text: verbCard(target) };
-  if (target === "wise" && deps.paths) return { exit: 0, text: wiseCard(effectiveWiseFields(resolveConfig(deps.paths, env).config.wise)) };
+  if (target === "mdl" && deps.paths) return { exit: 0, text: mdlCard(effectiveMdlFields(resolveConfig(deps.paths, env).config.mdl)) };
   if (Object.hasOwn(AGENT_TOPICS, target)) return { exit: 0, text: AGENT_TOPICS[target]() };
   return { exit: 2, text: `\u2716 agent: "${clip(target, 40)}" is not a verb \u2192 one of ${VERBS.join(", ")}, or ${agentExtras().map((t) => `"${t}"`).join(", ")}` };
 }
 
 // src/help/card.ts
-var PITCH_LINE_1 = "Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict \u2014 evidence,";
+var PITCH_LINE_1 = "MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict \u2014 evidence,";
 var PITCH_LINE_2 = "never a command. Think of it as a citable second opinion, not a linter.";
-var PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2}`;
+var PITCH_LINE_3 = "MM3 = MAK\xB3 (make: use what is proven) + MDL\xB3 (model: learn what is missing), each across Know / Judge / Prove.";
+var PITCH = `${PITCH_LINE_1} ${PITCH_LINE_2} ${PITCH_LINE_3}`;
 function card() {
   return [
     PITCH_LINE_1,
     PITCH_LINE_2,
+    PITCH_LINE_3,
     "",
     "## Invoke it",
-    'In Claude Code: call the `sidewise` MCP tool directly \u2014 same args as the CLI (e.g. args: ["class", "-"]),',
-    "the request YAML as stdin \u2014 no PATH lookup needed. Elsewhere: use `sidewise` if it's",
-    "on PATH, else `npx --no-install sidewise`; if neither works, tell the user to run",
-    '"npx @mvpscale/sidewise init" and stop.',
+    'In Claude Code: call the `mm3` MCP tool directly \u2014 same args as the CLI (e.g. args: ["class", "-"]),',
+    "the request YAML as stdin \u2014 no PATH lookup needed. Elsewhere: use `mm3` if it's",
+    "on PATH, else `npx --no-install mm3`; if neither works, tell the user to run",
+    '"npx @mvpscale/mm3 init" and stop.',
     "",
     "## Pick your verb",
     "| Grid | Know | Judge | Prove |",
     "|---|---|---|---|",
-    "| Side \u2014 solve it with what's proven   | view (free) | class (1 call) | replay (up to 2 calls) |",
-    "| Wise \u2014 find what's new, and learn it | scan (1 call) | drill (1 call) | loop (1 call/layer) |",
+    "| MAK\xB3 \u2014 make: use what's proven     | view (free) | class (1 call) | replay (up to 2 calls) |",
+    "| MDL\xB3 \u2014 model: learn what's missing | scan (1 call) | drill (1 call) | loop (1 call/layer) |",
     "",
     ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`),
     "",
@@ -16686,22 +16867,22 @@ function card() {
     "Read `goal` (+ any `choice`) first, then the failing category, then follow the `next:` line. A stop always",
     "reads `\u2716 field: problem \u2192 fix` \u2014 the error text names exactly what to change.",
     "",
-    "Go deeper: `sidewise help <verb>` (view, class, replay, scan, drill, loop) or `sidewise help <topic>`",
-    "(authoring, verdict, wise, reuse).",
+    "Go deeper: `mm3 help <verb>` (view, class, replay, scan, drill, loop) or `mm3 help <topic>`",
+    "(authoring, verdict, mdl, reuse).",
     "",
     "## Tools",
-    `- report: ${TOOL_LINE.report} (\`sidewise help report\`)`,
-    `- outcome: ${TOOL_LINE.outcome} (\`sidewise help outcome\`)`,
-    `- budget: ${TOOL_LINE.budget} (\`sidewise help budget\`)`,
+    `- report: ${TOOL_LINE.report} (\`mm3 help report\`)`,
+    `- outcome: ${TOOL_LINE.outcome} (\`mm3 help outcome\`)`,
+    `- budget: ${TOOL_LINE.budget} (\`mm3 help budget\`)`,
     `- template: ${TOOL_LINE.template}`
   ].join("\n");
 }
 function agentFrontDoorLines() {
-  return ['Agents: run "sidewise agent" first', "new here? \u2192 sidewise init", PITCH, ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`)];
+  return ['Agents: run "mm3 agent" first', "new here? \u2192 mm3 init", PITCH, ...VERBS.map((v) => `- ${v}: ${VERB_LINE[v]}`)];
 }
 
 // src/help/topics.ts
-var TOPICS = ["authoring", "verdict", "wise", "reuse", "probe"];
+var TOPICS = ["authoring", "verdict", "mdl", "reuse", "probe"];
 function authoring() {
   return [
     "## authoring",
@@ -16727,11 +16908,11 @@ function verdict() {
     ...VERDICT_FACTS.map((f) => `- ${f}.`)
   ].join("\n");
 }
-function wise() {
+function mdl() {
   return [
-    "## wise",
-    "wise: is optional context that never reaches the classifier \u2014 it only shapes what the ledger learns. Every",
-    `field is optional; the block is capped at ${MAX_WISE_LINES} YAML lines:`,
+    "## mdl",
+    "mdl: is optional context that never reaches the classifier \u2014 it only shapes what the ledger learns. Every",
+    `field is optional; the block is capped at ${MAX_MDL_LINES} YAML lines:`,
     "",
     "| field | closed values | what you get back |",
     "|---|---|---|",
@@ -16747,10 +16928,10 @@ function wise() {
     "",
     `Any other lower-kebab key (\u2264${MAX_CUSTOM_KEY_LEN} characters) is also accepted: one line or a short list,`,
     "recorded as-is. Every closed field above also accepts `unknown`. For this project's exact allowed values,",
-    "run `sidewise agent wise` \u2014 it renders the full C4 legend (the `uses` grammar, the chain examples) too.",
+    "run `mm3 agent mdl` \u2014 it renders the full C4 legend (the `uses` grammar, the chain examples) too.",
     "",
-    ...ruleLines("wise"),
-    "- every field is optional; the response always echoes back which ones were recorded as `wise: {recorded: [...]}`, or `{recorded: none}`."
+    ...ruleLines("mdl"),
+    "- every field is optional; the response always echoes back which ones were recorded as `mdl: {recorded: [...]}`, or `{recorded: none}`."
   ].join("\n");
 }
 function reuse() {
@@ -16759,7 +16940,7 @@ function reuse() {
     "The exact same question, asked of the exact same code, is answered for free from the ledger \u2014 no call, no",
     "spend, and the response says so. This is exact-match reuse: same evidence, same question text, same",
     "provider and model; nothing here is a semantic or fuzzy match.",
-    "- `view <request-file>` checks this before you spend anything: it shows `reuse: SW-####` when the exact",
+    "- `view <request-file>` checks this before you spend anything: it shows `reuse: MM3-####` when the exact",
     "  question set was already asked on unchanged code.",
     "- a sweep (scan, loop, drill on a sweep parent) reuses per item: unchanged items cost nothing, and the",
     "  response counts how many were reused.",
@@ -16784,7 +16965,7 @@ function probe() {
     "vulnerability \u2014 the wording, not the classifier, was wrong. That's rule 7 above.",
     "",
     "## Angles: a concern is one path; its ~3 probes are three angles on it",
-    "This part is Sidewise's own model, not TypeSafe's \u2014 pick the family that matches the category's path,",
+    "This part is MM3's own model, not TypeSafe's \u2014 pick the family that matches the category's path,",
     "then write one probe per role:",
     "",
     ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(" \xB7 ")}`),
@@ -16792,11 +16973,11 @@ function probe() {
     `A bad probe: "${BAD_PROBE_EXAMPLE.bad}" \u2014 ${BAD_PROBE_EXAMPLE.why}. Rewritten as three angles:`,
     ...BAD_PROBE_EXAMPLE.good.map((g) => `- ${g}`),
     "",
-    "See the sidewise-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),",
-    "wise's problem/uses/touches/blast fields, and one recipe per verb."
+    "See the mm3-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),",
+    "mdl's problem/uses/touches/blast fields, and one recipe per verb."
   ].join("\n");
 }
-var BUILDERS = { authoring, verdict, wise, reuse, probe };
+var BUILDERS = { authoring, verdict, mdl, reuse, probe };
 function topicHelp(topic) {
   return BUILDERS[topic]();
 }
@@ -16827,23 +17008,23 @@ function resolveMcpActor() {
 // src/cli.ts
 var PACKAGE_DIR = path21.join(path21.dirname(fileURLToPath2(import.meta.url)), "..");
 var LINES3 = {
-  view: "sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]",
-  class: "sidewise class <request-file | -> [--dry-run]",
-  replay: "sidewise replay <request-file | -> [--dry-run]  \xB7  or: sidewise replay --parent SW-#### --compare <before>..<after> [--dry-run]",
-  scan: "sidewise scan <request-file | -> [--dry-run]",
-  drill: "sidewise drill <request-file | -> [--dry-run]",
-  loop: "sidewise loop <request-file | -> [--dry-run]",
-  template: "sidewise template <view|class|replay|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  \xB7  or: --from <request.yaml> [--where <path>]... [--goal <text>]",
-  help: `sidewise help [${VERBS.join("|")}|${HELP_TOPICS.join("|")}|${HELP_EXTRAS.join("|")}]`,
-  agent: `sidewise agent [${VERBS.join("|")}|${AGENT_EXTRAS.join("|")}]`,
-  report: "sidewise report [hits|patterns|history]",
-  outcome: "sidewise outcome <SW-####> held|overruled|failed --by <actor>",
-  budget: "sidewise budget [show | reset | set --usd <n> --runs <n>]",
-  doctor: "sidewise doctor [<file> | -]",
-  config: "sidewise config",
-  init: "sidewise init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]",
-  uninstall: "sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]",
-  mcp: "sidewise mcp"
+  view: "mm3 view <folder | tag | MM3-#### | request-file | -> [--level 1|2|3] [--summary]",
+  class: "mm3 class <request-file | -> [--dry-run]",
+  replay: "mm3 replay <request-file | -> [--dry-run]  \xB7  or: mm3 replay --parent MM3-#### --compare <before>..<after> [--dry-run]",
+  scan: "mm3 scan <request-file | -> [--dry-run]",
+  drill: "mm3 drill <request-file | -> [--dry-run]",
+  loop: "mm3 loop <request-file | -> [--dry-run]",
+  template: "mm3 template <view|class|replay|scan|drill|loop> [--parent MM3-#### --from <item-or-category>]  \xB7  or: --from <request.yaml> [--where <path>]... [--goal <text>]",
+  help: `mm3 help [${VERBS.join("|")}|${HELP_TOPICS.join("|")}|${HELP_EXTRAS.join("|")}]`,
+  agent: `mm3 agent [${VERBS.join("|")}|${AGENT_EXTRAS.join("|")}]`,
+  report: "mm3 report [hits|patterns|history]",
+  outcome: "mm3 outcome <MM3-####> held|overruled|failed --by <actor>",
+  budget: "mm3 budget [show | reset | set --usd <n> --runs <n>]",
+  doctor: "mm3 doctor [<file> | -]",
+  config: "mm3 config [--write]",
+  init: "mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]",
+  uninstall: "mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]",
+  mcp: "mm3 mcp"
 };
 var USAGE = `${agentFrontDoorLines().join("\n")}
 usage:
@@ -16851,7 +17032,7 @@ ${Object.values(LINES3).map((l) => `  ${l}`).join("\n")}`;
 var isCommand = (c) => Object.hasOwn(LINES3, c);
 var AGENT_POINTABLE = /* @__PURE__ */ new Set([...VERBS, "report", "outcome", "budget", "template", "doctor"]);
 var withAgentPointer = (text, command) => AGENT_POINTABLE.has(command) ? `${text}
-\u2192 see: sidewise agent ${command}` : text;
+\u2192 see: mm3 agent ${command}` : text;
 var UsageStop = class extends Error {
   constructor(command, problem) {
     super(withAgentPointer(`\u2716 args: ${problem} \u2192 ${LINES3[command]}`, command));
@@ -16859,7 +17040,7 @@ var UsageStop = class extends Error {
   }
 };
 var OUTCOMES = ["held", "overruled", "failed"];
-var NO_PROJECT = '\u2716 project: no .sidewise or .git folder here or above \u2192 run inside a project, or "mkdir .sidewise" to start one here';
+var NO_PROJECT = '\u2716 project: no .mm3 or .git folder here or above \u2192 run inside a project, or "mkdir .mm3" to start one here';
 var DEFAULT_REQUEST_MAX_BYTES = 1048576;
 var tooBig = (maxBytes) => `\u2716 request: larger than ${maxBytes === DEFAULT_REQUEST_MAX_BYTES ? "1 MB" : `${maxBytes} bytes`} \u2192 a request is a short text file; point "where:" at the code instead`;
 function finish(code, text) {
@@ -16903,10 +17084,10 @@ function readRequest(file, stdinSource, maxBytes = DEFAULT_REQUEST_MAX_BYTES) {
     return { stop: `\u2716 request: cannot read ${shown2} (${code ?? "error"}) \u2192 check the path and its permissions` };
   }
   if (bytes.length > maxBytes) return { stop: tooBig(maxBytes) };
-  if (bytes.includes(0)) return { stop: `\u2716 request: ${file === "-" ? "stdin" : shown2} is binary, not text \u2192 write the request as YAML, starting "side:"` };
+  if (bytes.includes(0)) return { stop: `\u2716 request: ${file === "-" ? "stdin" : shown2} is binary, not text \u2192 write the request as YAML, starting "mak:"` };
   return { text: bytes.toString("utf8") };
 }
-var BUDGET_EXAMPLE = "e.g. sidewise budget set --usd 5 --runs 500";
+var BUDGET_EXAMPLE = "e.g. mm3 budget set --usd 5 --runs 500";
 function cap(flag, raw) {
   const n = Number(raw);
   return raw.trim() !== "" && Number.isFinite(n) && n > 0 ? n : `\u2716 budget: --${flag} must be a positive number, got "${raw}" \u2192 ${BUDGET_EXAMPLE}`;
@@ -16939,11 +17120,11 @@ async function dispatch(argv, ctx) {
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith("-") && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, config, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `\u2716 args: "${clip(command, 40)}" is not a command \u2192 use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, config, init, uninstall or mcp (mm3 --help)`);
   }
   if (rest.includes("--help") || rest.includes("-h")) {
     const seeMore = VERBS.includes(command) ? `
-\u2192 see: sidewise help ${command} \xB7 sidewise agent ${command}` : "";
+\u2192 see: mm3 help ${command} \xB7 mm3 agent ${command}` : "";
     return finish(0, `${LINES3[command]}${seeMore}`);
   }
   if (command !== "doctor" && command !== "mcp") {
@@ -16996,11 +17177,11 @@ async function dispatch(argv, ctx) {
     return finish(r.exit, r.text);
   }
   if (command === "config") {
-    const { positionals } = args("config", { args: rest, allowPositionals: true, options: {} });
+    const { positionals, values } = args("config", { args: rest, allowPositionals: true, options: { write: { type: "boolean" } } });
     positionalCount("config", positionals, 0, 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
     const projectLine2 = configPaths ? path21.relative(ctx.cwd, configPaths.root) || "." : "none";
-    const r = runConfig(ctx.env, configPaths, projectLine2);
+    const r = values.write ? runConfigWrite(configPaths, projectLine2) : runConfig(ctx.env, configPaths, projectLine2);
     return finish(r.exit, r.text);
   }
   if (command === "mcp") {
@@ -17012,8 +17193,8 @@ async function dispatch(argv, ctx) {
         const nodeStop = nodeVersionStop(ctx.nodeVersion);
         if (nodeStop) return Promise.resolve(finish(2, nodeStop));
         const env = { ...ctx.env };
-        if (project) env.SIDEWISE_HOME = project;
-        if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor();
+        if (project) env.MM3_HOME = project;
+        if (!env.MM3_ACTOR?.trim()) env.MM3_ACTOR = resolveMcpActor();
         return runCli(a, { ...ctx, env, stdin: () => Buffer.from(stdinText ?? "", "utf8") });
       },
       ctx.pkg.version
@@ -17144,7 +17325,7 @@ async function dispatch(argv, ctx) {
       let text;
       if (usingFlags) {
         if (values.parent === void 0 || values.compare === void 0) {
-          return finish(2, withAgentPointer("\u2716 --parent/--compare: give both, or neither \u2192 sidewise replay --parent SW-#### --compare <before>..<after>", command));
+          return finish(2, withAgentPointer("\u2716 --parent/--compare: give both, or neither \u2192 mm3 replay --parent MM3-#### --compare <before>..<after>", command));
         }
         positionalCount("replay", positionals, 0, 0);
         const sep = values.compare.indexOf("..");
@@ -17159,10 +17340,10 @@ async function dispatch(argv, ctx) {
           const sample = concernNames.length > 0 ? concernNames.join(",") : "injection,guards";
           return finish(
             2,
-            withAgentPointer(`\u2716 --expect: name the concerns this replay should fix \u2192 sidewise replay --parent SW-#### --compare <before>..<after> --expect ${sample}`, command)
+            withAgentPointer(`\u2716 --expect: name the concerns this replay should fix \u2192 mm3 replay --parent MM3-#### --compare <before>..<after> --expect ${sample}`, command)
           );
         }
-        text = (0, import_yaml6.stringify)({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
+        text = (0, import_yaml6.stringify)({ mak: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount("replay", positionals, 1, 1);
         const read = readRequest(positionals[0], ctx.stdin, resolveConfig(paths, ctx.env).config.requestMaxBytes);
@@ -17189,7 +17370,7 @@ async function dispatch(argv, ctx) {
       positionalCount("outcome", positionals, 2, 2);
       const [id = "", outcome = ""] = positionals;
       if (!RUN_ID.test(id)) {
-        return finish(2, withAgentPointer(`\u2716 outcome: "${clip(id, 40)}" is not a run id \u2192 use the SW-#### that class printed, e.g. SW-0001`, command));
+        return finish(2, withAgentPointer(`\u2716 outcome: "${clip(id, 40)}" is not a run id \u2192 use the MM3-#### that class printed, e.g. MM3-0001`, command));
       }
       if (!OUTCOMES.includes(outcome)) {
         return finish(2, withAgentPointer(`\u2716 outcome: "${clip(outcome, 40)}" is not an outcome \u2192 use held, overruled or failed`, command));
@@ -17197,7 +17378,7 @@ async function dispatch(argv, ctx) {
       const by = values.by?.trim();
       if (!by) return finish(2, withAgentPointer("\u2716 --by: missing \u2192 add --by <who judged the run>", command));
       const { record: record2, repeat } = appendOutcome(paths, id, outcome, by);
-      return finish(0, `sidewise outcome ${record2.of} ${record2.outcome} \xB7 ${repeat ? "already recorded " : ""}by ${record2.by}`);
+      return finish(0, `mm3 outcome ${record2.of} ${record2.outcome} \xB7 ${repeat ? "already recorded " : ""}by ${record2.by}`);
     }
     case "budget": {
       const [sub = "show", ...more] = rest;
@@ -17222,7 +17403,7 @@ async function dispatch(argv, ctx) {
       return finish(0, `set \xB7 ${budgetLine(setBudget(paths, caps))}`);
     }
   }
-  return finish(1, `\u2716 sidewise: internal: unhandled command "${command}"`);
+  return finish(1, `\u2716 mm3: internal: unhandled command "${command}"`);
 }
 async function runCli(argv, ctx) {
   try {
@@ -17234,7 +17415,7 @@ async function runCli(argv, ctx) {
     if (e instanceof JevConfigError) return finish(e.exit, e.message);
     if (e instanceof LockError || e instanceof StoreError) return finish(1, e.message);
     const text = (e instanceof Error ? e.message : String(e)).split("\n")[0].slice(0, 200);
-    return finish(1, `\u2716 sidewise: ${text} \u2192 retry; if it repeats, report it with the command you ran`);
+    return finish(1, `\u2716 mm3: ${text} \u2192 retry; if it repeats, report it with the command you ran`);
   }
 }
 function realCtx() {
@@ -17258,7 +17439,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     if (r.text) (r.exit === 0 ? process.stdout : process.stderr).write(r.text);
     process.exitCode = r.exit;
   }).catch((e) => {
-    process.stderr.write(`\u2716 sidewise: ${e instanceof Error ? e.message : String(e)} \u2192 retry; if it repeats, report it with the command you ran
+    process.stderr.write(`\u2716 mm3: ${e instanceof Error ? e.message : String(e)} \u2192 retry; if it repeats, report it with the command you ran
 `);
     process.exitCode = 1;
   });

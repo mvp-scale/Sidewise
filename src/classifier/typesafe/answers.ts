@@ -55,7 +55,7 @@ export interface JevResponse {
 }
 
 /** Per-model pricing (plan 2c B2) now lives in `src/config/defaults.ts`'s `DEFAULT_CONFIG.pricing`, sparsely
- *  overridable per project via `.sidewise/config.yaml`'s `pricing:` key — this module no longer owns a rate
+ *  overridable per project via `.mm3/config.yaml`'s `pricing:` key — this module no longer owns a rate
  *  table of its own. `PricingRate.inputPerMTok`/`outputPerMTok` are dollars per MILLION tokens (not per token);
  *  `perCall` is a flat per-request add-on. TypeSafe's direct route never reports a cost at all (only
  *  provider_metadata.gateway.cost, on the gateway route, does — see wire.ts's readUsageAndCost), so without an

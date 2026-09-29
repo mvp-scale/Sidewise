@@ -11,7 +11,7 @@ const GUARDS = { name: 'guards', section: 'concerns' as const, pass: 'yes' as co
 describe('staleNotes', () => {
   it('dedupes by origin: several reuse copies of one run produce exactly one stale note, not one each', () => {
     const { paths } = tempProject({ 'src/user.ts': 'original code' });
-    // SW-0001: the origin, answered question 1 on the original code.
+    // MM3-0001: the origin, answered question 1 on the original code.
     appendContractRun(
       paths,
       sampleContractRun({
@@ -24,7 +24,7 @@ describe('staleNotes', () => {
       Date.now(),
       'b',
     );
-    // SW-0002/3/4: three runs that all reused SW-0001's answer to question 1 (same key, same value), each
+    // MM3-0002/3/4: three runs that all reused MM3-0001's answer to question 1 (same key, same value), each
     // recorded at the same place.
     for (let i = 0; i < 3; i++) {
       appendContractRun(
@@ -34,7 +34,7 @@ describe('staleNotes', () => {
           ask: { categories: [GUARDS], layers: [] },
           keys: { goal: 'k-goal', '1': 'k-1-old' },
           answers: { goal: { kind: 'yesno', p: 0.5 }, '1': { kind: 'yesno', p: 0.94 } },
-          reusedFrom: { '1': 'SW-0001' },
+          reusedFrom: { '1': 'MM3-0001' },
         }),
         Date.now(),
         'b',
@@ -45,7 +45,7 @@ describe('staleNotes', () => {
     const toAsk = [[{ id: '1', n: 1, kind: 'yesno' as const, text: 'Is it guarded?' }, 'k-1-new'] as const];
     const notes = staleNotes(paths, ['src/user.ts'], toAsk);
     expect(notes).toHaveLength(1);
-    expect(notes[0]).toContain('SW-0001 answered "Is it guarded?" on older code (p 0.94)');
+    expect(notes[0]).toContain('MM3-0001 answered "Is it guarded?" on older code (p 0.94)');
   });
 
   it('distinct origins each still get their own note, up to the cap', () => {

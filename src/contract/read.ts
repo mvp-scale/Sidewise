@@ -20,7 +20,7 @@ import { clip } from '../util/text.ts';
 
 export type ReadResult = { ok: true; value: Record<string, unknown> } | { ok: false; stops: string[] };
 
-const SKELETON = '(sidewise template class prints a skeleton)';
+const SKELETON = '(mm3 template class prints a skeleton)';
 const QUESTION_LINE = /^\s*(\d+)\s*:\s?(.*)$/u;
 const MAX_STOPS = 5;
 
@@ -104,8 +104,8 @@ export function describeParseError(lines: readonly string[], code: string, line:
 
 export function readRequestText(text: string): ReadResult {
   const src = text.replace(/^﻿/u, '');
-  if (!src.trim()) return { ok: false, stops: [`✖ request: empty → start with "side:" ${SKELETON}`] };
-  if (/^\s*sidewise\s+\w+\s+L\d/u.test(src)) return { ok: false, stops: [`✖ request: this is the old text format → send YAML ${SKELETON}`] };
+  if (!src.trim()) return { ok: false, stops: [`✖ request: empty → start with "mak:" ${SKELETON}`] };
+  if (/^\s*mm3\s+\w+\s+L\d/u.test(src)) return { ok: false, stops: [`✖ request: this is the old text format → send YAML ${SKELETON}`] };
   const scanned = scanLines(src);
   if (scanned.length) return { ok: false, stops: capStops(scanned) };
   const doc = parseDocument(src, { version: '1.2', schema: 'core', uniqueKeys: true });
@@ -117,7 +117,7 @@ export function readRequestText(text: string): ReadResult {
   } catch {
     return { ok: false, stops: ['✖ yaml: too many aliases (*) → write the request out in full'] };
   }
-  if (value === null || value === undefined) return { ok: false, stops: [`✖ request: empty → start with "side:" ${SKELETON}`] };
-  if (typeof value !== 'object' || Array.isArray(value)) return { ok: false, stops: [`✖ request: not a YAML mapping → start with "side:" ${SKELETON}`] };
+  if (value === null || value === undefined) return { ok: false, stops: [`✖ request: empty → start with "mak:" ${SKELETON}`] };
+  if (typeof value !== 'object' || Array.isArray(value)) return { ok: false, stops: [`✖ request: not a YAML mapping → start with "mak:" ${SKELETON}`] };
   return { ok: true, value: value as Record<string, unknown> };
 }

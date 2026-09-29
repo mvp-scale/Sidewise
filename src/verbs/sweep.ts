@@ -17,11 +17,11 @@ import { expand, type ExpandOptions, type Item } from '../contract/layers.ts';
 import { answerKey, goalQuestion, itemQuestions, itemsState, type AskedQuestion } from '../contract/translate.ts';
 import type { ItemGrade, ItemStatus } from '../contract/grade.ts';
 import type { ClassifierState } from '../classifier/port.ts';
-import { DEFAULT_CONFIG, type SidewiseConfig } from '../config/defaults.ts';
+import { DEFAULT_CONFIG, type Mm3Config } from '../config/defaults.ts';
 import type { ItemRecord, NewContractRun, TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { lookupAnswers, type ReuseLimits, type Who } from '../ledger/reuse.ts';
-import type { SidewisePaths } from '../ledger/paths.ts';
+import type { Mm3Paths } from '../ledger/paths.ts';
 import { askAll, record, recordFree, type PlannedCall, type Step } from './pay.ts';
 import { dryRunText } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
@@ -31,7 +31,7 @@ import type { VerbContext, VerbResult } from './types.ts';
  *  file's own unit tests) keeps the code's own defaults: no extra item cap beyond the depth ceiling, no
  *  question-per-call split, no reuse age/commit limit. */
 interface SweepLimits {
-  sweep?: SidewiseConfig['sweep'];
+  sweep?: Mm3Config['sweep'];
   reuse?: ReuseLimits;
 }
 
@@ -54,7 +54,7 @@ interface SweepPlan {
   layers: string[];
   /** Every item, parents before children. */
   items: Item[];
-  /** One entry per asked layer (request.side.layers order), call: null when nothing to ask there. */
+  /** One entry per asked layer (request.mak.layers order), call: null when nothing to ask there. */
   planned: PlannedLayer[];
   /** Question id -> its answer key (translate.ts answerKey), for every question resolved (asked or reused). */
   keys: Map<string, string>;
@@ -118,8 +118,8 @@ function chunk<T>(arr: readonly T[], size: number): T[][] {
  * pre-existing call site until this round, and this file's own unit tests), the code's own defaults apply: the
  * depth's compiled-in item cap, no question-per-call split, no reuse staleness limit.
  */
-export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryRun: boolean, opts: ExpandOptions = {}, limits: SweepLimits = {}): SweepPlan {
-  const { layers, items } = expand(request.side.over!, opts);
+export function planSweep(request: Request, who: Who, paths: Mm3Paths, dryRun: boolean, opts: ExpandOptions = {}, limits: SweepLimits = {}): SweepPlan {
+  const { layers, items } = expand(request.mak.over!, opts);
   const itemsByLayer = groupByLayer(items);
   const reuseLimits = limits.reuse;
   // Lower-only (defaults.ts's own doc on sweep.maxItems): a project may tighten the depth's compiled-in item
@@ -132,26 +132,26 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
   // here; item keys only.
   const asksByItem = new Map<string, LayerAsk[]>();
   const allKeys: string[] = [];
-  for (const layer of request.side.layers) {
+  for (const layer of request.mak.layers) {
     for (const item of itemsByLayer.get(layer.name) ?? []) {
       const asks = itemQuestions(item, layer.categories).map((q) => ({ q, key: answerKey(item.text, q) }));
       asksByItem.set(item.id, asks);
       for (const a of asks) allKeys.push(a.key);
     }
   }
-  const goalQ = goalQuestion(request.side.goal);
+  const goalQ = goalQuestion(request.mak.goal);
 
   // One lookup for every item key collected above — not one per item.
   const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun, reuse: reuseLimits });
 
-  const cap = projectMaxItems !== undefined ? Math.min(SWEEP_ITEM_CAP[request.side.depth ?? 'quick'], projectMaxItems) : SWEEP_ITEM_CAP[request.side.depth ?? 'quick'];
+  const cap = projectMaxItems !== undefined ? Math.min(SWEEP_ITEM_CAP[request.mak.depth ?? 'quick'], projectMaxItems) : SWEEP_ITEM_CAP[request.mak.depth ?? 'quick'];
   const keys = new Map<string, string>();
   const reusedFrom = new Map<string, string>();
   const answers: Record<string, Answer> = {};
   let askedQuestions = 0;
 
   // Pass 2: decide status per item, respecting the layer's depth cap, without yet placing the goal.
-  const work: LayerWork[] = request.side.layers.map((layer) => {
+  const work: LayerWork[] = request.mak.layers.map((layer) => {
     let askedCount = 0;
     const callItems: Item[] = [];
     const callQuestions: AskedQuestion[] = [];
@@ -240,7 +240,7 @@ export function planSweep(request: Request, who: Who, paths: SidewisePaths, dryR
       const notes: string[] = []; // truncation notes from itemsState: not surfaced by this engine (SweepPlan carries none)
       const wanted = new Set(qs.map((q) => q.item).filter((id): id is string => id !== undefined));
       const chunkItems = wanted.size ? callItems.filter((it) => wanted.has(it.id)) : callItems;
-      const state: ClassifierState = { ...(i === 0 && hasGoal ? { goal: redact(request.side.goal) } : {}), items: itemsState(chunkItems, notes) };
+      const state: ClassifierState = { ...(i === 0 && hasGoal ? { goal: redact(request.mak.goal) } : {}), items: itemsState(chunkItems, notes) };
       return { state, questions: qs };
     });
     return { layer, call: calls[0]!, extraCalls: calls.slice(1), itemIds, skipped };
@@ -301,7 +301,7 @@ export async function runSweep(
 
 /** A sweep verb's --dry-run reply: validate, expand and count; no call, no spend. `identity` is the route/base
  *  URL a real call would use (providerIdentity(ctx.env)) — the only thing beyond the plan itself this needs.
- *  `extraNotes` (item F): each caller's own `probeWarnings(request.side)`, so a sweep's dry run warns on the
+ *  `extraNotes` (item F): each caller's own `probeWarnings(request.mak)`, so a sweep's dry run warns on the
  *  same mechanically-checkable authoring issues a one-subject dry run does. */
 export function sweepDryRun(plan: SweepPlan, identity: { route: string; baseURL: string | null }, extraNotes: readonly string[] = []): VerbResult {
   const calls = plannedCallCount(plan);

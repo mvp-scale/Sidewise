@@ -1,6 +1,6 @@
 /**
  * The one resolver: where a TypeSafe/gateway key lives outside env — the OS keychain first (keychain.ts), then
- * the user env file (env-file.ts). Both are written only by `sidewise init` and read by init (to show "already
+ * the user env file (env-file.ts). Both are written only by `mm3 init` and read by init (to show "already
  * set, replace?"), doctor (to show the source) and, through config.ts's `deps.resolveStored`, a real
  * classifier call.
  *
@@ -46,7 +46,7 @@ export function storeKey(runner: Runner, platform: NodeJS.Platform, env: Env, pr
 
 /** Removes a stored key from wherever it landed (uninstall's "the stored key" step). Never throws for "there
  *  was nothing to remove" — that's `removed: []`, not a stop. Only ever touches the two key names in the env
- *  file; every other line (comments, SIDEWISE_BASE_URL, ...) is left exactly as the user wrote it. */
+ *  file; every other line (comments, MM3_BASE_URL, ...) is left exactly as the user wrote it. */
 export function removeStoredKey(runner: Runner, platform: NodeJS.Platform, env: Env): { removed: Array<'keychain' | 'file'> } {
   const removed: Array<'keychain' | 'file'> = [];
   if (keychainRemove(runner, platform)) removed.push('keychain');

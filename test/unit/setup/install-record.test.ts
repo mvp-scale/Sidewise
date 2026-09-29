@@ -1,4 +1,4 @@
-// install.json: how `sidewise init` installed the CLI, read back by doctor and uninstall — separate from
+// install.json: how `mm3 init` installed the CLI, read back by doctor and uninstall — separate from
 // keystore.ts's credentials file in the same directory, and holds no secrets.
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { clearInstallRecord, installRecordPath, type InstallRecord, readInstallRecord, writeInstallRecord } from '../../../src/setup/install-record.ts';
 
 function tmpEnv(): { XDG_CONFIG_HOME: string } {
-  return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'sidewise-installrec-')) };
+  return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'mm3-installrec-')) };
 }
 
 describe('install-record', () => {

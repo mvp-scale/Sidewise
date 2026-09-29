@@ -2,10 +2,10 @@
 import type { ClassifierPort } from '../classifier/port.ts';
 import type { ResolveStored } from '../classifier/typesafe/client.ts';
 import type { ContractRun, RunRecord } from '../ledger/log.ts';
-import type { SidewisePaths } from '../ledger/paths.ts';
+import type { Mm3Paths } from '../ledger/paths.ts';
 
 export interface VerbContext {
-  paths: SidewisePaths;
+  paths: Mm3Paths;
   provider: ClassifierPort;
   env: Record<string, string | undefined>;
   now?: () => number;

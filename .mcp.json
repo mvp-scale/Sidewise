@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "sidewise": {
+    "mm3": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/sidewise.mjs", "mcp"],
+      "args": ["${CLAUDE_PLUGIN_ROOT}/bin/mm3.mjs", "mcp"],
       "env": {
         "TYPESAFE_API_KEY": "${user_config.typesafe_api_key}"
       }

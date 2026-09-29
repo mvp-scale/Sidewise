@@ -1,5 +1,5 @@
-// sidewise init: makes the CLI reachable and stores a key (both per user), then — inside a git project — wires
-// the Claude Code plugin (project scope by default) and sets up .sidewise/. npm/claude/the keychain all stand
+// mm3 init: makes the CLI reachable and stores a key (both per user), then — inside a git project — wires
+// the Claude Code plugin (project scope by default) and sets up .mm3/. npm/claude/the keychain all stand
 // in for a scripted fake Runner, and a fake TTY pair stands in for the terminal. No real process is ever
 // spawned here.
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { readInstallRecord } from '../../../src/setup/install-record.ts';
 import { type InitCtx, type InitFlags, runInit } from '../../../src/setup/init.ts';
 import type { RunResult, Runner } from '../../../src/setup/runner.ts';
 
-const PKG = { name: '@mvpscale/sidewise', version: '0.0.0' };
+const PKG = { name: '@mvpscale/mm3', version: '0.0.0' };
 
 function fakeTty(): { input: PassThrough & { isTTY: boolean }; output: PassThrough & { isTTY: boolean } } {
   return { input: Object.assign(new PassThrough(), { isTTY: true }), output: Object.assign(new PassThrough(), { isTTY: true }) };
@@ -37,8 +37,8 @@ function scriptedRunner(handlers: Record<string, (call: { cmd: string; args: str
 }
 
 function baseCtx(overrides: Partial<InitCtx> = {}): { ctx: InitCtx; home: string } {
-  const home = mkdtempSync(path.join(os.tmpdir(), 'sidewise-home-'));
-  const cwd = mkdtempSync(path.join(os.tmpdir(), 'sidewise-cwd-'));
+  const home = mkdtempSync(path.join(os.tmpdir(), 'mm3-home-'));
+  const cwd = mkdtempSync(path.join(os.tmpdir(), 'mm3-cwd-'));
   const { runner } = scriptedRunner({});
   const { input, output } = fakeTty();
   const ctx: InitCtx = {
@@ -66,7 +66,7 @@ function unwritablePrefix(home: string): string {
 const YES_NO_CLAUDE_STDIN: InitFlags = { key: 'stdin', claude: false, yes: true };
 
 describe('runInit: a fresh --yes --no-claude --key-stdin run, inside a git project', () => {
-  it('installs --user when the global prefix is not writable and cwd has no package.json, stores the key to the env file (secret-tool absent), and creates a self-ignoring .sidewise/ [C-099][C-101]', async () => {
+  it('installs --user when the global prefix is not writable and cwd has no package.json, stores the key to the env file (secret-tool absent), and creates a self-ignoring .mm3/ [C-099][C-101]', async () => {
     const { ctx, home } = baseCtx();
     if (process.getuid && process.getuid() === 0) return; // root ignores the chmod; skip under root
     const prefix = unwritablePrefix(home);
@@ -90,17 +90,17 @@ describe('runInit: a fresh --yes --no-claude --key-stdin run, inside a git proje
     expect(r.text).toContain('✔ cli: installed --user');
     expect(r.text).toContain('✔ key: stored in');
     expect(r.text).toContain('– plugin: skipped (--no-claude)');
-    expect(r.text).toContain('✔ project: created .sidewise/');
+    expect(r.text).toContain('✔ project: created .mm3/');
     expect(r.text).not.toContain('dummy-key-value-123');
 
-    expect(npmCalls[0]).toEqual(['install', '-g', '--prefix', path.join(home, '.local'), '@mvpscale/sidewise@0.0.0']);
+    expect(npmCalls[0]).toEqual(['install', '-g', '--prefix', path.join(home, '.local'), '@mvpscale/mm3@0.0.0']);
     for (const c of calls) for (const a of c.args) expect(a).not.toContain('dummy-key-value-123');
 
     expect(readInstallRecord(ctx.env)).toMatchObject({ mode: 'user', npmPrefix: path.join(home, '.local') });
     expect(readEnvFile(envFilePath(ctx.env))).toMatchObject({ values: { TYPESAFE_API_KEY: 'dummy-key-value-123' } });
-    expect(existsSync(path.join(ctx.cwd, '.sidewise', '.gitignore'))).toBe(true);
-    // plan 2c B1: config.yaml is the one file under .sidewise/ meant to be committed (ledger/paths.ts's ensureDir).
-    expect(readFileSync(path.join(ctx.cwd, '.sidewise', '.gitignore'), 'utf8')).toBe('*\n!config.yaml\n');
+    expect(existsSync(path.join(ctx.cwd, '.mm3', '.gitignore'))).toBe(true);
+    // plan 2c B1: config.yaml is the one file under .mm3/ meant to be committed (ledger/paths.ts's ensureDir).
+    expect(readFileSync(path.join(ctx.cwd, '.mm3', '.gitignore'), 'utf8')).toBe('*\n!config.yaml\n');
   });
 
   it('defaults to --local when cwd has a package.json, regardless of the global prefix', async () => {
@@ -117,7 +117,7 @@ describe('runInit: a fresh --yes --no-claude --key-stdin run, inside a git proje
     const r = await runInit({ key: 'no', claude: false, yes: true }, ctx);
     expect(r.text).toContain('✔ cli: installed --local');
     const install = calls.find((c) => c.cmd === 'npm' && c.args[0] === 'install');
-    expect(install?.args).toEqual(['install', '-D', '@mvpscale/sidewise@0.0.0']);
+    expect(install?.args).toEqual(['install', '-D', '@mvpscale/mm3@0.0.0']);
     expect(readInstallRecord(ctx.env)).toMatchObject({ mode: 'local', projectDir: ctx.cwd });
   });
 
@@ -129,13 +129,13 @@ describe('runInit: a fresh --yes --no-claude --key-stdin run, inside a git proje
     ctx.runner = runner;
 
     const r = await runInit({ mode: 'global', key: 'no', claude: false, yes: true }, ctx);
-    expect(r.text).toContain('✖ cli: the global npm prefix needs sudo → re-run "sidewise init --user" instead');
+    expect(r.text).toContain('✖ cli: the global npm prefix needs sudo → re-run "mm3 init --user" instead');
     expect(calls.some((c) => c.args[0] === 'install')).toBe(false); // never attempted, never mind sudo
   });
 });
 
 describe('runInit: the plugin step defaults to project scope', () => {
-  it('installs sidewise@mvp-scale at project scope by default (an owner ruling: using Sidewise is per project)', async () => {
+  it('installs mm3@mvp-scale at project scope by default (an owner ruling: using MM3 is per project)', async () => {
     const { ctx } = baseCtx();
     mkdirSync(path.join(ctx.cwd, '.git'));
     const { runner, calls } = scriptedRunner({
@@ -147,9 +147,9 @@ describe('runInit: the plugin step defaults to project scope', () => {
     });
     ctx.runner = runner;
     const r = await runInit({ mode: 'local', key: 'no', claude: true, yes: true }, ctx);
-    expect(r.text).toContain('✔ plugin: installed sidewise@mvp-scale (project scope)');
+    expect(r.text).toContain('✔ plugin: installed mm3@mvp-scale (project scope)');
     const install = calls.find((c) => c.cmd === 'claude' && c.args[1] === 'install');
-    expect(install?.args).toEqual(['plugin', 'install', 'sidewise@mvp-scale', '--scope', 'project']);
+    expect(install?.args).toEqual(['plugin', 'install', 'mm3@mvp-scale', '--scope', 'project']);
   });
 
   it('--scope user overrides the project-scope default explicitly', async () => {
@@ -164,12 +164,12 @@ describe('runInit: the plugin step defaults to project scope', () => {
     });
     ctx.runner = runner;
     const r = await runInit({ mode: 'local', key: 'no', claude: true, scope: 'user', yes: true }, ctx);
-    expect(r.text).toContain('✔ plugin: installed sidewise@mvp-scale (user scope)');
+    expect(r.text).toContain('✔ plugin: installed mm3@mvp-scale (user scope)');
   });
 });
 
 describe('runInit: outside a git project', () => {
-  it('runs only the per-user steps (CLI, key), then stops with the exact one-line fix — never creates .sidewise/, never touches the plugin [C-099]', async () => {
+  it('runs only the per-user steps (CLI, key), then stops with the exact one-line fix — never creates .mm3/, never touches the plugin [C-099]', async () => {
     const { ctx } = baseCtx();
     const { runner, calls } = scriptedRunner({
       'npm config': () => ({ status: 0, stdout: '/usr/local\n', stderr: '' }),
@@ -179,12 +179,12 @@ describe('runInit: outside a git project', () => {
     const r = await runInit({ key: 'no', claude: true, yes: true }, ctx);
     const stepLines = r.text.split('\n\n')[0]!; // the step lines, before the blank line and doctor's own output
     expect(stepLines).toContain('✔ cli:');
-    expect(stepLines).toContain('– project: not in a git project → cd into one and run "sidewise init" there to enable Sidewise for it');
+    expect(stepLines).toContain('– project: not in a git project → cd into one and run "mm3 init" there to enable MM3 for it');
     expect(stepLines).not.toContain('plugin:'); // doctor's own output (after the blank line) does say "plugin:" — that's fine, this checks only the steps actually run
     // doctor's own report still probes overall plugin status (a "claude plugin list" call) — the thing that must
     // never happen outside a project is init's OWN plugin step actually changing anything.
     expect(calls.some((c) => c.cmd === 'claude' && (c.args.includes('add') || c.args.includes('install')))).toBe(false);
-    expect(existsSync(path.join(ctx.cwd, '.sidewise'))).toBe(false);
+    expect(existsSync(path.join(ctx.cwd, '.mm3'))).toBe(false);
   });
 });
 
@@ -192,17 +192,17 @@ describe('runInit: idempotent re-run', () => {
   it('CLI already reachable, project already there: every line says so, nothing changes [C-099]', async () => {
     const { ctx, home } = baseCtx();
     mkdirSync(path.join(ctx.cwd, '.git'));
-    // Pre-seed a layout npm itself would produce: <prefix>/bin/sidewise is a symlink into
-    // <prefix>/lib/node_modules/@mvpscale/sidewise/dist/cli.js — isPackageBin walks up from the symlink's
+    // Pre-seed a layout npm itself would produce: <prefix>/bin/mm3 is a symlink into
+    // <prefix>/lib/node_modules/@mvpscale/mm3/dist/cli.js — isPackageBin walks up from the symlink's
     // *real* path, so the bin must actually live under the package dir, not just sit beside it.
-    const pkgDir = path.join(home, 'installed', 'lib', 'node_modules', '@mvpscale', 'sidewise');
+    const pkgDir = path.join(home, 'installed', 'lib', 'node_modules', '@mvpscale', 'mm3');
     mkdirSync(path.join(pkgDir, 'dist'), { recursive: true });
     writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify(PKG));
     writeFileSync(path.join(pkgDir, 'dist', 'cli.js'), '#!/usr/bin/env node\n');
     chmodSync(path.join(pkgDir, 'dist', 'cli.js'), 0o755);
     const binDir = path.join(home, 'installed', 'bin');
     mkdirSync(binDir, { recursive: true });
-    const bin = path.join(binDir, 'sidewise');
+    const bin = path.join(binDir, 'mm3');
     const { symlinkSync } = await import('node:fs');
     symlinkSync(path.join(pkgDir, 'dist', 'cli.js'), bin);
     ctx.env.PATH = binDir;
@@ -211,28 +211,28 @@ describe('runInit: idempotent re-run', () => {
     ctx.runner = runner;
 
     const r1 = await runInit({ key: 'no', claude: false, yes: true }, ctx);
-    expect(r1.text).toContain('✔ project: created .sidewise/');
+    expect(r1.text).toContain('✔ project: created .mm3/');
 
     const r2 = await runInit({ key: 'no', claude: false, yes: true }, ctx);
     expect(r2.text).toContain(`· cli: already reachable as ${bin}`);
-    expect(r2.text).toContain('· project: already has .sidewise/');
+    expect(r2.text).toContain('· project: already has .mm3/');
   });
 });
 
 describe('runInit: a throwaway npx cache copy is never "already reachable"', () => {
-  it('sidewise resolved from inside npm\'s _npx cache still gets installed somewhere durable, not just reported as reachable', async () => {
+  it('mm3 resolved from inside npm\'s _npx cache still gets installed somewhere durable, not just reported as reachable', async () => {
     const { ctx, home } = baseCtx();
     mkdirSync(path.join(ctx.cwd, '.git'));
     // Mimics npm's own npx cache layout closely enough for isPackageBin to recognize it as this package too —
     // the ONLY thing that should stop "already reachable" here is the _npx path-segment check.
-    const pkgDir = path.join(home, '.npm', '_npx', 'abc123', 'node_modules', '@mvpscale', 'sidewise');
+    const pkgDir = path.join(home, '.npm', '_npx', 'abc123', 'node_modules', '@mvpscale', 'mm3');
     mkdirSync(path.join(pkgDir, 'dist'), { recursive: true });
     writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify(PKG));
     writeFileSync(path.join(pkgDir, 'dist', 'cli.js'), '#!/usr/bin/env node\n');
     chmodSync(path.join(pkgDir, 'dist', 'cli.js'), 0o755);
     const binDir = path.join(home, '.npm', '_npx', 'abc123', 'node_modules', '.bin');
     mkdirSync(binDir, { recursive: true });
-    const bin = path.join(binDir, 'sidewise');
+    const bin = path.join(binDir, 'mm3');
     const { symlinkSync } = await import('node:fs');
     symlinkSync(path.join(pkgDir, 'dist', 'cli.js'), bin);
     ctx.env.PATH = binDir;
@@ -293,7 +293,7 @@ describe('runInit: the key step', () => {
 });
 
 describe('runInit: the final "next:" line [C-176]', () => {
-  it('a clean run (no ✖ anywhere) points at "sidewise agent" as the first thing to run', async () => {
+  it('a clean run (no ✖ anywhere) points at "mm3 agent" as the first thing to run', async () => {
     const { ctx } = baseCtx();
     mkdirSync(path.join(ctx.cwd, '.git'));
     const { runner } = scriptedRunner({
@@ -303,7 +303,7 @@ describe('runInit: the final "next:" line [C-176]', () => {
     ctx.runner = runner;
     const r = await runInit({ mode: 'local', key: 'no', claude: false, yes: true }, ctx);
     expect(r.text).not.toContain('✖');
-    expect(r.text).toContain('next: run "sidewise agent"');
+    expect(r.text).toContain('next: run "mm3 agent"');
     expect(r.text).not.toContain('not usable yet');
   });
 
@@ -315,7 +315,7 @@ describe('runInit: the final "next:" line [C-176]', () => {
     ctx.runner = runner;
     const r = await runInit({ mode: 'global', key: 'no', claude: false, yes: true }, ctx);
     expect(r.text).toContain('✖ cli:'); // the partial condition this test is actually exercising
-    expect(r.text).toContain('next: not usable yet — fix the ✖ line(s) above, then re-run "sidewise init"');
-    expect(r.text).not.toContain('ask Claude to use Sidewise');
+    expect(r.text).toContain('next: not usable yet — fix the ✖ line(s) above, then re-run "mm3 init"');
+    expect(r.text).not.toContain('ask Claude to use MM3');
   });
 });

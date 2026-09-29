@@ -30,7 +30,7 @@ export function hasGit(deps?: { spawn?: Spawn }): boolean {
 }
 
 /** The nearest git repo actually containing `dir` (its own `git rev-parse --show-toplevel`), not necessarily
- *  the Sidewise project root — a monorepo package or a vendored project one level down is its own repo.
+ *  the MM3 project root — a monorepo package or a vendored project one level down is its own repo.
  *  `undefined` when `dir` isn't inside any repo at all (git itself is the source of truth here, not a
  *  `.git`-folder walk this module would have to duplicate and keep in sync with git's own rules). */
 export function gitRootOf(dir: string, spawn: Spawn): string | undefined {
@@ -49,7 +49,7 @@ function firstWhereDir(root: string, wherePaths: readonly string[]): string {
 }
 
 /** Resolves `ref` to its sha in the git repo that actually CONTAINS this run's own `where` files (`git -C <dir
- *  of first where path>`), not necessarily the Sidewise project root — a monorepo package or a vendored project
+ *  of first where path>`), not necessarily the MM3 project root — a monorepo package or a vendored project
  *  one level down is its own repo (plan 2c B1). `ref === 'worktree'` resolves to that repo's own HEAD (the
  *  working tree's own commit); any other ref is resolved literally (`git rev-parse <ref>`), guarded by the same
  *  `isGitOption` check `readGitEvidence` uses so a `-`-prefixed ref can never reach git. Null when: the ref
@@ -137,7 +137,7 @@ function keep(shown: string, text: string, total: number, notes: string[]): { bo
  */
 export function readGitEvidence(root: string, ref: string, field: 'before' | 'after', paths: readonly string[], deps?: { spawn?: Spawn }): GitResult {
   if (ref !== 'worktree' && isGitOption(ref)) {
-    return { ok: false, errors: [`✖ side.compare.${field}: "${ref}" looks like an option, not a ref → use a branch, tag or commit`] };
+    return { ok: false, errors: [`✖ mak.compare.${field}: "${ref}" looks like an option, not a ref → use a branch, tag or commit`] };
   }
 
   const spawn = deps?.spawn ?? spawnSync;
@@ -150,7 +150,7 @@ export function readGitEvidence(root: string, ref: string, field: 'before' | 'af
   for (const rawPath of paths) {
     const full = path.resolve(root, rawPath);
     const rel = path.relative(root, full);
-    const outside = `✖ side.compare.${field}: "${rawPath}" is outside the project → use a path inside the project`;
+    const outside = `✖ mak.compare.${field}: "${rawPath}" is outside the project → use a path inside the project`;
     if (isOutside(rel)) {
       errors.push(outside);
       continue;
@@ -166,12 +166,12 @@ export function readGitEvidence(root: string, ref: string, field: 'before' | 'af
           continue;
         }
         if (statSync(full).isDirectory()) {
-          errors.push(`✖ side.compare.${field}: "${rawPath}" is a folder → name a file`);
+          errors.push(`✖ mak.compare.${field}: "${rawPath}" is a folder → name a file`);
           continue;
         }
         text = readFileSync(full, 'utf8');
       } catch {
-        errors.push(`✖ side.compare.${field}: cannot read "${rawPath}" → check the path`);
+        errors.push(`✖ mak.compare.${field}: cannot read "${rawPath}" → check the path`);
         continue;
       }
       read = true;
@@ -184,14 +184,14 @@ export function readGitEvidence(root: string, ref: string, field: 'before' | 'af
     }
 
     // Run git in the repo that actually contains this file (its own nearest toplevel), not always the
-    // Sidewise root — a nested repo is otherwise invisible ("fatal: not a git repository"). Falls back to
+    // MM3 root — a nested repo is otherwise invisible ("fatal: not a git repository"). Falls back to
     // root when the file isn't inside any repo at all, same as always (an ordinary "ref not found" follows).
     const gitRoot = gitRootOf(path.dirname(full), spawn) ?? root;
     const gitRel = path.relative(gitRoot, full).split(path.sep).join('/');
     const result = spawn('git', ['show', `${ref}:${gitRel}`], { cwd: gitRoot, encoding: 'utf8' });
     const stderr = typeof result.stderr === 'string' ? result.stderr : '';
     if (result.status !== 0 || FATAL.test(stderr)) {
-      errors.push(`✖ side.compare.${field}: "${ref}" not found by git (or the path doesn't exist there) → check the ref and the path`);
+      errors.push(`✖ mak.compare.${field}: "${ref}" not found by git (or the path doesn't exist there) → check the ref and the path`);
       continue;
     }
     read = true;

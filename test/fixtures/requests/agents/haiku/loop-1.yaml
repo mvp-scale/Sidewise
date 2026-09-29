@@ -1,4 +1,4 @@
-side:
+mak:
   goal: Stress-test multi-tenant billing design for boundaries and risk
   depth: quick
   over:

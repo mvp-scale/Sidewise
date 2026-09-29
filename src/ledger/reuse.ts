@@ -49,7 +49,7 @@ import type { Answer } from '../contract/types.ts';
 import { readRecordAt, withIndex, type IndexHandle } from './index.ts';
 import { findRun, isContractRun, type ContractRun, type TelemetryEntry } from './log.ts';
 import { onStore } from './lock.ts';
-import type { SidewisePaths } from './paths.ts';
+import type { Mm3Paths } from './paths.ts';
 
 export interface Who {
   adapter: string;
@@ -58,7 +58,7 @@ export interface Who {
 
 /** plan 2c B3: caps beyond which a reused answer is treated as stale and skipped (falling through to an
  *  older still-valid holder, or a fresh ask). Either bound omitted = no cap on that dimension (today's
- *  behavior) — see `.sidewise/config.yaml`'s `reuse: {maxAgeDays, maxCommits}` (src/config/defaults.ts). */
+ *  behavior) — see `.mm3/config.yaml`'s `reuse: {maxAgeDays, maxCommits}` (src/config/defaults.ts). */
 export interface ReuseLimits {
   maxAgeDays?: number;
   maxCommits?: number;
@@ -105,7 +105,7 @@ export interface ReuseAge {
   ageDays: number;
   commitsSince: number | null;
 }
-export function reuseAge(paths: SidewisePaths, r: Pick<Reusable, 'ts' | 'commit' | 'where'>, now: number = Date.now()): ReuseAge {
+export function reuseAge(paths: Mm3Paths, r: Pick<Reusable, 'ts' | 'commit' | 'where'>, now: number = Date.now()): ReuseAge {
   const parsed = Date.parse(r.ts);
   const ageDays = Number.isFinite(parsed) ? Math.max(0, Math.floor((now - parsed) / 86_400_000)) : 0;
   return { ageDays, commitsSince: commitsSince(paths.root, r.commit, r.where) };
@@ -118,7 +118,7 @@ export function reuseAge(paths: SidewisePaths, r: Pick<Reusable, 'ts' | 'commit'
  *  that field breaks. Capped at MAX_REUSED_AGE_NOTES ids (a big sweep can reuse from many distinct origins); empty
  *  when `ids` is empty. */
 const MAX_REUSED_AGE_NOTES = 5;
-export function reusedAgeNotes(paths: SidewisePaths, ids: readonly string[]): string[] {
+export function reusedAgeNotes(paths: Mm3Paths, ids: readonly string[]): string[] {
   if (!ids.length) return [];
   const shown = ids.slice(0, MAX_REUSED_AGE_NOTES);
   const parts = shown.map((id) => {
@@ -134,7 +134,7 @@ export function reusedAgeNotes(paths: SidewisePaths, ids: readonly string[]): st
 
 /** Whether `r` is too old/too far behind to reuse under `limits` — either bound only applies when it's
  *  actually set; `commitsSince` returning null (can't tell) never counts as stale on its own. */
-function isStale(paths: SidewisePaths, r: Pick<Reusable, 'ts' | 'commit' | 'where'>, limits: ReuseLimits | undefined, now: number): boolean {
+function isStale(paths: Mm3Paths, r: Pick<Reusable, 'ts' | 'commit' | 'where'>, limits: ReuseLimits | undefined, now: number): boolean {
   if (!limits || (limits.maxAgeDays === undefined && limits.maxCommits === undefined)) return false;
   const { ageDays, commitsSince: since } = reuseAge(paths, r, now);
   if (limits.maxAgeDays !== undefined && ageDays > limits.maxAgeDays) return true;
@@ -144,7 +144,7 @@ function isStale(paths: SidewisePaths, r: Pick<Reusable, 'ts' | 'commit' | 'wher
 
 /** The record at `offset`, if it's a contract run for `who` — a defensive re-check (the index already scopes
  *  by adapter/model server-side, so this should always hold; readRecordAt never throws for a stale offset). */
-function readCandidate(paths: SidewisePaths, offset: number, who: Who): ContractRun | undefined {
+function readCandidate(paths: Mm3Paths, offset: number, who: Who): ContractRun | undefined {
   const run = readRecordAt(paths.log, offset);
   return run && isContractRun(run) && run.adapter === who.adapter && run.model === who.model ? run : undefined;
 }
@@ -153,7 +153,7 @@ function readCandidate(paths: SidewisePaths, offset: number, who: Who): Contract
  *  qid — see the file header). undefined when the slot is empty, its holder is blocked, too stale under
  *  `limits` (plan 2c B3 D2 — the caller then falls back to the scan, which can find an older still-valid
  *  holder), or anything about it doesn't check out (a stale offset, a shape that no longer matches). */
-function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: string, limits: ReuseLimits | undefined, now: number): Reusable | undefined {
+function fastReuse(paths: Mm3Paths, handle: IndexHandle, who: Who, key: string, limits: ReuseLimits | undefined, now: number): Reusable | undefined {
   const hit = handle.reuseKeyHit(who.adapter, who.model, key);
   if (!hit || hit.blocked) return undefined;
   const origin = readCandidate(paths, hit.offset, who);
@@ -178,20 +178,20 @@ function fastReuse(paths: SidewisePaths, handle: IndexHandle, who: Who, key: str
  *  scratch against the in-memory fallback if the SQL attempt throws partway through, so a partially-filled `out`
  *  from that aborted attempt must never survive into the retry — building it fresh per `fn` invocation is what
  *  guarantees that. Wrapped in onStore: once a verb resolves reuse BEFORE preflight, this
- *  is the first read to touch `.sidewise/` at all on some paths — a structurally broken log.jsonl (e.g. a
+ *  is the first read to touch `.mm3/` at all on some paths — a structurally broken log.jsonl (e.g. a
  *  directory where the file should be) must come back as preflight's own clean StoreError, never a raw errno
  *  escaping unwrapped just because this call now sometimes runs first. */
 /** The record `origin` names (an id, not an offset) if it's a contract run for `who` — used only when a
  *  candidate's own `reusedFrom[qid]` points past it to a deeper origin, so that origin's OWN ts/commit/where
  *  (not the candidate's) drive age/commits-since and staleness (plan 2c B3). `handle.findOffset` is the same
  *  id -> offset lookup `view.ts`'s lineage walk already relies on. */
-function readOrigin(paths: SidewisePaths, handle: IndexHandle, origin: string, who: Who): ContractRun | undefined {
+function readOrigin(paths: Mm3Paths, handle: IndexHandle, origin: string, who: Who): ContractRun | undefined {
   const offset = handle.findOffset(origin);
   return offset === undefined ? undefined : readCandidate(paths, offset, who);
 }
 
 export function lookupAnswers(
-  paths: SidewisePaths,
+  paths: Mm3Paths,
   who: Who,
   keys: readonly string[],
   opts: { readOnly?: boolean; reuse?: ReuseLimits; now?: number } = {},
@@ -247,7 +247,7 @@ export function lookupAnswers(
  * Wrapped in onStore for the same reason as lookupAnswers above: a structurally broken log.jsonl must surface
  * as the usual clean StoreError, never a raw errno.
  */
-export function exactReuse(paths: SidewisePaths, who: Who, keys: readonly string[], opts: { reuse?: ReuseLimits; now?: number } = {}): string | undefined {
+export function exactReuse(paths: Mm3Paths, who: Who, keys: readonly string[], opts: { reuse?: ReuseLimits; now?: number } = {}): string | undefined {
   if (!keys.length) return undefined;
   const now = opts.now ?? Date.now();
   return onStore(paths.log, 'read', () =>
@@ -283,7 +283,7 @@ export function exactReuse(paths: SidewisePaths, who: Who, keys: readonly string
  *  omitted from `original` when the origin has no provider telemetry of its own to prorate from at all (a
  *  pre-telemetry run, or one that was itself entirely free) — cost then can't be prorated either, so the whole
  *  entry carries no `original`/`savedUsd`, just the count and `estimated: true` (nothing to base a number on). */
-function cacheEntryFor(paths: SidewisePaths, from: string, questions: number): TelemetryEntry {
+function cacheEntryFor(paths: Mm3Paths, from: string, questions: number): TelemetryEntry {
   const origin = findRun(paths, from);
   const providerCalls = origin && isContractRun(origin) ? (origin.telemetry ?? []).filter((t): t is Extract<TelemetryEntry, { source: 'provider' }> => t.source === 'provider') : [];
   const originQuestions = providerCalls.reduce((n, t) => n + t.questions, 0);
@@ -314,7 +314,7 @@ function cacheEntryFor(paths: SidewisePaths, from: string, questions: number): T
  *  question-id → origin-run-id map (ContractRun.reusedFrom, or a sweep's `Object.fromEntries(plan.reusedFrom)`).
  *  Empty when nothing was reused. Callers append this to whatever provider telemetry askAll/runSweep already
  *  produced (`[...providerTelemetry, ...cacheTelemetry(ctx.paths, reusedFrom)]`) — never a replacement. */
-export function cacheTelemetry(paths: SidewisePaths, reusedFrom: Record<string, string>): TelemetryEntry[] {
+export function cacheTelemetry(paths: Mm3Paths, reusedFrom: Record<string, string>): TelemetryEntry[] {
   const counts = new Map<string, number>();
   for (const from of Object.values(reusedFrom)) counts.set(from, (counts.get(from) ?? 0) + 1);
   return [...counts].map(([from, questions]) => cacheEntryFor(paths, from, questions));

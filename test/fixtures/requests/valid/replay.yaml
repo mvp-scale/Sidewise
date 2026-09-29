@@ -1,8 +1,8 @@
-side:
+mak:
   goal: The injection fix works
-  parent: SW-0042
+  parent: MM3-0042
   compare: {before: main, after: HEAD}
   expect: [injection]
-wise:
+mdl:
   why: validate
   area: data

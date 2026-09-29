@@ -1,5 +1,5 @@
-// sidewise uninstall: reverses init. Using Sidewise is per project, so by default this only disables the
-// current project (plugin at project scope, .sidewise/ with confirmation); the per-user parts (key, CLI) need
+// mm3 uninstall: reverses init. Using MM3 is per project, so by default this only disables the
+// current project (plugin at project scope, .mm3/ with confirmation); the per-user parts (key, CLI) need
 // --all. Every external effect goes through a scripted fake Runner and a fake TTY pair; nothing here ever
 // spawns npm/claude for real or touches a real ~/.claude or ~/.config.
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -30,8 +30,8 @@ function scriptedRunner(handlers: Record<string, (call: { cmd: string; args: str
 }
 
 function baseCtx(): { ctx: UninstallCtx; home: string } {
-  const home = mkdtempSync(path.join(os.tmpdir(), 'sidewise-uninstall-home-'));
-  const cwd = mkdtempSync(path.join(os.tmpdir(), 'sidewise-uninstall-cwd-'));
+  const home = mkdtempSync(path.join(os.tmpdir(), 'mm3-uninstall-home-'));
+  const cwd = mkdtempSync(path.join(os.tmpdir(), 'mm3-uninstall-cwd-'));
   const { runner } = scriptedRunner({});
   const ctx: UninstallCtx = {
     env: { XDG_CONFIG_HOME: path.join(home, '.config') },
@@ -40,7 +40,7 @@ function baseCtx(): { ctx: UninstallCtx; home: string } {
     runner,
     io: fakeTty(),
     homeDir: home,
-    pkgName: '@mvpscale/sidewise',
+    pkgName: '@mvpscale/mm3',
   };
   return { ctx, home };
 }
@@ -52,12 +52,12 @@ describe('runUninstall, default (no --all): only this project', () => {
     const { ctx, home } = baseCtx();
     writeInstallRecord(ctx.env, { mode: 'user', npmPrefix: path.join(home, '.local'), installedAt: 'x' });
     setEnvFileValue(envFilePath(ctx.env), 'TYPESAFE_API_KEY', 'a-stored-key-value');
-    mkdirSync(path.join(ctx.cwd, '.sidewise'), { recursive: true });
-    writeFileSync(path.join(ctx.cwd, '.sidewise', 'log.jsonl'), '');
+    mkdirSync(path.join(ctx.cwd, '.mm3'), { recursive: true });
+    writeFileSync(path.join(ctx.cwd, '.mm3', 'log.jsonl'), '');
     mkdirSync(pluginCacheDir(home), { recursive: true });
 
     const { runner, calls } = scriptedRunner({
-      'claude plugin list': () => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'user' }, { name: 'sidewise', scope: 'project' }]), stderr: '' }),
+      'claude plugin list': () => ({ status: 0, stdout: JSON.stringify([{ name: 'mm3', scope: 'user' }, { name: 'mm3', scope: 'project' }]), stderr: '' }),
       'claude plugin marketplace': () => ({ status: 0, stdout: 'mvp-scale\n', stderr: '' }),
       'claude plugin uninstall': () => ({ status: 0, stdout: '', stderr: '' }),
       npm: () => ({ status: 0, stdout: '', stderr: '' }),
@@ -66,18 +66,18 @@ describe('runUninstall, default (no --all): only this project', () => {
 
     const r = await runUninstall(DEFAULT_FLAGS, ctx);
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('✔ plugin: uninstalled sidewise@mvp-scale (project scope)');
+    expect(r.text).toContain('✔ plugin: uninstalled mm3@mvp-scale (project scope)');
     expect(r.text).not.toContain('user scope'); // the user-scope install is left alone
     expect(r.text).not.toContain('marketplace'); // not touched without --all
     expect(r.text).not.toContain('cache dir');
-    expect(r.text).toContain('– project: kept .sidewise/ (default: no)');
+    expect(r.text).toContain('– project: kept .mm3/ (default: no)');
     expect(r.text).toContain('– key: skipped (per-user; use --all to remove it)');
     expect(r.text).toContain('– cli: skipped (per-user; use --all to remove it)');
     expect(r.text).not.toContain('a-stored-key-value');
 
     expect(calls.some((c) => c.cmd === 'claude' && c.args[1] === 'uninstall' && c.args.includes('user'))).toBe(false);
     expect(existsSync(pluginCacheDir(home))).toBe(true); // untouched
-    expect(existsSync(path.join(ctx.cwd, '.sidewise'))).toBe(true); // kept
+    expect(existsSync(path.join(ctx.cwd, '.mm3'))).toBe(true); // kept
     expect(readInstallRecord(ctx.env)).toMatchObject({ mode: 'user' }); // untouched
     expect(calls.some((c) => c.cmd === 'npm')).toBe(false); // never even asked
   });
@@ -90,12 +90,12 @@ describe('runUninstall, default (no --all): only this project', () => {
     expect(r.text).toContain('· plugin: nothing to remove here');
   });
 
-  it('--keep-data skips the .sidewise/ step outright, with no question asked', async () => {
+  it('--keep-data skips the .mm3/ step outright, with no question asked', async () => {
     const { ctx } = baseCtx();
-    mkdirSync(path.join(ctx.cwd, '.sidewise'), { recursive: true });
+    mkdirSync(path.join(ctx.cwd, '.mm3'), { recursive: true });
     const r = await runUninstall({ ...DEFAULT_FLAGS, keepData: true }, ctx);
     expect(r.text).toContain('– project: skipped (--keep-data)');
-    expect(existsSync(path.join(ctx.cwd, '.sidewise'))).toBe(true);
+    expect(existsSync(path.join(ctx.cwd, '.mm3'))).toBe(true);
   });
 });
 
@@ -107,7 +107,7 @@ describe('runUninstall --all: also the per-user parts, and every plugin scope', 
     mkdirSync(pluginCacheDir(home), { recursive: true });
 
     const { runner, calls } = scriptedRunner({
-      'claude plugin list': () => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'user' }, { name: 'sidewise', scope: 'project' }]), stderr: '' }),
+      'claude plugin list': () => ({ status: 0, stdout: JSON.stringify([{ name: 'mm3', scope: 'user' }, { name: 'mm3', scope: 'project' }]), stderr: '' }),
       'claude plugin marketplace': () => ({ status: 0, stdout: 'mvp-scale\n', stderr: '' }),
       'claude plugin uninstall': () => ({ status: 0, stdout: '', stderr: '' }),
       npm: () => ({ status: 0, stdout: '', stderr: '' }),
@@ -115,8 +115,8 @@ describe('runUninstall --all: also the per-user parts, and every plugin scope', 
     ctx.runner = runner;
 
     const r = await runUninstall({ ...DEFAULT_FLAGS, all: true }, ctx);
-    expect(r.text).toContain('✔ plugin: uninstalled sidewise@mvp-scale (user scope)');
-    expect(r.text).toContain('✔ plugin: uninstalled sidewise@mvp-scale (project scope)');
+    expect(r.text).toContain('✔ plugin: uninstalled mm3@mvp-scale (user scope)');
+    expect(r.text).toContain('✔ plugin: uninstalled mm3@mvp-scale (project scope)');
     expect(r.text).toContain('✔ plugin: removed the mvp-scale marketplace');
     expect(r.text).toContain('✔ plugin: removed the plugin cache dir');
     expect(r.text).toContain('✔ key: removed from');
@@ -126,7 +126,7 @@ describe('runUninstall --all: also the per-user parts, and every plugin scope', 
     expect(existsSync(pluginCacheDir(home))).toBe(false);
     expect(readInstallRecord(ctx.env)).toBeUndefined();
     const npmCall = calls.find((c) => c.cmd === 'npm');
-    expect(npmCall?.args).toEqual(['uninstall', '-g', '--prefix', path.join(home, '.local'), '@mvpscale/sidewise']);
+    expect(npmCall?.args).toEqual(['uninstall', '-g', '--prefix', path.join(home, '.local'), '@mvpscale/mm3']);
   });
 
   it('--all --keep-key removes the CLI but not the key', async () => {
@@ -149,7 +149,7 @@ describe('runUninstall --all: also the per-user parts, and every plugin scope', 
     ctx.runner = runner;
     const r = await runUninstall({ ...DEFAULT_FLAGS, all: true }, ctx);
     expect(r.text).toMatch(/✖ cli: don't know how this was installed → run one of:/u);
-    expect(r.text).toContain('npm uninstall -g @mvpscale/sidewise');
+    expect(r.text).toContain('npm uninstall -g @mvpscale/mm3');
     expect(r.text).toContain('manual backup — finish these by hand if you want to:');
   });
 
@@ -157,7 +157,7 @@ describe('runUninstall --all: also the per-user parts, and every plugin scope', 
     const { ctx, home } = baseCtx();
     const userBin = path.join(home, '.local', 'bin');
     mkdirSync(userBin, { recursive: true });
-    const bin = path.join(userBin, 'sidewise');
+    const bin = path.join(userBin, 'mm3');
     writeFileSync(bin, '#!/usr/bin/env node\n');
     chmodSync(bin, 0o755);
     ctx.env.PATH = userBin;
@@ -171,7 +171,7 @@ describe('runUninstall --all: also the per-user parts, and every plugin scope', 
     const r = await runUninstall({ ...DEFAULT_FLAGS, all: true }, ctx);
     expect(r.text).toContain('✔ cli: uninstalled (was --user (guessed from its own path on PATH — no install record found))');
     const npmCall = calls.find((c) => c.cmd === 'npm' && c.args[0] === 'uninstall');
-    expect(npmCall?.args).toEqual(['uninstall', '-g', '--prefix', path.join(home, '.local'), '@mvpscale/sidewise']);
+    expect(npmCall?.args).toEqual(['uninstall', '-g', '--prefix', path.join(home, '.local'), '@mvpscale/mm3']);
   });
 
   it('a stored key that is declined interactively stays put and lands in the manual backup block, never the value', async () => {
@@ -204,18 +204,18 @@ describe('runUninstall: nothing stored means no question asked', () => {
   });
 });
 
-describe('runUninstall interactively: an explicit "n" keeps .sidewise/, an explicit "y" removes it', () => {
-  it('answering y to the .sidewise/ question actually removes it', async () => {
+describe('runUninstall interactively: an explicit "n" keeps .mm3/, an explicit "y" removes it', () => {
+  it('answering y to the .mm3/ question actually removes it', async () => {
     const { ctx } = baseCtx();
-    mkdirSync(path.join(ctx.cwd, '.sidewise'), { recursive: true });
+    mkdirSync(path.join(ctx.cwd, '.mm3'), { recursive: true });
     const { runner } = scriptedRunner({ 'claude plugin list': () => ({ status: 0, stdout: '[]', stderr: '' }) });
     ctx.runner = runner;
-    // Nothing installed at project scope, so the plugin step asks nothing; .sidewise/ is the only real prompt.
+    // Nothing installed at project scope, so the plugin step asks nothing; .mm3/ is the only real prompt.
     const promise = runUninstall({ all: false, keepKey: false, keepData: false, yes: false }, ctx);
     await new Promise((resolve) => setTimeout(resolve, 0));
     (ctx.io.input as PassThrough).write('y\n');
     const r = await promise;
-    expect(r.text).toContain('✔ project: removed .sidewise/');
-    expect(existsSync(path.join(ctx.cwd, '.sidewise'))).toBe(false);
+    expect(r.text).toContain('✔ project: removed .mm3/');
+    expect(existsSync(path.join(ctx.cwd, '.mm3'))).toBe(false);
   });
 });

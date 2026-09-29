@@ -1,6 +1,6 @@
-side:
-  goal: Has the fix from run SW-0042 been successfully applied?
-  parent: SW-0042
+mak:
+  goal: Has the fix from run MM3-0042 been successfully applied?
+  parent: MM3-0042
   compare:
     before: main
     after: HEAD

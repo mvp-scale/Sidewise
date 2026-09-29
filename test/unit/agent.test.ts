@@ -1,4 +1,4 @@
-// sidewise agent [verb]: free, no project needed — help's terse, agent-facing twin. [C-173]
+// mm3 agent [verb]: free, no project needed — help's terse, agent-facing twin. [C-173]
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { MAX_QUESTION_CHARS } from '../../src/contract/schema-check.ts';
@@ -74,8 +74,8 @@ describe('runAgent', () => {
     expect(runAgent('a\u0000b').exit).toBe(2);
   });
 
-  it('[C-181] agent with no target points explicitly at "sidewise agent probe", not just a verb', () => {
-    expect(runAgent().text).toContain('sidewise agent probe');
+  it('[C-181] agent with no target points explicitly at "mm3 agent probe", not just a verb', () => {
+    expect(runAgent().text).toContain('mm3 agent probe');
   });
 
   it('[C-181] agent probe: the 8 probe rules, bare — no citations, no headings', () => {
@@ -93,18 +93,18 @@ describe('runAgent', () => {
     expect(runAgent('view').text).toContain(String(MAX_QUESTION_CHARS));
   });
 
-  // Round-4 finding: an agent had to fail once (`✖ side.where: cannot read "..."`) to learn `where:` resolves
-  // against the MCP `project` arg/`SIDEWISE_HOME`, not session cwd — stated only in agent's overview.
-  it('[C-195] the overview states where: resolves against project/SIDEWISE_HOME, not session cwd', () => {
+  // Round-4 finding: an agent had to fail once (`✖ mak.where: cannot read "..."`) to learn `where:` resolves
+  // against the MCP `project` arg/`MM3_HOME`, not session cwd — stated only in agent's overview.
+  it('[C-195] the overview states where: resolves against project/MM3_HOME, not session cwd', () => {
     const text = runAgent().text;
-    expect(text).toContain('SIDEWISE_HOME');
+    expect(text).toContain('MM3_HOME');
     expect(text).toContain('project');
     expect(text.toLowerCase()).toContain('session cwd');
   });
 
   // [C-196] The overview's closing run: block now has a third line pointing at the new verdict topic.
-  it('[C-196] the overview points at "sidewise agent verdict" for reading a response', () => {
-    expect(runAgent().text).toContain('run: sidewise agent verdict');
+  it('[C-196] the overview points at "mm3 agent verdict" for reading a response', () => {
+    expect(runAgent().text).toContain('run: mm3 agent verdict');
   });
 
   // [C-196] A new bare topic card covering the response-side vocabulary, aligned with help verdict's prose via
@@ -203,15 +203,15 @@ describe('runAgent: the overview\'s no-key hint', () => {
     expect(text).not.toContain('run: no key');
   });
 
-  it('no key, outside the plugin: points at "sidewise init"', () => {
+  it('no key, outside the plugin: points at "mm3 init"', () => {
     const text = runAgent(undefined, {}).text;
-    expect(text).toContain('run: no key → sidewise init to add one');
+    expect(text).toContain('run: no key → mm3 init to add one');
     expect(text).not.toContain('/plugin');
   });
 
-  it('no key, inside the plugin (CLAUDE_PLUGIN_ROOT set): points at /plugin → Sidewise → Configure', () => {
-    const text = runAgent(undefined, { CLAUDE_PLUGIN_ROOT: '/plugins/sidewise' }).text;
-    expect(text).toContain('run: no key (sample answers only) → /plugin → Sidewise → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration');
+  it('no key, inside the plugin (CLAUDE_PLUGIN_ROOT set): points at /plugin → MM3 → Configure', () => {
+    const text = runAgent(undefined, { CLAUDE_PLUGIN_ROOT: '/plugins/mm3' }).text;
+    expect(text).toContain('run: no key (sample answers only) → /plugin → MM3 → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration');
   });
 
   it('a verb card is never affected by env — no key info leaks into it', () => {
@@ -219,8 +219,8 @@ describe('runAgent: the overview\'s no-key hint', () => {
     expect(text).not.toContain('run: no key');
   });
 
-  it('a bad SIDEWISE_BASE_URL never crashes the overview — it just skips the hint', () => {
-    expect(() => runAgent(undefined, { SIDEWISE_BASE_URL: 'not a url' })).not.toThrow();
+  it('a bad MM3_BASE_URL never crashes the overview — it just skips the hint', () => {
+    expect(() => runAgent(undefined, { MM3_BASE_URL: 'not a url' })).not.toThrow();
   });
 });
 
@@ -265,16 +265,16 @@ describe('every agent card follows the same key order', () => {
   });
 });
 
-// plan 2c B1/F2: `sidewise agent wise`'s card is generated from wise-fields.ts's WISE_FIELDS, or from a
-// project's own EFFECTIVE (config-overridden) table when `deps.paths` names one with a `.sidewise/config.yaml`
-// `wise:` override. Pinned exactly (no project) so any accidental drift in the card text is caught; a second
-// test proves the override actually reaches the rendered card end to end, not just in wise-fields.ts unit tests.
-describe('runAgent("wise"): the legend card', () => {
+// plan 2c B1/F2: `mm3 agent mdl`'s card is generated from mdl-fields.ts's MDL_FIELDS, or from a
+// project's own EFFECTIVE (config-overridden) table when `deps.paths` names one with a `.mm3/config.yaml`
+// `mdl:` override. Pinned exactly (no project) so any accidental drift in the card text is caught; a second
+// test proves the override actually reaches the rendered card end to end, not just in mdl-fields.ts unit tests.
+describe('runAgent("mdl"): the legend card', () => {
   it('with no project (or a project with no config override): pinned exactly to the built-in table', () => {
-    const text = runAgent('wise').text;
+    const text = runAgent('mdl').text;
     expect(text).toBe(
       [
-        'tool: wise — optional, free, ≤25 lines. Flat keys; the only nesting is a list.',
+        'tool: mdl — optional, free, ≤25 lines. Flat keys; the only nesting is a list.',
         "Every field is optional: fill what you know, omit what doesn't apply.",
         '',
         'FIELDS',
@@ -312,7 +312,7 @@ describe('runAgent("wise"): the legend card', () => {
         '  name    :=  lowercase kebab-case, or a code identifier at the code level',
         '',
         'EXAMPLE',
-        '  wise:',
+        '  mdl:',
         '    why: validate',
         '    problem: request input reaches a raw query in order creation',
         '    uses:',
@@ -327,8 +327,8 @@ describe('runAgent("wise"): the legend card', () => {
   it('a project config.yaml override for risk (values + note) appears in the rendered card, end to end', () => {
     const { paths } = tempProject({});
     mkdirSync(paths.dir, { recursive: true });
-    writeFileSync(paths.config, 'wise:\n  risk:\n    values: [minor, major, severe]\n    note: how bad if wrong, this project\'s own scale\n');
-    const text = runAgent('wise', {}, { paths }).text;
+    writeFileSync(paths.config, 'mdl:\n  risk:\n    values: [minor, major, severe]\n    note: how bad if wrong, this project\'s own scale\n');
+    const text = runAgent('mdl', {}, { paths }).text;
     expect(text).toContain('risk     minor | major | severe         how bad if wrong, this project\'s own scale');
     // every other field is unaffected by an override that only names risk.
     expect(text).toContain('why      validate | find | debug');
@@ -337,8 +337,8 @@ describe('runAgent("wise"): the legend card', () => {
   it('with no deps.paths at all: behaves exactly like before B1 (no project-config lookup attempted)', () => {
     const { paths } = tempProject({});
     mkdirSync(paths.dir, { recursive: true });
-    writeFileSync(paths.config, 'wise:\n  risk:\n    values: [minor, major, severe]\n');
+    writeFileSync(paths.config, 'mdl:\n  risk:\n    values: [minor, major, severe]\n');
     // paths omitted: the override must never leak in even though a config.yaml exists on disk somewhere.
-    expect(runAgent('wise').text).not.toContain('minor | major | severe');
+    expect(runAgent('mdl').text).not.toContain('minor | major | severe');
   });
 });

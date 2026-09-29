@@ -1,4 +1,4 @@
-// item B (round 4 fix batch G) [C-197]: a request/evidence stop already ends with "→ see: sidewise agent <verb>"
+// item B (round 4 fix batch G) [C-197]: a request/evidence stop already ends with "→ see: mm3 agent <verb>"
 // (C-153, via verbs/request.ts's stopText, shared by class/scan/drill/loop/replay/view). This file checks the
 // remaining stops — a verb or tool's OWN validation logic, outside that shared path — land the same pointer,
 // naming the right target. Structured as a flat table of {label, target, text} so a captain-owned cli.ts row
@@ -19,7 +19,7 @@ import { tempProject } from '../helpers/project.ts';
 import { sampleRun } from '../helpers/runs.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
 
-const env = { SIDEWISE_ACTOR: 'r' };
+const env = { MM3_ACTOR: 'r' };
 
 function fakeCliCtx(overrides: Partial<CliCtx> = {}): CliCtx {
   return {
@@ -28,7 +28,7 @@ function fakeCliCtx(overrides: Partial<CliCtx> = {}): CliCtx {
     platform: process.platform,
     runner: () => ({ status: 1, stdout: '', stderr: '' }),
     packageDir: process.cwd(),
-    pkg: { name: '@mvpscale/sidewise', version: '9.9.9-test' },
+    pkg: { name: '@mvpscale/mm3', version: '9.9.9-test' },
     homeDir: '/nonexistent-home',
     nodeVersion: process.version,
     stdin: () => Buffer.from(''),
@@ -37,14 +37,14 @@ function fakeCliCtx(overrides: Partial<CliCtx> = {}): CliCtx {
   };
 }
 
-/** Every stop text checked here ends "\n→ see: sidewise agent <target>" — no trailing content after it, beyond
+/** Every stop text checked here ends "\n→ see: mm3 agent <target>" — no trailing content after it, beyond
  *  the one trailing newline `runCli`'s own `finish()` adds to every text that doesn't already end with one
  *  (real dispatch output, unlike a verb called directly). */
 function expectPointer(text: string, target: string): void {
-  expect(text, `expected a "sidewise agent ${target}" pointer in: ${JSON.stringify(text)}`).toMatch(new RegExp(`\\n→ see: sidewise agent ${target}\\n?$`));
+  expect(text, `expected a "mm3 agent ${target}" pointer in: ${JSON.stringify(text)}`).toMatch(new RegExp(`\\n→ see: mm3 agent ${target}\\n?$`));
 }
 
-describe('every non-request-validation stop still points at its own "sidewise agent <target>" (item B)', () => {
+describe('every non-request-validation stop still points at its own "mm3 agent <target>" (item B)', () => {
   const cases: ReadonlyArray<{ label: string; target: string; text: string }> = (() => {
     const { paths: viewPaths } = tempProject({});
     const { paths: reportPaths } = tempProject({});
@@ -55,7 +55,7 @@ describe('every non-request-validation stop still points at its own "sidewise ag
     mkdirSync(corruptPaths.dir, { recursive: true });
     writeFileSync(corruptPaths.budget, '{ nope');
     const { paths: outcomePaths } = tempProject({});
-    appendRun(outcomePaths, sampleRun({ actor: 'someone' })); // SW-0001
+    appendRun(outcomePaths, sampleRun({ actor: 'someone' })); // MM3-0001
 
     const hasText = (v: unknown): v is { text: string } => !!v && typeof v === 'object' && typeof (v as { text?: unknown }).text === 'string';
     const textOf = (fn: () => unknown): string => {
@@ -69,7 +69,7 @@ describe('every non-request-validation stop still points at its own "sidewise ag
     };
 
     return [
-      { label: 'view: unknown run id', target: 'view', text: textOf(() => runView('SW-9999', 1, { paths: viewPaths, env: {} })) },
+      { label: 'view: unknown run id', target: 'view', text: textOf(() => runView('MM3-9999', 1, { paths: viewPaths, env: {} })) },
       { label: 'view: control characters in the target', target: 'view', text: textOf(() => runView('a\u0000b', 1, { paths: viewPaths, env: {} })) },
       { label: 'view: a path outside the project', target: 'view', text: textOf(() => runView('../../etc', 1, { paths: viewPaths, env: {} })) },
       { label: 'report: not a recognized view', target: 'report', text: textOf(() => runReport('nonsense', { paths: reportPaths })) },
@@ -85,8 +85,8 @@ describe('every non-request-validation stop still points at its own "sidewise ag
       // plan 2c B1: a corrupt legacy budget.json no longer stops anything (silently ignored — config.yaml is
       // the real authority now); the still-live budget stop is `set` given a non-positive cap.
       { label: 'budget: set given a bad cap', target: 'budget', text: textOf(() => setBudget(corruptPaths, { capUsd: 0 })) },
-      { label: 'outcome: an unknown run id', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'SW-9999', 'held', 'anyone')) },
-      { label: 'outcome: the asking actor can\'t self-certify "held"', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'SW-0001', 'held', 'someone')) },
+      { label: 'outcome: an unknown run id', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'MM3-9999', 'held', 'anyone')) },
+      { label: 'outcome: the asking actor can\'t self-certify "held"', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'MM3-0001', 'held', 'someone')) },
     ];
   })();
 
@@ -96,7 +96,7 @@ describe('every non-request-validation stop still points at its own "sidewise ag
   // needs its own async setup (a real parent run), so these sit outside the sync table above.
   it('drill: an unknown parent', async () => {
     const { paths } = tempProject({});
-    const r = await runDrill('side:\n  goal: check this\n  parent: SW-0042\n  from: x\n  ask:\n    a:\n      pass: yes\n      1: is it true?\n', {
+    const r = await runDrill('mak:\n  goal: check this\n  parent: MM3-0042\n  from: x\n  ask:\n    a:\n      pass: yes\n      1: is it true?\n', {
       paths,
       provider: stubProvider(),
       env,
@@ -104,34 +104,34 @@ describe('every non-request-validation stop still points at its own "sidewise ag
     expectPointer(r.text, 'drill');
   });
 
-  it('drill: side.over given when the parent was not a sweep', async () => {
+  it('drill: mak.over given when the parent was not a sweep', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return x; }\n' });
     const classReq =
-      'side:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n' +
+      'mak:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n  ask:\n    injection:\n      pass: no\n' +
       Array.from({ length: 10 }, (_, i) => `      ${i + 1}: is question ${i + 1} true?\n`).join('');
     const { runClass } = await import('../../src/verbs/class.ts');
-    await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
+    await runClass(classReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // MM3-0001
     const bad =
-      'side:\n  goal: find the bug\n  parent: SW-0001\n  from: injection\n  over:\n    call: each\n  ask:\n    call:\n      x:\n        pass: no\n        1: is it unsafe?\n';
+      'mak:\n  goal: find the bug\n  parent: MM3-0001\n  from: injection\n  over:\n    call: each\n  ask:\n    call:\n      x:\n        pass: no\n        1: is it unsafe?\n';
     const r = await runDrill(bad, { paths, provider: stubProvider(), env });
     expectPointer(r.text, 'drill');
   });
 
   // loop is already fully routed through stopText/loadRequest (like class/scan) — one smoke case confirms it,
   // rather than re-asserting C-153's own coverage.
-  it('loop: an invalid request (no ask:) still points at "sidewise agent loop"', async () => {
+  it('loop: an invalid request (no ask:) still points at "mm3 agent loop"', async () => {
     const { paths } = tempProject({});
-    const r = await runLoop('side:\n  goal: x\n', { paths, provider: stubProvider(), env });
+    const r = await runLoop('mak:\n  goal: x\n', { paths, provider: stubProvider(), env });
     expectPointer(r.text, 'loop');
   });
 
-  // template.ts's own stop messages (crew 3's file, item E's --from SW-#### plus the pre-existing ones) — added
+  // template.ts's own stop messages (crew 3's file, item E's --from MM3-#### plus the pre-existing ones) — added
   // by the captain after crew 3 finished, using the same stopText reuse as view/drill/report.
   it.each([
     { label: 'template: not a verb', fn: () => runTemplate('nope') },
-    { label: 'template: --parent only applies to drill', fn: () => runTemplate('class', { parent: 'SW-0001' }) },
+    { label: 'template: --parent only applies to drill', fn: () => runTemplate('class', { parent: 'MM3-0001' }) },
     { label: 'template: --where/--goal need --from', fn: () => runTemplate('class', { goal: 'x' }) },
-    { label: 'template: --from SW-#### with no project reachable', fn: () => runTemplate('class', { from: 'SW-0001' }, undefined) },
+    { label: 'template: --from MM3-#### with no project reachable', fn: () => runTemplate('class', { from: 'MM3-0001' }, undefined) },
   ])('$label', ({ fn }) => expectPointer(fn().text, 'template'));
 
   // The cli.ts-level gaps stopText never reaches: a bare usage mistake, a missing project, and a request file
@@ -149,14 +149,14 @@ describe('every non-request-validation stop still points at its own "sidewise ag
 
     it('a request file cli.ts itself could not read points at the verb run', async () => {
       const { root } = tempProject({});
-      mkdirSync(`${root}/.sidewise`, { recursive: true });
+      mkdirSync(`${root}/.mm3`, { recursive: true });
       const r = await runCli(['class', '/no/such/file.yaml'], fakeCliCtx({ cwd: root }));
       expectPointer(r.text, 'class');
     });
 
-    // plan 2c B1b: doctor now has its own agent card (`sidewise agent doctor`), so a usage mistake points at it
+    // plan 2c B1b: doctor now has its own agent card (`mm3 agent doctor`), so a usage mistake points at it
     // like every other pointable command — this used to be the one exception.
-    it('doctor is now pointable too: a bad flag points at "sidewise agent doctor"', async () => {
+    it('doctor is now pointable too: a bad flag points at "mm3 agent doctor"', async () => {
       const r = await runCli(['doctor', '--bogus'], fakeCliCtx());
       expectPointer(r.text, 'doctor');
     });

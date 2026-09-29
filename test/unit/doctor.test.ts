@@ -12,7 +12,7 @@ import { runDoctor, runDoctorFile } from '../../src/verbs/doctor.ts';
 import { tempProject } from '../helpers/project.ts';
 
 function tmpXdg(): { XDG_CONFIG_HOME: string } {
-  return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'sidewise-doctor-')) };
+  return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'mm3-doctor-')) };
 }
 
 describe('doctor (P5)', () => {
@@ -27,20 +27,20 @@ describe('doctor (P5)', () => {
     expect(r.text).toContain('project: none');
     expect(r.text).toContain('node: v22.13.0');
     expect(r.text).not.toContain('baseURL');
-    expect(r.text).toContain('actor: agent (default) → set SIDEWISE_ACTOR to change');
+    expect(r.text).toContain('actor: agent (default) → set MM3_ACTOR to change');
   });
 
   // Fix #18: every run/outcome defaults to `by: agent`; doctor shows what will actually be used, so the
-  // resolved value (SIDEWISE_ACTOR, set for real MCP calls by cli.ts's mcp wiring — see src/mcp/actor.ts) is
+  // resolved value (MM3_ACTOR, set for real MCP calls by cli.ts's mcp wiring — see src/mcp/actor.ts) is
   // visible without a paid run. [C-143]
-  it('actor: shows a set SIDEWISE_ACTOR verbatim', () => {
-    const r = runDoctor({ SIDEWISE_ACTOR: 'corey' }, undefined, 'v22.13.0');
+  it('actor: shows a set MM3_ACTOR verbatim', () => {
+    const r = runDoctor({ MM3_ACTOR: 'corey' }, undefined, 'v22.13.0');
     expect(r.text).toContain('actor: corey');
   });
 
-  it('actor: blank/whitespace-only SIDEWISE_ACTOR reads as unset, same as pay.ts\'s own actorOf', () => {
-    const r = runDoctor({ SIDEWISE_ACTOR: '   ' }, undefined, 'v22.13.0');
-    expect(r.text).toContain('actor: agent (default) → set SIDEWISE_ACTOR to change');
+  it('actor: blank/whitespace-only MM3_ACTOR reads as unset, same as pay.ts\'s own actorOf', () => {
+    const r = runDoctor({ MM3_ACTOR: '   ' }, undefined, 'v22.13.0');
+    expect(r.text).toContain('actor: agent (default) → set MM3_ACTOR to change');
   });
 
   it('a direct key: shows the route and base URL, never the key value', () => {
@@ -62,8 +62,8 @@ describe('doctor (P5)', () => {
     expect(r.text).toContain('wireModel: typesafe-ai/jev');
   });
 
-  it('SIDEWISE_PROVIDER=chaos names chaos, no base URL', () => {
-    const r = runDoctor({ SIDEWISE_PROVIDER: 'chaos' }, undefined);
+  it('MM3_PROVIDER=chaos names chaos, no base URL', () => {
+    const r = runDoctor({ MM3_PROVIDER: 'chaos' }, undefined);
     expect(r.text).toContain('provider: chaos');
     expect(r.text).toContain('route: chaos');
     expect(r.text).not.toContain('baseURL');
@@ -80,21 +80,21 @@ describe('doctor (P5)', () => {
 
   it('"plugin enabled here" is yes when the plugin is installed at project scope [C-102]', () => {
     const { paths } = tempProject({});
-    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'project' }]), stderr: '' });
+    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'mm3', scope: 'project' }]), stderr: '' });
     const r = runDoctor({}, paths, undefined, { runner });
     expect(r.text).toContain('plugin enabled here: yes');
   });
 
   it('"plugin enabled here" is also yes for a user-scope install — it applies to every project [C-102]', () => {
     const { paths } = tempProject({});
-    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'user' }]), stderr: '' });
+    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'mm3', scope: 'user' }]), stderr: '' });
     const r = runDoctor({}, paths, undefined, { runner });
     expect(r.text).toContain('plugin enabled here: yes');
   });
 
   it('"plugin enabled here" is also yes for a local-scope install (best-effort: no per-entry project path to match against) [C-102]', () => {
     const { paths } = tempProject({});
-    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'local' }]), stderr: '' });
+    const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'mm3', scope: 'local' }]), stderr: '' });
     const r = runDoctor({}, paths, undefined, { runner });
     expect(r.text).toContain('plugin enabled here: yes');
   });
@@ -146,10 +146,10 @@ describe('doctor (P5)', () => {
     expect(r.text).toMatch(/^JEV_MODEL="jev-latest" floats/);
   });
 
-  it('a bad SIDEWISE_BASE_URL: exit 2, ✖ SIDEWISE_BASE_URL [C-095]', () => {
-    const r = runDoctor({ SIDEWISE_BASE_URL: 'http://example.com' }, undefined);
+  it('a bad MM3_BASE_URL: exit 2, ✖ MM3_BASE_URL [C-095]', () => {
+    const r = runDoctor({ MM3_BASE_URL: 'http://example.com' }, undefined);
     expect(r.exit).toBe(2);
-    expect(r.text).toMatch(/^✖ SIDEWISE_BASE_URL:/);
+    expect(r.text).toMatch(/^✖ MM3_BASE_URL:/);
   });
 
   it('never leaks a key substring, even alongside an invalid config [C-095]', () => {
@@ -161,24 +161,24 @@ describe('doctor (P5)', () => {
   });
 
   describe('the key/cli/plugin lines [C-098]', () => {
-    it('no key anywhere: the exact "run sidewise init" line', () => {
+    it('no key anywhere: the exact "run mm3 init" line', () => {
       const r = runDoctor({}, undefined);
-      expect(r.text).toContain('key: no  → run "sidewise init" to add one');
+      expect(r.text).toContain('key: no  → run "mm3 init" to add one');
     });
 
-    // [C-190] Inside the plugin's own bundled MCP server (CLAUDE_PLUGIN_ROOT set), "sidewise init" isn't
+    // [C-190] Inside the plugin's own bundled MCP server (CLAUDE_PLUGIN_ROOT set), "mm3 init" isn't
     // reachable from here, so the hint points at the config dialog instead.
-    it('no key, inside the plugin (CLAUDE_PLUGIN_ROOT set): points at /plugin → Sidewise → Configure', () => {
-      const r = runDoctor({ CLAUDE_PLUGIN_ROOT: '/plugins/sidewise' }, undefined);
+    it('no key, inside the plugin (CLAUDE_PLUGIN_ROOT set): points at /plugin → MM3 → Configure', () => {
+      const r = runDoctor({ CLAUDE_PLUGIN_ROOT: '/plugins/mm3' }, undefined);
       expect(r.text).toContain(
-        'key: none (sample answers only) → /plugin → Sidewise → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration',
+        'key: none (sample answers only) → /plugin → MM3 → Configure → press Enter on "TypeSafe API key", paste, Enter, Save configuration',
       );
-      expect(r.text).not.toContain('run "sidewise init" to add one');
+      expect(r.text).not.toContain('run "mm3 init" to add one');
     });
 
     it('no key, CLAUDE_PLUGIN_ROOT blank: still the terminal hint, not the plugin one', () => {
       const r = runDoctor({ CLAUDE_PLUGIN_ROOT: '' }, undefined);
-      expect(r.text).toContain('key: no  → run "sidewise init" to add one');
+      expect(r.text).toContain('key: no  → run "mm3 init" to add one');
     });
 
     it('an env key, with no deps.resolveStored injected: named by its env var, no "(overrides stored)"', () => {
@@ -222,35 +222,35 @@ describe('doctor (P5)', () => {
 
     it('cli: no PATH match and no install record → the exact stop-and-fix line', () => {
       const r = runDoctor({ PATH: '/does/not/exist' }, undefined);
-      expect(r.text).toContain('cli: not on PATH → run "sidewise init" to install it');
+      expect(r.text).toContain('cli: not on PATH → run "mm3 init" to install it');
     });
 
     it('plugin: with no deps.runner injected, always reads as not installed (never spawns claude for real)', () => {
       const r = runDoctor({}, undefined);
-      expect(r.text).toContain('plugin: not installed → "sidewise init --claude"');
+      expect(r.text).toContain('plugin: not installed → "mm3 init --claude"');
     });
 
     it('plugin: installed, named scope, through an injected runner', () => {
-      const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'user' }]), stderr: '' });
+      const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'mm3', scope: 'user' }]), stderr: '' });
       const r = runDoctor({}, undefined, undefined, { runner });
-      expect(r.text).toContain('plugin: sidewise@mvp-scale · user scope');
+      expect(r.text).toContain('plugin: mm3@mvp-scale · user scope');
     });
 
-    it('plugin: user scope ONLY nudges toward project scope — using Sidewise is per project [C-177]', () => {
-      const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'user' }]), stderr: '' });
+    it('plugin: user scope ONLY nudges toward project scope — using MM3 is per project [C-177]', () => {
+      const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'mm3', scope: 'user' }]), stderr: '' });
       const r = runDoctor({}, undefined, undefined, { runner });
-      expect(r.text).toContain('plugin: sidewise@mvp-scale · user scope (every project) → for just this one, "sidewise init --scope project"');
+      expect(r.text).toContain('plugin: mm3@mvp-scale · user scope (every project) → for just this one, "mm3 init --scope project"');
     });
 
     it('plugin: project scope present → no user-only nudge', () => {
-      const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'sidewise', scope: 'project' }]), stderr: '' });
+      const runner: Runner = (): RunResult => ({ status: 0, stdout: JSON.stringify([{ name: 'mm3', scope: 'project' }]), stderr: '' });
       const r = runDoctor({}, undefined, undefined, { runner });
-      expect(r.text).toContain('plugin: sidewise@mvp-scale · project scope');
-      expect(r.text).not.toContain('sidewise init --scope project');
+      expect(r.text).toContain('plugin: mm3@mvp-scale · project scope');
+      expect(r.text).not.toContain('mm3 init --scope project');
     });
   });
 
-  // plan 2c B1b: bare `sidewise doctor` also validates .sidewise/config.yaml when present.
+  // plan 2c B1b: bare `mm3 doctor` also validates .mm3/config.yaml when present.
   describe('the config: field [plan 2c B1b]', () => {
     it('no project at all: config: defaults', () => {
       const r = runDoctor({}, undefined);
@@ -264,13 +264,13 @@ describe('doctor (P5)', () => {
     });
 
     it('a clean override file: config: N overrides', () => {
-      const { paths } = tempProject({ '.sidewise/config.yaml': 'budget:\n  usd: 10\nprovider: fake\n' });
+      const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: 10\nprovider: fake\n' });
       const r = runDoctor({}, paths);
       expect(r.text).toContain('config: "✔ config: 2 overrides"');
     });
 
-    it('a broken config.yaml: every problem in one pass, same ✖ config.<path> shape sidewise config uses', () => {
-      const { paths } = tempProject({ '.sidewise/config.yaml': 'budget:\n  usd: -1\nnope: true\n' });
+    it('a broken config.yaml: every problem in one pass, same ✖ config.<path> shape mm3 config uses', () => {
+      const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: -1\nnope: true\n' });
       const r = runDoctor({}, paths);
       expect(r.exit).toBe(0); // a bad config.yaml is reported, not fatal to the rest of the doctor report
       expect(r.text).toContain('✖ config.budget.usd:');
@@ -282,25 +282,25 @@ describe('doctor (P5)', () => {
 const VALID_CLASS_REQUEST = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 
 describe('runDoctorFile [plan 2c B1b]', () => {
-  it('a request-shaped document (side:) is checked the same way --dry-run would', () => {
+  it('a request-shaped document (mak:) is checked the same way --dry-run would', () => {
     const r = runDoctorFile(VALID_CLASS_REQUEST);
     expect(r.exit).toBe(0);
     expect(r.text).toBe('✔ request: valid → checked as class');
   });
 
-  it('an explicit side.verb is honored over the class default', () => {
-    const r = runDoctorFile('side:\n  goal: verify the fix\n  parent: SW-0001\n  compare: {before: a, after: b}\n  expect: none\n  verb: replay\n');
+  it('an explicit mak.verb is honored over the class default', () => {
+    const r = runDoctorFile('mak:\n  goal: verify the fix\n  parent: MM3-0001\n  compare: {before: a, after: b}\n  expect: none\n  verb: replay\n');
     expect(r.exit).toBe(0);
     expect(r.text).toBe('✔ request: valid → checked as replay');
   });
 
   it('an invalid request: the same ✖ field: problem → fix shape, pointed at the inferred verb\'s own agent card', () => {
-    const r = runDoctorFile('side:\n  goal: x\n');
+    const r = runDoctorFile('mak:\n  goal: x\n');
     expect(r.exit).toBe(2);
-    expect(r.text).toContain('✖ side.goal:');
+    expect(r.text).toContain('✖ mak.goal:');
     // loadRequest's own stopText points at the verb it validated against (class, the fallback here) — the
     // same pointer every other class-verb stop gets, not a doctor-specific one.
-    expect(r.text).toContain('→ see: sidewise agent class');
+    expect(r.text).toContain('→ see: mm3 agent class');
   });
 
   it('never touches the ledger/reuse/budget: a valid request with no project at all still just validates', () => {
@@ -309,7 +309,7 @@ describe('runDoctorFile [plan 2c B1b]', () => {
     expect(r.exit).toBe(0);
   });
 
-  it('anything without a top-level side: is checked as a config file', () => {
+  it('anything without a top-level mak: is checked as a config file', () => {
     const r = runDoctorFile('budget:\n  usd: 10\n');
     expect(r).toEqual({ exit: 0, text: '✔ config: valid' });
   });
@@ -319,7 +319,7 @@ describe('runDoctorFile [plan 2c B1b]', () => {
     expect(r.exit).toBe(2);
     expect(r.text).toContain('✖ config.budget.usd:');
     expect(r.text).toContain('✖ config.nope:');
-    expect(r.text).toContain('→ see: sidewise agent doctor');
+    expect(r.text).toContain('→ see: mm3 agent doctor');
   });
 
   it('a YAML syntax error in a config-shaped file: the line number, not a crash', () => {
@@ -334,13 +334,13 @@ describe('runDoctorFile [plan 2c B1b]', () => {
   });
 
   // Controller-found defect (plan 2c B): a contract cross-stop (sections/angles/counts) already embeds its own
-  // "→ see: sidewise agent probe" pointer; loadRequest's stopText then appends a second, generic
-  // "→ see: sidewise agent <verb>" at the very end. Fine for a real verb's --dry-run (schema-check.ts's own
+  // "→ see: mm3 agent probe" pointer; loadRequest's stopText then appends a second, generic
+  // "→ see: mm3 agent <verb>" at the very end. Fine for a real verb's --dry-run (schema-check.ts's own
   // header comment says that pointer is deliberately additional there), but doctor is meant to print each stop
   // once with a SINGLE trailing pointer.
   it('a request with a contract cross-stop: exactly one trailing → see: pointer, not two', () => {
     const text = [
-      'side:',
+      'mak:',
       '  goal: This login handler is safe to merge',
       '  depth: quick',
       '  where: [src/user.ts:1-3]',
@@ -368,6 +368,6 @@ describe('runDoctorFile [plan 2c B1b]', () => {
     expect(r.exit).toBe(2);
     const pointers = r.text.match(/→ see:/g) ?? [];
     expect(pointers).toHaveLength(1);
-    expect(r.text.trim().endsWith('→ see: sidewise agent class')).toBe(true);
+    expect(r.text.trim().endsWith('→ see: mm3 agent class')).toBe(true);
   });
 });

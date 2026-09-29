@@ -1,12 +1,12 @@
 /**
  * Project-relative file patterns for scan (over.file) and loop's folder places, with no dependency:
  * `*` (within a folder), `**` (any depth), `?` and `{a,b}`. The walk never follows symlinks and skips .git,
- * node_modules, .sidewise and dist, so a pattern can't leave the project or wander into generated code.
+ * node_modules, .mm3 and dist, so a pattern can't leave the project or wander into generated code.
  */
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
 
-export const SKIP_DIRS = new Set(['.git', 'node_modules', '.sidewise', 'dist']);
+export const SKIP_DIRS = new Set(['.git', 'node_modules', '.mm3', 'dist']);
 export const MAX_FILES = 500;
 
 const escape = (s: string): string => s.replace(/[.+^$()|[\]\\]/gu, '\\$&');

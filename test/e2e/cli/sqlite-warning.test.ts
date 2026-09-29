@@ -18,8 +18,8 @@ const DIST_INDEX = path.resolve('dist/ledger/index.js');
 const RUN_LINE = JSON.stringify({
   kind: 'run',
   v: 2,
-  id: 'SW-0001',
-  uid: 'SW-0001-u',
+  id: 'MM3-0001',
+  uid: 'MM3-0001-u',
   ts: '2026-09-01T00:00:00Z',
   verb: 'class',
   actor: 'agent',
@@ -30,7 +30,7 @@ const RUN_LINE = JSON.stringify({
   parent: null,
   from: null,
   compare: null,
-  wise: null,
+  mdl: null,
   ask: { categories: [], layers: [] },
   over: null,
   items: null,
@@ -42,7 +42,7 @@ const RUN_LINE = JSON.stringify({
   goalGate: 'pass',
   goalP: 0.9,
   consensus: 'STRONG',
-  response: 'side:\n  id: SW-0001\n',
+  response: 'mak:\n  id: MM3-0001\n',
   notes: [],
   adapter: 'typesafe',
   model: 'jev-1.13.0',
@@ -52,14 +52,14 @@ const RUN_LINE = JSON.stringify({
 
 describe.skipIf(!hasNodeSqlite)('the node:sqlite ExperimentalWarning is suppressed end-to-end; another warning is not', () => {
   it('a real self-heal build prints no SQLite warning, with a different warning still printing around it', () => {
-    const dir = mkdtempSync(path.join(os.tmpdir(), 'sidewise-warning-'));
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'mm3-warning-'));
     try {
-      const sidewiseDir = path.join(dir, '.sidewise');
-      mkdirSync(sidewiseDir, { recursive: true });
+      const mm3Dir = path.join(dir, '.mm3');
+      mkdirSync(mm3Dir, { recursive: true });
       const script = [
         `const { writeFileSync } = require('node:fs');`,
         `const { pathToFileURL } = require('node:url');`,
-        `writeFileSync(${JSON.stringify(path.join(sidewiseDir, 'log.jsonl'))}, ${JSON.stringify(`${RUN_LINE}\n`)});`,
+        `writeFileSync(${JSON.stringify(path.join(mm3Dir, 'log.jsonl'))}, ${JSON.stringify(`${RUN_LINE}\n`)});`,
         `(async () => {`,
         `  const { pathsFor } = await import(pathToFileURL(${JSON.stringify(DIST_PATHS)}).href);`,
         `  const { withIndex } = await import(pathToFileURL(${JSON.stringify(DIST_INDEX)}).href);`,

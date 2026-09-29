@@ -9,21 +9,21 @@ import { resolveConfig } from '../config/load.ts';
 import { gradeItems, goalGate, sweepGate, worstFirst } from '../contract/grade.ts';
 import { m } from '../contract/emit.ts';
 import type { Category } from '../contract/types.ts';
-import { effectiveWiseFields } from '../contract/wise-fields.ts';
+import { effectiveMdlFields } from '../contract/mdl-fields.ts';
 import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { cacheTelemetry, reusedAgeNotes } from '../ledger/reuse.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
 import { loadRequest } from './request.ts';
-import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, reusedIds, sweepEntry, sweepNext, wiseRecorded } from './respond.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, reusedIds, sweepEntry, sweepNext, mdlRecorded } from './respond.ts';
 import { itemRecords, planNeedsBudget, plannedCallCount, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
 export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResult> {
-  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
+  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, 'loop', wiseFields);
+  const mdlFields = effectiveMdlFields(cfg.mdl);
+  const loaded = loadRequest(text, 'loop', mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 
@@ -31,7 +31,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, {}, { sweep: cfg.sweep, reuse: cfg.reuse });
 
-  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.side));
+  if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.mak));
 
   // A fully-reused loop (every layer's call: null) must never be blocked by an already-reached cap.
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
@@ -41,7 +41,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   if (!ran.ok) return ran.result;
   const { answers, costUsd, costEstimated, telemetry, statusOf } = ran.value;
 
-  const categoriesOf = (layer: string): readonly Category[] => request.side.layers.find((l) => l.name === layer)!.categories;
+  const categoriesOf = (layer: string): readonly Category[] => request.mak.layers.find((l) => l.name === layer)!.categories;
   const grades = gradeItems(plan.items, categoriesOf, statusOf, answers);
 
   const goalAnswer = answers['goal'] as { kind: 'yesno'; p: number } | undefined;
@@ -67,7 +67,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const response = (id: string, budget: string): string =>
     respondText(
       m(['id', id], ['gate', gate], ['goal', m(['gate', goal], ['p', goalAnswer?.p ?? 0])], ['failing', failing], ['passing', passing]),
-      wiseRecorded(request.wise),
+      mdlRecorded(request.mdl),
       sweepNext(id, gate, worst, graded, 'act on it'),
       commonNotes(
         [...loaded.notes, ...plan.splitNotes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
@@ -79,17 +79,17 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   const run: NewContractRun = {
     verb: 'loop',
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
-    depth: request.side.depth ?? null,
-    where: request.side.where,
-    parent: request.side.parent ?? request.wise?.parent ?? null,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
+    depth: request.mak.depth ?? null,
+    where: request.mak.where,
+    parent: request.mak.parent ?? request.mdl?.parent ?? null,
     from: null,
     compare: null,
-    commit: currentCommitSha(ctx.paths.root, request.side.where),
-    wise: request.wise,
-    ask: { categories: [], layers: request.side.layers },
-    over: request.side.over!,
+    commit: currentCommitSha(ctx.paths.root, request.mak.where),
+    mdl: request.mdl,
+    ask: { categories: [], layers: request.mak.layers },
+    over: request.mak.over!,
     items,
     answers,
     keys: Object.fromEntries(plan.keys),

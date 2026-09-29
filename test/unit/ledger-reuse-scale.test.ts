@@ -75,7 +75,7 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
         badRate: 0.25,
         providers: [
           { adapter: 'typesafe', model: 'jev-1.13.0', weight: 3 },
-          { adapter: 'fake', model: 'sidewise-fake-1', weight: 1 },
+          { adapter: 'fake', model: 'mm3-fake-1', weight: 1 },
         ],
       });
       const records = readLedger(paths);
@@ -83,7 +83,7 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
       const rand = seededRandom('reuse-scale-queries');
       const pick = <T,>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
       for (let i = 0; i < 300; i++) {
-        const who: Who = pick([{ adapter: 'typesafe', model: 'jev-1.13.0' }, { adapter: 'fake', model: 'sidewise-fake-1' }, { adapter: 'typesafe', model: 'jev-1.12.0' }]);
+        const who: Who = pick([{ adapter: 'typesafe', model: 'jev-1.13.0' }, { adapter: 'fake', model: 'mm3-fake-1' }, { adapter: 'typesafe', model: 'jev-1.12.0' }]);
         const keys = Array.from({ length: 1 + Math.floor(rand() * 3) }, () => pick(allKeys));
         const wantLookup = linearLookup(records, who, keys);
         const gotLookup = lookupAnswers(paths, who, keys);
@@ -106,8 +106,8 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
 
   // The generator above (writeSyntheticLedger/generateLedgerRecords) always sets reusedFrom: {} — every run is
   // its own origin, so the previous test's "even reached through a chain" never actually built one. This test
-  // hand-writes a REAL chain: two runs (SW-0002, SW-0003) whose own reusedFrom points back at a common origin
-  // (SW-0001), plus a separate "blocked newest holder" pair (SW-0004 older/valid, SW-0005 newer/blocked) for
+  // hand-writes a REAL chain: two runs (MM3-0002, MM3-0003) whose own reusedFrom points back at a common origin
+  // (MM3-0001), plus a separate "blocked newest holder" pair (MM3-0004 older/valid, MM3-0005 newer/blocked) for
   // the same key — exactly the two gaps a profiling review flagged as untested.
   it('a real multi-hop reusedFrom chain traces back to its true origin, and a blocked newest holder falls back to an older valid one', () => {
     const { paths } = tempProject({});
@@ -129,7 +129,7 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
         parent: null,
         from: null,
         compare: null,
-        wise: null,
+        mdl: null,
         ask: { categories: [], layers: [] },
         over: null,
         items: null,
@@ -141,7 +141,7 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
         goalGate: 'pass',
         goalP: 0.9,
         consensus: 'STRONG',
-        response: `side:\n  id: ${id}\n`,
+        response: `mak:\n  id: ${id}\n`,
         notes: [],
         adapter: who.adapter,
         model: who.model,
@@ -150,44 +150,44 @@ describe('index-backed reuse agrees with the linear oracle at scale', () => {
       });
 
     const lines = [
-      // SW-0001: the true origin of k-chain.
-      mkRun('SW-0001', '2026-09-01T00:00:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, {}),
-      // SW-0002: reuses k-chain FROM SW-0001 — a real hop.
-      mkRun('SW-0002', '2026-09-01T00:05:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, { '1': 'SW-0001' }),
-      // SW-0003: reuses k-chain from SW-0001 too — a second, independent hop from the same origin.
-      mkRun('SW-0003', '2026-09-01T00:10:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, { '1': 'SW-0001' }),
-      // SW-0004: an older, independent fresh ask of k-newest (its own origin).
-      mkRun('SW-0004', '2026-09-01T00:15:00Z', { '1': 'k-newest' }, { '1': mkAnswer(0.2) }, {}),
-      // SW-0005: a LATER, independent fresh ask of the SAME key (also its own origin) — the "newest holder"
-      // the answer_keys table's self-compacting design would otherwise overwrite SW-0004's row with.
-      mkRun('SW-0005', '2026-09-01T00:20:00Z', { '1': 'k-newest' }, { '1': mkAnswer(0.3) }, {}),
+      // MM3-0001: the true origin of k-chain.
+      mkRun('MM3-0001', '2026-09-01T00:00:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, {}),
+      // MM3-0002: reuses k-chain FROM MM3-0001 — a real hop.
+      mkRun('MM3-0002', '2026-09-01T00:05:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, { '1': 'MM3-0001' }),
+      // MM3-0003: reuses k-chain from MM3-0001 too — a second, independent hop from the same origin.
+      mkRun('MM3-0003', '2026-09-01T00:10:00Z', { '1': 'k-chain' }, { '1': mkAnswer(0.9) }, { '1': 'MM3-0001' }),
+      // MM3-0004: an older, independent fresh ask of k-newest (its own origin).
+      mkRun('MM3-0004', '2026-09-01T00:15:00Z', { '1': 'k-newest' }, { '1': mkAnswer(0.2) }, {}),
+      // MM3-0005: a LATER, independent fresh ask of the SAME key (also its own origin) — the "newest holder"
+      // the answer_keys table's self-compacting design would otherwise overwrite MM3-0004's row with.
+      mkRun('MM3-0005', '2026-09-01T00:20:00Z', { '1': 'k-newest' }, { '1': mkAnswer(0.3) }, {}),
     ];
     mkdirSync(paths.dir, { recursive: true });
     writeFileSync(paths.log, `${lines.join('\n')}\n`);
-    // SW-0001 (the chain's true origin) and SW-0005 (the newest k-newest holder) are both overruled.
+    // MM3-0001 (the chain's true origin) and MM3-0005 (the newest k-newest holder) are both overruled.
     appendFileSync(
       paths.log,
-      `${JSON.stringify({ kind: 'outcome', id: 'SW-0001-outcome', uid: 'o1', ts: '2026-09-01T00:25:00Z', of: 'SW-0001', outcome: 'overruled', by: 'owner' })}\n`,
+      `${JSON.stringify({ kind: 'outcome', id: 'MM3-0001-outcome', uid: 'o1', ts: '2026-09-01T00:25:00Z', of: 'MM3-0001', outcome: 'overruled', by: 'owner' })}\n`,
     );
     appendFileSync(
       paths.log,
-      `${JSON.stringify({ kind: 'outcome', id: 'SW-0005-outcome', uid: 'o2', ts: '2026-09-01T00:26:00Z', of: 'SW-0005', outcome: 'overruled', by: 'owner' })}\n`,
+      `${JSON.stringify({ kind: 'outcome', id: 'MM3-0005-outcome', uid: 'o2', ts: '2026-09-01T00:26:00Z', of: 'MM3-0005', outcome: 'overruled', by: 'owner' })}\n`,
     );
 
     const records = readLedger(paths);
 
     // The chain: k-chain must be unreusable everywhere, even via B or C, since its true origin is blocked —
-    // not just "SW-0001 itself is blocked" but "everything that ever copied from it is blocked too."
+    // not just "MM3-0001 itself is blocked" but "everything that ever copied from it is blocked too."
     expect(lookupAnswers(paths, who, ['k-chain']).size).toBe(0);
     expect(exactReuse(paths, who, ['k-chain'])).toBeUndefined();
     expect(idAnswerOnly(lookupAnswers(paths, who, ['k-chain']))).toEqual(Object.fromEntries(linearLookup(records, who, ['k-chain'])));
     expect(exactReuse(paths, who, ['k-chain'])).toBe(linearExact(records, who, ['k-chain']));
 
-    // The blocked-newest-holder case: SW-0005 (newest) is blocked, so the older, still-valid SW-0004 must be
+    // The blocked-newest-holder case: MM3-0005 (newest) is blocked, so the older, still-valid MM3-0004 must be
     // the one found — the self-compacting answer_keys table's single "current holder" row for k-newest points
-    // at SW-0005, so this only works if the fallback correctly walks PAST a blocked current holder.
+    // at MM3-0005, so this only works if the fallback correctly walks PAST a blocked current holder.
     const gotNewest = lookupAnswers(paths, who, ['k-newest']);
-    expect(gotNewest.get('k-newest')?.id).toBe('SW-0004');
+    expect(gotNewest.get('k-newest')?.id).toBe('MM3-0004');
     expect(idAnswerOnly(gotNewest)).toEqual(Object.fromEntries(linearLookup(records, who, ['k-newest'])));
     expect(exactReuse(paths, who, ['k-newest'])).toBe(linearExact(records, who, ['k-newest']));
 

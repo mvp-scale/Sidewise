@@ -1,12 +1,12 @@
 /**
- * `sidewise init`: makes the CLI reachable and gets a key stored somewhere real (both per user, shared across
- * every project), then — per project, since using Sidewise is always scoped to the project whose code and
- * ledger it's answering about — wires up the Claude Code plugin at project scope and sets up `.sidewise/`.
+ * `mm3 init`: makes the CLI reachable and gets a key stored somewhere real (both per user, shared across
+ * every project), then — per project, since using MM3 is always scoped to the project whose code and
+ * ledger it's answering about — wires up the Claude Code plugin at project scope and sets up `.mm3/`.
  * Idempotent (a re-run that finds a step already done says so and changes nothing) and interactive by default;
  * `--yes` takes the default answer everywhere. Every step prints exactly one line, glyph first: `✔ done`,
  * `· already`, `– skipped (why)`, or `✖ problem → fix`.
  *
- * Run outside a git project, only the two per-user steps (CLI, key) run; there's no project to enable Sidewise
+ * Run outside a git project, only the two per-user steps (CLI, key) run; there's no project to enable MM3
  * for, so init stops there with one line telling the user to cd into one.
  *
  * Every external effect (npm, claude, the OS keychain, a real prompt) comes in through `InitCtx`'s `runner`/
@@ -29,7 +29,7 @@ import type { Runner } from './runner.ts';
 export interface InitFlags {
   mode?: InstallMode;
   claude?: boolean; // true: --claude, false: --no-claude, undefined: auto (use claude if it's on PATH)
-  scope?: 'user' | 'project'; // default: 'project' — using Sidewise is scoped per project
+  scope?: 'user' | 'project'; // default: 'project' — using MM3 is scoped per project
   key: 'ask' | 'stdin' | 'no';
   yes: boolean;
 }
@@ -56,7 +56,7 @@ const nowIso = (ctx: InitCtx): string => (ctx.now ?? (() => new Date().toISOStri
 const firstLine = (s: string): string => s.trim().split('\n')[0] ?? '';
 const insideGitProject = (cwd: string): boolean => existsSync(path.join(cwd, '.git'));
 
-/** Is `binPath` (resolved off PATH) actually a copy of the named package, not some other `sidewise`? Walks up
+/** Is `binPath` (resolved off PATH) actually a copy of the named package, not some other `mm3`? Walks up
  *  from its realpath to the first package.json it finds — a bin file always sits 1-3 levels under the package
  *  root (dist/cli.js, or a bin symlink one level up again). */
 function isPackageBin(binPath: string, pkgName: string): boolean {
@@ -93,7 +93,7 @@ function isNpxCache(binPath: string): boolean {
 }
 
 async function stepCli(flags: InitFlags, ctx: InitCtx): Promise<string[]> {
-  const onPath = findOnPath('sidewise', ctx.env, ctx.platform);
+  const onPath = findOnPath('mm3', ctx.env, ctx.platform);
   if (onPath && !isNpxCache(onPath) && isPackageBin(onPath, ctx.pkg.name) && !flags.mode) {
     return [line('already', 'cli', `already reachable as ${onPath}`)];
   }
@@ -104,7 +104,7 @@ async function stepCli(flags: InitFlags, ctx: InitCtx): Promise<string[]> {
 
   if (mode === 'global') {
     if (!globalWritable) {
-      return [line('problem', 'cli', 'the global npm prefix needs sudo → re-run "sidewise init --user" instead (never runs sudo for you)')];
+      return [line('problem', 'cli', 'the global npm prefix needs sudo → re-run "mm3 init --user" instead (never runs sudo for you)')];
     }
     const r = ctx.runner('npm', ['install', '-g', self.spec]);
     if (r.status !== 0) return [line('problem', 'cli', `npm install -g ${self.spec} failed → ${firstLine(r.stderr) || "see npm's own output"}`)];
@@ -128,7 +128,7 @@ async function stepCli(flags: InitFlags, ctx: InitCtx): Promise<string[]> {
   const r = ctx.runner('npm', ['install', '-D', self.spec]);
   if (r.status !== 0) return [line('problem', 'cli', `npm install -D ${self.spec} failed → ${firstLine(r.stderr) || "see npm's own output"}`)];
   writeInstallRecord(ctx.env, { mode: 'local', projectDir: ctx.cwd, installedAt: nowIso(ctx) });
-  return [line('done', 'cli', `installed --local (run it as npx sidewise, in ${ctx.cwd})`)];
+  return [line('done', 'cli', `installed --local (run it as npx mm3, in ${ctx.cwd})`)];
 }
 
 async function stepKey(flags: InitFlags, ctx: InitCtx): Promise<string[]> {
@@ -179,16 +179,16 @@ async function stepPlugin(flags: InitFlags, ctx: InitCtx): Promise<string[]> {
     lines.push(line('already', 'plugin', 'mvp-scale marketplace already added'));
   }
 
-  // Using Sidewise is scoped per project: the plugin defaults to project scope, enabled just for the project
+  // Using MM3 is scoped per project: the plugin defaults to project scope, enabled just for the project
   // init runs in — --scope user remains available as an explicit override.
   const scope: PluginScope = flags.scope ?? 'project';
   const status = pluginStatus(ctx.runner);
   if (status.installed && (status.scopes as string[]).includes(scope)) {
-    lines.push(line('already', 'plugin', `sidewise@mvp-scale already installed (${scope} scope)`));
+    lines.push(line('already', 'plugin', `mm3@mvp-scale already installed (${scope} scope)`));
     return lines;
   }
   const r = installPlugin(ctx.runner, scope);
-  lines.push(r.status === 0 ? line('done', 'plugin', `installed sidewise@mvp-scale (${scope} scope)`) : line('problem', 'plugin', `could not install the plugin → ${firstLine(r.stderr)}`));
+  lines.push(r.status === 0 ? line('done', 'plugin', `installed mm3@mvp-scale (${scope} scope)`) : line('problem', 'plugin', `could not install the plugin → ${firstLine(r.stderr)}`));
   return lines;
 }
 
@@ -196,10 +196,10 @@ function stepProject(ctx: InitCtx): string[] {
   const paths = pathsFor(ctx.cwd);
   const already = existsSync(paths.dir);
   ensureDir(paths);
-  return [line(already ? 'already' : 'done', 'project', `${already ? 'already has' : 'created'} .sidewise/ (self-ignoring: .sidewise/.gitignore)`)];
+  return [line(already ? 'already' : 'done', 'project', `${already ? 'already has' : 'created'} .mm3/ (self-ignoring: .mm3/.gitignore)`)];
 }
 
-const NOT_A_PROJECT = line('skipped', 'project', 'not in a git project → cd into one and run "sidewise init" there to enable Sidewise for it');
+const NOT_A_PROJECT = line('skipped', 'project', 'not in a git project → cd into one and run "mm3 init" there to enable MM3 for it');
 
 export async function runInit(flags: InitFlags, ctx: InitCtx): Promise<VerbResult> {
   const lines: string[] = [];
@@ -224,7 +224,7 @@ export async function runInit(flags: InitFlags, ctx: InitCtx): Promise<VerbResul
   // point at the fix instead of inviting the first real request. [C-176]
   const partial = lines.some((l) => l.startsWith(GLYPH.problem));
   const next = partial
-    ? 'next: not usable yet — fix the ✖ line(s) above, then re-run "sidewise init"'
-    : 'next: run "sidewise agent" for the rules and good/bad patterns before your first request, or "sidewise template class" to start by hand';
+    ? 'next: not usable yet — fix the ✖ line(s) above, then re-run "mm3 init"'
+    : 'next: run "mm3 agent" for the rules and good/bad patterns before your first request, or "mm3 template class" to start by hand';
   return { exit: 0, text: `${lines.join('\n')}\n\n${doctorOut.text}\n${next}\n` };
 }

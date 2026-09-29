@@ -1,6 +1,6 @@
-side:
-  goal: the step that breaks idempotency in billing-engine/refunds from SW-0070 is identified
-  parent: SW-0070
+mak:
+  goal: the step that breaks idempotency in billing-engine/refunds from MM3-0070 is identified
+  parent: MM3-0070
   from: billing-engine/refunds
   over:
     step:
@@ -14,5 +14,5 @@ side:
         1: Does {step} produce the same result if it is safely repeated with the same input (e.g. after a retry)?
         2: Does {step} avoid creating a duplicate side effect such as a duplicate ledger entry on a retry?
         3: Does {step} check for or rely on an idempotency key or equivalent guard before acting?
-wise:
+mdl:
   why: debug

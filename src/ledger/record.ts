@@ -8,13 +8,13 @@
 import { budgetLine, budgetStateNow, type BudgetState } from '../budget/budget.ts';
 import { withLock } from './lock.ts';
 import { appendContractRunLocked, appendFailedLocked, appendRunLocked, type ContractRun, type FailedRecord, type NewContractRun, type NewFailed, type NewRun, type RunRecord } from './log.ts';
-import type { SidewisePaths } from './paths.ts';
+import type { Mm3Paths } from './paths.ts';
 
-export function recordCall(paths: SidewisePaths, costUsd: number, entry: { run: NewRun }, now?: number): { budget: BudgetState; record: RunRecord };
-export function recordCall(paths: SidewisePaths, costUsd: number, entry: { contract: NewContractRun }, now?: number): { budget: BudgetState; record: ContractRun };
-export function recordCall(paths: SidewisePaths, costUsd: number, entry: { failed: NewFailed }, now?: number): { budget: BudgetState; record: FailedRecord };
+export function recordCall(paths: Mm3Paths, costUsd: number, entry: { run: NewRun }, now?: number): { budget: BudgetState; record: RunRecord };
+export function recordCall(paths: Mm3Paths, costUsd: number, entry: { contract: NewContractRun }, now?: number): { budget: BudgetState; record: ContractRun };
+export function recordCall(paths: Mm3Paths, costUsd: number, entry: { failed: NewFailed }, now?: number): { budget: BudgetState; record: FailedRecord };
 export function recordCall(
-  paths: SidewisePaths,
+  paths: Mm3Paths,
   costUsd: number,
   entry: { run: NewRun } | { contract: NewContractRun } | { failed: NewFailed },
   now: number = Date.now(),

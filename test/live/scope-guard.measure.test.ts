@@ -1,7 +1,7 @@
 /**
  * Live measurement (owner ruling, lab/research/2026-09-27-phase-b-measure.md): does the unwired scope guard
  * (src/contract/scope-guard.ts) actually catch out-of-scope evidence, against the REAL TypeSafe classifier?
- * Skipped unless SIDEWISE_LIVE_TEST=1 (AGENTS.md rule 2) — this is the one place a real key and a real call
+ * Skipped unless MM3_LIVE_TEST=1 (AGENTS.md rule 2) — this is the one place a real key and a real call
  * are allowed; it never runs as part of `npm test`/CI (the `live` vitest project is excluded from both).
  *
  * 10 fixed cases, written down BEFORE any call: 5 in-scope (the excerpt shown fully decides the answer) and 5
@@ -18,7 +18,7 @@
  * own). Spend budget: stop before the running total would pass $0.10 (expected: several orders of magnitude
  * under $0.01 at the published jev-1.13.0 rate, ~$0.042/Mtok input, output free).
  *
- * All code excerpts below are synthetic fixtures written for this test, never a real log or real Sidewise
+ * All code excerpts below are synthetic fixtures written for this test, never a real log or real MM3
  * source (AGENTS.md rule 4).
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -216,12 +216,12 @@ const MAX_LIVE_CALLS = 11; // 10 cases + 1 spare; the typesafe client already re
 // contains no secret, only the computed gates/probabilities/token counts/costs below.
 const RESULTS_FILE = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../lab/research/2026-09-27-scope-guard-live-raw.json');
 
-describe.skipIf(process.env.SIDEWISE_LIVE_TEST !== '1')('scope guard: measured against the live TypeSafe classifier', () => {
+describe.skipIf(process.env.MM3_LIVE_TEST !== '1')('scope guard: measured against the live TypeSafe classifier', () => {
   it(
     'runs 10 fixed cases (one call each) and reports probe P, gate-without vs gate-with, and totals',
     async () => {
       const config = resolveJevConfig(process.env, { resolveStored: () => resolveStoredKey(realRunner, os.platform(), process.env) });
-      if (!hasKey(config)) throw new Error('✖ no TypeSafe key resolvable (env, keychain, or ~/.config/sidewise/env) → run "sidewise init" first');
+      if (!hasKey(config)) throw new Error('✖ no TypeSafe key resolvable (env, keychain, or ~/.config/mm3/env) → run "mm3 init" first');
       registerSecret(config.apiKey); // defense in depth: never let the key's literal value reach a log line below
       const client = createJevClient(config);
 

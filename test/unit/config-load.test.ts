@@ -1,5 +1,5 @@
-// plan 2c B1: .sidewise/config.yaml → the effective config (defaults < config.yaml < env), validation stops,
-// and the sidewise config command's printed output.
+// plan 2c B1: .mm3/config.yaml → the effective config (defaults < config.yaml < env), validation stops,
+// and the mm3 config command's printed output.
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
 import { DEFAULT_CONFIG } from '../../src/config/defaults.ts';
@@ -22,7 +22,7 @@ describe('resolveConfig', () => {
   });
 
   it('a valid override file changes the effective value and shows its source as config', () => {
-    const { paths } = tempProject({ '.sidewise/config.yaml': 'budget:\n  usd: 25\ntimeoutMs: 5000\n' });
+    const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: 25\ntimeoutMs: 5000\n' });
     const resolved = resolveConfig(paths, {});
     expect(resolved.present).toBe(true);
     expect(resolved.stops).toEqual([]);
@@ -36,7 +36,7 @@ describe('resolveConfig', () => {
   });
 
   it('env wins over config.yaml for the fields that have their own env var', () => {
-    const { paths } = tempProject({ '.sidewise/config.yaml': 'model: jev-config-model\n' });
+    const { paths } = tempProject({ '.mm3/config.yaml': 'model: jev-config-model\n' });
     const resolved = resolveConfig(paths, { JEV_MODEL: 'jev-2.0.0' });
     // resolveConfig's own `config.model` is the config/default LAYER (see load.ts's module doc) — the source
     // label is what proves env would actually win at runtime.
@@ -51,7 +51,7 @@ describe('resolveConfig', () => {
   });
 
   it('a YAML syntax error names the line and never throws', () => {
-    const { paths } = tempProject({ '.sidewise/config.yaml': 'budget:\n  usd: [1, 2\n' });
+    const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: [1, 2\n' });
     const resolved = resolveConfig(paths, {});
     expect(resolved.stops).toHaveLength(1);
     expect(resolved.stops[0]!.text).toMatch(/^✖ config: line \d+ of config\.yaml does not parse →/);
@@ -91,19 +91,19 @@ describe('validateConfig', () => {
     expect(value.baseURL).toBeUndefined(); // never applied
   });
 
-  it('a key-shaped value inside a wise override (free text) also stops', () => {
+  it('a key-shaped value inside a mdl override (free text) also stops', () => {
     const secret = 'ghp_' + 'B'.repeat(30);
-    const { stops, value } = validateConfig({ wise: { risk: { note: secret } } });
-    expect(stops.some((s) => s.text === '✖ config.wise.risk.note: looks like a key → keys go in env (TYPESAFE_API_KEY) or the keychain, never in config')).toBe(true);
-    expect(value.wise?.risk?.note).toBeUndefined();
+    const { stops, value } = validateConfig({ mdl: { risk: { note: secret } } });
+    expect(stops.some((s) => s.text === '✖ config.mdl.risk.note: looks like a key → keys go in env (TYPESAFE_API_KEY) or the keychain, never in config')).toBe(true);
+    expect(value.mdl?.risk?.note).toBeUndefined();
   });
 
   it('a good file round-trips with no stops and the parsed values', () => {
-    const { stops, value } = validateConfig({ budget: { usd: 10, runs: 200 }, sweep: { maxQuestionsPerCall: 100 }, wise: { risk: { values: ['low', 'high'] } } });
+    const { stops, value } = validateConfig({ budget: { usd: 10, runs: 200 }, sweep: { maxQuestionsPerCall: 100 }, mdl: { risk: { values: ['low', 'high'] } } });
     expect(stops).toEqual([]);
     expect(value.budget).toEqual({ usd: 10, runs: 200 });
     expect(value.sweep).toEqual({ maxQuestionsPerCall: 100 });
-    expect(value.wise).toEqual({ risk: { values: ['low', 'high'] } });
+    expect(value.mdl).toEqual({ risk: { values: ['low', 'high'] } });
   });
 
   it('one bad key does not blank out the rest of an otherwise-good file', () => {
@@ -113,7 +113,7 @@ describe('validateConfig', () => {
   });
 });
 
-describe('sidewise config command', () => {
+describe('mm3 config command', () => {
   it('prints every key with a source, and exits 0 with no config.yaml', () => {
     const r = runConfig({}, undefined, 'none');
     expect(r.exit).toBe(0);
@@ -121,7 +121,7 @@ describe('sidewise config command', () => {
     expect(r.text).toContain('# default');
   });
 
-  // plan 2c B, item 3: sidewise config's output must be valid, copyable YAML — not the old "5  # default" quoted
+  // plan 2c B, item 3: mm3 config's output must be valid, copyable YAML — not the old "5  # default" quoted
   // string it used to print, which emit.ts's own scalar() double-quoted (a " #" inside a plain string disqualifies
   // it), so pasting it into config.yaml produced garbage. Every commented default/example line must, on its own,
   // uncomment into a valid config.yaml fragment.
@@ -152,7 +152,7 @@ describe('sidewise config command', () => {
   });
 
   it('an overridden field prints as a live line with its source; an untouched sibling stays commented', () => {
-    const { paths } = tempProject({ '.sidewise/config.yaml': 'budget:\n  usd: 10\nprovider: typesafe\n' });
+    const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: 10\nprovider: typesafe\n' });
     const text = formatConfig(resolveConfig(paths, {}), 'proj');
     expect(text).toContain('    usd: 10  # from config.yaml');
     expect(text).toContain('  provider: typesafe  # from config.yaml');
@@ -163,14 +163,14 @@ describe('sidewise config command', () => {
   });
 
   it('a broken config.yaml shows its stops, then the rest of the effective table underneath, exit 2', () => {
-    const { paths } = tempProject({ '.sidewise/config.yaml': 'nope: 1\n' });
+    const { paths } = tempProject({ '.mm3/config.yaml': 'nope: 1\n' });
     const resolved = resolveConfig(paths, {});
     const text = formatConfig(resolved, 'proj');
     expect(text).toContain('config');
     const r = runConfig({}, paths, 'proj');
     expect(r.exit).toBe(2);
     expect(r.text).toContain('✖ config.nope:');
-    expect(r.text).toContain('→ see: sidewise agent config');
+    expect(r.text).toContain('→ see: mm3 agent config');
     expect(r.text).toContain('budget');
   });
 });
@@ -201,8 +201,8 @@ describe('classifier config threading (env > config.yaml > default)', () => {
     expect(cfg.backoffMs).toBe(DEFAULT_CONFIG.backoffMs);
   });
 
-  it('selectProvider: SIDEWISE_PROVIDER env still wins outright over config.yaml\'s provider:', () => {
-    const p = selectProvider({ SIDEWISE_PROVIDER: 'fake' }, { fileConfig: { provider: 'typesafe' } });
+  it('selectProvider: MM3_PROVIDER env still wins outright over config.yaml\'s provider:', () => {
+    const p = selectProvider({ MM3_PROVIDER: 'fake' }, { fileConfig: { provider: 'typesafe' } });
     expect(p.adapter).toBe('fake');
   });
 

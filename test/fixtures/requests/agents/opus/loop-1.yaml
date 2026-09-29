@@ -1,4 +1,4 @@
-side:
+mak:
   goal: the multi-tenant billing design holds up under stress
   depth: quick
   over:
@@ -28,6 +28,6 @@ side:
         pass: no
         6: Could {story} charge or show the wrong tenant's amount?
         7: Could a retry of {story} create duplicate money movements?
-wise:
+mdl:
   why: validate
   area: data

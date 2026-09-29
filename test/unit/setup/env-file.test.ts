@@ -1,4 +1,4 @@
-// ~/.config/sidewise/env: a shell env file sidewise parses itself (never sources/evals), at 0600 in a 0700 dir.
+// ~/.config/mm3/env: a shell env file mm3 parses itself (never sources/evals), at 0600 in a 0700 dir.
 // Only `export NAME='value'` for an allowed name is recognised; everything else — comments, other tools' lines
 // — must survive untouched, since the owner's own real file on this machine is comments only.
 import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -15,22 +15,22 @@ import {
   readEnvFile,
   removeEnvFileValue,
   setEnvFileValue,
-  sidewiseConfigDir,
+  mm3ConfigDir,
 } from '../../../src/setup/env-file.ts';
 
 function tmpEnv(): { XDG_CONFIG_HOME: string } {
-  return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'sidewise-envfile-')) };
+  return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'mm3-envfile-')) };
 }
 
 describe('paths', () => {
-  it('defaults to ~/.config/sidewise with no XDG_CONFIG_HOME', () => {
-    expect(sidewiseConfigDir({})).toBe(path.join(os.homedir(), '.config', 'sidewise'));
-    expect(envFilePath({})).toBe(path.join(os.homedir(), '.config', 'sidewise', 'env'));
+  it('defaults to ~/.config/mm3 with no XDG_CONFIG_HOME', () => {
+    expect(mm3ConfigDir({})).toBe(path.join(os.homedir(), '.config', 'mm3'));
+    expect(envFilePath({})).toBe(path.join(os.homedir(), '.config', 'mm3', 'env'));
   });
 
   it('honours XDG_CONFIG_HOME', () => {
     const env = tmpEnv();
-    expect(envFilePath(env)).toBe(path.join(env.XDG_CONFIG_HOME, 'sidewise', 'env'));
+    expect(envFilePath(env)).toBe(path.join(env.XDG_CONFIG_HOME, 'mm3', 'env'));
   });
 });
 
@@ -54,7 +54,7 @@ describe('readEnvFile', () => {
   it('ALLOWED_NAMES is exactly the six names this format recognises', () => {
     const key: EnvFileName = 'TYPESAFE_API_KEY';
     expect(ALLOWED_NAMES).toContain(key);
-    expect(ALLOWED_NAMES).toEqual(['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'SIDEWISE_BASE_URL', 'JEV_MODEL', 'JEV_GATEWAY_MODEL', 'SIDEWISE_PROVIDER']);
+    expect(ALLOWED_NAMES).toEqual(['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'MM3_BASE_URL', 'JEV_MODEL', 'JEV_GATEWAY_MODEL', 'MM3_PROVIDER']);
   });
 
   it('counts a non-comment line that does not parse, or names something outside the allowlist, as ignored', () => {
@@ -72,18 +72,18 @@ describe('readEnvFile', () => {
     writeFileSync(
       file,
       [
-        "export SIDEWISE_BASE_URL='https://proxy.example.com'",
+        "export MM3_BASE_URL='https://proxy.example.com'",
         "export JEV_MODEL='jev-1.13.0'",
         "export JEV_GATEWAY_MODEL='typesafe-ai/jev'",
-        "export SIDEWISE_PROVIDER='fake'",
+        "export MM3_PROVIDER='fake'",
       ].join('\n'),
     );
     expect(readEnvFile(file)).toMatchObject({
       values: {
-        SIDEWISE_BASE_URL: 'https://proxy.example.com',
+        MM3_BASE_URL: 'https://proxy.example.com',
         JEV_MODEL: 'jev-1.13.0',
         JEV_GATEWAY_MODEL: 'typesafe-ai/jev',
-        SIDEWISE_PROVIDER: 'fake',
+        MM3_PROVIDER: 'fake',
       },
       ignoredLines: 0,
     });
@@ -111,13 +111,13 @@ describe('setEnvFileValue: updates one line in place, never touches the rest', (
     const env = tmpEnv();
     const file = envFilePath(env);
     mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, ['# keep me', "export TYPESAFE_API_KEY='old-value'", "export SIDEWISE_PROVIDER='fake'", ''].join('\n'));
+    writeFileSync(file, ['# keep me', "export TYPESAFE_API_KEY='old-value'", "export MM3_PROVIDER='fake'", ''].join('\n'));
     setEnvFileValue(file, 'TYPESAFE_API_KEY', 'new-value');
     const text = readFileSync(file, 'utf8');
     expect(text).toContain('# keep me');
     expect(text).toContain("export TYPESAFE_API_KEY='new-value'");
     expect(text).not.toContain('old-value');
-    expect(text).toContain("export SIDEWISE_PROVIDER='fake'");
+    expect(text).toContain("export MM3_PROVIDER='fake'");
     expect(text.match(/TYPESAFE_API_KEY/gu)).toHaveLength(1); // never a duplicate line
   });
 
@@ -145,11 +145,11 @@ describe('removeEnvFileValue', () => {
     const env = tmpEnv();
     const file = envFilePath(env);
     mkdirSync(path.dirname(file), { recursive: true });
-    writeFileSync(file, ['# keep me', "export TYPESAFE_API_KEY='k-1'", "export SIDEWISE_PROVIDER='fake'", ''].join('\n'));
+    writeFileSync(file, ['# keep me', "export TYPESAFE_API_KEY='k-1'", "export MM3_PROVIDER='fake'", ''].join('\n'));
     expect(removeEnvFileValue(file, 'TYPESAFE_API_KEY')).toBe('removed');
     const text = readFileSync(file, 'utf8');
     expect(text).toContain('# keep me');
-    expect(text).toContain("export SIDEWISE_PROVIDER='fake'");
+    expect(text).toContain("export MM3_PROVIDER='fake'");
     expect(text).not.toContain('TYPESAFE_API_KEY');
   });
 

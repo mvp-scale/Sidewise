@@ -69,7 +69,7 @@ describe('createCodeResolver', () => {
     // a Dirent check on an entry — does follow it when opening a path. This is the second-order gap the
     // read-time realpath guard in readFiles defends against.
     const { root } = tempProject({ 'src/a.ts': 'export function f() {}\n' });
-    const outside = mkdtempSync(path.join(os.tmpdir(), 'sidewise-outside-'));
+    const outside = mkdtempSync(path.join(os.tmpdir(), 'mm3-outside-'));
     writeFileSync(path.join(outside, 'secret.ts'), 'TOP SECRET\n');
     try {
       symlinkSync(outside, path.join(root, 'linked'));
@@ -105,7 +105,7 @@ describe('readUnit', () => {
 
   it('a symlink inside the project pointing outside it: the outside error, not the outside file\'s contents', (ctx) => {
     const { root } = tempProject({ 'src/a.ts': 'x\n' });
-    const outside = mkdtempSync(path.join(os.tmpdir(), 'sidewise-outside-'));
+    const outside = mkdtempSync(path.join(os.tmpdir(), 'mm3-outside-'));
     writeFileSync(path.join(outside, 'secret.ts'), 'TOP SECRET\n');
     try {
       symlinkSync(path.join(outside, 'secret.ts'), path.join(root, 'src', 'link.ts'));

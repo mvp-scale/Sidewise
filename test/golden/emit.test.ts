@@ -20,17 +20,17 @@ const roundTrip = (doc: Map<string, Value>): void => {
 describe('emit (golden: the contract examples)', () => {
   it('a rehearsal adapter labels notes: "not evidence", right before the budget line [C-092]', () => {
     const doc = m(
-      ['side', m(['id', 'SW-0001'], ['gate', 'pass'])],
-      ['wise', m(['recorded', 'none'])],
+      ['mak', m(['id', 'MM3-0001'], ['gate', 'pass'])],
+      ['mdl', m(['recorded', 'none'])],
       ['next', 'act on it'],
       ['notes', commonNotes(['a validation note'], 'budget 0% used ($0.00 of $5.00 · 1 of 500 runs)', 'fake')],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
-        '  id: SW-0001',
+        'mak:',
+        '  id: MM3-0001',
         '  gate: pass',
-        'wise: {recorded: none}',
+        'mdl: {recorded: none}',
         'next: act on it',
         'notes: [a validation note, adapter fake · not evidence, budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]',
       ),
@@ -41,9 +41,9 @@ describe('emit (golden: the contract examples)', () => {
   it('class [C-018] [C-043]', () => {
     const doc = m(
       [
-        'side',
+        'mak',
         m(
-          ['id', 'SW-0042'],
+          ['id', 'MM3-0042'],
           ['gate', 'fail'],
           ['goal', m(['gate', 'fail'], ['p', 0.08])],
           ['injection', m(['gate', 'fail'], ['1', 0.94], ['2', 0.91], ['10', 0.9])],
@@ -56,14 +56,14 @@ describe('emit (golden: the contract examples)', () => {
           ['escalate', false],
         ),
       ],
-      ['wise', m(['recorded', ['why', 'area']])],
-      ['next', 'sidewise template drill --parent SW-0042 --from injection'],
+      ['mdl', m(['recorded', ['why', 'area']])],
+      ['next', 'mm3 template drill --parent MM3-0042 --from injection'],
       ['notes', ['budget 1% used ($0.02 of $5.00 · 3 of 500 runs)']],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
-        '  id: SW-0042',
+        'mak:',
+        '  id: MM3-0042',
         '  gate: fail',
         '  goal: {gate: fail, p: 0.08}',
         '  injection: {gate: fail, 1: 0.94, 2: 0.91, 10: 0.90}',
@@ -74,8 +74,8 @@ describe('emit (golden: the contract examples)', () => {
         '  route: {gate: fail, 12: {top: block, p: 0.97}}',
         '  consensus: STRONG',
         '  escalate: false',
-        'wise: {recorded: [why, area]}',
-        'next: sidewise template drill --parent SW-0042 --from injection',
+        'mdl: {recorded: [why, area]}',
+        'next: mm3 template drill --parent MM3-0042 --from injection',
         'notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]',
       ),
     );
@@ -85,9 +85,9 @@ describe('emit (golden: the contract examples)', () => {
   it('replay [C-018]', () => {
     const doc = m(
       [
-        'side',
+        'mak',
         m(
-          ['id', 'SW-0051'],
+          ['id', 'MM3-0051'],
           ['gate', 'fail'],
           ['goal', m(['gate', 'pass'], ['p', 0.84])],
           ['injection', m(['before', 'fail'], ['after', 'pass'], ['fixed', [1, 2, 10]])],
@@ -97,14 +97,14 @@ describe('emit (golden: the contract examples)', () => {
           ['regressed', []],
         ),
       ],
-      ['wise', m(['recorded', ['why', 'area', 'parent']])],
-      ['next', 'sidewise template drill --parent SW-0051 --from access'],
+      ['mdl', m(['recorded', ['why', 'area', 'parent']])],
+      ['next', 'mm3 template drill --parent MM3-0051 --from access'],
       ['notes', ['2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)']],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
-        '  id: SW-0051',
+        'mak:',
+        '  id: MM3-0051',
         '  gate: fail',
         '  goal: {gate: pass, p: 0.84}',
         '  injection: {before: fail, after: pass, fixed: [1, 2, 10]}',
@@ -112,8 +112,8 @@ describe('emit (golden: the contract examples)', () => {
         '  access: {before: fail, after: fail, still: [4, 5]}',
         '  leaks: {before: unsure, after: pass, fixed: [7]}',
         '  regressed: []',
-        'wise: {recorded: [why, area, parent]}',
-        'next: sidewise template drill --parent SW-0051 --from access',
+        'mdl: {recorded: [why, area, parent]}',
+        'next: mm3 template drill --parent MM3-0051 --from access',
         'notes: [2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)]',
       ),
     );
@@ -123,9 +123,9 @@ describe('emit (golden: the contract examples)', () => {
   it('replay: a regression alone fails the gate; next: names it, not the goal [C-091]', () => {
     const doc = m(
       [
-        'side',
+        'mak',
         m(
-          ['id', 'SW-0052'],
+          ['id', 'MM3-0052'],
           ['gate', 'fail'],
           ['goal', m(['gate', 'pass'], ['p', 0.81])],
           ['injection', m(['before', 'fail'], ['after', 'pass'], ['fixed', [1, 2, 10]])],
@@ -135,14 +135,14 @@ describe('emit (golden: the contract examples)', () => {
           ['regressed', [5]],
         ),
       ],
-      ['wise', m(['recorded', ['why', 'area', 'parent']])],
-      ['next', 'sidewise template drill --parent SW-0052 --from access'],
+      ['mdl', m(['recorded', ['why', 'area', 'parent']])],
+      ['next', 'mm3 template drill --parent MM3-0052 --from access'],
       ['notes', ['2 states · budget 2% used']],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
-        '  id: SW-0052',
+        'mak:',
+        '  id: MM3-0052',
         '  gate: fail',
         '  goal: {gate: pass, p: 0.81}',
         '  injection: {before: fail, after: pass, fixed: [1, 2, 10]}',
@@ -150,8 +150,8 @@ describe('emit (golden: the contract examples)', () => {
         '  access: {before: pass, after: pass}',
         '  leaks: {before: unsure, after: pass, fixed: [7]}',
         '  regressed: [5]',
-        'wise: {recorded: [why, area, parent]}',
-        'next: sidewise template drill --parent SW-0052 --from access',
+        'mdl: {recorded: [why, area, parent]}',
+        'next: mm3 template drill --parent MM3-0052 --from access',
         'notes: [2 states · budget 2% used]',
       ),
     );
@@ -161,9 +161,9 @@ describe('emit (golden: the contract examples)', () => {
   it('scan: failing is a map of maps, one line per item [C-049]', () => {
     const doc = m(
       [
-        'side',
+        'mak',
         m(
-          ['id', 'SW-0060'],
+          ['id', 'MM3-0060'],
           ['gate', 'fail'],
           ['goal', m(['gate', 'fail'], ['p', 0.21])],
           ['scanned', m(['file', 6], ['function', 23])],
@@ -179,14 +179,14 @@ describe('emit (golden: the contract examples)', () => {
           ['reused', 14],
         ),
       ],
-      ['wise', m(['recorded', ['why', 'area']])],
-      ['next', 'sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser'],
+      ['mdl', m(['recorded', ['why', 'area']])],
+      ['next', 'mm3 template drill --parent MM3-0060 --from src/handlers/user.ts/findUser'],
       ['notes', ['1 call · 9 questions · budget 4% used ($0.08 of $5.00 · 9 of 500 runs)']],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
-        '  id: SW-0060',
+        'mak:',
+        '  id: MM3-0060',
         '  gate: fail',
         '  goal: {gate: fail, p: 0.21}',
         '  scanned: {file: 6, function: 23}',
@@ -196,8 +196,8 @@ describe('emit (golden: the contract examples)', () => {
         '    src/handlers/order.ts/listOrders: {access: unsure, 2: 0.52}',
         '  passing: 20',
         '  reused: 14',
-        'wise: {recorded: [why, area]}',
-        'next: sidewise template drill --parent SW-0060 --from src/handlers/user.ts/findUser',
+        'mdl: {recorded: [why, area]}',
+        'next: mm3 template drill --parent MM3-0060 --from src/handlers/user.ts/findUser',
         'notes: [1 call · 9 questions · budget 4% used ($0.08 of $5.00 · 9 of 500 runs)]',
       ),
     );
@@ -207,9 +207,9 @@ describe('emit (golden: the contract examples)', () => {
   it('loop: ids with spaces stay plain; passing is a list', () => {
     const doc = m(
       [
-        'side',
+        'mak',
         m(
-          ['id', 'SW-0070'],
+          ['id', 'MM3-0070'],
           ['gate', 'fail'],
           ['goal', m(['gate', 'pass'], ['p', 0.74])],
           [
@@ -223,14 +223,14 @@ describe('emit (golden: the contract examples)', () => {
           ['passing', ['gateway', 'gateway/guest checkout', 'gateway/saved cards', 'payments/retries', 'ledger']],
         ),
       ],
-      ['wise', m(['recorded', ['why', 'area']])],
-      ['next', 'sidewise template drill --parent SW-0070 --from payments/refunds'],
+      ['mdl', m(['recorded', ['why', 'area']])],
+      ['next', 'mm3 template drill --parent MM3-0070 --from payments/refunds'],
       ['notes', ['2 calls · 16 questions · budget 3% used ($0.06 of $5.00 · 7 of 500 runs)']],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
-        '  id: SW-0070',
+        'mak:',
+        '  id: MM3-0070',
         '  gate: fail',
         '  goal: {gate: pass, p: 0.74}',
         '  failing:',
@@ -238,8 +238,8 @@ describe('emit (golden: the contract examples)', () => {
         '    payments/refunds: {done: fail, risk: fail, 3: 0.22, 4: 0.91}',
         '    payments/partial capture: {risk: unsure, 4: 0.48}',
         '  passing: [gateway, gateway/guest checkout, gateway/saved cards, payments/retries, ledger]',
-        'wise: {recorded: [why, area]}',
-        'next: sidewise template drill --parent SW-0070 --from payments/refunds',
+        'mdl: {recorded: [why, area]}',
+        'next: mm3 template drill --parent MM3-0070 --from payments/refunds',
         'notes: [2 calls · 16 questions · budget 3% used ($0.06 of $5.00 · 7 of 500 runs)]',
       ),
     );
@@ -249,9 +249,9 @@ describe('emit (golden: the contract examples)', () => {
   it("replay: expected: grades expect:'s prediction, right after the per-category lines, before regressed: (plan 2b)", () => {
     const doc = m(
       [
-        'side',
+        'mak',
         m(
-          ['id', 'SW-0053'],
+          ['id', 'MM3-0053'],
           ['gate', 'fail'],
           ['goal', m(['gate', 'pass'], ['p', 0.84])],
           ['injection', m(['before', 'fail'], ['after', 'pass'], ['fixed', [1, 2, 10]])],
@@ -261,14 +261,14 @@ describe('emit (golden: the contract examples)', () => {
           ['regressed', []],
         ),
       ],
-      ['wise', m(['recorded', ['why', 'parent']])],
-      ['next', 'sidewise template drill --parent SW-0053 --from access'],
+      ['mdl', m(['recorded', ['why', 'parent']])],
+      ['next', 'mm3 template drill --parent MM3-0053 --from access'],
       ['notes', ['2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)']],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
-        '  id: SW-0053',
+        'mak:',
+        '  id: MM3-0053',
         '  gate: fail',
         '  goal: {gate: pass, p: 0.84}',
         '  injection: {before: fail, after: pass, fixed: [1, 2, 10]}',
@@ -276,27 +276,27 @@ describe('emit (golden: the contract examples)', () => {
         '  access: {before: fail, after: fail, still: [4, 5]}',
         '  expected: {fixed: [injection], still: [access]}',
         '  regressed: []',
-        'wise: {recorded: [why, parent]}',
-        'next: sidewise template drill --parent SW-0053 --from access',
+        'mdl: {recorded: [why, parent]}',
+        'next: mm3 template drill --parent MM3-0053 --from access',
         'notes: [2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)]',
       ),
     );
     roundTrip(doc);
   });
 
-  it("wise: {recorded: [...]} carries plan 2c's knowledge fields (problem/uses/touches/blast), in that order, last", () => {
+  it("mdl: {recorded: [...]} carries plan 2c's knowledge fields (problem/uses/touches/blast), in that order, last", () => {
     const doc = m(
-      ['side', m(['id', 'SW-0080'], ['gate', 'pass'])],
-      ['wise', m(['recorded', ['why', 'area', 'problem', 'uses', 'touches', 'blast']])],
+      ['mak', m(['id', 'MM3-0080'], ['gate', 'pass'])],
+      ['mdl', m(['recorded', ['why', 'area', 'problem', 'uses', 'touches', 'blast']])],
       ['next', 'act on it'],
       ['notes', ['free']],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
-        '  id: SW-0080',
+        'mak:',
+        '  id: MM3-0080',
         '  gate: pass',
-        'wise: {recorded: [why, area, problem, uses, touches, blast]}',
+        'mdl: {recorded: [why, area, problem, uses, touches, blast]}',
         'next: act on it',
         'notes: [free]',
       ),
@@ -304,40 +304,40 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it('view: categories is a map of maps; wise records none', () => {
+  it('view: categories is a map of maps; mdl records none', () => {
     const doc = m(
       [
-        'side',
+        'mak',
         m(
           ['view', 'src/user.ts:1-3'],
-          ['reuse', 'SW-0042'],
+          ['reuse', 'MM3-0042'],
           ['runs', 7],
           [
             'categories',
             m(
-              ['injection', m(['runs', 5], ['pass', 1], ['fail', 4], ['last', 'SW-0042'])],
-              ['guards', m(['runs', 5], ['pass', 4], ['fail', 1], ['last', 'SW-0042'])],
+              ['injection', m(['runs', 5], ['pass', 1], ['fail', 4], ['last', 'MM3-0042'])],
+              ['guards', m(['runs', 5], ['pass', 4], ['fail', 1], ['last', 'MM3-0042'])],
               ['leaks', m(['runs', 0])],
             ),
           ],
         ),
       ],
-      ['wise', m(['recorded', 'none'])],
-      ['next', 'sidewise view SW-0042'],
+      ['mdl', m(['recorded', 'none'])],
+      ['next', 'mm3 view MM3-0042'],
       ['notes', ['free']],
     );
     expect(emit(doc)).toBe(
       lines(
-        'side:',
+        'mak:',
         '  view: src/user.ts:1-3',
-        '  reuse: SW-0042',
+        '  reuse: MM3-0042',
         '  runs: 7',
         '  categories:',
-        '    injection: {runs: 5, pass: 1, fail: 4, last: SW-0042}',
-        '    guards: {runs: 5, pass: 4, fail: 1, last: SW-0042}',
+        '    injection: {runs: 5, pass: 1, fail: 4, last: MM3-0042}',
+        '    guards: {runs: 5, pass: 4, fail: 1, last: MM3-0042}',
         '    leaks: {runs: 0}',
-        'wise: {recorded: none}',
-        'next: sidewise view SW-0042',
+        'mdl: {recorded: none}',
+        'next: mm3 view MM3-0042',
         'notes: [free]',
       ),
     );
@@ -367,7 +367,7 @@ describe('scalars', () => {
       const len = 1 + Math.floor(rnd() * 8);
       for (let j = 0; j < len; j++) s += alphabet[Math.floor(rnd() * alphabet.length)];
       if (s === 'k') continue;
-      roundTrip(m(['side', m(['k', s], ['f', m(['x', s], [s, 1])], ['l', [s, 'b']])], ['next', s], ['notes', [s]]));
+      roundTrip(m(['mak', m(['k', s], ['f', m(['x', s], [s, 1])], ['l', [s, 'b']])], ['next', s], ['notes', [s]]));
     }
   });
 });

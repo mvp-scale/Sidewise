@@ -10,7 +10,7 @@ import { removeStoredKey, resolveStoredKey, storeKey, type StoreKeyResult } from
 import type { RunResult, Runner } from '../../../src/setup/runner.ts';
 
 function tmpEnv(): { XDG_CONFIG_HOME: string } {
-  return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'sidewise-keystore-')) };
+  return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'mm3-keystore-')) };
 }
 
 const ok = (stdout = ''): RunResult => ({ status: 0, stdout, stderr: '' });

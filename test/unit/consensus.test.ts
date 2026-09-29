@@ -44,7 +44,7 @@ describe('computeConsensus', () => {
     expect(computeConsensus(tenSlots(0.55, 0.45)).consensus).toBe('WEAK');
   });
 
-  it('a tie is read as concern (the conservative side)', () => {
+  it('a tie is read as concern (the conservative mak)', () => {
     const r = computeConsensus([{ pos: 1, reverse: false, p: 0.9 }, { pos: 2, reverse: false, p: 0.1 }]);
     expect(r.verdict).toBe('concern');
   });

@@ -1,10 +1,10 @@
-// The skill's body is the one source of truth; GEMINI.md and AGENTS.md's "Using Sidewise" section must carry
+// The skill's body is the one source of truth; GEMINI.md and AGENTS.md's "Using MM3" section must carry
 // the exact same text, so an edit to one and not the others fails here instead of silently drifting.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 function skillBody(): string {
-  const raw = readFileSync('skills/sidewise/SKILL.md', 'utf8');
+  const raw = readFileSync('skills/mm3/SKILL.md', 'utf8');
   const end = raw.indexOf('\n---\n', 4); // front matter's closing fence (the first "---" opens it)
   if (end < 0) throw new Error('SKILL.md has no closing front-matter fence');
   return raw.slice(end + 5).trim();
@@ -12,8 +12,8 @@ function skillBody(): string {
 
 describe('skill-docs stay in sync', () => {
   it('SKILL.md has the expected front matter', () => {
-    const raw = readFileSync('skills/sidewise/SKILL.md', 'utf8');
-    expect(raw).toMatch(/^---\nname: sidewise\ndescription: .+\n---\n/);
+    const raw = readFileSync('skills/mm3/SKILL.md', 'utf8');
+    expect(raw).toMatch(/^---\nname: mm3\ndescription: .+\n---\n/);
   });
 
   it('GEMINI.md carries the exact SKILL.md body', () => {
@@ -21,9 +21,9 @@ describe('skill-docs stay in sync', () => {
     expect(gemini).toContain(skillBody());
   });
 
-  it("AGENTS.md's 'Using Sidewise' section carries the exact SKILL.md body", () => {
+  it("AGENTS.md's 'Using MM3' section carries the exact SKILL.md body", () => {
     const agents = readFileSync('AGENTS.md', 'utf8');
-    const at = agents.indexOf('## Using Sidewise');
+    const at = agents.indexOf('## Using MM3');
     expect(at).toBeGreaterThan(0);
     expect(agents.slice(at)).toContain(skillBody());
   });
@@ -35,18 +35,18 @@ describe('skill-docs stay in sync', () => {
     expect(body).not.toMatch(/lab\//);
   });
 
-  it('[C-188] "Run this first" sends a cold agent to `sidewise agent` (no verb), then `agent <command>`', () => {
+  it('[C-188] "Run this first" sends a cold agent to `mm3 agent` (no verb), then `agent <command>`', () => {
     const body = skillBody();
-    expect(body).toMatch(/Run `sidewise agent` first/);
-    expect(body).toContain('Then run `sidewise agent <command>` before writing a request');
+    expect(body).toMatch(/Run `mm3 agent` first/);
+    expect(body).toContain('Then run `mm3 agent <command>` before writing a request');
   });
 });
 
-describe('the sidewise-probe skill', () => {
-  const raw = readFileSync('skills/sidewise-probe/SKILL.md', 'utf8');
+describe('the mm3-probe skill', () => {
+  const raw = readFileSync('skills/mm3-probe/SKILL.md', 'utf8');
 
   it('has the expected front matter', () => {
-    expect(raw).toMatch(/^---\nname: sidewise-probe\ndescription: .+\n---\n/);
+    expect(raw).toMatch(/^---\nname: mm3-probe\ndescription: .+\n---\n/);
   });
 
   it('never references lab/ (public repo)', () => {

@@ -50,7 +50,7 @@ describe('cacheTelemetry', () => {
 
   it('an origin id not in the ledger at all: same "nothing to prorate from" shape, never throws', () => {
     const { paths } = tempProject({});
-    expect(cacheTelemetry(paths, { q1: 'SW-9999' })).toEqual([{ source: 'cache', from: 'SW-9999', questions: 1, original: {}, estimated: true }]);
+    expect(cacheTelemetry(paths, { q1: 'MM3-9999' })).toEqual([{ source: 'cache', from: 'MM3-9999', questions: 1, original: {}, estimated: true }]);
   });
 
   it('two distinct origins: one entry each', () => {

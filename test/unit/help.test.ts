@@ -1,4 +1,4 @@
-// sidewise help [verb|topic]: free, no project needed. The rule-sharing test below is the one that matters
+// mm3 help [verb|topic]: free, no project needed. The rule-sharing test below is the one that matters
 // most: every fact RULES claims the validator enforces must appear verbatim in the help output it names, so
 // the validator and help can never quietly drift apart (lessons-2026-09-27.md §3).
 import { describe, expect, it } from 'vitest';
@@ -12,7 +12,8 @@ describe('runHelp', () => {
     const r = runHelp();
     expect(r.exit).toBe(0);
     expect(r.text).toContain('## Invoke it');
-    expect(r.text).toContain('sidewise');
+    expect(r.text).toContain('mm3');
+    expect(r.text).toContain('MM3 = MAK³ (make: use what is proven) + MDL³ (model: learn what is missing), each across Know / Judge / Prove.');
     expect(r.text).toContain('## Pick your verb');
     for (const verb of VERBS) expect(r.text).toContain(verb);
     expect(r.text).toContain('## Read the verdict');
@@ -27,11 +28,11 @@ describe('runHelp', () => {
     expect(r.text).toContain('Sharp rules:');
   });
 
-  // [C-191] Round-4 finding: a cold CLI agent made zero `sidewise` calls at all — it never discovered `sidewise
+  // [C-191] Round-4 finding: a cold CLI agent made zero `mm3` calls at all — it never discovered `mm3
   // agent` exists. Every verb help page now opens by pointing a cold agent at its own terse twin, first.
-  it.each(VERBS)('[C-191] help %s opens with "Agents: sidewise agent <verb>", before the heading', (verb) => {
+  it.each(VERBS)('[C-191] help %s opens with "Agents: mm3 agent <verb>", before the heading', (verb) => {
     const r = runHelp(verb);
-    expect(r.text.split('\n')[0]).toBe(`Agents: sidewise agent ${verb}`);
+    expect(r.text.split('\n')[0]).toBe(`Agents: mm3 agent ${verb}`);
   });
 
   it('[C-115] help drill: says to follow next:, not hand-author parent/from', () => {
@@ -74,8 +75,8 @@ describe('runHelp', () => {
     expect(r.text).toContain(`## ${topic}`);
   });
 
-  it('[C-117] help wise: the full catalog, closed values and what you get back', () => {
-    const text = runHelp('wise').text;
+  it('[C-117] help mdl: the full catalog, closed values and what you get back', () => {
+    const text = runHelp('mdl').text;
     for (const field of ['why', 'area', 'stage', 'change', 'risk']) expect(text).toContain(field);
     expect(text).toContain('what you get back');
   });
@@ -92,7 +93,7 @@ describe('runHelp', () => {
     const r = runHelp('report');
     expect(r.exit).toBe(0);
     expect(r.text).toContain('## report');
-    expect(r.text).toContain('sidewise report');
+    expect(r.text).toContain('mm3 report');
     expect(r.text).toContain('hits');
     expect(r.text).toContain('patterns');
     expect(r.text).toContain('history');
@@ -111,26 +112,26 @@ describe('runHelp', () => {
   it('[C-182] help outcome: syntax, the self-held restriction, no --note, and a good/bad pair', () => {
     const text = runHelp('outcome').text;
     expect(text).toContain('## outcome');
-    expect(text).toContain('sidewise outcome <SW-####> held|overruled|failed --by <actor>');
+    expect(text).toContain('mm3 outcome <MM3-####> held|overruled|failed --by <actor>');
     expect(text.toLowerCase()).toContain("can't mark it held");
     expect(text).toContain('--note');
-    expect(text).toContain('sidewise outcome SW-0002 held --by claude');
-    expect(text).toContain('sidewise outcome SW-0002 overruled --by claude');
+    expect(text).toContain('mm3 outcome MM3-0002 held --by claude');
+    expect(text).toContain('mm3 outcome MM3-0002 overruled --by claude');
   });
 
   it('[C-182] help budget: syntax, the bare "set" stop, and a good/bad pair', () => {
     const text = runHelp('budget').text;
     expect(text).toContain('## budget');
-    expect(text).toContain('sidewise budget set --usd 5 --runs 500');
-    expect(text).toContain('sidewise budget set');
+    expect(text).toContain('mm3 budget set --usd 5 --runs 500');
+    expect(text).toContain('mm3 budget set');
     expect(text.toLowerCase()).toContain('needs --usd or --runs');
   });
 
   it('[plan 2c B1b] help doctor: documents both the bare report and the <file|-> form', () => {
     const text = runHelp('doctor').text;
     expect(text).toContain('## doctor');
-    expect(text).toContain('sidewise doctor my-request.yaml');
-    expect(text).toContain('sidewise doctor -');
+    expect(text).toContain('mm3 doctor my-request.yaml');
+    expect(text).toContain('mm3 doctor -');
     expect(text.toLowerCase()).toContain('config.yaml');
   });
 
@@ -152,8 +153,8 @@ describe('runHelp', () => {
     expect(runHelp().text).not.toContain('replay (~1 call)');
   });
 
-  it('[R10] help report does not open by claiming report is a Side x Know grid cell', () => {
-    expect(runHelp('report').text).not.toContain('Side x Know');
+  it('[R10] help report does not open by claiming report is a MAK³ x Know grid cell', () => {
+    expect(runHelp('report').text).not.toContain('MAK³ x Know');
   });
 
   // [C-119] the shared rule list: every fact RULES says the validator enforces shows up verbatim in the help

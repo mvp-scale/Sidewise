@@ -1,9 +1,9 @@
 /**
  * Node ≥ 22.13 is a hard requirement: earlier runtimes have no `node:sqlite`, so
  * `ledger/index.ts` used to fall back to its slower linear scan with nothing telling the caller — the owner
- * hit exactly this on a Node 20 host, where `.sidewise/index.db` was silently never built. `cli.ts`'s whole
+ * hit exactly this on a Node 20 host, where `.mm3/index.db` was silently never built. `cli.ts`'s whole
  * dispatch checks this once, at the top, before any command but `doctor` (which still runs and reports the
- * problem) does anything real; `sidewise mcp` checks it again per tool call, so a client always gets an
+ * problem) does anything real; `mm3 mcp` checks it again per tool call, so a client always gets an
  * `isError` result instead of a silent, degraded run. Kept dependency-free and pure (a version string in,
  * an answer out) so it's trivial to unit-test with an injected version instead of the machine's own Node.
  */

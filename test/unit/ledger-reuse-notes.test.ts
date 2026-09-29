@@ -24,7 +24,7 @@ describe('reusedAgeNotes', () => {
 
   it('an id not in the ledger reads as age unknown rather than throwing', () => {
     const { paths } = tempProject({});
-    expect(reusedAgeNotes(paths, ['SW-9999'])).toEqual(['reused: SW-9999 (age unknown)']);
+    expect(reusedAgeNotes(paths, ['MM3-9999'])).toEqual(['reused: MM3-9999 (age unknown)']);
   });
 
   it('caps at 5 ids, naming how many more', () => {

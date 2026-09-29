@@ -1,18 +1,18 @@
 /**
- * `sidewise help <topic>`: cross-cutting rules that don't belong to one verb:
- * authoring (how to write a request), verdict (how to read one), wise (the ledger's own context fields),
+ * `mm3 help <topic>`: cross-cutting rules that don't belong to one verb:
+ * authoring (how to write a request), verdict (how to read one), mdl (the ledger's own context fields),
  * reuse (what answers are free and why). `verdict()`'s response-vocabulary bullets come from rules.ts's
  * `VERDICT_FACTS` — the same list `agent verdict` (help/agent.ts) renders bare, so the two views can't state
  * the verdict rules differently; `probe()` likewise splices `ruleLines('probe')` in after `PROBE_RULES`, for
- * facts that are Sidewise's own validator rules rather than TypeSafe guidance (schema-check.ts's per-question
+ * facts that are MM3's own validator rules rather than TypeSafe guidance (schema-check.ts's per-question
  * character cap). [C-194] [C-196]
  */
 import { AREAS, BLASTS, CHANGES, RISKS, STAGES, WHYS } from '../contract/types.ts';
-import { MAX_CUSTOM_KEY_LEN, MAX_WISE_LINES } from '../contract/wise-fields.ts';
+import { MAX_CUSTOM_KEY_LEN, MAX_MDL_LINES } from '../contract/mdl-fields.ts';
 import { proseLines } from './patterns.ts';
 import { BAD_PROBE_EXAMPLE, FAMILY_ROLES, PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
 
-export const TOPICS = ['authoring', 'verdict', 'wise', 'reuse', 'probe'] as const;
+export const TOPICS = ['authoring', 'verdict', 'mdl', 'reuse', 'probe'] as const;
 export type Topic = (typeof TOPICS)[number];
 
 function authoring(): string {
@@ -42,11 +42,11 @@ function verdict(): string {
   ].join('\n');
 }
 
-function wise(): string {
+function mdl(): string {
   return [
-    '## wise',
-    'wise: is optional context that never reaches the classifier — it only shapes what the ledger learns. Every',
-    `field is optional; the block is capped at ${MAX_WISE_LINES} YAML lines:`,
+    '## mdl',
+    'mdl: is optional context that never reaches the classifier — it only shapes what the ledger learns. Every',
+    `field is optional; the block is capped at ${MAX_MDL_LINES} YAML lines:`,
     '',
     '| field | closed values | what you get back |',
     '|---|---|---|',
@@ -62,10 +62,10 @@ function wise(): string {
     '',
     `Any other lower-kebab key (≤${MAX_CUSTOM_KEY_LEN} characters) is also accepted: one line or a short list,`,
     'recorded as-is. Every closed field above also accepts `unknown`. For this project\'s exact allowed values,',
-    'run `sidewise agent wise` — it renders the full C4 legend (the `uses` grammar, the chain examples) too.',
+    'run `mm3 agent mdl` — it renders the full C4 legend (the `uses` grammar, the chain examples) too.',
     '',
-    ...ruleLines('wise'),
-    '- every field is optional; the response always echoes back which ones were recorded as `wise: {recorded: [...]}`, or `{recorded: none}`.',
+    ...ruleLines('mdl'),
+    '- every field is optional; the response always echoes back which ones were recorded as `mdl: {recorded: [...]}`, or `{recorded: none}`.',
   ].join('\n');
 }
 
@@ -75,7 +75,7 @@ function reuse(): string {
     'The exact same question, asked of the exact same code, is answered for free from the ledger — no call, no',
     'spend, and the response says so. This is exact-match reuse: same evidence, same question text, same',
     'provider and model; nothing here is a semantic or fuzzy match.',
-    '- `view <request-file>` checks this before you spend anything: it shows `reuse: SW-####` when the exact',
+    '- `view <request-file>` checks this before you spend anything: it shows `reuse: MM3-####` when the exact',
     '  question set was already asked on unchanged code.',
     '- a sweep (scan, loop, drill on a sweep parent) reuses per item: unchanged items cost nothing, and the',
     '  response counts how many were reused.',
@@ -101,7 +101,7 @@ function probe(): string {
     "vulnerability — the wording, not the classifier, was wrong. That's rule 7 above.",
     '',
     '## Angles: a concern is one path; its ~3 probes are three angles on it',
-    "This part is Sidewise's own model, not TypeSafe's — pick the family that matches the category's path,",
+    "This part is MM3's own model, not TypeSafe's — pick the family that matches the category's path,",
     'then write one probe per role:',
     '',
     ...FAMILY_ROLES.map((f) => `- ${f.family}: ${f.roles.join(' · ')}`),
@@ -109,12 +109,12 @@ function probe(): string {
     `A bad probe: "${BAD_PROBE_EXAMPLE.bad}" — ${BAD_PROBE_EXAMPLE.why}. Rewritten as three angles:`,
     ...BAD_PROBE_EXAMPLE.good.map((g) => `- ${g}`),
     '',
-    'See the sidewise-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),',
-    'wise\'s problem/uses/touches/blast fields, and one recipe per verb.',
+    'See the mm3-probe skill for the full model, the decisions shapes (severity scale, route/scope choice),',
+    'mdl\'s problem/uses/touches/blast fields, and one recipe per verb.',
   ].join('\n');
 }
 
-const BUILDERS: Record<Topic, () => string> = { authoring, verdict, wise, reuse, probe };
+const BUILDERS: Record<Topic, () => string> = { authoring, verdict, mdl, reuse, probe };
 
 export function topicHelp(topic: Topic): string {
   return BUILDERS[topic]();
