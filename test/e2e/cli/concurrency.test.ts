@@ -22,12 +22,12 @@ interface Line {
 }
 
 /** Reads the current run count straight off the built `mm3 budget` line (plan 2c B1: budget is
- *  ledger-derived, no separate budget.json to read) — e.g. "budget 0% used ($0.00 of $5.00 · 3 of 500 runs)". */
+ *  ledger-derived, no separate budget.json to read) — e.g. "budget: $5.00 left of $5.00 · 497 of 500 runs left" (used = cap − left). */
 function budgetRunsOf(root: string): number {
   const out = mm3(root, ['budget']).stdout;
-  const m = /· (\d+) of \d+ runs\)/.exec(out);
+  const m = /· (\d+) of (\d+) runs left/.exec(out);
   if (!m) throw new Error(`could not read a run count from "mm3 budget": ${JSON.stringify(out)}`);
-  return Number(m[1]);
+  return Number(m[2]) - Number(m[1]);
 }
 
 /** Every log line parsed (a line that doesn't parse fails the test), plus the ledger-derived budget run count.
@@ -115,7 +115,7 @@ describe('separate processes at once', () => {
     expect(ok.length).toBeLessThanOrEqual(3 + (6 - 1));
     const s = state(root);
     expect(s.runIds).toEqual(expectedIds(ok.length));
-    expect(s.budgetRuns).toBe(s.counted);
+    expect(s.budgetRuns).toBe(Math.min(s.counted, 3)); // runs left never goes below 0, so an overshot cap reads as the cap itself
     expect(s.counted).toBe(ok.length);
     expect(mm3(root, ['class', 'req.yaml']).status).toBe(3); // over the cap now: blocked until reset
   }, 60_000);

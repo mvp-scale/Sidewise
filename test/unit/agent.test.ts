@@ -102,6 +102,23 @@ describe('runAgent', () => {
     expect(text.toLowerCase()).toContain('session cwd');
   });
 
+  // [C-230] Cold-agent trial: "what changed between release A and B?" was answered with `git diff`, never replay.
+  it('[C-230] the overview ties "what changed between releases or commits" to replay, and chains view → scan → drill → loop → replay', () => {
+    const text = runAgent().text;
+    expect(text).toMatch(/- replay: .*what changed between releases or commits/);
+    expect(text).toMatch(/what changed or drifted between releases or commits: replay a prior run with compare: \{before: <ref>, after: <ref>\}/);
+    expect(text).toContain('git diff is not an mm3 check');
+    expect(text).toMatch(/view \(free reuse\) → scan \(find where\) → drill \(go deeper.*\) → loop \(check the design\) → replay/);
+  });
+
+  // [C-231] Cold-agent trial: speed-gain percentages with no answer behind them, and "no workarounds" after git diff.
+  it('[C-231] the overview requires every reported number to cite an mm3 id or be labelled an estimate, and calls a non-mm3 check a workaround', () => {
+    const text = runAgent().text;
+    expect(text).toContain('every number or claim you report comes from an mm3 answer (cite its id, e.g. MM3-0042) or is labelled your own estimate');
+    expect(text).toContain('a check done without mm3 (git diff, reading code to answer a question) is a workaround: say so; never claim none');
+    expect(text).toContain('budget: … left is headroom, not a limit: stop only at ⚠ or exit 3');
+  });
+
   // [C-196] The overview's closing run: block now has a third line pointing at the new verdict topic.
   it('[C-196] the overview points at "mm3 agent verdict" for reading a response', () => {
     expect(runAgent().text).toContain('run: mm3 agent verdict');

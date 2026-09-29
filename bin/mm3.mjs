@@ -9245,9 +9245,16 @@ function setBudget(paths, caps, now = Date.now(), env = process.env) {
     return budgetStateNow(paths, now, env);
   });
 }
+var BUDGET_LOW_FRACTION = 0.8;
 function budgetLine(s) {
-  const pct = Math.round(usedFraction(s) * 100);
-  return `${pct >= 50 ? "\u26A0 " : ""}budget ${pct}% used (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs)`;
+  const usdLeft = Math.max(0, s.capUsd - s.spentUsd);
+  const runsLeft = Math.max(0, s.capRuns - s.runs);
+  const line3 = `budget: ${money(usdLeft)} left of ${money(s.capUsd)} \xB7 ${runsLeft} of ${s.capRuns} runs left`;
+  if (usedFraction(s) < BUDGET_LOW_FRACTION) return line3;
+  const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= BUDGET_LOW_FRACTION : true;
+  const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= BUDGET_LOW_FRACTION : true;
+  const fix = [lowUsd ? "--usd <n>" : "", lowRuns ? "--runs <n>" : ""].filter(Boolean).join(" ");
+  return `\u26A0 ${line3} \u2192 low: ask the owner to run mm3 budget set ${fix}`;
 }
 
 // src/classifier/chaos.ts
@@ -16578,7 +16585,7 @@ var WHEN = {
 var VERB_LINE = {
   view: "free; what's already known, before any paid call",
   class: "one decision on one thing (merge, choose, triage, check a fix)",
-  replay: "re-check a run's questions after a fix, across two git refs",
+  replay: "re-check a run's questions across two git refs: after a fix, or what changed between releases or commits",
   scan: "sweep many files when the problem's location is unknown",
   drill: "go down from one flagged item of an earlier run",
   loop: "check a design or plan before code exists"
@@ -16618,6 +16625,15 @@ function noKeyRunLine(env, deps) {
 }
 var PROJECT_SCOPE_RULE = "- where: resolves against the MCP `project` argument or `MM3_HOME` (CLI), never your session cwd \u2014 pass `project` (or set `MM3_HOME`) when you started elsewhere.";
 var PROBE_SKILL_RULE = "- before writing or editing any request, read the mm3-probe skill (or run `mm3 agent probe`): what makes a probe worth asking.";
+var CHAIN_RULES = [
+  "- open goal, in order: view (free reuse) \u2192 scan (find where) \u2192 drill (go deeper on a flagged item; follow next:) \u2192 loop (check the design) \u2192 replay (after a change).",
+  "- what changed or drifted between releases or commits: replay a prior run with compare: {before: <ref>, after: <ref>} (no prior run: class or scan once at one ref first); git diff is not an mm3 check."
+];
+var EVIDENCE_RULES = [
+  "- every number or claim you report comes from an mm3 answer (cite its id, e.g. MM3-0042) or is labelled your own estimate.",
+  "- a check done without mm3 (git diff, reading code to answer a question) is a workaround: say so; never claim none.",
+  "- notes: budget: \u2026 left is headroom, not a limit: stop only at \u26A0 or exit 3, then tell the owner."
+];
 function overview(env, deps) {
   return renderCard(
     [
@@ -16626,7 +16642,7 @@ function overview(env, deps) {
       "tools:",
       ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`)
     ],
-    [PROBE_SKILL_RULE, ...ruleLines("card"), PROJECT_SCOPE_RULE],
+    [PROBE_SKILL_RULE, ...ruleLines("card"), PROJECT_SCOPE_RULE, ...CHAIN_RULES, ...EVIDENCE_RULES],
     [],
     [
       "run: mm3 agent <verb|tool> \u2014 before writing that request",

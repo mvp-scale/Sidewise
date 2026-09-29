@@ -76,7 +76,7 @@ const RESPONSE_DOC = m(
   ],
   ['mdl', m(['recorded', ['why', 'area']])],
   ['next', 'mm3 template drill --parent MM3-0001 --from guards'],
-  ['notes', ['budget 0% used ($0.00 of $5.00 · 1 of 500 runs)']],
+  ['notes', ['budget: $5.00 left of $5.00 · 499 of 500 runs left']],
 );
 const RESPONSE_YAML = emit(RESPONSE_DOC);
 /** The plain JS value a response Map stands for — same shape emit() reads, just not flattened to text yet. */

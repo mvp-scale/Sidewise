@@ -93,7 +93,7 @@ const WHEN: Record<Verb, string> = {
 export const VERB_LINE: Record<Verb, string> = {
   view: "free; what's already known, before any paid call",
   class: 'one decision on one thing (merge, choose, triage, check a fix)',
-  replay: "re-check a run's questions after a fix, across two git refs",
+  replay: "re-check a run's questions across two git refs: after a fix, or what changed between releases or commits",
   scan: "sweep many files when the problem's location is unknown",
   drill: 'go down from one flagged item of an earlier run',
   loop: 'check a design or plan before code exists',

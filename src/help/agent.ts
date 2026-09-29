@@ -106,6 +106,21 @@ const PROJECT_SCOPE_RULE =
  *  `rules:`, right after the verb/tool lists) — before an agent writes a single probe, not after it fails one. */
 const PROBE_SKILL_RULE = '- before writing or editing any request, read the mm3-probe skill (or run `mm3 agent probe`): what makes a probe worth asking.';
 
+/** Agent-only rules (evidence discipline and how the verbs chain), hand-written here like PROJECT_SCOPE_RULE:
+ *  they are about how an agent reports and sequences its work, not about a request's schema, so they are not in
+ *  rules.ts's RULES. Cold-agent trials showed all three gaps: "what changed between releases?" answered with
+ *  `git diff` (never `replay`), `budget: ... left` misread as a limit, and speed-gain percentages reported with
+ *  no answer behind them next to a "no workarounds" claim. [C-230] [C-231] */
+const CHAIN_RULES = [
+  '- open goal, in order: view (free reuse) → scan (find where) → drill (go deeper on a flagged item; follow next:) → loop (check the design) → replay (after a change).',
+  '- what changed or drifted between releases or commits: replay a prior run with compare: {before: <ref>, after: <ref>} (no prior run: class or scan once at one ref first); git diff is not an mm3 check.',
+] as const;
+const EVIDENCE_RULES = [
+  '- every number or claim you report comes from an mm3 answer (cite its id, e.g. MM3-0042) or is labelled your own estimate.',
+  '- a check done without mm3 (git diff, reading code to answer a question) is a workaround: say so; never claim none.',
+  '- notes: budget: … left is headroom, not a limit: stop only at ⚠ or exit 3, then tell the owner.',
+] as const;
+
 function overview(env: Record<string, string | undefined>, deps: { resolveStored?: ResolveStored }): string {
   return renderCard(
     [
@@ -114,7 +129,7 @@ function overview(env: Record<string, string | undefined>, deps: { resolveStored
       'tools:',
       ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`),
     ],
-    [PROBE_SKILL_RULE, ...ruleLines('card'), PROJECT_SCOPE_RULE],
+    [PROBE_SKILL_RULE, ...ruleLines('card'), PROJECT_SCOPE_RULE, ...CHAIN_RULES, ...EVIDENCE_RULES],
     [],
     [
       'run: mm3 agent <verb|tool> — before writing that request',

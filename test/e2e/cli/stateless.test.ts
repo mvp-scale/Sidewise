@@ -38,7 +38,7 @@ describe('statelessness', () => {
     expect(second.stdout).toMatch(/^mak:\n {2}id: MM3-0002\n/);
     expect(answerBody(second.stdout)).toEqual(answerBody(first.stdout));
     // The second call is a byte-for-byte repeat: every question is reused for free, so it doesn't count.
-    expect(second.stdout.trimEnd().split('\n').at(-1)).toMatch(/^notes: \[.*budget 0% used \(\$0\.00 of \$5\.00 · 1 of 500 runs\).*\]$/);
+    expect(second.stdout.trimEnd().split('\n').at(-1)).toMatch(/^notes: \[.*budget: \$5\.00 left of \$5\.00 · 499 of 500 runs left.*\]$/);
 
     const elsewhere = mm3(project(), ['class', 'req.yaml']); // a fresh project: byte-for-byte the first answer
     expect(elsewhere.stdout).toBe(first.stdout);
@@ -46,14 +46,14 @@ describe('statelessness', () => {
 
   it('delete .mm3/ between runs: a clean fresh start, MM3-0001 again, a fresh budget', () => {
     const root = project();
-    expect(mm3(root, ['class', 'req.yaml']).stdout).toContain('$0.00 of $5.00 · 1 of 500 runs');
+    expect(mm3(root, ['class', 'req.yaml']).stdout).toContain('$5.00 left of $5.00 · 499 of 500 runs left');
     writeFileSync(path.join(root, 'req2.yaml'), CLASS_YAML_2); // a different goal: a second paid run, not a free repeat
     expect(mm3(root, ['class', 'req2.yaml']).stdout).toMatch(/^mak:\n {2}id: MM3-0002\n/);
     rmSync(path.join(root, '.mm3'), { recursive: true });
     const again = mm3(root, ['class', 'req.yaml']);
     expect(again.status).toBe(0);
     expect(again.stdout).toMatch(/^mak:\n {2}id: MM3-0001\n/);
-    expect(again.stdout).toContain('$0.00 of $5.00 · 1 of 500 runs');
+    expect(again.stdout).toContain('$5.00 left of $5.00 · 499 of 500 runs left');
   });
 
   // Plan 2c B1: budget.json is gone — a `budget set` now writes .mm3/config.yaml instead (caps live there;

@@ -6,12 +6,12 @@ import { mm3 } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
 
 // Plan 2c B1: budget is ledger-derived now (no budget.json) — read the run count straight off the built
-// `mm3 budget` line instead, e.g. "budget 0% used ($0.00 of $5.00 · 7 of 500 runs)".
+// `mm3 budget` line instead, e.g. "budget: $5.00 left of $5.00 · 493 of 500 runs left" (used = cap − left).
 function ledgerAgreesWithBudget(root: string): void {
   const lines = readFileSync(path.join(root, '.mm3', 'log.jsonl'), 'utf8').trimEnd().split('\n').filter(Boolean).map((l) => JSON.parse(l));
   const counted = lines.filter((l) => (l.kind === 'run' && l.calls > 0) || l.kind === 'failed').length;
-  const m = /· (\d+) of \d+ runs\)/.exec(mm3(root, ['budget']).stdout);
-  expect(m && Number(m[1])).toBe(counted);
+  const m = /· (\d+) of (\d+) runs left/.exec(mm3(root, ['budget']).stdout);
+  expect(m && Number(m[2]) - Number(m[1])).toBe(counted);
 }
 
 describe('the contract, end to end, through the built CLI', () => {
@@ -47,6 +47,6 @@ describe('the contract, end to end, through the built CLI', () => {
     expect(mm3(root, ['loop', 'loop.yaml']).status).toBe(0);
 
     ledgerAgreesWithBudget(root);
-    expect(mm3(root, ['budget']).stdout).toMatch(/of 500 runs\)\n$/);
+    expect(mm3(root, ['budget']).stdout).toMatch(/of 500 runs left\n$/);
   });
 });

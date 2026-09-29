@@ -32,7 +32,7 @@ describe('respondText / subjectMak / categoryEntry (the contract class golden, m
     const answers = { goal: { kind: 'yesno' as const, p: 0.08 }, 1: { kind: 'yesno' as const, p: 0.94 }, 3: { kind: 'yesno' as const, p: 0.88 } };
     const subject = gradeSubject(cats, answers);
     const mak = subjectMak('MM3-0042', subject.gate, subject, [['consensus', 'SPLIT'], ['escalate', true]]);
-    const text = respondText(mak, mdlRecorded({ why: 'validate', area: 'data' }), drillNext('MM3-0042', 'injection'), commonNotes([], 'budget 1% used ($0.02 of $5.00 · 3 of 500 runs)'));
+    const text = respondText(mak, mdlRecorded({ why: 'validate', area: 'data' }), drillNext('MM3-0042', 'injection'), commonNotes([], 'budget: $4.98 left of $5.00 · 497 of 500 runs left'));
     expect(text).toBe(
       [
         'mak:',
@@ -45,7 +45,7 @@ describe('respondText / subjectMak / categoryEntry (the contract class golden, m
         '  escalate: true',
         'mdl: {recorded: [why, area]}',
         'next: mm3 template drill --parent MM3-0042 --from injection',
-        'notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]',
+        'notes: ["budget: $4.98 left of $5.00 · 497 of 500 runs left"]',
       ].join('\n') + '\n',
     );
   });
@@ -133,14 +133,14 @@ describe('sweepNext', () => {
 
 describe('commonNotes', () => {
   it('no adapter given, or a real one (typesafe, stub): no label', () => {
-    expect(commonNotes([], 'budget 0% used')).toEqual(['budget 0% used']);
-    expect(commonNotes([], 'budget 0% used', 'typesafe')).toEqual(['budget 0% used']);
-    expect(commonNotes([], 'budget 0% used', 'stub')).toEqual(['budget 0% used']);
+    expect(commonNotes([], 'budget: $5.00 left of $5.00 · 500 of 500 runs left')).toEqual(['budget: $5.00 left of $5.00 · 500 of 500 runs left']);
+    expect(commonNotes([], 'budget: $5.00 left of $5.00 · 500 of 500 runs left', 'typesafe')).toEqual(['budget: $5.00 left of $5.00 · 500 of 500 runs left']);
+    expect(commonNotes([], 'budget: $5.00 left of $5.00 · 500 of 500 runs left', 'stub')).toEqual(['budget: $5.00 left of $5.00 · 500 of 500 runs left']);
   });
 
   it('a rehearsal adapter (fake, chaos) is labeled "not evidence", after other notes, before budget [C-092]', () => {
-    expect(commonNotes(['a validation note'], 'budget 0% used', 'fake')).toEqual(['a validation note', 'adapter fake · not evidence', 'budget 0% used']);
-    expect(commonNotes([], 'budget 0% used', 'chaos')).toEqual(['adapter chaos · not evidence', 'budget 0% used']);
+    expect(commonNotes(['a validation note'], 'budget: $5.00 left of $5.00 · 500 of 500 runs left', 'fake')).toEqual(['a validation note', 'adapter fake · not evidence', 'budget: $5.00 left of $5.00 · 500 of 500 runs left']);
+    expect(commonNotes([], 'budget: $5.00 left of $5.00 · 500 of 500 runs left', 'chaos')).toEqual(['adapter chaos · not evidence', 'budget: $5.00 left of $5.00 · 500 of 500 runs left']);
   });
 });
 

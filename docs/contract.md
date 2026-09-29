@@ -263,6 +263,12 @@ When every category (or item) passes and only the goal itself missed, `next:` in
 though every part passed, since there's nothing to drill into; in a sweep where every item was skipped past
 the depth cap, it says so instead of naming one. [C-046]
 `notes:` always ends with the budget line; any validation or evidence notes come first. [C-047]
+The budget line states headroom, not a percentage: `budget: $0.11 left of $0.12 · 27 of 30 runs left` (dollars
+left of the dollar cap, runs left of the run cap; never below zero). One formatter builds it for every run's
+`notes:` and for `mm3 budget`, `budget set` and `budget reset`. It gains a leading `⚠` only at 80% or more used
+(of either cap), and then says what to do and which cap is low: `⚠ budget: $0.02 left of $0.12 · 3 of 30 runs
+left → low: ask the owner to run mm3 budget set --usd <n> --runs <n>` (only the low cap's flag is named). Below
+80% there is no warning, so an agent reads a nearly-full budget as room to keep working. [C-229]
 A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, offline, canned) adds `adapter
 <name> · not evidence` to `notes:`, right before the budget line, on every verb that calls the classifier
 (class, scan, drill, loop, replay) — so a rehearsal answer is never mistaken for real evidence. [C-092]
@@ -431,7 +437,7 @@ mak:
   escalate: false
 mdl: {recorded: [why, area]}
 next: mm3 template drill --parent MM3-0042 --from injection
-notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
+notes: ["budget: $4.98 left of $5.00 · 497 of 500 runs left"]
 ```
 
 `next:` on `pass` is the caller's own text ("act on it"); on `fail`, it drills into the first category whose
@@ -477,7 +483,7 @@ mak:
   regressed: []
 mdl: {recorded: [why, area, parent]}
 next: mm3 template drill --parent MM3-0051 --from access
-notes: [2 states · budget 2% used]
+notes: ["2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left"]
 ```
 
 `replay` never takes `ask`: it replays the parent's categories and questions; new questions go through
@@ -515,7 +521,7 @@ mak:
   regressed: [5]
 mdl: {recorded: [why, area, parent]}
 next: mm3 template drill --parent MM3-0052 --from access
-notes: [2 states · budget 2% used]
+notes: ["2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left"]
 ```
 
 A non-empty `regressed` takes priority over the usual "which category matches the overall gate?" search:
@@ -556,7 +562,7 @@ mak:
   regressed: [src/a.ts#3]
 mdl: {recorded: [parent]}
 next: mm3 template drill --parent MM3-0099 --from src/a.ts
-notes: [reused: MM3-0042 (0d, 1 commit), 2 refs · 2 calls · 11 questions · budget 2% used]
+notes: ["reused: MM3-0042 (0d, 1 commit), 2 refs · 2 calls · 11 questions · budget: $4.96 left of $5.00 · 495 of 500 runs left"]
 ```
 
 The response is item-shaped, not category-shaped: `items:` holds one entry per item whose own `before`/`after`
@@ -637,7 +643,7 @@ mak:
   reused: 14                       # unchanged functions answered from the ledger for free
 mdl: {recorded: [why, area]}
 next: mm3 template drill --parent MM3-0060 --from src/handlers/user.ts/findUser
-notes: [1 call (the function layer; files are read, not asked) · budget 4% used]
+notes: ["1 call (the function layer; files are read, not asked) · budget: $4.96 left of $5.00 · 495 of 500 runs left"]
 ```
 
 scan's response shows `failing:` worst first — most failing categories, then most unsure, then written order
@@ -726,7 +732,7 @@ mak:
   passing: 3
 mdl: {recorded: [why, area]}
 next: fix it, then run this drill again (unchanged items are reused, so it is nearly free)
-notes: [1 call · budget 4% used]
+notes: ["1 call · budget: $4.96 left of $5.00 · 495 of 500 runs left"]
 ```
 
 On a sweep parent (scan, loop, or an earlier sweep drill), `from:` names an item, and drill needs `over:` for
@@ -822,7 +828,7 @@ mak:
   passing: [gateway, gateway/guest checkout, gateway/saved cards, payments/retries, ledger]
 mdl: {recorded: [why, area]}
 next: mm3 template drill --parent MM3-0070 --from payments/refunds
-notes: [2 calls · 43 questions · budget 3% used]
+notes: ["2 calls · 43 questions · budget: $4.96 left of $5.00 · 495 of 500 runs left"]
 ```
 
 loop's response shows `failing:` and `passing:` in the order the request was written (tree order), unlike
@@ -1082,6 +1088,19 @@ The Claude Code skill's own "Run this first" guidance (`skills/mm3/SKILL.md`, ca
 `AGENTS.md`'s "Using MM3" section and into `GEMINI.md`) sends a cold agent to `mm3 agent` (no verb)
 first — it names every command, including `report`/`outcome`/`budget`/`template`, in one card — before
 `mm3 agent <command>` on whichever one it's about to use, ahead of writing any request. [C-188]
+
+The `mm3 agent` overview also ties the release-comparison goal to `replay` — its `replay:` bullet reads
+"re-check a run's questions across two git refs: after a fix, or what changed between releases or commits", and
+a `rules:` line says a question about what changed or drifted between releases or commits is answered by
+replaying a prior run with `compare: {before: <ref>, after: <ref>}` (with no prior run, one `class` or `scan` at
+one ref first), and that `git diff` is not an mm3 check — and it gives the chain for an open goal as one line:
+view (free reuse) → scan (find where) → drill (go deeper on a flagged item, following `next:`) → loop (check the
+design) → replay (after a change). [C-230]
+
+Its universal rules also carry the evidence discipline: every number or claim an agent reports comes from an mm3
+answer (cited by its id) or is labelled its own estimate; a check done without mm3 (`git diff`, reading code to
+answer a question) is a workaround, said so and never reported as "none"; and the budget note is headroom, not a
+limit — stop only at `⚠` or exit 3, then tell the owner. [C-231]
 
 `mm3 agent` with no target lists one atomic purpose line under each verb and tool, not just its name —
 `verbs (pick by goal):` followed by `- view: free; what's already known, before any paid call`, one such

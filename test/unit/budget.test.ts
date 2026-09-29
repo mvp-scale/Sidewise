@@ -101,9 +101,14 @@ describe('budget', () => {
     expect(state).toMatchObject({ spentUsd: 2, runs: 1 });
   });
 
-  it('the budget line warns from 50% on', () => {
+  // [C-229] The line states headroom (what is left), and warns only at >= 80% used, naming the cap that is low.
+  it('[C-229] the budget line states what is left, and warns only from 80% used', () => {
     const base = { capUsd: 5, capRuns: 100, spentUsd: 0, resetAt: 'x' };
-    expect(budgetLine({ ...base, runs: 12 })).toBe('budget 12% used ($0.00 of $5.00 · 12 of 100 runs)');
-    expect(budgetLine({ ...base, runs: 76 })).toBe('⚠ budget 76% used ($0.00 of $5.00 · 76 of 100 runs)');
+    expect(budgetLine({ ...base, runs: 12 })).toBe('budget: $5.00 left of $5.00 · 88 of 100 runs left');
+    expect(budgetLine({ ...base, runs: 76 })).toBe('budget: $5.00 left of $5.00 · 24 of 100 runs left');
+    expect(budgetLine({ capUsd: 0.12, capRuns: 30, spentUsd: 0.01, runs: 3, resetAt: 'x' })).toBe('budget: $0.11 left of $0.12 · 27 of 30 runs left');
+    expect(budgetLine({ ...base, runs: 80 })).toBe('⚠ budget: $5.00 left of $5.00 · 20 of 100 runs left → low: ask the owner to run mm3 budget set --runs <n>');
+    expect(budgetLine({ ...base, spentUsd: 4.5, runs: 10 })).toBe('⚠ budget: $0.50 left of $5.00 · 90 of 100 runs left → low: ask the owner to run mm3 budget set --usd <n>');
+    expect(budgetLine({ ...base, spentUsd: 5, runs: 100 })).toBe('⚠ budget: $0.00 left of $5.00 · 0 of 100 runs left → low: ask the owner to run mm3 budget set --usd <n> --runs <n>');
   });
 });

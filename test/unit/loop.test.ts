@@ -35,7 +35,7 @@ describe('loop', () => {
     // payments itself (1) or partial capture (0 fails, 1 unsure) — matches the contract's own golden example.
     expect(r.text).toContain('next: mm3 template drill --parent MM3-0001 --from payments/refunds');
     // part: 2 probes x 3 items = 6; story: 11 probes (9 concerns + 2 decisions) x 5 items = 55; 6+55 = 61.
-    expect(r.text).toMatch(/2 calls · 61 questions · budget \d+% used/);
+    expect(r.text).toMatch(/2 calls · 61 questions · budget: \$[\d.]+ left/);
     expect(r.run).toBeDefined();
   });
 

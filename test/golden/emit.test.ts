@@ -23,7 +23,7 @@ describe('emit (golden: the contract examples)', () => {
       ['mak', m(['id', 'MM3-0001'], ['gate', 'pass'])],
       ['mdl', m(['recorded', 'none'])],
       ['next', 'act on it'],
-      ['notes', commonNotes(['a validation note'], 'budget 0% used ($0.00 of $5.00 · 1 of 500 runs)', 'fake')],
+      ['notes', commonNotes(['a validation note'], 'budget: $5.00 left of $5.00 · 499 of 500 runs left', 'fake')],
     );
     expect(emit(doc)).toBe(
       lines(
@@ -32,7 +32,7 @@ describe('emit (golden: the contract examples)', () => {
         '  gate: pass',
         'mdl: {recorded: none}',
         'next: act on it',
-        'notes: [a validation note, adapter fake · not evidence, budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]',
+        'notes: [a validation note, adapter fake · not evidence, "budget: $5.00 left of $5.00 · 499 of 500 runs left"]',
       ),
     );
     roundTrip(doc);
@@ -58,7 +58,7 @@ describe('emit (golden: the contract examples)', () => {
       ],
       ['mdl', m(['recorded', ['why', 'area']])],
       ['next', 'mm3 template drill --parent MM3-0042 --from injection'],
-      ['notes', ['budget 1% used ($0.02 of $5.00 · 3 of 500 runs)']],
+      ['notes', ['budget: $4.98 left of $5.00 · 497 of 500 runs left']],
     );
     expect(emit(doc)).toBe(
       lines(
@@ -76,7 +76,7 @@ describe('emit (golden: the contract examples)', () => {
         '  escalate: false',
         'mdl: {recorded: [why, area]}',
         'next: mm3 template drill --parent MM3-0042 --from injection',
-        'notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]',
+        'notes: ["budget: $4.98 left of $5.00 · 497 of 500 runs left"]',
       ),
     );
     roundTrip(doc);
@@ -99,7 +99,7 @@ describe('emit (golden: the contract examples)', () => {
       ],
       ['mdl', m(['recorded', ['why', 'area', 'parent']])],
       ['next', 'mm3 template drill --parent MM3-0051 --from access'],
-      ['notes', ['2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)']],
+      ['notes', ['2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left']],
     );
     expect(emit(doc)).toBe(
       lines(
@@ -114,7 +114,7 @@ describe('emit (golden: the contract examples)', () => {
         '  regressed: []',
         'mdl: {recorded: [why, area, parent]}',
         'next: mm3 template drill --parent MM3-0051 --from access',
-        'notes: [2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)]',
+        'notes: ["2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left"]',
       ),
     );
     roundTrip(doc);
@@ -137,7 +137,7 @@ describe('emit (golden: the contract examples)', () => {
       ],
       ['mdl', m(['recorded', ['why', 'area', 'parent']])],
       ['next', 'mm3 template drill --parent MM3-0052 --from access'],
-      ['notes', ['2 states · budget 2% used']],
+      ['notes', ['2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left']],
     );
     expect(emit(doc)).toBe(
       lines(
@@ -152,7 +152,7 @@ describe('emit (golden: the contract examples)', () => {
         '  regressed: [5]',
         'mdl: {recorded: [why, area, parent]}',
         'next: mm3 template drill --parent MM3-0052 --from access',
-        'notes: [2 states · budget 2% used]',
+        'notes: ["2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left"]',
       ),
     );
     roundTrip(doc);
@@ -181,7 +181,7 @@ describe('emit (golden: the contract examples)', () => {
       ],
       ['mdl', m(['recorded', ['why', 'area']])],
       ['next', 'mm3 template drill --parent MM3-0060 --from src/handlers/user.ts/findUser'],
-      ['notes', ['1 call · 9 questions · budget 4% used ($0.08 of $5.00 · 9 of 500 runs)']],
+      ['notes', ['1 call · 9 questions · budget: $4.92 left of $5.00 · 491 of 500 runs left']],
     );
     expect(emit(doc)).toBe(
       lines(
@@ -198,7 +198,7 @@ describe('emit (golden: the contract examples)', () => {
         '  reused: 14',
         'mdl: {recorded: [why, area]}',
         'next: mm3 template drill --parent MM3-0060 --from src/handlers/user.ts/findUser',
-        'notes: [1 call · 9 questions · budget 4% used ($0.08 of $5.00 · 9 of 500 runs)]',
+        'notes: ["1 call · 9 questions · budget: $4.92 left of $5.00 · 491 of 500 runs left"]',
       ),
     );
     roundTrip(doc);
@@ -225,7 +225,7 @@ describe('emit (golden: the contract examples)', () => {
       ],
       ['mdl', m(['recorded', ['why', 'area']])],
       ['next', 'mm3 template drill --parent MM3-0070 --from payments/refunds'],
-      ['notes', ['2 calls · 16 questions · budget 3% used ($0.06 of $5.00 · 7 of 500 runs)']],
+      ['notes', ['2 calls · 16 questions · budget: $4.94 left of $5.00 · 493 of 500 runs left']],
     );
     expect(emit(doc)).toBe(
       lines(
@@ -240,7 +240,7 @@ describe('emit (golden: the contract examples)', () => {
         '  passing: [gateway, gateway/guest checkout, gateway/saved cards, payments/retries, ledger]',
         'mdl: {recorded: [why, area]}',
         'next: mm3 template drill --parent MM3-0070 --from payments/refunds',
-        'notes: [2 calls · 16 questions · budget 3% used ($0.06 of $5.00 · 7 of 500 runs)]',
+        'notes: ["2 calls · 16 questions · budget: $4.94 left of $5.00 · 493 of 500 runs left"]',
       ),
     );
     roundTrip(doc);
@@ -263,7 +263,7 @@ describe('emit (golden: the contract examples)', () => {
       ],
       ['mdl', m(['recorded', ['why', 'parent']])],
       ['next', 'mm3 template drill --parent MM3-0053 --from access'],
-      ['notes', ['2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)']],
+      ['notes', ['2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left']],
     );
     expect(emit(doc)).toBe(
       lines(
@@ -278,7 +278,7 @@ describe('emit (golden: the contract examples)', () => {
         '  regressed: []',
         'mdl: {recorded: [why, parent]}',
         'next: mm3 template drill --parent MM3-0053 --from access',
-        'notes: [2 states · budget 2% used ($0.04 of $5.00 · 5 of 500 runs)]',
+        'notes: ["2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left"]',
       ),
     );
     roundTrip(doc);
