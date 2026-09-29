@@ -131,7 +131,7 @@ What's needed is a standard way to ask, and a place to keep what you learn:
 6. You…                                     tell us what we missed.
 ```
 
-MM3 splits the problem in half: **Side** decides now, **Wise** learns as you go.
+MM3 splits the problem in half: **MAK³** (make) uses what is proven, **MDL³** (model) learns what is missing, each across Know, Judge and Prove.
 
 ## Honest status
 

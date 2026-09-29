@@ -1,8 +1,17 @@
 # MM3
 
-**Solve the problem in front of you fast, and use it to make your agent harness better.**
+**A Knowledge One system: use what is proven, learn what is missing, and keep everything it teaches you.**
 
 MM3 gives coding agents a cheap, calibrated side-question. The agent writes a short numbered yes/no checklist on one focus. A small classifier answers it, and MM3 returns a six-line consensus: how strongly the evidence agrees, which way it leans, and where the concern is. Every run and its outcome goes into a local log, so over time MM3 can show you where your agents keep going wrong.
+
+## Two modes, three jobs
+
+**MAK³** (make) uses what is proven. **MDL³** (model) learns what is missing. Each works across the same three jobs, **Know, Judge, Prove**, and the power of three is the point: six verbs, one knowledge system.
+
+| | **Know** | **Judge** | **Prove** |
+|---|---|---|---|
+| **MAK³** · use what is proven | `view` | `class` | `replay` |
+| **MDL³** · learn what is missing | `scan` | `drill` | `loop` |
 
 > **Status: pre-release.** The package, plugin and install flow are under active development. Nothing is on npm yet. Watch the repo or check back for `@mvpscale/mm3@nightly`.
 
@@ -19,7 +28,7 @@ MM3 gives coding agents a cheap, calibrated side-question. The agent writes a sh
 
 ## What a run looks like
 
-Every request has a `mak:` block (**solve it now**: one goal, then plumbing) and an optional `mdl:` block (**get smarter**: why you're here, so the ledger learns). `class` — one call, one subject — is the simplest of the six verbs; run `mm3 help` for all six and how they fit together.
+Every request has a `mak:` block (**make**: the request itself, one goal, then plumbing) and an optional `mdl:` block (**model**: why you're here, so the ledger learns). The blocks are the same on every verb; the verb you run, not the key, decides whether it is a MAK³ or an MDL³ move. `class` — one call, one subject — is the simplest of the six verbs; run `mm3 help` for all six and how they fit together.
 
 Request:
 
