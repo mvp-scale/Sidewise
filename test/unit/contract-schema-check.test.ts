@@ -123,6 +123,20 @@ describe('checkSchema', () => {
     expect(texts(nopass)).toEqual(['✖ mak.ask.concerns.injection: is not a category → give it pass: and numbered questions']);
   });
 
+  it('ask: a section beside a layer blames the misplaced section, not the layer; a lone unknown key keeps its stop', () => {
+    const cat = { pass: 'no', 1: 'Is it?' };
+    const mixed = base();
+    mixed.mak.ask = { file: { concerns: { injection: cat } }, decisions: { severity: { pass: ['low'], 1: 'How bad?' } } };
+    expect(texts(mixed)).toContain('✖ mak.ask.decisions: sits beside the layer file: → move it under file: (a sweep) or drop file: (one subject)');
+    expect(texts(mixed).some((t) => t.startsWith('✖ mak.ask.file:'))).toBe(false);
+    const beside = base();
+    beside.mak.ask = { part: { concerns: { injection: cat } }, concerns: { access: cat } };
+    expect(texts(beside)).toEqual(['✖ mak.ask.concerns: sits beside the layer part: → move it under part: (a sweep) or drop part: (one subject)']);
+    const unknown = base();
+    unknown.mak.ask = { concerns: { injection: cat }, file: 'x' };
+    expect(texts(unknown)).toEqual(['✖ mak.ask.file: not concerns or decisions → use concerns: or decisions:']);
+  });
+
   it('ask: a legacy flat category (no concerns:/decisions: wrapper) is refused outright', () => {
     const flat = base();
     flat.mak.ask = { injection: { pass: 'no', 1: 'Is it?' } };

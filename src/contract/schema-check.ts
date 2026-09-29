@@ -154,6 +154,27 @@ function checkAsk(ask: unknown, verb: Verb | undefined, out: Out): void {
   if (Object.keys(ask).length === 0) return out.add('mak.ask', 'is empty', `add concerns: and decisions: (${templateHint})`);
 
   if ('concerns' in ask || 'decisions' in ask) {
+    // A layer key (a mapping under a non-section name) beside a section is a mix of a sweep and a one-subject ask:
+    // blame the misplaced section, not the correctly placed layer.
+    const layerKeys = Object.keys(ask).filter((k) => !SECTION_NAMES.includes(k) && isObj(ask[k]));
+    if (layerKeys.length > 0) {
+      const many = layerKeys.length > 1;
+      const names = layerKeys.map((k) => `${clip(k, 20)}:`).join(', ');
+      for (const sec of SECTION_NAMES) {
+        if (!(sec in ask)) continue;
+        out.add(
+          `mak.ask.${sec}`,
+          `sits beside the layer${many ? 's' : ''} ${names}`,
+          many ? 'move it under a layer (a sweep) or drop the layers (one subject)' : `move it under ${names} (a sweep) or drop ${names} (one subject)`,
+        );
+      }
+      for (const k of Object.keys(ask)) {
+        if (!SECTION_NAMES.includes(k) && !isObj(ask[k])) out.add(`mak.ask.${clip(k, 20)}`, 'not concerns or decisions', 'use concerns: or decisions:');
+      }
+      if ('concerns' in ask) checkCategoriesMap(ask.concerns, 'mak.ask.concerns', out);
+      if ('decisions' in ask) checkCategoriesMap(ask.decisions, 'mak.ask.decisions', out);
+      return;
+    }
     checkSectionsBlock(ask, 'mak.ask', out);
     return;
   }
