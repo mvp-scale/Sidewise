@@ -1,6 +1,6 @@
 # Where the README's numbers come from
 
-Three figures sit under the picture on the front page. Each is measured, not estimated, and each has its method here. If you can't reproduce one, open an issue. A last section explains the word "calibrated", which the README uses but is not a figure.
+Three figures sit under the picture on the front page. Each comes from a real run or command; the cost is the token-based estimate MM3 records. Each has its method here. If you can't reproduce one, open an issue. A last section explains the word "calibrated", which the README uses but is not a figure.
 
 ## Cost per check
 
@@ -33,6 +33,25 @@ The number moves with every test added. `npm run check:trace` maps each claim in
 **12/12 verb and depth decisions**: a coding agent (Claude) was given twelve plain-language tasks about OWASP NodeGoat, in order, and MM3 as its only checking tool. Each task has an expected verb and depth (for example "before spending anything, check what is on record" expects `view`, and "prove the fix worked without re-checking everything" expects `replay`). We graded which call the agent chose.
 
 Result on 2026-09-29: the agent chose the expected verb and depth on all 12 tasks. It matched the expected call in full on 10 of 12. The two partials were the agent's own choices: it asked `replay` to expect every concern to turn (the task said not every one), and it did not link a second `loop` run to the first as its parent.
+
+The twelve tasks, what each expected, and what the agent chose. "Full" means verb, depth and setup all as expected; "verb and depth" means those matched and the setup did not.
+
+| # | The task, in one line | Expected verb and depth | Chosen verb and depth | Match |
+|---|---|---|---|---|
+| 1 | Before spending anything, check what is on record about the contribution handler | `view`, free | `view`, no spend | full |
+| 2 | Take a first look: is the contribution handler safe to merge? | `class`, quick, 3 concerns of 3 questions | `class`, quick, 3 concerns of 3 questions | full |
+| 3 | First pass across all route handlers, worst first | `scan`, quick | `scan`, quick (each file as the unit, not each function) | full |
+| 4 | Dig into the single worst spot that pass found | `drill` from a scan item, quick | `drill` from that scan item | full |
+| 5 | For the worst concern in task 2, pin down exactly why it failed | `drill` from a category, quick | `drill` from that category | full |
+| 6 | Fix the eval-based parsing, then prove the problem is gone without re-checking everything | `replay`, with an `expect:` naming only the concerns the fix should clear | `replay` over the fix commit, `expect:` naming all three concerns | verb and depth |
+| 7 | Check a password-reset design before any code exists | `loop`, quick | `loop`, quick | full |
+| 8 | The same design, now also touching bank details: look again with more certainty | `loop`, standard or thorough, linked to task 7 | `loop`, thorough, reason "touches money", no link to task 7 | verb and depth |
+| 9 | The user-data module ships tomorrow: be as certain as possible | `class`, thorough, 9 concerns | `class`, thorough, 9 concerns | full |
+| 10 | Give an open pull request a normal pre-merge review | `class`, standard | `class`, standard | full |
+| 11 | Brief a new teammate using only what is on record | `view` or `report`, free | `report` (four views), no new run | full |
+| 12 | Which of your requests was the weakest, and what would you change? | none (reflection) | none: named the weakest request and a fix for it | full |
+
+The two partials (tasks 6 and 8) are the ones described above.
 
 This is a smoke test, not a benchmark: one agent, one run, one codebase. The twelve tasks cost $0.0017 in total.
 

@@ -146,7 +146,7 @@
 mdl: {recorded: none}
 next: mm3 template drill --parent MM3-0004 --from access
 notes: [cost estimated from tokens (no live pricing reported), "budget: $0.10 left of $0.10 · 26 of 30 runs left"]</code></pre></div>
-  <p>Each concern gets its own verdict and odds. Design is unsure only because question 2, whether every ability must define a permission callback, sits at 0.50, and correctness passes. Access fails: its three answers are all under 0.5, so the goal stays unsure at 0.38. The concerns disagree, so consensus is SPLIT, MM3 sets <code>escalate: true</code>, and <code>next:</code> names the drill into access. The agent ran that drill (MM3-0005), the last step of the story.</p>
+  <p>Each concern gets its own verdict and odds. Design is unsure only because question 2, whether every ability must define a permission callback, sits at 0.50, and correctness passes. Access fails: two answers are clear misses (0.08, 0.10). The goal, asked as its own question, is unsure at 0.38. One honest note: the agent wrote question 6 with its polarity backwards (it asks whether an unprivileged user <em>can</em> bypass ability permission checks, with <code>pass: "yes"</code>), so its 0.10 is actually the reassuring answer; MM3 grades what it is asked. The concerns disagree, so consensus is SPLIT, MM3 sets <code>escalate: true</code>, and <code>next:</code> names the drill into access. The agent ran that drill (MM3-0005), the last step of the story.</p>
 </section>
 
 <section class="wrap get" id="get" aria-labelledby="get-h">
@@ -167,7 +167,7 @@ notes: [cost estimated from tokens (no live pricing reported), "budget: $0.10 le
   </table>
   </div>
   <p>A request has a <code>mak:</code> block (the checklist) and an optional <code>mdl:</code> block (why you are asking, so the ledger learns). The verb you run, not the key, decides whether it is a MAK³ or an MDL³ move. <code>mm3 help &lt;verb&gt;</code> shows the rules for each; <code>mm3 template &lt;verb&gt;</code> prints a filled-in sample.</p>
-  <p>Every run and its outcome goes into an append-only ledger in <code>.mm3/</code> (git-ignored). Ask the same questions of unchanged code and MM3 answers from the ledger: no call, no cost. <code>mm3 report</code> reads back where your agents keep going wrong, and a budget cap, which only you reset, stops runaway spend. <code>mm3 view</code> looks a request up in the ledger before you spend anything.</p>
+  <p>Every run and its outcome goes into an append-only ledger in <code>.mm3/</code> (git-ignored). Ask the same questions of unchanged code and MM3 answers from the ledger: no call, no cost. <code>mm3 report</code> reads back where your agents keep going wrong, and a budget cap stops runaway spend; by convention only you raise or reset it, and MM3 tells agents to ask you. <code>mm3 view</code> looks a request up in the ledger before you spend anything.</p>
 </section>
 
 <section class="wrap why" id="why" aria-labelledby="why-h">

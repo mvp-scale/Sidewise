@@ -52,7 +52,7 @@ Agents: run `mm3 agent` first. Humans: `mm3 help`.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo-player-dark.gif">
-  <img src="docs/assets/demo-player-light.gif" alt="Two animated stories of real MM3 runs by a Haiku agent, WordPress (MAK³, where agents plug in) and n8n (MDL³, faster and re-checked for free). Each step shows the task given, the request fired, the response returned, a quick read with gates and p bars, the decision it implies, and what the ledger now holds, with a footer of the run's model, endpoint, latency, cost and id.">
+  <img src="docs/assets/demo-player-light.gif" alt="Two animated stories of real MM3 runs by a Haiku agent, WordPress (MAK³, where agents plug in) and n8n (MDL³: where to make it faster, then the next release re-checked for free). Each step shows the task given, the request fired, the response returned, a quick read with gates and p bars, the decision it implies, and what the ledger now holds, with a footer of the run's model, endpoint, latency, cost and id.">
 </picture>
 
 Two real stories, each driven by a Haiku agent on unmodified public source: **MAK³ · make**, “Where do agents plug into WordPress?” (WordPress @ 3ffb1df), and **MDL³ · model**, “I've never worked in n8n and I want it faster” (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run's own ledger row.
@@ -120,7 +120,7 @@ next: mm3 template drill --parent MM3-0004 --from access
 notes: [cost estimated from tokens (no live pricing reported), "budget: $0.10 left of $0.10 · 26 of 30 runs left"]
 ```
 
-Each concern gets its own verdict and odds. Design is unsure only because question 2, whether every ability must define a permission callback, sits at 0.50, and correctness passes. Access fails: its three answers are all under 0.5, so the goal stays unsure at 0.38. The concerns disagree, so consensus is SPLIT, MM3 sets `escalate: true`, and `next:` names the drill into access. The agent ran that drill (MM3-0005), the last step of the story.
+Each concern gets its own verdict and odds. Design is unsure only because question 2, whether every ability must define a permission callback, sits at 0.50, and correctness passes. Access fails: two answers are clear misses (0.08, 0.10). The goal, asked as its own question, is unsure at 0.38. One honest note: the agent wrote question 6 with its polarity backwards (it asks whether an unprivileged user *can* bypass ability permission checks, with `pass: "yes"`), so its 0.10 is actually the reassuring answer; MM3 grades what it is asked. The concerns disagree, so consensus is SPLIT, MM3 sets `escalate: true`, and `next:` names the drill into access. The agent ran that drill (MM3-0005), the last step of the story.
 
 ## What you get
 
@@ -131,7 +131,7 @@ Each concern gets its own verdict and odds. Design is unsure only because questi
 
 A request has a `mak:` block (the checklist) and an optional `mdl:` block (why you are asking, so the ledger learns). The verb you run, not the key, decides whether it is a MAK³ or an MDL³ move. `mm3 help <verb>` shows the rules for each; `mm3 template <verb>` prints a filled-in sample.
 
-Every run and its outcome goes into an append-only ledger in `.mm3/` (git-ignored). Ask the same questions of unchanged code and MM3 answers from the ledger: no call, no cost. `mm3 report` reads back where your agents keep going wrong, and a budget cap, which only you reset, stops runaway spend. `mm3 view` looks a request up in the ledger before you spend anything.
+Every run and its outcome goes into an append-only ledger in `.mm3/` (git-ignored). Ask the same questions of unchanged code and MM3 answers from the ledger: no call, no cost. `mm3 report` reads back where your agents keep going wrong, and a budget cap stops runaway spend; by convention only you raise or reset it, and MM3 tells agents to ask you. `mm3 view` looks a request up in the ledger before you spend anything.
 
 ## Why we built it
 
