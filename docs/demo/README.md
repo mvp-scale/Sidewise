@@ -8,9 +8,11 @@ question verbatim, paths shortened), 2 the request it fired, 3 the response MM3 
 in full, wrapped, never cut), 4 a colour-coded quick read of it (gates, p bars, consensus, escalate), 5 **the decision it
 infers** (the move MM3's `next:` names and why: gate, concerns, consensus, escalate, reuse) and 6 what the ledger now
 holds (lineage, reuse, what was recorded, the budget line). mm3lab.dev has it interactive (story tabs, a step-through,
-request and response tabs, hover a question to light its answer, a replay); the README has the same steps as two
-animated GIFs at 1600x900 (`docs/assets/demo-player-light.gif` and `-dark.gif`), where a long request or response is
-paged through so the whole text is shown.
+request and response tabs, hover a question to light its answer, a replay); the README shows one n8n run as a single
+animated strip (`docs/assets/demo-strip-n8n.svg`, built by `scripts/build-strip.ts` from MM3-0003 and MM3-0006 in
+`scenes/mdl.json`, free) and links here for the step-through. The same steps can still be rendered as two animated GIFs at
+1600x900 (`docs/assets/demo-player-light.gif` and `-dark.gif`), where a long request or response is paged through so the
+whole text is shown; the README no longer embeds them.
 
 Every step is frozen data in `docs/demo/scenes/{mak,mdl}.json`: the request, the response MM3 printed (verbatim), the
 footer (model, endpoint, latency, cost, questions, reuse, calls, id, date, pinned commit or tag) and the ledger facts, all
@@ -33,6 +35,7 @@ estimates appears. The kickoff is what the agent was given, not something MM3 sa
 |---|---|
 | `scenes/mak.json`, `scenes/mdl.json` | the frozen stories (committed source of truth) |
 | `../../scripts/build-demo.ts` | extract, YAML highlight, decision, player markup, README frame page |
+| `../../scripts/build-strip.ts` | the README strip: terminal plus tabbed viewport of one real run, animated SVG (`npx tsx scripts/build-strip.ts`) |
 | `../../scripts/demo-gif.ts` | the GIF renderer (headless Chrome over CDP, then ffmpeg) |
 | `../../site/player.js` | the site's story tabs, step-through, request/response tabs, replay, question-to-answer highlight |
 | `../../site/style.css` | the player styles (`.player`, `.pscene`, `.codecard`, `.decision`, ...) |

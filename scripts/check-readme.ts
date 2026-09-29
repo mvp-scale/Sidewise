@@ -136,7 +136,7 @@ export function checkDemo(html: string, readme: string | undefined, scenes: Scen
 
 const PROSE_SECTIONS = ['See it run', 'What you get', 'Why we built it', 'Limits and alternatives'];
 
-/** Prose the README and the site both carry (hand-copied, not in story.yaml): each block of these README sections must appear in the page's text, so a README edit that the site missed fails. */
+/** Prose the README and the site both carry (hand-copied, not in story.yaml): each block of these README sections must appear in the page's text, so a README edit that the site missed fails. A line that is only a link to the site itself ("Step through both stories on mm3lab.dev") is README-only: the site has no use for a link to itself. */
 function checkSiteProse(html: string, readme: string, story: Story): string[] {
   const out: string[] = [];
   const text = siteText(html);
@@ -150,7 +150,7 @@ function checkSiteProse(html: string, readme: string, story: Story): string[] {
     const rest = readme.slice(start + 1);
     const body = rest.slice(rest.indexOf('\n') + 1).split(/\n## /)[0]!;
     for (const m of body.matchAll(/```[^\n]*\n([\s\S]*?)```/g)) if (!m[1]!.includes('verb=')) want(section, m[1]!);
-    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<picture>[\s\S]*?<\/picture>/g, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
+    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<picture>[\s\S]*?<\/picture>/g, '').replace(/^\[[^\]]*\]\(https:\/\/mm3lab\.dev[^)]*\)\s*$/gm, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
     for (const block of prose.split(/\n\s*\n/)) {
       const lines = block.split('\n').filter((l) => l.trim());
       if (lines[0]?.startsWith('|')) {

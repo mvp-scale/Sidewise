@@ -50,10 +50,9 @@ Agents: run `mm3 agent` first. Humans: `mm3 help`.
 
 ## See it run
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo-player-dark.gif">
-  <img src="docs/assets/demo-player-light.gif" alt="Two animated stories of real MM3 runs by a Haiku agent, WordPress (MAK³, where agents plug in) and n8n (MDL³: where to make it faster, then the next release re-checked for free). Each step shows the task given, the request fired, the response returned, a quick read with gates and p bars, the decision it implies, and what the ledger now holds, with a footer of the run's model, endpoint, latency, cost and id.">
-</picture>
+![A real MM3 run on n8n. A terminal on the left: an agent asks where n8n could be faster, runs one class check of 21 yes/no questions (one call, 305 ms, about $0.00004) and gets a next move. On the right the run's real YAML, walked in steps: the request (one claim, the checklist, the decisions), the response (verdict, gates and odds per concern, consensus and the next command) and what the ledger now holds, with the same questions answered free on the next release.](docs/assets/demo-strip-n8n.svg)
+
+[Step through both stories on mm3lab.dev →](https://mm3lab.dev/#run)
 
 Two real stories, each driven by a Haiku agent on unmodified public source: **MAK³ · make**, “Where do agents plug into WordPress?” (WordPress @ 3ffb1df), and **MDL³ · model**, “I've never worked in n8n and I want it faster” (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run's own ledger row.
 

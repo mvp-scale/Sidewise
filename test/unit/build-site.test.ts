@@ -73,6 +73,12 @@ describe('checkSite', () => {
       const b = readme.replace('each answer is untraceable and never reused', 'each answer is anonymous and never reused');
       expect(checkSite(page, real, undefined, b).join('\n')).toMatch(/Why we built it/);
     });
+    it('treats the README-only link to the site as not prose the site must carry', () => {
+      expect(readme).toContain('[Step through both stories on mm3lab.dev →](https://mm3lab.dev/#run)');
+      expect(checkSite(page, real, undefined, readme)).toEqual([]);
+      const other = readme.replace('[Step through both stories on mm3lab.dev →](https://mm3lab.dev/#run)', 'Step through both stories somewhere else.');
+      expect(checkSite(page, real, undefined, other).join('\n')).toMatch(/See it run/);
+    });
     it('fails when a table cell or a use-case blurb drifts', () => {
       const a = readme.replace('recheck after a fix', 'recheck after any fix');
       expect(checkSite(page, real, undefined, a).join('\n')).toMatch(/What you get/);
