@@ -229,13 +229,20 @@ function countsTowardBudget(rec: RunRecord | ContractRun): boolean {
   return !isContractRun(rec) || rec.calls > 0;
 }
 
-/** plan 2c F1: a ledger record written before plan 2c may still carry `mdl.nodes` (a single chain string) instead
+/** plan 2c F1 (and the MM3 rename): a ledger record written before plan 2c may still carry `mdl.nodes` (a single chain string) instead
  *  of `mdl.uses` — every raw-JSON parse site in the ledger (this file's own `parseLedgerLine`/`readRecordAt`, and
  *  log.ts's `readLedger`) runs a freshly-parsed record through here so every reader (report, view, report patterns/
  *  history) sees `uses` uniformly, without each of them having to check for the old shape. Guarded: most records
- *  carry `mdl: null`, which `normalizeMdl` would throw on if called directly on it. Exported so log.ts's own
+ *  carry `mdl: null`, which `normalizeMdl` would throw on if called directly on it. It also lifts the pre-rename
+ *  `wise`/`side` keys to `mdl`/`mak`. Exported so log.ts's own
  *  parse site can reuse it rather than duplicating the guard. */
 export function normalizeRecordMdl<T>(value: T): T {
+  // compat: records written before the MM3 rename carry `wise`/`side` keys where new ones carry `mdl`/`mak`
+  const legacy = value as Record<string, unknown>;
+  for (const [oldKey, newKey] of [['wise', 'mdl'], ['side', 'mak']] as const) {
+    if (oldKey in legacy && !(newKey in legacy)) legacy[newKey] = legacy[oldKey];
+    delete legacy[oldKey];
+  }
   const w = (value as { mdl?: unknown }).mdl;
   if (w && typeof w === 'object' && !Array.isArray(w)) {
     (value as { mdl?: unknown }).mdl = normalizeMdl(w as { uses?: string[]; nodes?: string });
@@ -635,7 +642,7 @@ function buildMemoryHandle(paths: Mm3Paths): IndexHandle {
 // needs the original outcome record's uid back). A stale on-disk index built under an older version self-heals
 // via the existing schema-version-mismatch rebuild trigger — no migration needed, just a rebuild, which is
 // exactly what self-healing is for.
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7; // 7: the `runs.wise` column became `runs.mdl` (MM3 rename); an older index is stale and rebuilds
 
 const SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -744,7 +751,7 @@ let warningFilterInstalled = false;
  *  plain process.emitWarning() call; node:sqlite's own experimental-feature warning apparently doesn't honor
  *  it). Wrapping emitWarning itself intercepts BEFORE Node's own default handling ever runs, so the swallowed
  *  case prints nothing and everything else still goes through the original emitWarning unchanged. Installed
- *  lazily, from getSqliteCtor() below, right before node:sqlite is ever touched for real — never as a mak
+ *  lazily, from getSqliteCtor() below, right before node:sqlite is ever touched for real — never as a side
  *  effect of merely importing this module (this file is reachable from the library's own public export,
  *  src/index.ts, not just the CLI entry; a library consumer who never asks the ledger for anything must never
  *  have process.emitWarning silently rewritten underneath it). Verified directly (Node 22 container): the

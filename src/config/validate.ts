@@ -67,7 +67,7 @@ function checkPositiveNumber(path: string, v: unknown, out: ConfigStop[]): boole
 }
 
 /** The value-shaped counterpart to checkSecretLike (which flags a secret-NAMED key): a real key pasted into a
- *  config value — `baseURL`, `budget.since`, a mdl override's free text — stops here regardless of what the
+ *  config value — `baseURL`, `budget.since`, an mdl override's free text — stops here regardless of what the
  *  surrounding key is called. Reuses redact.ts's own detectors (plan 2c B, security item) so this file never
  *  duplicates the pattern list. */
 function checkSecretValue(path: string, v: string, out: ConfigStop[]): boolean {
@@ -196,7 +196,7 @@ function checkMdl(v: unknown, out: ConfigStop[]): Mm3Config['mdl'] {
     for (const k of Object.keys(override)) {
       if (!(MDL_OVERRIDE_FIELDS as readonly string[]).includes(k)) {
         const hint = didYouMean(k, MDL_OVERRIDE_FIELDS);
-        out.push(stop(`${path}.${k}`, `"${k}" is not a mdl override field`, hint ? `did you mean ${hint}?` : `use ${MDL_OVERRIDE_FIELDS.join(', ')}`));
+        out.push(stop(`${path}.${k}`, `"${k}" is not an mdl override field`, hint ? `did you mean ${hint}?` : `use ${MDL_OVERRIDE_FIELDS.join(', ')}`));
         continue;
       }
       const val = override[k];

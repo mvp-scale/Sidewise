@@ -343,7 +343,7 @@ function benchGraphCatchUp(fixture: { logPath: string; dbPath: string; extraText
   return toRow(`graphCatchup${extraLines}`, durations);
 }
 
-/** The Mdl dynamic-field query (design binding: runs.mdl is a small JSON blob so json_extract can group/filter
+/** The mdl dynamic-field query (design binding: runs.mdl is a small JSON blob so json_extract can group/filter
  *  on it) — opened directly against the already-built index.db, since IndexHandle's public surface only exposes
  *  the bounded queries every verb actually needs. Only meaningful with real node:sqlite; undefined otherwise. */
 async function benchMdlQuery(dbPath: string): Promise<MdlRow | undefined> {
