@@ -35,13 +35,13 @@ docs/demo/trim.sh "$O/demo.gif" "$O/demo-trim.gif" 7
 ```
 
 The repo is mounted read-only, and the demo works in the throwaway project `$P`, so its ledger row never lands in the repo.
-Use a fresh project each time: an unchanged request in a used ledger is answered from it, with no call.
+Use fresh `$P` and `$O` dirs for every render, rehearsal or real: an unchanged request in a used ledger is answered from it, with no call.
 
 ## Re-render for real (one paid call, manual only)
 
 A real render makes exactly one classifier call (about $0.00004). Never put it in CI, a loop or a retry: if it fails
 after the call went out, look at the log first, because running it again pays again. Run the same command with no
-`MM3_PROVIDER`, and mount your key file where MM3 looks for it (MM3 reads it itself; do not print or copy it):
+`MM3_PROVIDER`, with fresh `$P` and `$O` dirs (as above), and mount your key file where MM3 looks for it (MM3 reads it itself; do not print or copy it):
 
 ```bash
 docker run --rm -e MM3_DEMO_CAPTURE=/out/response.txt \
@@ -49,9 +49,9 @@ docker run --rm -e MM3_DEMO_CAPTURE=/out/response.txt \
   -v "$PWD":/repo:ro -v "$P":/work -v "$O":/out mm3-vhs:local /repo/docs/demo/demo.tape
 ```
 
-Then, with a fresh `$P` and `$O`:
+Then:
 
 1. `docs/demo/trim.sh "$O/demo.gif" docs/assets/demo.gif 7` (keep it under 2 MB; 15 to 20 s).
 2. Copy `$O/response.txt` into the `text` block under the GIF in `README.md` and `site/template.html`, and update the
-   label: model from the ledger row's `model`, cost from its `costUsd`, and the date.
+   label: the model, date and cost come from `$P/.mm3/log.jsonl` (the run row's `model`, `costUsd` and time).
 3. `npm run check:readme` must print `readme OK`.

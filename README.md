@@ -9,8 +9,8 @@
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-it-works-dark.svg"><img src="docs/assets/how-it-works-light.svg" width="640" alt="How MM3 works. Six verbs in two rows and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns."></picture></p>
 
 - [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
-- [1,107 tests, no network, no key](docs/numbers.md#test-count)
-- [12/12 verb and depth choices right in an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
+- [1,118 tests, no network, no key](docs/numbers.md#test-count)
+- [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
 
 ## Install
 
@@ -70,6 +70,8 @@ mdl: {recorded: none}
 next: act on it
 notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
 ```
+
+A longer example, on OWASP NodeGoat:
 
 An agent was asked, on OWASP NodeGoat: *"Take a first look: is that contribution handler safe to merge as it stands?"* It wrote this request (42 lines, opened below) and got one answer from one call.
 
@@ -142,7 +144,7 @@ next: mm3 template drill --parent MM3-0001 --from injection
 notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
 ```
 
-Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through `eval` (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets `escalate: true` and `next:` names the drill that digs into injection. The agent ran that drill, fixed the `eval`, and ran a `replay` to prove it: the goal now passed at 0.92, with the guard and sink concerns still open. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.
+Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through `eval` (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets `escalate: true` and `next:` names the drill that digs into injection. The agent ran that drill, fixed the `eval`. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.
 
 ## What you get
 
@@ -157,9 +159,7 @@ Every run and its outcome goes into an append-only ledger in `.mm3/` (git-ignore
 
 ## Why we built it
 
-Classifiers got good: TypeSafe's Jev answers a plain yes/no about your code, calibrated, for a fraction of a cent. But an agent that asks once makes a call you can't trace, and asking ten more times is louder, not smarter.
-
-MM3 is a Knowledge One system. It sits on a System One (a fast classifier) and adds a standard way to ask and a place to keep what you learn: one checklist in, a verdict per concern out, every answer kept and reused.
+Agents can now ask a fast classifier a yes/no about your code, but each answer is untraceable and never reused. MM3 turns that into one standard checklist in, one calibrated verdict per concern out, and every answer kept and reused.
 
 ## What you can do
 
@@ -220,9 +220,9 @@ mdl:
 - **Evidence, never a command.** You get an agreement strength and a lean; you or your agent decide. Delete, deploy, drop and pay stay human.
 - **A false pass costs you.** A calibrated 0.9 is wrong about one time in ten. `unsure` is a real answer, and `mm3 outcome` grades each verdict so the ledger can show which ones to distrust.
 - **Not a linter, scanner or test suite.** Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can't put: does this handler check the caller, will this design hold.
-- **Not a second opinion.** A second full-context model review reads everything and costs far more. Use one when the question won't fit a yes/no.
+- **Not a substitute for a full-context model review.** A full-context review reads everything and costs far more. Use one when the question won't fit a yes/no.
 - **The sample provider is not evidence.** Its answers are canned. Built on TypeSafe's Jev; other classifiers can plug in.
-- **Pre-release.** Tested end to end on a real app with planted flaws (see the numbers above). Not yet on npm.
+- **Pre-release.** Tested end to end on an intentionally vulnerable app (OWASP NodeGoat) (see the numbers above). Not yet on npm.
 
 ## Docs and contributing
 

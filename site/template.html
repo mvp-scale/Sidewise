@@ -107,6 +107,7 @@
 mdl: {recorded: none}
 next: act on it
 notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]</code></pre></div>
+  <p>A longer example, on OWASP NodeGoat:</p>
   <p>An agent was asked, on OWASP NodeGoat: <em>&ldquo;Take a first look: is that contribution handler safe to merge as it stands?&rdquo;</em> It wrote this request (42 lines, opened below) and got one answer from one call.</p>
   <details>
     <summary>The request the agent wrote</summary>
@@ -168,7 +169,7 @@ mdl:
 mdl: {recorded: [why, area, stage, problem, uses, touches, blast]}
 next: mm3 template drill --parent MM3-0001 --from injection
 notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]</code></pre></div>
-  <p>Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through <code>eval</code> (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets <code>escalate: true</code> and <code>next:</code> names the drill that digs into injection. The agent ran that drill, fixed the <code>eval</code>, and ran a <code>replay</code> to prove it: the goal now passed at 0.92, with the guard and sink concerns still open. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.</p>
+  <p>Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through <code>eval</code> (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets <code>escalate: true</code> and <code>next:</code> names the drill that digs into injection. The agent ran that drill, fixed the <code>eval</code>. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.</p>
 </section>
 
 <section class="wrap get" id="get" aria-labelledby="get-h">
@@ -195,8 +196,7 @@ notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($
 <section class="wrap why" id="why" aria-labelledby="why-h">
   <h2 id="why-h">Why we built it</h2>
   <div class="cols">
-    <p>Classifiers got good: TypeSafe&rsquo;s Jev answers a plain yes/no about your code, calibrated, for a fraction of a cent. But an agent that asks once makes a call you can&rsquo;t trace, and asking ten more times is louder, not smarter.</p>
-    <p>MM3 is a Knowledge One system. It sits on a System One (a fast classifier) and adds a standard way to ask and a place to keep what you learn: one checklist in, a verdict per concern out, every answer kept and reused.</p>
+    <p>Agents can now ask a fast classifier a yes/no about your code, but each answer is untraceable and never reused. MM3 turns that into one standard checklist in, one calibrated verdict per concern out, and every answer kept and reused.</p>
   </div>
 </section>
 
@@ -214,9 +214,9 @@ notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($
     <li><strong>Evidence, never a command.</strong> You get an agreement strength and a lean; you or your agent decide. Delete, deploy, drop and pay stay human.</li>
     <li><strong>A false pass costs you.</strong> A calibrated 0.9 is wrong about one time in ten. <code>unsure</code> is a real answer, and <code>mm3 outcome</code> grades each verdict so the ledger can show which ones to distrust.</li>
     <li><strong>Not a linter, scanner or test suite.</strong> Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can&rsquo;t put: does this handler check the caller, will this design hold.</li>
-    <li><strong>Not a second opinion.</strong> A second full-context model review reads everything and costs far more. Use one when the question won&rsquo;t fit a yes/no.</li>
+    <li><strong>Not a substitute for a full-context model review.</strong> A full-context review reads everything and costs far more. Use one when the question won&rsquo;t fit a yes/no.</li>
     <li><strong>The sample provider is not evidence.</strong> Its answers are canned. Built on TypeSafe&rsquo;s Jev; other classifiers can plug in.</li>
-    <li><strong>Pre-release.</strong> Tested end to end on a real app with planted flaws (see the numbers above). Not yet on npm.</li>
+    <li><strong>Pre-release.</strong> Tested end to end on an intentionally vulnerable app (OWASP NodeGoat) (see the numbers above). Not yet on npm.</li>
   </ul>
 </section>
 </main>
