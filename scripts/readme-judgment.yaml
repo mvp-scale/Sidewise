@@ -1,5 +1,7 @@
 # Judgment layer of README drift protection: one paid MM3 class call that grades the README.
 # Pre-release only, not in CI. Run with: npm run judge:readme
+# Every question is one fact, answerable from README.md alone, and "yes" is the healthy answer.
+# Each concern has three angles, the doc-quality analogue of the role table in `mm3 agent probe`.
 mak:
   goal: The README tells a clear, honest, proven story
   verb: class
@@ -7,21 +9,30 @@ mak:
   where: [README.md]
   ask:
     concerns:
+      # clarity, closest family `done` (concrete · testable · owned):
+      #   1 concrete: the tagline can be counted   2 testable: the opening states identity   3 owned: the problem is stated up front
       clarity:
+        family: done
         pass: yes
-        1: Is the tagline in `README.md` plain words of ten words or fewer, with no jargon?
-        2: Does `README.md` say what MM3 is in its opening lines, before any clever or brand-heavy framing?
-        3: Does `README.md` explain the problem it solves ahead of any feature list?
+        1: Is the bold tagline under the MM3 wordmark in `README.md` ten words or fewer?
+        2: Does the first sentence after that tagline in `README.md` say what MM3 is?
+        3: Does `README.md` state the problem MM3 solves before its "What you can do" list?
+      # honesty, closest family `design-risk` (abuse · failure · data):
+      #   4 abuse: overclaiming is checked (numbers link to a method)   5 failure: a wrong pass is admitted   6 data: sample output is labelled real
       honesty:
+        family: design-risk
         pass: yes
-        4: Does `README.md` name concrete limits of MM3, such as what it is not?
-        5: Is every performance claim in `README.md` given as a specific number with a source linked?
-        6: Is each sample verdict in `README.md` labelled as real output with a version, a date, a cost?
+        4: Does `README.md` link each number in its list of three figures to a page that explains the method?
+        5: Does `README.md` say that a passing verdict can be wrong?
+        6: Is each sample response in `README.md` labelled as real output?
+      # proof, closest family `correctness` (input · rule · result):
+      #   7 rule: a figure states how it was measured   8 input: examples name their subject   9 result: the try-it path needs no key
       proof:
+        family: correctness
         pass: yes
-        7: Does each headline number in `README.md` link to a page that explains how it was measured?
-        8: Are the examples in `README.md` real runs on a named subject, not invented output?
-        9: Does `README.md` show a way to try MM3 with no API key?
+        7: Does `README.md` say how many paid runs the cost-per-check figure is based on?
+        8: Does `README.md` name the code each example was run on?
+        9: Does `README.md` show a sequence of commands that runs without an API key?
     decisions:
       severity:
         pass: [none, low]
@@ -32,11 +43,11 @@ mak:
         pass: [ship]
         11:
           choice: Where should this README go?
-          options: [ship, fix, block]
+          options: [ship, fix, block, none fits]
 mdl:
   why: validate
-  subject: readme
   stage: release
   risk: low
   problem: Does the README tell a clear, honest, proven story before release
+  touches: [README]
   blast: component

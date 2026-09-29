@@ -1,6 +1,6 @@
 # Where the README's numbers come from
 
-Three figures sit under the picture on the front page. Each is measured, not estimated, and each has its method here. If you can't reproduce one, open an issue.
+Three figures sit under the picture on the front page. Each is measured, not estimated, and each has its method here. If you can't reproduce one, open an issue. A last section explains the word "calibrated", which the README uses but is not a figure.
 
 ## Cost per check
 
@@ -35,3 +35,9 @@ The number moves with every test added. `npm run check:trace` maps each claim in
 Result on 2026-09-29: the agent chose the expected verb and depth on all 12 tasks. It matched the expected call in full on 10 of 12. The two partials were the agent's own choices: it asked `replay` to expect every concern to turn (the task said not every one), and it did not link a second `loop` run to the first as its parent.
 
 This is a smoke test, not a benchmark: one agent, one run, one codebase. The twelve tasks cost $0.0017 in total.
+
+## What calibrated means
+
+A verdict's numbers (`p`, the odds on a question) are the classifier's own probability that the answer is yes. "Calibrated" is the claim that those odds mean what they say: of the answers given 0.9, about nine in ten turn out right, so a false pass at 0.9 happens about one time in ten.
+
+That is a property of the classifier (TypeSafe's Jev), not something MM3 has measured across its own runs. MM3 does not re-calibrate anything. It keeps the odds with every answer, and `mm3 outcome` records whether each verdict held, so `mm3 report` can show, over time and on your own code, which verdicts to distrust. Until you have that history, treat 0.9 as "probably right", and `unsure` as a real answer.

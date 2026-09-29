@@ -63,14 +63,14 @@ describe('checkSite', () => {
       expect(checkSite(page, real, undefined, readme)).toEqual([]);
     });
     it('fails when a Limits bullet in the README is edited', () => {
-      const drifted = readme.replace('A calibrated 0.9 is wrong about one time in ten.', 'A calibrated 0.9 is wrong about one time in twenty.');
+      const drifted = readme.replace('0.9 is wrong about one time in ten.', '0.9 is wrong about one time in twenty.');
       expect(drifted).not.toBe(readme);
       expect(checkSite(page, real, undefined, drifted).join('\n')).toMatch(/Limits and alternatives/);
     });
     it('fails when the response block or a Why paragraph drifts', () => {
       const a = readme.replace('cost estimated from tokens', 'cost guessed from tokens');
       expect(checkSite(page, real, undefined, a).join('\n')).toMatch(/See it run/);
-      const b = readme.replace('louder, not smarter.', 'louder, not wiser.');
+      const b = readme.replace('each answer is untraceable and never reused', 'each answer is anonymous and never reused');
       expect(checkSite(page, real, undefined, b).join('\n')).toMatch(/Why we built it/);
     });
     it('fails when a table cell or a use-case blurb drifts', () => {
