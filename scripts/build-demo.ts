@@ -1,35 +1,36 @@
 /**
- * The demo player's data and markup: real MM3 runs (kept as frozen scene JSON in docs/demo/scenes/) shown as a split
- * panel, terminal and request YAML beside a colour-coded verdict. Every scene's footer (model, endpoint, latency,
- * cost, id) is read from the run's own ledger row by `extract`, never typed. The default mode and the site build
- * read only the committed JSON, so a re-render never spends. `gif` renders the README's animated player in headless
- * Chrome (CDP over a WebSocket, no npm dependency) and ffmpeg; both are machine tools, not part of CI.
+ * The demo player's data and markup: two stories of real MM3 runs (frozen as scene JSON in docs/demo/scenes/), each step
+ * following one agent session from the task it was given to the request it fired, the response MM3 returned, a quick
+ * read of it, the decision it implies and what the ledger now holds. Every footer (model, endpoint, latency, cost, id)
+ * and every number is read from the run's own ledger row by `extract`, never typed; the decision text is derived from the
+ * response itself. The default mode and the site build read only the committed JSON, so a re-render never spends.
+ * The README's animated GIFs are rendered by scripts/demo-gif.ts from the same markup (stagePage).
  */
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parse } from 'yaml';
 
-export type Scene = {
-  id: string; verb: string; title: string; prompt: string; promptSource: string; command: string; request: string; response: string;
-  footer: { model: string; endpoint: string; latencyMs: number; costUsd: number; costEstimated: boolean; questions: number; reused: number; reusedFrom: string; calls: number; date: string; subject: string };
-};
+export type Footer = { model: string; endpoint: string; latencyMs: number; costUsd: number; costEstimated: boolean; questions: number; reused: number; reusedFrom: string; calls: number; date: string; pin: string };
+/** What the ledger holds about the run: its place, lineage, what was recorded and reused, and the budget line the response printed. */
+export type Knowledge = { run: number; of: number; parent: string; from: string; children: string[]; recorded: string[]; savedUsd: number; budget: string };
+export type Scene = { story: string; n: number; id: string; verb: string; title: string; command: string; request: string; response: string; footer: Footer; knowledge: Knowledge };
+export type DemoStory = { id: string; label: string; name: string; title: string; pinned: string; task: { question: string; full: string }; about: string; scenes: Scene[] };
 
 const esc = (s: string): string => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
-/** Cost with two significant digits: $0.000048, $0.00056. */
+/** Cost with two significant digits: $0.000048, $0.00056; a reused run's exact zero reads $0.00000. */
 export function fmtCost(c: number, estimated = false): string {
-  if (!(c > 0)) return '$0';
+  if (!(c > 0)) return c === 0 ? '$0.00000' : '$0';
   return (estimated ? '~$' : '$') + c.toFixed(Math.max(2, 1 - Math.floor(Math.log10(c))));
 }
 
 /** Questions as the footer states them: what was sent to the model, and any answers reused from an earlier run. */
-function questionsText(f: Scene['footer']): string {
+function questionsText(f: Footer): string {
   return f.reused > 0 ? `${f.questions} asked · ${f.reused} reused from ${f.reusedFrom}` : `${f.questions} question${f.questions === 1 ? '' : 's'}`;
 }
 
-/** The one footer string, shown under each panel and checked against the site and README. */
+/** The one footer string, shown under each step and checked against the site and README. */
 export function sceneFooter(s: Scene): string {
   const f = s.footer;
   return [f.model, f.endpoint, `${f.latencyMs} ms`, fmtCost(f.costUsd, f.costEstimated), questionsText(f), `${f.calls} call${f.calls === 1 ? '' : 's'}`, s.id].join(' · ');
@@ -41,28 +42,42 @@ export function sceneLabel(s: Scene): string {
   return `real output · ${f.model} · ${f.endpoint} · ${f.latencyMs} ms · ${fmtCost(f.costUsd, f.costEstimated)}`;
 }
 
-/** Relabels the scratch checkout's paths (they are OWASP NodeGoat's) and drops any absolute machine path. */
+/** Drops any absolute machine path and the play area's name from text that will be committed. */
 export function scrubPaths(text: string): string {
   return text
-    .replaceAll('stage/NodeGoat/', '')
     .replace(/(?:\/(?:home|Users|root|tmp|var|mnt)\/[^\s,'"\]}]+)+/g, '<path>')
-    .replace(/[\w./-]*mm3labs-play[\w./-]*/g, '<path>');
+    .replace(/[\w./-]*mm3(?:labs|-demo)-play[\w./-]*/g, '<path>');
 }
 
-type Row = { id?: string; verb?: string; ts?: string; model?: string; baseURL?: string; costUsd?: number; response?: string; telemetry?: { source?: string; from?: string; latencyMs?: number | null; questions?: number; costUsd?: number | null; costEstimated?: boolean }[] };
+/** The kickoff as the agent got it, with the play area's paths shortened: the tool is `mm3`, the notes folder `notes/`, the source `<checkout>`. */
+export function scrubKickoff(text: string): string {
+  return scrubPaths(text
+    .replaceAll('~/mm3-demo-play/bin/mm3', 'mm3')
+    .replace(/~\/mm3-demo-play\/notes-\w+\//g, 'notes/')
+    .replace(/~\/mm3-demo-play\/(?:wordpress|n8n)/g, '<checkout>'));
+}
 
-/** One ledger row plus its request text becomes a scene; footer fields come from the row, summed over its provider calls. */
-export function extractScene(row: object, requestYaml: string, meta: { title: string; prompt: string; promptSource: string; subject: string }): Scene {
+type Row = { id?: string; verb?: string; ts?: string; model?: string; baseURL?: string; costUsd?: number; parent?: string | null; from?: string | null; response?: string; telemetry?: { source?: string; from?: string; latencyMs?: number | null; questions?: number; costUsd?: number | null; costEstimated?: boolean; savedUsd?: number }[] };
+type Meta = { story: string; n: number; pin: string; run: number; of: number; children: string[] };
+
+/** One ledger row plus its request text becomes a scene; footer and knowledge fields come from the row, summed over its provider calls. */
+export function extractScene(row: object, requestYaml: string, meta: Meta): Scene {
   const r = row as Row;
   const calls = (r.telemetry ?? []).filter((t) => t.source === undefined || t.source === 'provider');
   const cached = (r.telemetry ?? []).filter((t) => t.source === 'cache');
   const host = ((): string => { try { return new URL(r.baseURL ?? '').host; } catch { return r.baseURL ?? ''; } })();
   const verb = r.verb ?? '';
+  const response = scrubPaths((r.response ?? '').replace(/\s+$/, ''));
+  const request = scrubPaths(requestYaml.replace(/\s+$/, ''));
+  let doc: unknown = null;
+  try { doc = parse(response); } catch { /* not YAML: no recorded fields */ }
+  const recorded = isObj(doc) && isObj(doc.mdl) && Array.isArray(doc.mdl.recorded) ? doc.mdl.recorded.map(String) : [];
+  const budgetNote = (isObj(doc) && Array.isArray(doc.notes) ? doc.notes.map(String) : []).find((n) => n.includes('budget:'));
+  const budget = budgetNote ? budgetNote.slice(budgetNote.indexOf('budget:')) : '';
+  const goal = ((parse(request) as { mak?: { goal?: string } } | null)?.mak?.goal ?? '').trim();
   return {
-    id: r.id ?? '', verb, title: meta.title, prompt: meta.prompt, promptSource: meta.promptSource,
-    command: `mm3 ${verb} request.yaml`,
-    request: scrubPaths(requestYaml.replace(/\s+$/, '')),
-    response: scrubPaths((r.response ?? '').replace(/\s+$/, '')),
+    story: meta.story, n: meta.n, id: r.id ?? '', verb, title: goal,
+    command: `mm3 ${verb} request.yaml`, request, response,
     footer: {
       model: r.model ?? '', endpoint: host,
       latencyMs: calls.reduce((n, t) => n + (t.latencyMs ?? 0), 0),
@@ -70,35 +85,60 @@ export function extractScene(row: object, requestYaml: string, meta: { title: st
       costEstimated: calls.some((t) => t.costEstimated === true),
       questions: calls.reduce((n, t) => n + (t.questions ?? 0), 0),
       reused: cached.reduce((n, t) => n + (t.questions ?? 0), 0), reusedFrom: [...new Set(cached.map((t) => t.from ?? ''))].filter(Boolean).join(', '),
-      calls: calls.length,
-      date: (r.ts ?? '').slice(0, 10), subject: meta.subject,
+      calls: calls.length, date: (r.ts ?? '').slice(0, 10), pin: meta.pin,
     },
+    knowledge: { run: meta.run, of: meta.of, parent: r.parent ?? '', from: r.from ?? '', children: meta.children, recorded, savedUsd: cached.reduce((n, t) => n + (t.savedUsd ?? 0), 0), budget },
   };
 }
 
-// ---------------------------------------------------------------- the request pane
+// ---------------------------------------------------------------- YAML highlighting (the request and the response share it)
 
-const inline = (s: string): string => esc(s).replace(/\{(file|part|story)\}/g, '<span class="ph">{$1}</span>');
+const inline = (s: string): string => esc(s).replace(/\{(file|part|story|call|unit)\}/g, '<span class="ph">{$1}</span>');
+const BOOL = /^(?:true|false|yes|no|null|~)$/;
+const scalar = (v: string): string => {
+  const t = v.trim();
+  if (/^-?\d+(?:\.\d+)?$/.test(t)) return `<span class="yn">${esc(t)}</span>`;
+  if (BOOL.test(t)) return `<span class="yb">${esc(t)}</span>`;
+  return `<span class="ys">${inline(v)}</span>`;
+};
+const gateWord = (w: string): string => (w === 'pass' || w === 'fail' || w === 'unsure' ? ` yg ${w}` : '');
 
-/** The request YAML with keys, question numbers and `pass:` highlighted; each numbered question is a focusable line the verdict links back to. */
-export function highlightRequest(yaml: string): string {
+/** A `{a: 1, b: [x, y]}` value: punctuation, keys, question numbers, numbers, gates and strings each get a class. */
+function flow(s: string): string {
+  const re = /("(?:[^"\\]|\\.)*"|'[^']*')|([{}[\],])|((?:[A-Za-z_][\w./@*#-]*|\d+)(?=:(?:\s|$)))|(:)|(-?\d+(?:\.\d+)?)(?![\w./-])|([^\s{}[\],:"']+)|(\s+)/g;
+  let out = '', m: RegExpExecArray | null;
+  while ((m = re.exec(s))) {
+    if (m[1]) out += `<span class="ys">${esc(m[1])}</span>`;
+    else if (m[2]) out += `<span class="yp">${m[2]}</span>`;
+    else if (m[3]) out += /^\d+$/.test(m[3]) ? `<span class="yq" data-q="${m[3]}">${m[3]}</span>` : `<span class="yk">${esc(m[3])}</span>`;
+    else if (m[4]) out += '<span class="yp">:</span>';
+    else if (m[5]) out += `<span class="yn">${m[5]}</span>`;
+    else if (m[6]) out += BOOL.test(m[6]) ? `<span class="yb">${esc(m[6])}</span>` : `<span class="ys${gateWord(m[6])}">${esc(m[6])}</span>`;
+    else out += esc(m[7] ?? '');
+  }
+  return out;
+}
+
+/** Full YAML, one wrapping line each with a hanging indent (nothing is cut): keys, strings, numbers, gates, comments and numbered questions coloured; a numbered question is focusable and linked to its answer. */
+export function highlightYaml(yaml: string): string {
   return yaml.split('\n').map((line) => {
-    let m = /^(\s*)(\d+):(.*)$/.exec(line);
-    if (m) {
-      const [, ind, n, rest] = m;
-      return `<span class="ln rq" data-q="${n}" tabindex="0" title="${esc(line.trim())}">${esc(ind!)}<span class="qn">${n}</span>:${inline(rest!)}</span>`;
-    }
-    m = /^(\s*(?:- )?)([A-Za-z_][\w-]*):(.*)$/.exec(line);
-    if (m) {
-      const [, ind, key, rest] = m;
-      const cls = key === 'pass' ? 'yk pass' : ind === '' ? `yk ytop ytop-${key}` : 'yk';
-      return `<span class="ln">${esc(ind!)}<span class="${cls}">${esc(key!)}</span>:${inline(rest!)}</span>`;
-    }
-    return `<span class="ln">${inline(line) || '&nbsp;'}</span>`;
+    const ind = /^ */.exec(line)![0].length;
+    let rest = line.slice(ind), extra = 0, marker = '';
+    const row = (html: string, cls = ''): string => `<span class="ln${cls}" style="--i:${ind + extra};--x:${extra}">${html || '&nbsp;'}</span>`;
+    if (rest.startsWith('#')) return row(`<span class="yc">${esc(rest)}</span>`);
+    while (rest.startsWith('- ')) { marker += '<span class="yp">- </span>'; rest = rest.slice(2); extra += 2; }
+    const m = /^([^\s:{}[\],"'#][^:]*?):(?:\s+(.*))?$/.exec(rest);
+    if (!m) return row(marker + (rest ? scalar(rest) : ''));
+    const [, key, value = ''] = m;
+    const q = /^\d+$/.test(key!);
+    const kcls = q ? '' : key === 'pass' ? 'yk pass' : ind === 0 && !marker ? `yk ytop ytop-${key}` : 'yk';
+    const k = q ? `<span class="yq" data-q="${key}">${key}</span>` : `<span class="${kcls}">${esc(key!)}</span>`;
+    const v = value === '' ? '' : ' ' + (value.startsWith('{') || value.startsWith('[') ? flow(value) : scalar(value));
+    return q ? `<span class="ln rq" data-q="${key}" tabindex="0" style="--i:${ind + extra};--x:${extra}">${marker}${k}<span class="yp">:</span>${v}</span>` : row(`${marker}${k}<span class="yp">:</span>${v}`);
   }).join('');
 }
 
-// ---------------------------------------------------------------- the verdict pane
+// ---------------------------------------------------------------- the quick-read pane (the colour-coded verdict)
 
 type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -147,7 +187,7 @@ function unitRows(units: Obj): string {
   }).join('');
 }
 
-/** The verdict pane: gate, consensus, escalate, a row per concern (or ranked unit), and `next` called out. Falls back to plain text if the response is not YAML. */
+/** The quick read: gate, consensus, escalate, a row per concern (or ranked unit). The decision and the ledger have their own panes. Falls back to plain text if the response is not YAML. */
 export function renderVerdict(s: Scene): string {
   let doc: unknown;
   try { doc = parse(s.response); } catch { doc = null; }
@@ -158,7 +198,7 @@ export function renderVerdict(s: Scene): string {
   const head = `<div class="vhead"><span class="big-gate ${gate}"><small>gate</small>${esc(String(mak.gate ?? ''))}</span>`
     + `<span class="vmeta">${mak.consensus ? `<span class="cons cons-${esc(String(mak.consensus).toLowerCase())}"><small>consensus</small>${esc(String(mak.consensus))}</span>` : ''}`
     + `${typeof mak.escalate === 'boolean' ? `<span class="esc ${mak.escalate ? 'on' : 'off'}"><small>escalate</small>${mak.escalate}</span>` : ''}</span>`
-    + `<span class="vstat${f.questions >= 50 ? ' burst' : ''}"><b>${f.questions}</b> question${f.questions === 1 ? '' : 's'}${f.reused > 0 ? ` <span>+</span> <b>${f.reused}</b> reused` : ''} <span>&middot;</span> <b>${f.calls}</b> call${f.calls === 1 ? '' : 's'} <span>&middot;</span> <b>${f.latencyMs}</b> ms</span></div>`;
+    + `<span class="vstat${f.questions >= 50 || f.reused >= 50 ? ' burst' : ''}"><b>${f.questions}</b> question${f.questions === 1 ? '' : 's'}${f.reused > 0 ? ` <span>+</span> <b>${f.reused}</b> reused` : ''} <span>&middot;</span> <b>${f.calls}</b> call${f.calls === 1 ? '' : 's'} <span>&middot;</span> <b>${f.latencyMs}</b> ms</span></div>`;
   const rows: string[] = [];
   const facts: string[] = [];
   for (const [k, v] of Object.entries(mak)) {
@@ -167,44 +207,121 @@ export function renderVerdict(s: Scene): string {
     else if (isObj(v) && ('gate' in v || 'before' in v || 'after' in v)) rows.push(catRow(k, v));
     else facts.push(`<span class="fact"><em>${esc(k)}</em>${esc(plainVal(v))}</span>`);
   }
-  const mdl = isObj(doc.mdl) && Array.isArray(doc.mdl.recorded) ? `<span class="learn"><em>ledger learned</em>${esc(doc.mdl.recorded.join(', '))}</span>` : '';
-  const notes = Array.isArray(doc.notes) ? `<p class="vnotes">${esc(doc.notes.join(' · '))}</p>` : '';
-  const next = typeof doc.next === 'string' ? `<div class="vnext"><span class="lbl">next</span><code>${esc(doc.next)}</code></div>` : '';
-  return `<div class="verdict-body">${head}${next}${rows.join('')}${facts.length ? `<div class="facts">${facts.join('')}</div>` : ''}${mdl}${notes}</div>`;
+  return `<div class="verdict-body">${head}${rows.join('')}${facts.length ? `<div class="facts">${facts.join('')}</div>` : ''}</div>`;
 }
 
-// ---------------------------------------------------------------- the player
+// ---------------------------------------------------------------- the decision the response implies
 
-const FAMILY: Record<string, string> = { view: 'mak', class: 'mak', replay: 'mak', scan: 'mdl', drill: 'mdl', loop: 'mdl' };
+export type Decision = { gate: 'pass' | 'fail' | 'unsure' | ''; do: string; what: string; cmd: string; because: string[] };
 
-/** One scene as a split panel. `phase` (0-3) is set only for the README frames; the page shows everything. */
-export function renderScene(s: Scene, opts: { phase?: number; hidden?: boolean } = {}): string {
-  const fam = FAMILY[s.verb] ?? 'mak';
+const WHAT: Record<string, string> = {
+  drill: 'digs into one weak spot, one level down, asking only about it',
+  replay: 're-asks the same questions across two commits, so the fix is proven, not assumed',
+};
+const namesWith = (mak: Obj, gate: string): string[] => Object.entries(mak).filter(([k, v]) => k !== 'goal' && isObj(v) && v.gate === gate).map(([k]) => k);
+/** Up to three names in prose, then a count: "a, b, c and 2 more". */
+const list = (xs: string[]): string => {
+  const shown = xs.length > 3 ? [...xs.slice(0, 3), `${xs.length - 3} more`] : xs;
+  return shown.length <= 2 ? shown.join(' and ') : `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}`;
+};
+
+/** The move the response points to and why, derived only from the response itself: its `next:`, gate, concerns, consensus, escalate and reuse. */
+export function inferDecision(response: string): Decision {
+  let doc: unknown;
+  try { doc = parse(response); } catch { doc = null; }
+  const mak = isObj(doc) && isObj(doc.mak) ? doc.mak : {};
+  const next = isObj(doc) && typeof doc.next === 'string' ? doc.next : '';
+  const gate = gateOf(mak.gate);
+  const because: string[] = [];
+  if (isObj(mak.failing)) {
+    const units = Object.entries(mak.failing).filter(([, v]) => isObj(v)) as [string, Obj][];
+    const scanned = isObj(mak.scanned) ? Object.values(mak.scanned).reduce<number>((n, v) => n + (typeof v === 'number' ? v : 0), 0) : units.length;
+    if (units.length) {
+      const gates = Object.values(units[0]![1]).filter((v) => gateOf(v));
+      because.push(`${units.length} of ${scanned} scanned file${scanned === 1 ? '' : 's'} fail the gate; the worst is ${units[0]![0]}, failing ${gates.filter((v) => v === 'fail').length} of ${gates.length} concerns`);
+    }
+  } else if (gate) {
+    const bad = namesWith(mak, 'fail'), unsure = namesWith(mak, 'unsure');
+    const goal = isObj(mak.goal) && typeof mak.goal.gate === 'string' && mak.goal.gate !== 'pass' ? `goal ${mak.goal.gate}${typeof mak.goal.p === 'number' ? ` (p ${pTxt(mak.goal.p)})` : ''}` : '';
+    const parts = [goal, bad.length ? `${list(bad)} ${bad.length === 1 ? 'fails' : 'fail'}` : '', unsure.length ? `${list(unsure)} unsure` : ''].filter(Boolean);
+    because.push(`the gate is ${gate.toUpperCase()}${parts.length ? `: ${parts.join('; ')}` : ''}`);
+  }
+  if (mak.consensus) because.push(`consensus is ${String(mak.consensus)}${mak.escalate === true ? ' and escalate is true, so do not act on this alone' : mak.escalate === false ? ' and escalate is false' : ''}`);
+  const reused = Array.isArray(mak.reused) ? mak.reused.map(String).join(', ') : typeof mak.reused === 'number' && mak.reused > 0 ? `${mak.reused} file${mak.reused === 1 ? '' : 's'}` : '';
+  if (reused) because.push(`answers were reused (${reused}): the code they were given on is unchanged, so nothing new was asked`);
+  const drill = /^mm3 template drill\b.*--from (\S+)/.exec(next);
+  const fix = /^fix it, then (mm3 replay\b.*)$/.exec(next);
+  if (drill) return { gate, do: `Drill into ${drill[1]}`, what: `mm3 drill ${WHAT.drill}`, cmd: next, because };
+  if (fix) return { gate, do: 'Fix it, then replay', what: `mm3 replay ${WHAT.replay}`, cmd: fix[1]!, because };
+  return { gate, do: next ? 'Do the next step MM3 names' : 'No next step named', what: '', cmd: next, because };
+}
+
+/** The decision pane: the move as one line, its command, and the reasons it follows from the response. */
+export function renderDecision(s: Scene): string {
+  const d = inferDecision(s.response);
+  return `<section class="decision ${d.gate}" aria-label="the decision this response implies"><div class="dhead"><span class="dnum">5</span><span class="dlabel">the decision it infers</span></div><div class="dbody"><p class="dmain">${esc(d.do)}</p>`
+    + `${d.what ? `<p class="dwhat">${esc(d.what)}</p>` : ''}${d.cmd ? `<code class="dcmd">${esc(d.cmd)}</code>` : ''}`
+    + `<ul class="dwhy">${d.because.map((b) => `<li>${esc(b)}</li>`).join('')}</ul></div></section>`;
+}
+
+/** The ledger pane: where the run sits, its lineage, what was reused or asked fresh, and what was recorded and left in the budget. */
+export function renderKnowledge(s: Scene): string {
+  const k = s.knowledge, f = s.footer;
+  const lineage = `run ${k.run} of ${k.of} in this ledger · ${k.parent ? `child of ${k.parent}${k.from ? `, drilled from ${k.from}` : ''}` : 'a root run, no parent'}${k.children.length ? ` · built on later by ${k.children.join(', ')}` : ''}`;
+  const reuse = f.reused > 0
+    ? `${f.reused} answers reused from ${f.reusedFrom}: no call, ${fmtCost(f.costUsd, f.costEstimated)}${k.savedUsd > 0 ? `, saved ${fmtCost(k.savedUsd, true)}` : ''}`
+    : `asked fresh: ${f.questions} questions in ${f.calls} call${f.calls === 1 ? '' : 's'}, ${fmtCost(f.costUsd, f.costEstimated)}; every answer is kept for reuse`;
+  const items: [string, string][] = [['lineage', lineage], ['reuse', reuse], ['recorded', k.recorded.length ? `${k.recorded.join(', ')} saved with the run` : 'nothing from an mdl: block; the request had none'], ...(k.budget ? [['budget', k.budget.replace(/^budget: /, '')] as [string, string]] : [])];
+  return `<section class="knowledge" aria-label="what the ledger now holds"><div class="dhead"><span class="dnum">6</span><span class="dlabel">what the ledger now holds</span></div><dl class="kbody">${items.map(([a, b]) => `<div><dt>${esc(a)}</dt><dd>${esc(b)}</dd></div>`).join('')}</dl></section>`;
+}
+
+// ---------------------------------------------------------------- one step, one story, the player
+
+const FLOW = ['task', 'request', 'response', 'quick read', 'decision', 'ledger'];
+const lines = (t: string): number => t.split('\n').length;
+
+/** One step: the request the agent fired and the response MM3 returned (tabbed, or stacked without a script), the quick read beside them, then the decision and the ledger. `phase` (0-3) and `show` are set only for the README frames and the replay. */
+export function renderScene(s: Scene, opts: { phase?: number; show?: 'request' | 'response'; hidden?: boolean } = {}): string {
   const phase = opts.phase === undefined ? '' : ` data-phase="${opts.phase}"`;
-  return `<article class="pscene fam-${fam}" id="scene-${esc(s.id)}" data-scene="${esc(s.id)}" data-verb="${esc(s.verb)}" data-title="${esc(s.title)}"${phase}${opts.hidden ? ' hidden' : ''}>
-  <header class="phead"><h3>${esc(s.title)}</h3><ol class="flow" aria-label="the flow"><li>prompt</li><li>request</li><li>verdict</li><li>next</li></ol></header>
-  <div class="pgrid">
-    <div class="pleft">
-      <section class="term" aria-label="terminal"><div class="tbar"><i></i><i></i><i></i><span>${esc(s.footer.subject)} &middot; via the mm3 tool, shown as CLI</span></div>
-<pre class="tbody"><span class="tc" data-full="${esc(s.prompt)}"># ${esc(s.prompt)}</span>\n<span class="tcmd"><span class="ps">$</span> ${esc(s.command)}</span></pre></section>
-      <section class="req" aria-label="request YAML"><div class="pane-h"><span>request.yaml</span><em>hover a question</em></div><div class="reqbody">${highlightRequest(s.request)}</div></section>
-    </div>
-    <section class="verdict" aria-label="verdict"><div class="pane-h"><span>verdict <b>${esc(s.id)}</b></span><em>bar = p</em></div>${renderVerdict(s)}</section>
+  const req = parse(s.request) as { mak?: { depth?: string } } | null;
+  const meta = [s.verb, req?.mak?.depth ? `depth ${req.mak.depth}` : '', `${lines(s.request)}-line request`].filter(Boolean).join(' · ');
+  return `<article class="pscene fam-${esc(s.story)}" id="scene-${esc(s.story)}-${esc(s.id)}" data-scene="${esc(s.story)}-${esc(s.id)}" data-n="${s.n}" data-verb="${esc(s.verb)}" data-show="${opts.show ?? 'request'}"${phase}${opts.hidden ? ' hidden' : ''}>
+  <header class="phead"><h3><span class="stepno">${s.n}</span><span class="goal">${esc(s.title)}</span></h3><ol class="flow" aria-label="the flow of one step">${FLOW.map((f, i) => `<li>${i + 1} ${f}</li>`).join('')}</ol></header>
+  <div class="pmain">
+    <section class="codecard" aria-label="request and response">
+      <div class="codetabs" role="tablist" aria-label="request or response"><button type="button" role="tab" data-tab="request" aria-selected="true"><i>2</i> request.yaml</button><button type="button" role="tab" data-tab="response" aria-selected="false"><i>3</i> response.yaml</button><span class="cmeta">${esc(meta)}</span><span class="cpage" hidden></span></div>
+      <div class="code" data-pane="request" role="tabpanel"><div class="pane-h"><span><i>2</i> the request it fired</span><em>request.yaml · hover a question</em></div><div class="cbody" tabindex="0" aria-label="request.yaml">${highlightYaml(s.request)}</div></div>
+      <div class="code" data-pane="response" role="tabpanel"><div class="pane-h"><span><i>3</i> the response that came back</span><em>MM3 output, verbatim</em></div><div class="cbody" tabindex="0" aria-label="response.yaml">${highlightYaml(s.response)}</div></div>
+    </section>
+    <section class="verdict" aria-label="quick read"><div class="pane-h"><span><i>4</i> quick read <b>${esc(s.id)}</b></span><em>bar = p</em></div>${renderVerdict(s)}</section>
   </div>
-  <p class="pfoot"><span class="real">real run</span> <span class="pf">${esc(sceneFooter(s))}</span> <span class="pdate">${esc(s.footer.date)}</span> <span class="psrc">prompt: ${esc(s.promptSource)} &middot; counts include the goal question</span></p>
+  <div class="pbottom">${renderDecision(s)}${renderKnowledge(s)}</div>
+  <p class="pfoot"><span class="real">real run</span> <span class="pf">${esc(sceneFooter(s))}</span> <span class="pdate">${esc(s.footer.date)}</span> <span class="ppin">${esc(s.footer.pin)}</span> <span class="psrc">costs are estimates &middot; counts include the goal question</span></p>
   <details class="raw"><summary>Exact request and response text</summary><pre class="rawcode"><code>${esc(s.request)}</code></pre><pre class="rawcode"><code>${esc(s.response)}</code></pre></details>
 </article>`;
 }
 
-/** The whole player: a tab per scene, all scenes stacked when there is no script (player.js turns them into tabs). */
-export function renderPlayer(scenes: Scene[]): string {
-  const tabs = scenes.map((s) => `<a class="ptab" href="#scene-${esc(s.id)}">${esc(s.verb)}</a>`).join('');
+/** The task strip: the kickoff the Haiku agent was given (its question verbatim; the full text one click away). */
+export function renderTask(st: DemoStory): string {
+  return `<div class="task"><span class="dnum">1</span><div><div class="tlabel">task given to a Haiku agent</div><p class="tq">${esc(st.task.question)}</p>`
+    + `<details class="tfull"><summary>the full kickoff, paths shortened</summary><pre class="rawcode"><code>${esc(st.task.full)}</code></pre></details></div></div>`;
+}
+
+/** The whole player: a tab per story, a step chip per run, all steps stacked when there is no script (player.js turns them into tabs and steps). */
+export function renderPlayer(stories: DemoStory[]): string {
+  const tabs = stories.map((st) => `<a class="pstab fam-${esc(st.id)}" href="#story-${esc(st.id)}"><b>${esc(st.label)}</b><span>${esc(st.title)}</span></a>`).join('');
+  const body = stories.map((st) => `  <section class="pstory fam-${esc(st.id)}" id="story-${esc(st.id)}" data-story="${esc(st.id)}" data-label="${esc(st.label)}" aria-label="${esc(st.label)}: ${esc(st.title)}">
+    <div class="shead"><h3>${esc(st.label)} &middot; ${esc(st.title)}</h3><p class="spin">${esc(st.pinned)}</p><p class="sabout">${esc(st.about)}</p></div>
+    ${renderTask(st)}
+    <nav class="psteps" aria-label="Steps of ${esc(st.label)}">${st.scenes.map((s) => `<a class="pstep" href="#scene-${esc(s.story)}-${esc(s.id)}" title="${esc(s.title)}"><i>${s.n}</i> ${esc(s.verb)} <span>${esc(s.id)}</span></a>`).join('')}</nav>
+    <div class="pscenes">
+${st.scenes.map((s) => renderScene(s)).join('\n')}
+    </div>
+  </section>`).join('\n');
   return `<div class="player" data-player>
-  <p class="pintro">Five real runs on OWASP NodeGoat, from prompt to verdict. Each prompt is the task the agent was given; each verdict and footer is read from that run&rsquo;s own ledger row.</p>
-  <nav class="ptabs" aria-label="Scenes">${tabs}</nav>
-  <div class="pscenes">
-${scenes.map((s) => renderScene(s)).join('\n')}
-  </div>
+  <p class="pintro">Two real stories, each driven by a Haiku agent on unmodified public source. Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run&rsquo;s own ledger row.</p>
+  <nav class="pstabs" aria-label="Stories">${tabs}</nav>
+${body}
   <div class="pctl" hidden><button type="button" data-prev>&larr; Previous</button><button type="button" data-replay>Replay</button><button type="button" data-next>Next &rarr;</button></div>
 </div>`;
 }
@@ -212,188 +329,101 @@ ${scenes.map((s) => renderScene(s)).join('\n')}
 // ---------------------------------------------------------------- scenes on disk
 
 const SCENE_DIR = 'docs/demo/scenes';
+export function loadStories(dir = SCENE_DIR): DemoStory[] {
+  return readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => JSON.parse(readFileSync(path.join(dir, f), 'utf8')) as DemoStory);
+}
+/** Every step of every story, in story order. */
 export function loadScenes(dir = SCENE_DIR): Scene[] {
-  return readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => JSON.parse(readFileSync(path.join(dir, f), 'utf8')) as Scene);
+  return loadStories(dir).flatMap((st) => st.scenes);
 }
 
-/** The scenes, request files and task numbers the one-time extract uses (ids are the smoke-round NodeGoat runs; `task` is the item in notes/QUESTIONS.md that produced the run). */
-const PICKS: { n: string; id: string; file: string; title: string; task: number }[] = [
-  { n: '01-class', id: 'MM3-0001', file: '02-class-contrib.yaml', title: 'One verdict for one subject', task: 2 },
-  { n: '02-scan', id: 'MM3-0002', file: '03-scan-routes-c.yaml', title: 'Sweep a folder, worst file first', task: 3 },
-  { n: '03-drill', id: 'MM3-0004', file: '05-drill-contrib-injection.yaml', title: 'Found: dig into the weak spot', task: 5 },
-  { n: '04-replay', id: 'MM3-0005', file: '06-replay-fix.yaml', title: 'Fixed, and proven', task: 6 },
-  { n: '05-loop', id: 'MM3-0007', file: '08-loop-pwreset-bank-b.yaml', title: 'Vet the design before code', task: 8 },
+type StoryDef = { id: string; label: string; name: string; title: string; repo: string; notes: string; pinned: string; why: string; picks: { id: string; file: string }[] };
+/** The two stories: which ledger runs to show (and which request file produced each), and why the rest are left out. Runs and files are from the play area's own notes. */
+const STORIES: StoryDef[] = [
+  { id: 'mak', label: 'MAK³ · make', name: 'WordPress', title: 'Where do agents plug into WordPress?', repo: 'wordpress', notes: 'notes-wp',
+    pinned: 'WordPress/wordpress-develop @ 3ffb1df, unmodified public source',
+    why: 'MM3-0002 drills into the block editor and MM3-0006 checks the admin UI; each repeats a move already shown, so the story follows the candidates that decide the answer: blocks, the REST API, the Abilities API and its access check.',
+    picks: [{ id: 'MM3-0001', file: '8-class-block-registration-fixed4.yaml' }, { id: 'MM3-0003', file: '13-class-rest-api-agents-fixed.yaml' }, { id: 'MM3-0004', file: '14-class-abilities-ui-integration.yaml' }, { id: 'MM3-0005', file: '16-drill-abilities-access-fixed.yaml' }] },
+  { id: 'mdl', label: 'MDL³ · model', name: 'n8n', title: "I've never worked in n8n and I want it faster", repo: 'n8n', notes: 'notes-n8n',
+    pinned: 'n8n-io/n8n at tags n8n@2.40.7 then n8n@2.41.3, unmodified public source',
+    why: 'MM3-0002 is a replay that came back unsure because every item was skipped, and MM3-0005 repeats the reuse shown in the last step, so the story goes scan, class, drill, then the next release re-checked from the ledger.',
+    picks: [{ id: 'MM3-0001', file: '01-scan-architecture.yaml' }, { id: 'MM3-0003', file: '02-architecture-analysis.yaml' }, { id: 'MM3-0004', file: '03-drill-architecture.yaml' }, { id: 'MM3-0006', file: '01-scan-architecture.yaml' }] },
 ];
 
-/** The numbered items of a QUESTIONS file, verbatim (wrapped lines joined); an item over 160 characters is cut to its first sentence and marked with an ellipsis. */
-export function taskItems(md: string): Map<number, string> {
-  const items = new Map<number, string>();
-  const body = md.split(/\n## /)[0]!;
-  for (const m of body.matchAll(/^(\d+)\. ([\s\S]*?)(?=\n\d+\. |\n\n|(?![\s\S]))/gm)) {
-    const text = m[2]!.replace(/\s*\n\s*/g, ' ').trim();
-    const first = /^.*?[.?!](?=\s|$)/.exec(text)?.[0] ?? text;
-    items.set(+m[1]!, text.length > 160 && first.length < text.length ? `${first} …` : text);
-  }
-  return items;
-}
+type AskRow = { ask?: { categories?: { questions?: { text: string }[] }[]; layers?: { categories?: { questions?: { text: string }[] }[] }[] } };
+const askTexts = (r: AskRow): string[] => [...(r.ask?.categories ?? []), ...(r.ask?.layers ?? []).flatMap((l) => l.categories ?? [])].flatMap((c) => (c.questions ?? []).map((q) => q.text));
 
-/** One-time, free: reads the play ledger and request files, checks each request's goal against its row, writes the scene JSON. */
-export function extractAll(ledger: string, requestsDir: string, questions: string, outDir = SCENE_DIR): string[] {
-  const rows = readFileSync(ledger, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Row & { kind?: string; goal?: string });
-  const tasks = taskItems(readFileSync(questions, 'utf8'));
+/** One-time, free: reads a play ledger and its request files, checks each request against its row (goal and every question text), and writes the story JSON. */
+export function extractStory(def: StoryDef, play: string, kickoff: string, outDir = SCENE_DIR): string[] {
+  const repo = path.join(play, def.repo);
+  const rows = readFileSync(path.join(repo, '.mm3', 'log.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Row & AskRow & { kind?: string; goal?: string; commit?: string });
+  const runs = rows.filter((r) => r.kind === 'run');
   mkdirSync(outDir, { recursive: true });
-  const out: string[] = [];
-  for (const p of PICKS) {
-    const row = rows.find((r) => r.kind === 'run' && r.id === p.id);
-    if (!row) throw new Error(`✖ ledger: no run ${p.id} → point --ledger at the smoke-round ledger`);
-    const yaml = readFileSync(path.join(requestsDir, p.file), 'utf8');
-    if (!tasks.has(p.task)) throw new Error(`✖ ${questions}: no item ${p.task} → point --questions at the round's QUESTIONS.md`);
+  const scenes = def.picks.map((p, i): Scene => {
+    const row = runs.find((r) => r.id === p.id);
+    if (!row) throw new Error(`✖ ledger: no run ${p.id} in ${def.repo} → point --play at the play area of this round`);
+    const yaml = readFileSync(path.join(play, def.notes, 'requests', p.file), 'utf8');
     const goal = ((parse(yaml) as { mak?: { goal?: string } }).mak?.goal ?? '').trim();
     if (goal !== (row.goal ?? '').trim()) throw new Error(`✖ ${p.file}: goal does not match ${p.id} → pick the request file whose mak.goal is the row's goal`);
-    const scene = extractScene(row, yaml, { title: p.title, prompt: tasks.get(p.task) ?? '', promptSource: `smoke-test task ${p.task}`, subject: 'OWASP NodeGoat' });
-    writeFileSync(path.join(outDir, `${p.n}.json`), JSON.stringify(scene, null, 2) + '\n');
-    out.push(`${p.n}.json  ${sceneFooter(scene)}`);
-  }
-  return out;
+    const missing = askTexts(row).find((t) => !yaml.includes(t));
+    if (missing) throw new Error(`✖ ${p.file}: question "${missing}" of ${p.id} is not in the file → pick the request file that produced the run`);
+    const commit = row.commit ?? '';
+    const tags = def.id === 'mdl' ? (spawnSync('git', ['-C', repo, 'tag', '--points-at', commit], { encoding: 'utf8' }).stdout ?? '').split('\n').filter((t) => t.startsWith('n8n@')) : [];
+    const pin = tags[0] ?? `${def.name} @${commit.slice(0, 7)}`;
+    return extractScene(row, yaml, { story: def.id, n: i + 1, pin, run: runs.indexOf(row) + 1, of: runs.length, children: runs.filter((r) => r.parent === row.id).map((r) => r.id ?? '') });
+  });
+  const omitted = runs.filter((r) => !def.picks.some((p) => p.id === r.id)).map((r) => `${r.id} (${r.verb})`);
+  const about = `${scenes.length} of the agent's ${runs.length} runs, in ledger order. Left out: ${omitted.join(', ')}. ${def.why}`;
+  const full = scrubKickoff(kickoff.trim());
+  const story: DemoStory = { id: def.id, label: def.label, name: def.name, title: def.title, pinned: def.pinned, task: { question: full.split('\n\n')[0]!, full }, about, scenes };
+  writeFileSync(path.join(outDir, `${def.id}.json`), JSON.stringify(story, null, 2) + '\n');
+  return scenes.map((s) => `${def.id} ${s.n}  ${sceneFooter(s)}  ${s.footer.pin}`);
 }
 
-// ---------------------------------------------------------------- the README GIF (headless Chrome over CDP, then ffmpeg)
+// ---------------------------------------------------------------- the README frame (the GIF renders one of these per moment)
 
-const W = 1000, H = 660;
-/** Frame plan per scene: [phase, seconds, highlight question or 0]; about 15 s. */
-const PLAN: [number, number, number][] = [[0, 1.8, 0], [1, 2.6, 0], [2, 3.4, 0], [3, 3.4, 0], [3, 3.8, -1]];
+export const STAGE = { w: 1600, h: 900 };
 
-/** One README frame as a full page: the scene at a fixed size, compacted so the tallest verdicts fit, at a given reveal phase. */
-export function stagePage(s: Scene, css: string, phase: number): string {
+/** One README frame as a full page at the stage size: the story bar, the task, and the step at a reveal phase and tab (scripts/demo-gif.ts scrolls the pane and captures). */
+export function stagePage(stories: DemoStory[], story: DemoStory, s: Scene, css: string): string {
+  const tabs = stories.map((st) => `<span class="sst fam-${esc(st.id)}${st.id === story.id ? ' on' : ''}">${esc(st.label)}</span>`).join('');
+  const steps = story.scenes.map((x) => `<span class="ssn${x.id === s.id ? ' on' : ''}"><i>${x.n}</i> ${esc(x.verb)}</span>`).join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="color-scheme" content="light dark"><style>${css}
-html,body{margin:0;background:var(--bg)} body{padding:0;overflow:hidden;font-size:15px} .stage{width:${W}px;height:${H}px;padding:12px 16px 10px;box-sizing:border-box;display:flex;flex-direction:column;overflow:hidden}
-.stage .pscene{flex:1;min-height:0;display:flex;flex-direction:column;margin:0;padding:.65rem .8rem .6rem;border-radius:14px}
-.stage .phead{margin-bottom:.5rem} .stage .phead h3{font-size:1.05rem}
-.stage .pgrid{flex:1;min-height:0;align-items:stretch;gap:.6rem} .stage .pleft{grid-template-rows:auto minmax(0,1fr);gap:.6rem;min-height:0}
-.stage .term{min-height:0} .stage .tbody{min-height:0;padding:.5rem .7rem} .stage .tbar{padding:.3rem .7rem}
-.stage .req{display:flex;flex-direction:column;min-height:0} .stage .reqbody{flex:1;min-height:0;max-height:none;overflow:hidden;padding:.35rem 0}
-.stage .verdict{display:flex;flex-direction:column;min-height:0;position:relative} .stage .verdict-body{flex:1;min-height:0;max-height:none;overflow:hidden;padding:.55rem .65rem;gap:.35rem}
-.stage .verdict::after,.stage .req::after{content:"";position:absolute;left:0;right:0;bottom:0;height:2.2rem;pointer-events:none}
-.stage .verdict::after{background:linear-gradient(to bottom,transparent,var(--card))} .stage .req{position:relative} .stage .req::after{background:linear-gradient(to bottom,transparent,#0b1424)}
-.stage .big-gate{font-size:1.35rem;padding:.2rem .7rem .25rem} .stage .vstat.burst{flex-basis:auto;margin-left:auto;padding:.2rem .6rem} .stage .vstat.burst b{font-size:1.3rem}
-.stage .vrow{padding:.25rem .5rem} .stage .urow{padding:.2rem .5rem} .stage .vnext{padding:.4rem .6rem} .stage .vhead{gap:.35rem .6rem}
-.stage .pfoot{margin-top:.5rem} .stage details.raw{display:none}
-.stage .brandbar{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.3rem}
-.stage .brandbar b{font:900 1.15rem/1 var(--sans);letter-spacing:-.04em} .stage .brandbar b i{font-style:normal;color:var(--green)} .stage .brandbar span{font-size:.74rem;color:var(--muted)}
-</style></head><body><div class="stage"><div class="brandbar"><b>MM<i>3</i></b><span>real runs &middot; prompt from the task given &middot; verdict and footer read from the ledger row</span></div>${renderScene(s, { phase })}</div></body></html>`;
-}
-
-class Cdp {
-  private ws: WebSocket; private id = 0; private waiting = new Map<number, (v: unknown) => void>(); private events: ((m: { method: string }) => void)[] = [];
-  constructor(ws: WebSocket) {
-    this.ws = ws;
-    ws.addEventListener('message', (e) => {
-      const m = JSON.parse(String((e as MessageEvent).data)) as { id?: number; result?: unknown; method?: string };
-      if (m.id && this.waiting.has(m.id)) { this.waiting.get(m.id)!(m.result); this.waiting.delete(m.id); } else if (m.method) this.events.forEach((f) => f(m as { method: string }));
-    });
-  }
-  static async open(url: string): Promise<Cdp> {
-    const ws = new WebSocket(url);
-    await new Promise<void>((res, rej) => { ws.addEventListener('open', () => res()); ws.addEventListener('error', () => rej(new Error('cdp socket'))); });
-    return new Cdp(ws);
-  }
-  send(method: string, params: object = {}): Promise<any> { // eslint-disable-line @typescript-eslint/no-explicit-any
-    const id = ++this.id;
-    return new Promise((res, rej) => {
-      const timer = setTimeout(() => { this.waiting.delete(id); rej(new Error(`✖ chrome: ${method} did not answer in 30 s → check MM3_CHROME and rerun`)); }, 30000);
-      this.waiting.set(id, (v) => { clearTimeout(timer); res(v); });
-      this.ws.send(JSON.stringify({ id, method, params }));
-    });
-  }
-  once(method: string): Promise<void> { return new Promise((res) => { const f = (m: { method: string }): void => { if (m.method === method) { this.events = this.events.filter((x) => x !== f); res(); } }; this.events.push(f); }); }
-  close(): void { this.ws.close(); }
-}
-
-/** The question the frames link request to verdict: the story's own pick, else the answer with the highest p. */
-const HL: Record<string, number> = { 'MM3-0001': 3, 'MM3-0002': 3, 'MM3-0004': 1, 'MM3-0005': 5, 'MM3-0007': 25 };
-function highlightQuestion(s: Scene): number {
-  if (HL[s.id]) return HL[s.id]!;
-  const best = [...s.response.matchAll(/\b(\d+): (\d(?:\.\d+)?)\b/g)].sort((a, b) => +b[2]! - +a[2]!)[0];
-  return best ? +best[1]! : 1;
-}
-
-/** A path inside an ffmpeg concat list's single quotes: each quote is closed, escaped and reopened. */
-function concatPath(p: string): string { return p.replaceAll("'", "'\\''"); }
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-
-/** Chrome for the frames: $MM3_CHROME, else the first of a few usual paths. */
-function chromePath(): string {
-  const c = [process.env.MM3_CHROME, '/usr/bin/google-chrome', '/usr/bin/chromium-browser', '/snap/bin/chromium'].find((p) => p && existsSync(p));
-  if (!c) throw new Error('✖ chrome: not found → set MM3_CHROME to a Chrome or Chromium binary');
-  return c;
-}
-
-/** Renders one GIF per theme (all scenes, ~15 s each) into outDir; returns the sizes. Free: it reads only the scene JSON. */
-export async function renderGifs(scenes: Scene[], outDir = 'docs/assets', keep?: string): Promise<string[]> {
-  const work = keep ?? mkdtempSync(path.join(tmpdir(), 'mm3-gif-'));
-  mkdirSync(work, { recursive: true });
-  const css = readFileSync('site/style.css', 'utf8');
-  const port = 9300 + Math.floor(Math.random() * 300);
-  const chrome = spawn(chromePath(), ['--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${path.join(work, 'profile')}`, '--no-sandbox', '--hide-scrollbars', '--force-device-scale-factor=1', 'about:blank'], { stdio: 'ignore' });
-  const notes: string[] = [];
-  try {
-    let target: { webSocketDebuggerUrl: string } | undefined;
-    for (let i = 0; i < 50 && !target; i++) { await sleep(200); try { target = (await (await fetch(`http://127.0.0.1:${port}/json/list`)).json() as { type: string; webSocketDebuggerUrl: string }[]).find((t) => t.type === 'page'); } catch { /* not up yet */ } }
-    if (!target) throw new Error('✖ chrome: no page target → check MM3_CHROME');
-    const cdp = await Cdp.open(target.webSocketDebuggerUrl);
-    await cdp.send('Page.enable');
-    await cdp.send('Emulation.setDeviceMetricsOverride', { width: W, height: H, deviceScaleFactor: 1, mobile: false });
-    for (const theme of ['light', 'dark'] as const) {
-      await cdp.send('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }, { name: 'prefers-reduced-motion', value: 'reduce' }] });
-      const list: string[] = [];
-      let n = 0;
-      for (const s of scenes) {
-        const file = path.join(work, `stage-${s.id}-${theme}.html`);
-        writeFileSync(file, stagePage(s, css, 0));
-        const loaded = cdp.once('Page.loadEventFired');
-        await cdp.send('Page.navigate', { url: `file://${file}` });
-        await loaded; await sleep(150);
-        const hlQ = highlightQuestion(s);
-        for (const [phase, secs, hl] of PLAN) {
-          await cdp.send('Runtime.evaluate', { expression: `(() => { const sc = document.querySelector('.pscene'); sc.dataset.phase = '${phase}'; sc.querySelectorAll('.hl').forEach((e) => e.classList.remove('hl')); ${hl ? `sc.querySelectorAll('[data-q="${hlQ}"]').forEach((e) => e.classList.add('hl'));` : ''} })()` });
-          await sleep(120);
-          const shot = await cdp.send('Page.captureScreenshot', { format: 'png' }) as { data: string };
-          const png = path.join(work, `${theme}-${String(n).padStart(3, '0')}.png`);
-          writeFileSync(png, Buffer.from(shot.data, 'base64'));
-          list.push(`file '${concatPath(png)}'`, `duration ${secs}`);
-          n++;
-        }
-      }
-      list.push(`file '${concatPath(path.join(work, `${theme}-${String(n - 1).padStart(3, '0')}.png`))}'`);
-      const listFile = path.join(work, `${theme}.txt`);
-      writeFileSync(listFile, list.join('\n') + '\n');
-      const out = path.join(outDir, `demo-player-${theme}.gif`);
-      const r = spawnSync('ffmpeg', ['-y', '-loglevel', 'error', '-f', 'concat', '-safe', '0', '-i', listFile, '-vf', `fps=8,scale=${W}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=96:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle`, '-loop', '0', out], { encoding: 'utf8' });
-      if (r.status !== 0) throw new Error(`✖ ffmpeg: ${r.stderr.trim().split('\n')[0]} → install ffmpeg`);
-      notes.push(`${out}: ${(statSync(out).size / 1e6).toFixed(2)} MB, ${n} frames`);
-    }
-    cdp.close();
-  } finally {
-    const gone = new Promise<void>((res) => chrome.once('exit', () => res()));
-    chrome.kill(); await Promise.race([gone, sleep(3000)]);
-    if (!keep) rmSync(work, { recursive: true, force: true, maxRetries: 8, retryDelay: 250 });
-  }
-  return notes;
+html,body{margin:0;background:var(--bg)} body{padding:0;overflow:hidden;font-size:15px;line-height:1.4}
+.stage{--bar:var(--blue);width:${STAGE.w}px;height:${STAGE.h}px;padding:12px 16px 12px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.stage.fam-mdl{--bar:var(--green)}
+.sbar{display:flex;align-items:center;gap:.7rem;height:34px;flex:none}
+.sbar b.brand{font:900 1.5rem/1 var(--sans);letter-spacing:-.04em;margin-right:.5rem} .sbar b.brand i{font-style:normal;color:var(--green)}
+.sst{font:800 .95rem var(--sans);padding:.25rem .8rem;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.sst.on.fam-mak{background:var(--blue);border-color:var(--blue);color:var(--bg)} .sst.on.fam-mdl{background:var(--green);border-color:var(--green);color:var(--bg)}
+.ssteps{margin-left:auto;display:flex;gap:.4rem} .ssn{font:700 .85rem var(--mono);padding:.2rem .7rem;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface)} .ssn i{font-style:normal;font-weight:900}
+.ssn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.stage .task{flex:none;margin:0;padding:.5rem .8rem} .stage .tq{font-size:1rem;line-height:1.35;margin:.1rem 0 0} .stage .tfull{display:none}
+.stage .pscene{flex:1;min-height:0;display:flex;flex-direction:column;margin:0;padding:.6rem .8rem .5rem;border-radius:14px}
+.stage .phead{margin:0 0 .5rem} .stage .phead h3{font-size:1.15rem}
+.stage .pmain{flex:1;min-height:0;grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);align-items:stretch}
+.stage .codecard{display:flex;flex-direction:column;min-height:0} .stage .code{flex:1;min-height:0;display:none;flex-direction:column} .stage .pscene[data-show=request] .code[data-pane=request],.stage .pscene[data-show=response] .code[data-pane=response]{display:flex}
+.stage .cbody{flex:1;min-height:0;max-height:none;overflow:hidden;font-size:14.5px;line-height:20px;padding:0}
+.stage .verdict{display:flex;flex-direction:column;min-height:0} .stage .verdict-body{flex:1;min-height:0;max-height:none;overflow:hidden;padding:.5rem .65rem;gap:.3rem}
+.stage .big-gate{font-size:1.45rem;padding:.2rem .7rem .25rem} .stage .vstat.burst{flex-basis:auto;margin-left:auto;padding:.2rem .6rem} .stage .vstat.burst b{font-size:1.3rem}
+.stage .vrow{padding:.2rem .5rem;grid-template-columns:8.4rem auto minmax(0,1fr);gap:.3rem .5rem} .stage .cat{font-size:.82rem} .stage .q .pb{width:2.7rem} .stage .qs{gap:.2rem .35rem} .stage .urow{padding:.25rem .5rem} .stage .vhead{gap:.35rem .6rem}
+.stage .pbottom{flex:none;grid-template-columns:1.25fr 1fr;margin-top:.5rem;height:214px;align-items:stretch}
+.stage .decision,.stage .knowledge{min-height:0;overflow:hidden}
+.stage .pfoot{margin:.45rem 0 0;font-size:.82rem} .stage details.raw{display:none}
+</style></head><body><div class="stage tabbed fam-${esc(story.id)}"><div class="sbar"><b class="brand">MM<i>3</i></b>${tabs}<span class="ssteps">${steps}</span></div>${renderTask(story)}${renderScene(s, { phase: 0, show: 'request' })}</div>
+<script>window.mm3Frame=function(phase,show,page){var sc=document.querySelector('.pscene');sc.dataset.phase=String(phase);sc.dataset.show=show;[].forEach.call(sc.querySelectorAll('[data-tab]'),function(t){t.setAttribute('aria-selected',t.dataset.tab===show?'true':'false')});var b=sc.querySelector('.code[data-pane="'+show+'"] .cbody');var lh=parseFloat(getComputedStyle(b).lineHeight)||20;b.style.flex='1';b.style.height='';var h=Math.floor(b.clientHeight/lh)*lh;b.style.flex='none';b.style.height=h+'px';var step=Math.max(lh,h-3*lh);var pages=b.scrollHeight>h+2?Math.ceil((b.scrollHeight-h)/step)+1:1;b.scrollTop=Math.min(page*step,b.scrollHeight-h);var pg=sc.querySelector('.cpage');pg.hidden=pages<2;pg.textContent='page '+(page+1)+' of '+pages;var v=sc.querySelector('.verdict-body');return {pages:pages,vOver:v.scrollHeight>v.clientHeight+2,dOver:[].some.call(sc.querySelectorAll('.pbottom > *'),function(e){return e.scrollHeight>e.clientHeight+2})};};var m=/^#f(\\d),(\\w+),(\\d+)$/.exec(location.hash);if(m)window.mm3Frame(+m[1],m[2],+m[3]);</script></body></html>`;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [mode, ...rest] = process.argv.slice(2);
   const arg = (k: string): string | undefined => { const i = rest.indexOf(k); return i >= 0 ? rest[i + 1] : undefined; };
   if (mode === 'extract') {
-    const ledger = arg('--ledger'), reqs = arg('--requests'), qs = arg('--questions');
-    if (!ledger || !reqs || !qs) { console.log('✖ extract: --ledger, --requests and --questions are required → tsx scripts/build-demo.ts extract --ledger <log.jsonl> --requests <dir> --questions <QUESTIONS.md>'); process.exit(1); }
-    for (const l of extractAll(ledger, reqs, qs)) console.log(l);
-  } else if (mode === 'gif') {
-    for (const l of await renderGifs(loadScenes(), 'docs/assets', arg('--keep'))) console.log(l);
+    const play = arg('--play'), mak = arg('--kickoff-mak'), mdl = arg('--kickoff-mdl');
+    if (!play || !mak || !mdl) { console.log('✖ extract: --play, --kickoff-mak and --kickoff-mdl are required → tsx scripts/build-demo.ts extract --play <play-area> --kickoff-mak <mak.txt> --kickoff-mdl <mdl.txt>'); process.exit(1); }
+    for (const def of STORIES) for (const l of extractStory(def, play, readFileSync(def.id === 'mak' ? mak : mdl, 'utf8'))) console.log(l);
   } else {
-    const scenes = loadScenes();
-    console.log(`player: ${scenes.length} scenes, ${renderPlayer(scenes).length} bytes of HTML (from ${SCENE_DIR}, no ledger read)`);
-    for (const s of scenes) console.log(`  ${sceneFooter(s)}`);
+    const stories = loadStories();
+    console.log(`player: ${stories.length} stories, ${renderPlayer(stories).length} bytes of HTML (from ${SCENE_DIR}, no ledger read)`);
+    for (const s of loadScenes()) console.log(`  ${s.story} ${s.n}  ${sceneFooter(s)}  ${s.footer.pin}`);
   }
 }

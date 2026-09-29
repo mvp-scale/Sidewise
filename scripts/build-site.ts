@@ -1,11 +1,11 @@
 /**
  * Builds the mm3lab.dev landing page: fills site/template.html from docs/story.yaml (so the site and the README
- * repeat the same phrases) and the demo player from docs/demo/scenes/*.json, then copies site/style.css, site/player.js and docs/assets/* next to it in site/dist/ (gitignored).
+ * repeat the same phrases) and the two-story demo player from docs/demo/scenes/*.json, then copies site/style.css, site/player.js and docs/assets/* next to it in site/dist/ (gitignored).
  * renderSite is pure so a unit test can pin the escaping and the lists; the main block does the file work.
  */
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { loadScenes, renderPlayer } from './build-demo.ts';
+import { loadStories, renderPlayer } from './build-demo.ts';
 import { loadStory, type Story } from './story.ts';
 
 /** The site is served apart from the repo, so a number's method links to the GitHub copy of the doc. */
@@ -57,12 +57,12 @@ export function demoSlot(playerHtml: string): string {
 export function buildSite(story: Story = loadStory(), dist = 'site/dist'): string {
   rmSync(dist, { recursive: true, force: true });
   mkdirSync(dist, { recursive: true });
-  const scenes = existsSync('docs/demo/scenes') ? loadScenes() : [];
-  writeFileSync(path.join(dist, 'index.html'), renderSite(story, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(scenes.length ? renderPlayer(scenes) : '') }));
+  const stories = existsSync('docs/demo/scenes') ? loadStories() : [];
+  writeFileSync(path.join(dist, 'index.html'), renderSite(story, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(stories.length ? renderPlayer(stories) : '') }));
   copyFileSync('site/style.css', path.join(dist, 'style.css'));
   copyFileSync('site/player.js', path.join(dist, 'player.js'));
   for (const f of readdirSync('docs/assets')) cpSync(path.join('docs/assets', f), path.join(dist, f));
-  return `site built: ${dist}/index.html (${scenes.length} player scenes)`;
+  return `site built: ${dist}/index.html (${stories.reduce((n, st) => n + st.scenes.length, 0)} player steps in ${stories.length} stories)`;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) console.log(buildSite());

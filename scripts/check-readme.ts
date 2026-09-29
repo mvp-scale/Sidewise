@@ -109,7 +109,7 @@ function siteText(html: string): string {
   return squash(bare.replace(/&#(\d+);/g, (_m, n: string) => String.fromCharCode(+n)).replace(/&(\w+);/g, (m, k: string) => ENTITIES[k] ?? m));
 }
 const plain = (md: string): string => squash(md.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/`/g, ''));
-/** The demo player's drift check: each scene's footer is on the site, and the README's one frozen response is that scene's text with its label (model, endpoint, latency, cost). */
+/** The demo player's drift check: each scene's footer is on the site, and the README's one frozen response is that scene's text with its label (model, endpoint, latency, cost); run ids repeat across the two stories, so a scene is matched by id and then by text. */
 export function checkDemo(html: string, readme: string | undefined, scenes: Scene[]): string[] {
   const out: string[] = [];
   if (!scenes.length) return ['✖ demo: no scenes in docs/demo/scenes/ → run tsx scripts/build-demo.ts extract'];
@@ -121,10 +121,10 @@ export function checkDemo(html: string, readme: string | undefined, scenes: Scen
   if (readme === undefined) return out;
   const blocks = [...readme.matchAll(/```text\n([\s\S]*?)```/g)].map((m) => m[1]!.trim());
   const idOf = (b: string): string | undefined => /^ {2}id: (MM3-\d+)$/m.exec(b)?.[1];
-  const hit = blocks.map((b) => ({ b, scene: scenes.find((s) => s.id === idOf(b)) })).find((x) => x.scene);
+  const hit = blocks.map((b) => ({ b, cands: scenes.filter((s) => s.id === idOf(b)) })).find((x) => x.cands.length);
   if (!hit) out.push('✖ README response: no frozen response in ## See it run matches a demo scene → paste one scene\'s response text under the player');
   else {
-    const s = hit.scene!;
+    const s = hit.cands.find((c) => c.response.trim() === hit.b) ?? hit.cands[0]!; // two stories can share a run id: prefer the scene whose text matches
     if (hit.b !== s.response.trim()) out.push(`✖ README response ${s.id}: differs from docs/demo/scenes → copy the scene's response text verbatim`);
     if (!plain(readme).includes(sceneLabel(s))) out.push(`✖ README response ${s.id}: label "${sceneLabel(s)}" is not in the README → copy it from the scene footer`);
   }

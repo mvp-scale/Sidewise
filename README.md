@@ -52,83 +52,75 @@ Agents: run `mm3 agent` first. Humans: `mm3 help`.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/demo-player-dark.gif">
-  <img src="docs/assets/demo-player-light.gif" alt="An animated split panel of five real MM3 runs on OWASP NodeGoat: class, scan, drill, replay and loop. Each shows the prompt and command, the request with numbered questions, and the verdict with gates, p bars and the next step. A footer under each names the run's model, endpoint, latency, cost and id.">
+  <img src="docs/assets/demo-player-light.gif" alt="Two animated stories of real MM3 runs by a Haiku agent, WordPress (MAK³, where agents plug in) and n8n (MDL³, faster and re-checked for free). Each step shows the task given, the request fired, the response returned, a quick read with gates and p bars, the decision it implies, and what the ledger now holds, with a footer of the run's model, endpoint, latency, cost and id.">
 </picture>
 
-Five real runs on OWASP NodeGoat, an intentionally vulnerable app: class, scan, drill, replay and loop, each from the prompt to the verdict and the `next:` step. Each prompt is the task the agent was given, and every footer comes from that run's own ledger row. The first run in full:
+Two real stories, each driven by a Haiku agent on unmodified public source: **MAK³ · make**, “Where do agents plug into WordPress?” (WordPress @ 3ffb1df), and **MDL³ · model**, “I've never worked in n8n and I want it faster” (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run's own ledger row.
 
-An agent was asked, on OWASP NodeGoat: *"Take a first look: is that contribution handler safe to merge as it stands?"* It wrote this request (42 lines, opened below) and got one answer from one call.
+One step in full, from the WordPress story: the agent asked whether the Abilities API is the place to plug in. It wrote this request (34 lines, opened below) and got one answer from one call.
 
 <details>
 <summary>The request the agent wrote</summary>
 
 ```text
 mak:
-  goal: The `handleContributionsUpdate` handler rejects unsafe input and is safe to merge
-  verb: class
+  goal: Abilities API is the integration point for agent-driven UI components
   depth: quick
-  where: [app/routes/contributions.js:24-72]
+  where:
+    - src/wp-includes/abilities-api.php:1-150
+    - src/wp-includes/abilities.php:1-100
   ask:
     concerns:
-      injection:
-        pass: no
-        1: Is `req.body.preTax`, `req.body.afterTax` or `req.body.roth` read from the request body in `handleContributionsUpdate`?
-        2: Are those body values passed to a parser that only accepts numbers, rather than to a code evaluator?
-        3: Does `handleContributionsUpdate` run those body values through `eval`?
-      input:
-        pass: yes
-        4: Are `preTax`, `afterTax` and `roth` checked for NaN and negative values before use?
-        5: Is the combined total of `preTax`, `afterTax` and `roth` capped before the DAO update?
-        6: Does `handleContributionsUpdate` return an error page instead of updating when validation fails?
+      design:
+        pass: "yes"
+        1: Does Abilities API register capabilities with input/output schemas?
+        2: Are abilities required to define permission callbacks before execution?
+        3: Can third-party code register abilities without modifying WordPress core?
       access:
-        pass: yes
-        7: Is `userId` taken from `req.session` rather than from `req.body`?
-        8: Is the update passed to `contributionsDAO.update` keyed only by that session `userId`?
-        9: Does the response render only the caller's own contributions record?
+        pass: "yes"
+        4: Is the permission_callback required for every registered ability?
+        5: Are ability schemas validated against the permission callback result?
+        6: Can an unprivileged user bypass ability permission checks via API?
+      correctness:
+        pass: "yes"
+        7: Are input parameters validated against the input_schema?
+        8: Are output values validated against the output_schema?
+        9: Does the system reject invalid inputs before executing the callback?
     decisions:
-      severity:
-        pass: [none, low]
+      aui-foundation:
+        pass: [yes]
         10:
-          scale: How severe is the worst issue found in `handleContributionsUpdate`?
-          levels: [none, low, medium, high, critical]
-      route:
-        pass: [ship]
+          choice: Is Abilities API suitable as the foundation for AUI?
+          options: [yes, partial, no]
+      design-maturity:
+        pass: [mature]
         11:
-          choice: Where should `handleContributionsUpdate` go?
-          options: [ship, fix, block]
-mdl:
-  why: validate
-  area: [api]
-  stage: pre-merge
-  problem: Is handleContributionsUpdate in contributions.js safe to merge as it stands
-  uses:
-    - component:web-app/contributions-handler -> code:handleContributionsUpdate -> component:web-app/contributions-dao
-  touches: [preTax, afterTax, roth, userId]
-  blast: person
+          scale: How mature is the Abilities API design for agents?
+          levels: [prototype, developing, mature, stable]
 ```
 
 </details>
 
-The response, **real output · jev-1.13.0 · api.typesafe.ai · 364 ms · ~$0.000048**:
+The response, **real output · jev-1.13.0 · api.typesafe.ai · 293 ms · ~$0.00012**:
 
 ```text
 mak:
-  id: MM3-0001
+  id: MM3-0004
   gate: fail
-  goal: {gate: fail, p: 0.06}
-  injection: {gate: fail, 1: 0.99, 2: 0.08, 3: 0.98}
-  input: {gate: pass, 4: 0.95, 5: 0.94, 6: 0.95}
-  access: {gate: unsure, 7: 0.99, 8: 0.71, 9: 0.55}
-  severity: {gate: fail, 10: {top: critical, p: 0.96}}
-  route: {gate: fail, 11: {top: fix, p: 0.70}}
+  goal: {gate: unsure, p: 0.38}
+  design: {gate: unsure, 1: 0.97, 2: 0.50, 3: 0.96}
+  access: {gate: fail, 4: 0.38, 5: 0.08, 6: 0.10}
+  correctness: {gate: pass, 7: 0.80, 8: 0.72, 9: 0.80}
+  aui-foundation: {gate: unsure, 10: {top: "yes", p: 0.45}}
+  design-maturity: {gate: unsure, 11: {top: developing, p: 0.56}}
   consensus: SPLIT
   escalate: true
-mdl: {recorded: [why, area, stage, problem, uses, touches, blast]}
-next: mm3 template drill --parent MM3-0001 --from injection
-notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
+mdl: {recorded: none}
+next: mm3 template drill --parent MM3-0004 --from access
+notes: [cost estimated from tokens (no live pricing reported), "budget: $0.10 left of $0.10 · 26 of 30 runs left"]
 ```
 
-Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through `eval` (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets `escalate: true` and `next:` names the drill that digs into injection. The agent ran that drill, fixed the `eval`, then replayed to prove the fix: the drill and replay tabs show it. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.
+Each concern gets its own verdict and odds. Design is unsure only because question 2, whether every ability must define a permission callback, sits at 0.50, and correctness passes. Access fails: its three answers are all under 0.5, so the goal stays unsure at 0.38. The concerns disagree, so consensus is SPLIT, MM3 sets `escalate: true`, and `next:` names the drill into access. The agent ran that drill (MM3-0005), the last step of the story.
 
 ## What you get
 
