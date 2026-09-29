@@ -20,10 +20,10 @@ Caveats: the cost is estimated from tokens (the run's own note says so), a bigge
 
 ## Test count
 
-**1,118 tests**: the default suite (`npm test`: unit, contract and golden tiers) passes with no network and no key. The number is the `Tests` line of that command's summary, taken on the commit that introduced this page.
+**1,155 tests**: the default suite (`npm test`: unit, contract and golden tiers) passes with no network and no key. The number is the `Tests` line of that command's summary, taken at `0e2a2b9` (the commit before the one that added it here) with `npm test`.
 
 ```bash
-npm test    # ... Tests  1118 passed (1118)
+npm test    # ... Tests  1155 passed (1155)
 ```
 
 The number moves with every test added. `npm run check:trace` maps each claim in [`contract.md`](contract.md) to the tests that prove it.

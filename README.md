@@ -9,7 +9,7 @@
 <p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-it-works-dark.svg"><img src="docs/assets/how-it-works-light.svg" width="640" alt="How MM3 works. Six verbs in two rows and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns."></picture></p>
 
 - [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
-- [1,118 tests, no network, no key](docs/numbers.md#test-count)
+- [1,155 tests, no network, no key](docs/numbers.md#test-count)
 - [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
 
 ## Install

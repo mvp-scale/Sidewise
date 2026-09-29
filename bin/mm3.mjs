@@ -9216,12 +9216,14 @@ function loadBudget(paths, now = Date.now(), env = process.env) {
 function usedFraction(s) {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
 }
+function raiseCommand(usd, runs) {
+  return `mm3 budget set ${[usd ? "--usd <n>" : "", runs ? "--runs <n>" : ""].filter(Boolean).join(" ")}`;
+}
 function checkBudget2(s) {
   const runsCapped = s.runs >= s.capRuns;
   const usdCapped = s.spentUsd >= s.capUsd;
   if (runsCapped || usdCapped) {
-    const hint = runsCapped && !usdCapped ? 'the owner runs "mm3 budget set --runs <n>"' : 'the owner runs "mm3 budget reset"';
-    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 ${hint}${AGENT_POINTER}` };
+    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 the owner runs "${raiseCommand(usdCapped, runsCapped)}"${AGENT_POINTER}` };
   }
   return { ok: true };
 }
@@ -9249,12 +9251,13 @@ var BUDGET_LOW_FRACTION = 0.8;
 function budgetLine(s) {
   const usdLeft = Math.max(0, s.capUsd - s.spentUsd);
   const runsLeft = Math.max(0, s.capRuns - s.runs);
-  const line3 = `budget: ${money(usdLeft)} left of ${money(s.capUsd)} \xB7 ${runsLeft} of ${s.capRuns} runs left`;
+  const usdUsed = s.spentUsd > s.capUsd ? ` (${money(s.spentUsd)} used)` : "";
+  const runsUsed = s.runs > s.capRuns ? ` (${s.runs} used)` : "";
+  const line3 = `budget: ${money(usdLeft)} left of ${money(s.capUsd)}${usdUsed} \xB7 ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
   if (usedFraction(s) < BUDGET_LOW_FRACTION) return line3;
   const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= BUDGET_LOW_FRACTION : true;
   const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= BUDGET_LOW_FRACTION : true;
-  const fix = [lowUsd ? "--usd <n>" : "", lowRuns ? "--runs <n>" : ""].filter(Boolean).join(" ");
-  return `\u26A0 ${line3} \u2192 low: ask the owner to run mm3 budget set ${fix}`;
+  return `\u26A0 ${line3} \u2192 low: ask the owner to run ${raiseCommand(lowUsd, lowRuns)}`;
 }
 
 // src/classifier/chaos.ts

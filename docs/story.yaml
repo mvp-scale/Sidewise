@@ -4,7 +4,7 @@ identity: "MM3 turns a short numbered yes/no checklist into a calibrated pass/fa
 numbers:
   - text: "$0.000065 per check (median of five paid class runs)"
     method: docs/numbers.md#cost-per-check
-  - text: "1,118 tests, no network, no key"
+  - text: "1,155 tests, no network, no key"
     method: docs/numbers.md#test-count
   - text: "The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat"
     method: docs/numbers.md#agent-smoke-score
