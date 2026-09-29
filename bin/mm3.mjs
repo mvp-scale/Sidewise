@@ -7424,6 +7424,7 @@ var package_default = {
   scripts: {
     build: "tsc -p tsconfig.build.json",
     "build:plugin": "tsx scripts/build-plugin.ts",
+    "build:site": "tsx scripts/build-site.ts",
     typecheck: "tsc -p tsconfig.json --noEmit",
     test: "vitest run --project unit --project contract --project golden",
     "test:cli": "npm run build && vitest run --project cli",
@@ -7439,6 +7440,8 @@ var package_default = {
     "check:pack": "tsx scripts/check-pack.ts",
     "check:plugin": "tsx scripts/check-plugin.ts",
     "check:hygiene": "tsx scripts/check-hygiene.ts",
+    "check:readme": "npm run build && tsx scripts/check-readme.ts",
+    "judge:readme": "node bin/mm3.mjs class scripts/readme-judgment.yaml",
     "gen:evidence-index": "tsx scripts/evidence-index.ts",
     prepare: "git config core.hooksPath .githooks 2>/dev/null || true",
     "dev:install": 'npm run build && tgz="$(pwd)/$(npm pack --silent | tail -1)" && cd "${INIT_CWD:-.}" && npx --yes --package "$tgz" mm3 init'

@@ -1,0 +1,42 @@
+# Judgment layer of README drift protection: one paid MM3 class call that grades the README.
+# Pre-release only, not in CI. Run with: npm run judge:readme
+mak:
+  goal: The README tells a clear, honest, proven story
+  verb: class
+  depth: quick
+  where: [README.md]
+  ask:
+    concerns:
+      clarity:
+        pass: yes
+        1: Is the tagline in `README.md` plain words of ten words or fewer, with no jargon?
+        2: Does `README.md` say what MM3 is in its opening lines, before any clever or brand-heavy framing?
+        3: Does `README.md` explain the problem it solves ahead of any feature list?
+      honesty:
+        pass: yes
+        4: Does `README.md` name concrete limits of MM3, such as what it is not?
+        5: Is every performance claim in `README.md` given as a specific number with a source linked?
+        6: Is each sample verdict in `README.md` labelled as real output with a version, a date, a cost?
+      proof:
+        pass: yes
+        7: Does each headline number in `README.md` link to a page that explains how it was measured?
+        8: Are the examples in `README.md` real runs on a named subject, not invented output?
+        9: Does `README.md` show a way to try MM3 with no API key?
+    decisions:
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst clarity, honesty or proof gap in `README.md`?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should this README go?
+          options: [ship, fix, block]
+mdl:
+  why: validate
+  subject: readme
+  stage: release
+  risk: low
+  problem: Does the README tell a clear, honest, proven story before release
+  blast: component

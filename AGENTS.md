@@ -23,6 +23,7 @@
 | Bundle the plugin's single-file CLI (`bin/mm3.mjs`) | `npm run build:plugin` |
 | Check the committed bundle matches a fresh build | `npm run check:plugin` |
 | README drift check: story phrases, every request example dry-runs, links, badges, old names (builds first) | `npm run check:readme` |
+| README quality grading by MM3; one paid call; pre-release only, not in CI | `npm run judge:readme` |
 
 ## Rules
 
