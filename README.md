@@ -50,7 +50,7 @@ Agents: run `mm3 agent` first. Humans: `mm3 help`.
 
 ## See it run
 
-![A real MM3 quick class run on n8n. A terminal on the left: an agent asks where n8n could be faster, hands one request across to MM3 (12 yes/no and decision questions, one call, 345 ms, about $0.00005) and gets a next move. On the right the run's real YAML, unfolded one group at a time: the request (one claim, the concerns, the decisions, an optional mdl block this run did not send), the whole response (verdict, gates and odds per concern, consensus and the next command) and what the ledger now holds, with the same questions answered free on the next release.](docs/assets/demo-strip-n8n.svg)
+![A real MM3 quick class run on n8n (MM3-0008). On the left, a coding agent is asked where n8n could be faster and runs one mm3 class request: 12 yes/no and decision questions, one call, 321 ms, about $0.00006, and a next move. On the right, the run's real YAML: the request opens folded (one claim, with concerns, decisions and an mdl block collapsed to fit) and a pointer unfolds each in turn; then the whole response (verdict, gates and odds per concern, consensus and the next command) and what the ledger now holds, where looking the same request up again is free.](docs/assets/demo-strip-n8n.svg)
 
 [Step through both stories on mm3lab.dev →](https://mm3lab.dev/#run)
 
