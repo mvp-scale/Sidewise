@@ -1,0 +1,234 @@
+<!doctype html>
+<!-- mm3lab.dev landing page. Built by scripts/build-site.ts: double-brace placeholders are filled from docs/story.yaml
+     (tagline, identity, numbers, install, use cases), so the site and the README cannot drift apart
+     (npm run check:readme). Prose that is not in story.yaml lives here. No script or font is loaded from
+     outside; the one inline script only adds copy buttons and the page reads fine without it. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MM3: {{tagline}}</title>
+<meta name="description" content="{{identity}}">
+<meta name="color-scheme" content="light dark">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MM3">
+<meta property="og:title" content="MM3: {{tagline}}">
+<meta property="og:description" content="{{identity}}">
+<meta property="og:url" content="https://mm3lab.dev/">
+<!-- og:image is the SVG wordmark. Many social crawlers read only PNG, so the release step (sub-project 1) generates a PNG card and this URL switches to it then. -->
+<meta property="og:image" content="https://mm3lab.dev/wordmark-light.svg">
+<meta property="og:image:alt" content="MM3">
+<meta name="twitter:card" content="summary">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b1424'/%3E%3Ctext x='32' y='47' text-anchor='middle' font-family='system-ui,sans-serif' font-size='44' font-weight='900' fill='%23b7ff83'%3E3%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="#top" aria-label="MM3, top of page">MM<span>3</span></a>
+    <nav aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#run">See it run</a>
+      <a class="gh" href="https://github.com/mvp-scale/Sidewise">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+<section class="hero" id="top">
+  <div class="wrap hero-in">
+    <h1><picture><source media="(prefers-color-scheme: dark)" srcset="wordmark-dark.svg"><img src="wordmark-light.svg" width="360" height="136" alt="MM3"></picture></h1>
+    <p class="tagline">{{tagline}}</p>
+    <p class="lede">{{identity}}</p>
+    <p class="cta">
+      <a class="btn primary" href="#install">Install</a>
+      <a class="btn" href="https://github.com/mvp-scale/Sidewise">View on GitHub</a>
+    </p>
+    <p class="fine">Apache-2.0 &middot; Node 22.13 or newer &middot; pre-release</p>
+  </div>
+</section>
+
+<section class="wrap how" id="how" aria-labelledby="how-h">
+  <h2 id="how-h">How it works</h2>
+  <p class="sub">Six verbs, one ledger. Pick the move you need; every answer is kept and reused.</p>
+  <figure class="big">
+    <picture><source media="(prefers-color-scheme: dark)" srcset="how-it-works-dark.svg"><img src="how-it-works-light.svg" width="720" height="520" alt="How MM3 works. Six verbs in two rows and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns."></picture>
+  </figure>
+</section>
+
+<section class="wrap numbers" aria-labelledby="num-h">
+  <h2 id="num-h" class="eyebrow">By the numbers</h2>
+  <ul class="strip">
+{{numbers}}
+  </ul>
+</section>
+
+<section class="wrap install" id="install" aria-labelledby="install-h">
+  <h2 id="install-h">Install</h2>
+  <div class="cols">
+    <div>
+      <h3>In Claude Code</h3>
+      <p>From your project:</p>
+      <div class="code" data-copy><pre><code>{{installClaude}}
+/plugin install mm3@mvp-scale</code></pre></div>
+      <p>Pick <strong>project</strong> scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on &ldquo;TypeSafe API key&rdquo;, paste, Enter, then &ldquo;Save configuration&rdquo;. Leave it empty to use the free sample provider.</p>
+    </div>
+    <div>
+      <h3>In a terminal, Codex or Gemini CLI</h3>
+      <p>Needs Node 22.13 or newer:</p>
+      <div class="code" data-copy><pre><code>{{installNpm}}
+mm3 init</code></pre></div>
+      <p><strong>Status: pre-release.</strong> The package publishes with the first release; until then use the plugin, or build from a clone (see <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/AGENTS.md">AGENTS.md</a>). Nightly builds will land as <code>@mvpscale/mm3@nightly</code>.</p>
+    </div>
+  </div>
+  <h3>Try it with no key</h3>
+  <p>With no key set, MM3 runs on a built-in sample provider: free, offline, and its answers are canned and labelled, never evidence. To force it even when a key is set, run:</p>
+  <div class="code" data-copy><pre><code>{{installNokey}}</code></pre></div>
+  <p>Agents: run <code>mm3 agent</code> first. Humans: <code>mm3 help</code>.</p>
+</section>
+
+<section class="wrap run" id="run" aria-labelledby="run-h">
+  <h2 id="run-h">See it run</h2>
+{{demo}}
+  <p>An agent was asked, on OWASP NodeGoat: <em>&ldquo;Take a first look: is that contribution handler safe to merge as it stands?&rdquo;</em> It wrote this request (42 lines, opened below) and got one answer from one call.</p>
+  <details>
+    <summary>The request the agent wrote</summary>
+    <div class="code" data-copy><pre><code>mak:
+  goal: The `handleContributionsUpdate` handler rejects unsafe input and is safe to merge
+  verb: class
+  depth: quick
+  where: [app/routes/contributions.js:24-72]
+  ask:
+    concerns:
+      injection:
+        pass: no
+        1: Is `req.body.preTax`, `req.body.afterTax` or `req.body.roth` read from the request body in `handleContributionsUpdate`?
+        2: Are those body values passed to a parser that only accepts numbers, rather than to a code evaluator?
+        3: Does `handleContributionsUpdate` run those body values through `eval`?
+      input:
+        pass: yes
+        4: Are `preTax`, `afterTax` and `roth` checked for NaN and negative values before use?
+        5: Is the combined total of `preTax`, `afterTax` and `roth` capped before the DAO update?
+        6: Does `handleContributionsUpdate` return an error page instead of updating when validation fails?
+      access:
+        pass: yes
+        7: Is `userId` taken from `req.session` rather than from `req.body`?
+        8: Is the update passed to `contributionsDAO.update` keyed only by that session `userId`?
+        9: Does the response render only the caller's own contributions record?
+    decisions:
+      severity:
+        pass: [none, low]
+        10:
+          scale: How severe is the worst issue found in `handleContributionsUpdate`?
+          levels: [none, low, medium, high, critical]
+      route:
+        pass: [ship]
+        11:
+          choice: Where should `handleContributionsUpdate` go?
+          options: [ship, fix, block]
+mdl:
+  why: validate
+  area: [api]
+  stage: pre-merge
+  problem: Is handleContributionsUpdate in contributions.js safe to merge as it stands
+  uses:
+    - component:web-app/contributions-handler -&gt; code:handleContributionsUpdate -&gt; component:web-app/contributions-dao
+  touches: [preTax, afterTax, roth, userId]
+  blast: person</code></pre></div>
+  </details>
+  <p>The response, <strong>real output &middot; jev-1.13.0 &middot; 2026-09-29 &middot; $0.000048</strong>:</p>
+  <div class="code" data-copy><pre><code>mak:
+  id: MM3-0001
+  gate: fail
+  goal: {gate: fail, p: 0.06}
+  injection: {gate: fail, 1: 0.99, 2: 0.08, 3: 0.98}
+  input: {gate: pass, 4: 0.95, 5: 0.94, 6: 0.95}
+  access: {gate: unsure, 7: 0.99, 8: 0.71, 9: 0.55}
+  severity: {gate: fail, 10: {top: critical, p: 0.96}}
+  route: {gate: fail, 11: {top: fix, p: 0.70}}
+  consensus: SPLIT
+  escalate: true
+mdl: {recorded: [why, area, stage, problem, uses, touches, blast]}
+next: mm3 template drill --parent MM3-0001 --from injection
+notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]</code></pre></div>
+  <p>Each concern gets its own verdict and odds. The handler reads the request body (0.99) and runs it through <code>eval</code> (0.98), so injection fails and the goal fails with it. Input checks pass. Access is unsure. Severity is critical, and the concerns disagree, so MM3 sets <code>escalate: true</code> and <code>next:</code> names the drill that digs into injection. The agent ran that drill, fixed the <code>eval</code>, and ran a <code>replay</code> to prove it: the goal now passed at 0.92, with the guard and sink concerns still open. The paths above are relabelled from the scratch checkout the run used; the answer is unchanged.</p>
+</section>
+
+<section class="wrap get" id="get" aria-labelledby="get-h">
+  <h2 id="get-h">What you get</h2>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><td></td><th scope="col">Know</th><th scope="col">Judge</th><th scope="col">Prove</th></tr></thead>
+    <tbody>
+      <tr><th scope="row"><span class="k mak">MAK³</span> use what is proven</th>
+        <td data-label="Know"><code>view</code> a free lookup of what is on record</td>
+        <td data-label="Judge"><code>class</code> one subject, one verdict</td>
+        <td data-label="Prove"><code>replay</code> recheck after a fix</td></tr>
+      <tr><th scope="row"><span class="k mdl">MDL³</span> learn what is missing</th>
+        <td data-label="Know"><code>scan</code> sweep to find where to look</td>
+        <td data-label="Judge"><code>drill</code> dig into one weak spot</td>
+        <td data-label="Prove"><code>loop</code> vet a design before code</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>A request has a <code>mak:</code> block (the checklist) and an optional <code>mdl:</code> block (why you are asking, so the ledger learns). The verb you run, not the key, decides whether it is a MAK³ or an MDL³ move. <code>mm3 help &lt;verb&gt;</code> shows the rules for each; <code>mm3 template &lt;verb&gt;</code> prints a filled-in sample.</p>
+  <p>Every run and its outcome goes into an append-only ledger in <code>.mm3/</code> (git-ignored). Ask the same questions of unchanged code and MM3 answers from the ledger: no call, no cost. <code>mm3 report</code> reads back where your agents keep going wrong, and a budget cap, which only you reset, stops runaway spend. <code>mm3 view</code> looks a request up in the ledger before you spend anything.</p>
+</section>
+
+<section class="wrap why" id="why" aria-labelledby="why-h">
+  <h2 id="why-h">Why we built it</h2>
+  <div class="cols">
+    <p>Classifiers got good: TypeSafe&rsquo;s Jev answers a plain yes/no about your code, calibrated, for a fraction of a cent. But an agent that asks once makes a call you can&rsquo;t trace, and asking ten more times is louder, not smarter.</p>
+    <p>MM3 is a Knowledge One system. It sits on a System One (a fast classifier) and adds a standard way to ask and a place to keep what you learn: one checklist in, a verdict per concern out, every answer kept and reused.</p>
+  </div>
+</section>
+
+<section class="wrap uses" id="use" aria-labelledby="use-h">
+  <h2 id="use-h">What you can do</h2>
+  <ul class="cards">
+{{useCases}}
+  </ul>
+  <p class="sub">Each template is a filled-in request with its rules as comments.</p>
+</section>
+
+<section class="wrap limits" id="limits" aria-labelledby="limits-h">
+  <h2 id="limits-h">Limits and alternatives</h2>
+  <ul class="plain">
+    <li><strong>Evidence, never a command.</strong> You get an agreement strength and a lean; you or your agent decide. Delete, deploy, drop and pay stay human.</li>
+    <li><strong>A false pass costs you.</strong> A calibrated 0.9 is wrong about one time in ten. <code>unsure</code> is a real answer, and <code>mm3 outcome</code> grades each verdict so the ledger can show which ones to distrust.</li>
+    <li><strong>Not a linter, scanner or test suite.</strong> Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can&rsquo;t put: does this handler check the caller, will this design hold.</li>
+    <li><strong>Not a second opinion.</strong> A second full-context model review reads everything and costs far more. Use one when the question won&rsquo;t fit a yes/no.</li>
+    <li><strong>The sample provider is not evidence.</strong> Its answers are canned. Built on TypeSafe&rsquo;s Jev; other classifiers can plug in.</li>
+    <li><strong>Pre-release.</strong> Tested end to end on a real app with planted flaws (see the numbers above). Not yet on npm.</li>
+  </ul>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <p class="brand small">MM<span>3</span></p>
+    <p><a href="https://github.com/mvp-scale/Sidewise/blob/nightly/docs/contract.md">The contract</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/docs/evidence/README.md">Evidence for each claim</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/docs/numbers.md">Where the numbers come from</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/skills/mm3/SKILL.md">The agent skill</a></p>
+    <p><a href="https://github.com/mvp-scale/Sidewise/blob/nightly/LICENSE">Apache-2.0</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/AGENTS.md">Contributing</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/issues">Issues</a> &middot; <a href="https://github.com/mvp-scale/Sidewise">GitHub</a></p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  if (!navigator.clipboard) return;
+  document.querySelectorAll('.code[data-copy]').forEach(function (box) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'copy'; b.textContent = 'Copy';
+    b.setAttribute('aria-label', 'Copy to clipboard');
+    b.addEventListener('click', function () {
+      navigator.clipboard.writeText(box.querySelector('code').textContent.trim()).then(function () {
+        b.textContent = 'Copied'; setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+      }, function () { b.textContent = 'Press Ctrl+C'; });
+    });
+    box.classList.add('has-copy'); box.appendChild(b);
+  });
+})();
+</script>
+</body>
+</html>

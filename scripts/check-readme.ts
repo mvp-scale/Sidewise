@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { parse } from 'yaml';
+import { esc, methodUrl } from './build-site.ts';
 
 export type Story = {
   tagline: string;
@@ -85,6 +86,25 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
   return out;
 }
 
+/** The site's drift check: every story phrase verbatim in the built page, each number linked to its method, no old names, and (given the dist folder) every relative asset present. */
+export function checkSite(html: string, story: Story, dist?: string): string[] {
+  const out: string[] = [];
+  const phrases: [string, string][] = [
+    ['story.tagline', story.tagline], ['story.identity', story.identity],
+    ['story.install.claude', story.install.claude], ['story.install.npm', story.install.npm], ['story.install.nokey', story.install.nokey],
+    ...story.numbers.map((n, i): [string, string] => [`story.numbers[${i}]`, n.text]),
+    ...story.useCases.map((u, i): [string, string] => [`story.useCases[${i}]`, u.title]),
+  ];
+  for (const [key, text] of phrases) if (!html.includes(text) && !html.includes(esc(text))) out.push(`✖ site ${key}: "${text}" is not in site/dist/index.html → build the site from docs/story.yaml (npm run build:site)`);
+  story.numbers.forEach((n, i) => { if (!html.includes(`href="${methodUrl(n.method)}"`)) out.push(`✖ site story.numbers[${i}]: no link to ${methodUrl(n.method)} → check site/template.html`); });
+  if (!/<title>[^<]+<\/title>/.test(html)) out.push('✖ site: no <title> → add one to site/template.html');
+  html.split('\n').forEach((l, i) => { if (OLD.test(l.replaceAll('mvp-scale/Sidewise', ''))) out.push(`✖ site old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
+  if (dist) for (const m of html.matchAll(/(?:href|src|srcset)="((?!https?:|data:|#|mailto:)[^"\s#]+)/g)) {
+    if (!existsSync(path.join(dist, m[1]!))) out.push(`✖ site link: ${m[1]} is not in ${dist} → fix the path or copy the asset`);
+  }
+  return out;
+}
+
 /** The real dry-run: the built CLI in a throwaway project (a temp dir with .mm3 and copies of the repo's top-level folders, so `where:` paths resolve; a symlink would be refused as outside the project), free (no call, no spend). Returns the first ✖ line or null. */
 export function cliDryRun(verb: string, yaml: string): string | null {
   const cli = path.resolve('dist/cli.js');
@@ -105,6 +125,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let problems: string[];
   try { story = loadStory(); problems = checkStory(story); } catch (e) { problems = [`✖ story.yaml: ${(e as Error).message.split('\n')[0]} → fix docs/story.yaml`]; }
   if (!problems.length) problems = checkReadme(readFileSync('README.md', 'utf8'), story!, { root: '.', dryRun: cliDryRun, published: false });
+  if (!problems.length) {
+    const index = 'site/dist/index.html'; // built first: `npm run check:readme` runs build:site before this script
+    problems = existsSync(index) ? checkSite(readFileSync(index, 'utf8'), story!, 'site/dist') : [`✖ site: ${index} missing → run npm run build:site`];
+  }
   for (const p of problems) console.log(p);
   console.log(problems.length ? `readme: ${problems.length} problem(s)` : 'readme OK');
   process.exit(problems.length ? 1 : 0);
