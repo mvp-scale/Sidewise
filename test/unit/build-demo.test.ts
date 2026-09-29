@@ -1,11 +1,11 @@
 // Unit tests for scripts/build-demo.ts (scene extract, footer, player markup) and checkDemo (footer and README drift); no ledger, no network, no browser.
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { extractScene, highlightRequest, loadScenes, renderPlayer, renderVerdict, sceneFooter, sceneLabel, scrubPaths, stagePage, type Scene } from '../../scripts/build-demo.ts';
+import { extractScene, highlightRequest, taskItems, loadScenes, renderPlayer, renderVerdict, sceneFooter, sceneLabel, scrubPaths, stagePage, type Scene } from '../../scripts/build-demo.ts';
 import { buildSite } from '../../scripts/build-site.ts';
 import { checkDemo } from '../../scripts/check-readme.ts';
 
-const meta = { title: 'One verdict', prompt: 'Is <this> safe?', subject: 'OWASP NodeGoat' };
+const meta = { title: 'One verdict', prompt: 'Is <this> safe?', promptSource: 'smoke-test task 2', subject: 'OWASP NodeGoat' };
 const response = `mak:
   id: MM3-0009
   gate: fail
@@ -30,15 +30,15 @@ const request = `mak:
         2: Is it parsed?`;
 const row = {
   kind: 'run', id: 'MM3-0009', verb: 'class', ts: '2026-09-29T03:27:09Z', model: 'jev-1.13.0', baseURL: 'https://api.typesafe.ai', costUsd: 0.000047922, response,
-  telemetry: [{ source: 'provider', latencyMs: 300, questions: 8, costUsd: 0.00003 }, { source: 'provider', latencyMs: 93, questions: 4, costUsd: 0.000018 }, { source: 'cache', from: 'MM3-0001', questions: 78 }],
+  telemetry: [{ source: 'provider', latencyMs: 300, questions: 8, costUsd: 0.00003, costEstimated: true }, { source: 'provider', latencyMs: 93, questions: 4, costUsd: 0.000018, costEstimated: true }, { source: 'cache', from: 'MM3-0001', questions: 78 }],
 };
 const scene = (over: Partial<Scene> = {}): Scene => ({ ...extractScene(row, request, meta), ...over });
 
 describe('extractScene', () => {
   it('reads the footer from the row: model, endpoint host, summed latency, cost, provider questions and calls, date', () => {
     const s = extractScene(row, request, meta);
-    expect(s.footer).toEqual({ model: 'jev-1.13.0', endpoint: 'api.typesafe.ai', latencyMs: 393, costUsd: 0.000047922, questions: 12, calls: 2, date: '2026-09-29', subject: 'OWASP NodeGoat' });
-    expect(s).toMatchObject({ id: 'MM3-0009', verb: 'class', command: 'mm3 class request.yaml', response });
+    expect(s.footer).toEqual({ model: 'jev-1.13.0', endpoint: 'api.typesafe.ai', latencyMs: 393, costUsd: 0.000047922, costEstimated: true, questions: 12, reused: 78, reusedFrom: 'MM3-0001', calls: 2, date: '2026-09-29', subject: 'OWASP NodeGoat' });
+    expect(s).toMatchObject({ id: 'MM3-0009', verb: 'class', command: 'mm3 class request.yaml', promptSource: 'smoke-test task 2', response });
   });
   it('relabels the scratch checkout and strips absolute and play-area paths', () => {
     const abs = ['', 'home', 'someone', 'mm3labs-play'].join('/'); // built, so this file holds no machine path itself
@@ -52,10 +52,24 @@ describe('extractScene', () => {
 
 describe('sceneFooter', () => {
   it('has one exact format', () => {
-    expect(sceneFooter(scene())).toBe('jev-1.13.0 · api.typesafe.ai · 393 ms · $0.000048 · 12 questions · 2 calls · MM3-0009');
-    const one = scene({ footer: { ...scene().footer, latencyMs: 393, costUsd: 0.000558432, questions: 111, calls: 1 } });
-    expect(sceneFooter(one)).toBe('jev-1.13.0 · api.typesafe.ai · 393 ms · $0.00056 · 111 questions · 1 call · MM3-0009');
-    expect(sceneLabel(one)).toBe('real output · jev-1.13.0 · api.typesafe.ai · 393 ms · $0.00056');
+    expect(sceneFooter(scene())).toBe('jev-1.13.0 · api.typesafe.ai · 393 ms · ~$0.000048 · 12 asked · 78 reused from MM3-0001 · 2 calls · MM3-0009');
+    const one = scene({ footer: { ...scene().footer, latencyMs: 393, costUsd: 0.000558432, questions: 111, reused: 0, reusedFrom: '', calls: 1 } });
+    expect(sceneFooter(one)).toBe('jev-1.13.0 · api.typesafe.ai · 393 ms · ~$0.00056 · 111 questions · 1 call · MM3-0009');
+    expect(sceneLabel(one)).toBe('real output · jev-1.13.0 · api.typesafe.ai · 393 ms · ~$0.00056');
+    expect(sceneFooter(scene({ footer: { ...one.footer, costEstimated: false } }))).toContain(' · $0.00056 · ');
+  });
+});
+
+describe('taskItems', () => {
+  const md = '# Round\n\n1. Check what is on record about\n   the handler.\n2. Do the first pass now and rank it. Then look again at the worst one with care, and say why you chose that call and how sure you are of it, in full detail, including every check you ran along the way and anything you would change.\n\n## Report back\n\n3. not an item';
+  it('joins wrapped lines verbatim, cuts a long item to its first sentence with an ellipsis, and stops at the next heading', () => {
+    const t = taskItems(md);
+    expect(t.get(1)).toBe('Check what is on record about the handler.');
+    expect(t.get(2)).toBe('Do the first pass now and rank it. …');
+    expect(t.has(3)).toBe(false);
+  });
+  it('carries the real task text as the prompt (class run)', () => {
+    expect(loadScenes()[0]!.prompt).toBe('Take a first look: is that contribution handler safe to merge as it stands?');
   });
 });
 
@@ -92,6 +106,8 @@ describe('renderPlayer', () => {
   it('shows the footer of each scene, real-run tagged', () => {
     expect(html).toContain(sceneFooter(scene()));
     expect(html).toContain('real run');
+    expect(html).toContain('via the mm3 tool, shown as CLI');
+    expect(html).toContain('prompt: smoke-test task 2');
   });
   it('falls back to plain text for a response that is not YAML', () => {
     expect(renderVerdict(scene({ response: 'just text' }))).toContain('plainresp');
@@ -116,9 +132,15 @@ describe('the committed scenes', () => {
       expect(s.response).toContain(`id: ${s.id}`);
     }
   });
+  it('show the loop run\'s reuse and label every cost as an estimate', () => {
+    const loop = scenes.find((x) => x.verb === 'loop')!;
+    expect(sceneFooter(loop)).toBe('jev-1.13.0 · api.typesafe.ai · 631 ms · ~$0.00047 · 228 asked · 78 reused from MM3-0006 · 2 calls · MM3-0007');
+    expect(renderVerdict(loop)).toContain('<b>78</b> reused');
+    for (const s of scenes) { expect(s.footer.costEstimated, s.id).toBe(true); expect(sceneFooter(s)).toContain('~$'); expect(s.promptSource).toMatch(/^smoke-test task \d+$/); }
+  });
   it('make the scan visible: 111 questions in one call', () => {
     const s = scenes.find((x) => x.verb === 'scan')!;
-    expect(sceneFooter(s)).toBe('jev-1.13.0 · api.typesafe.ai · 393 ms · $0.00056 · 111 questions · 1 call · MM3-0002');
+    expect(sceneFooter(s)).toBe('jev-1.13.0 · api.typesafe.ai · 393 ms · ~$0.00056 · 111 questions · 1 call · MM3-0002');
   });
   it('carry no machine path, play-area path, scratch-checkout prefix or old name', () => {
     for (const f of readdirSync('docs/demo/scenes')) {
@@ -151,7 +173,7 @@ describe('checkDemo', () => {
     expect(checkDemo(page(), readme, scenes)).toEqual([]);
   });
   it('fails when a scene footer drifts from the site', () => {
-    const drifted = page().replace('393 ms · $0.00056 · 111 questions', '393 ms · $0.00099 · 111 questions');
+    const drifted = page().replace('393 ms · ~$0.00056 · 111 questions', '393 ms · ~$0.00099 · 111 questions');
     expect(checkDemo(drifted, readme, scenes).join('\n')).toMatch(/site demo MM3-0002: footer/);
   });
   it('fails when the README response text or label drifts from its scene', () => {

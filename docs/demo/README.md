@@ -35,11 +35,16 @@ Reads a local play ledger and its request files, matches each request to its led
 `scenes/*.json`. It does not call a classifier. The ledger is a local file that is never committed.
 
 ```bash
-npx tsx scripts/build-demo.ts extract --ledger <play-area>/.mm3/log.jsonl --requests <play-area>/notes/requests
+npx tsx scripts/build-demo.ts extract --ledger <play-area>/.mm3/log.jsonl --requests <play-area>/notes/requests --questions <play-area>/notes/QUESTIONS.md
 ```
 
-The runs, request files and prompts are listed in `PICKS` in `scripts/build-demo.ts`. The typed prompt above each
-command is a one-line paraphrase of that run's goal; the command is `mm3 <verb> request.yaml`.
+The runs, request files and task numbers are listed in `PICKS` in `scripts/build-demo.ts`; add
+`--questions <play-area>/notes/QUESTIONS.md` so each scene's prompt is the verbatim task text given to the agent
+(`promptSource` says which task; a long task is cut to its first sentence and marked with an ellipsis). The runs went through the
+mm3 tool, so the terminal bar says "via the mm3 tool, shown as CLI" and the command is `mm3 <verb> request.yaml`.
+Costs are estimates (every row has `costEstimated: true`), so they are shown with a "~". Question counts are what was sent to
+the model, the goal question included, so they are one more than the response's own note; a loop that reused answers shows
+"N asked · M reused from MM3-xxxx".
 
 ---
 

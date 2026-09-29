@@ -55,7 +55,7 @@ Agents: run `mm3 agent` first. Humans: `mm3 help`.
   <img src="docs/assets/demo-player-light.gif" alt="An animated split panel of five real MM3 runs on OWASP NodeGoat: class, scan, drill, replay and loop. Each shows the prompt and command, the request with numbered questions, and the verdict with gates, p bars and the next step. A footer under each names the run's model, endpoint, latency, cost and id.">
 </picture>
 
-Five real runs on OWASP NodeGoat, an intentionally vulnerable app: class, scan, drill, replay and loop, each from the prompt to the verdict and the `next:` step. Every footer comes from that run's own ledger row. The first run in full:
+Five real runs on OWASP NodeGoat, an intentionally vulnerable app: class, scan, drill, replay and loop, each from the prompt to the verdict and the `next:` step. Each prompt is the task the agent was given, and every footer comes from that run's own ledger row. The first run in full:
 
 An agent was asked, on OWASP NodeGoat: *"Take a first look: is that contribution handler safe to merge as it stands?"* It wrote this request (42 lines, opened below) and got one answer from one call.
 
@@ -109,7 +109,7 @@ mdl:
 
 </details>
 
-The response, **real output · jev-1.13.0 · api.typesafe.ai · 364 ms · $0.000048**:
+The response, **real output · jev-1.13.0 · api.typesafe.ai · 364 ms · ~$0.000048**:
 
 ```text
 mak:
