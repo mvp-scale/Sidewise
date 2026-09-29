@@ -6,7 +6,7 @@
     {
       "name": "mm3",
       "source": ".",
-      "description": "Side answers for coding agents, with a log that learns where agents go wrong."
+      "description": "MM3, a Knowledge One system for coding agents: use what is proven, learn what is missing, with a log that learns where agents go wrong."
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "name": "@mvpscale/mm3",
   "version": "0.0.0",
-  "description": "Side answers for coding agents: compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
+  "description": "MM3, a Knowledge One system for coding agents: MAK³ uses what is proven, MDL³ learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
@@ -16,7 +16,8 @@
     "gemini-cli",
     "mcp",
     "agent-skills",
-    "decision-support"
+    "decision-support",
+    "knowledge-one"
   ],
   "engines": {
     "node": ">=22.13"
