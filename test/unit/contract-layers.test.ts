@@ -34,8 +34,8 @@ describe('mapLayers', () => {
   });
 
   it('too many layers, or a layer both nested and at the top', () => {
-    expect(mapLayers({ a: [{ name: 'x', b: [{ name: 'y', c: [{ name: 'z', d: [{ name: 'w', e: ['v'] }] }] }] }] }).problems).toEqual(['✖ side.over: 5 layers → at most 4; split the request']);
-    expect(mapLayers({ part: [{ name: 'x', story: ['a'] }], story: 'each' }).problems).toEqual(['✖ side.over.story: used at the top and inside "x" → pick one']);
+    expect(mapLayers({ a: [{ name: 'x', b: [{ name: 'y', c: [{ name: 'z', d: [{ name: 'w', e: ['v'] }] }] }] }] }).problems).toEqual(['✖ mak.over: 5 layers → at most 4; split the request']);
+    expect(mapLayers({ part: [{ name: 'x', story: ['a'] }], story: 'each' }).problems).toEqual(['✖ mak.over.story: used at the top and inside "x" → pick one']);
   });
 });
 
@@ -49,26 +49,26 @@ describe('checkOver', () => {
 
   it('item names can\'t hold / or #, and siblings are unique', () => {
     expect(checkOver({ part: ['a/b', 'c#1', 'c', 'c'] }, 'none', 10)).toEqual([
-      '✖ side.over.part: item "a/b" → names are 1–80 characters, without "/" or "#"',
-      '✖ side.over.part: item "c#1" → names are 1–80 characters, without "/" or "#"',
-      '✖ side.over.part: "c" twice under the top → give each item its own name',
+      '✖ mak.over.part: item "a/b" → names are 1–80 characters, without "/" or "#"',
+      '✖ mak.over.part: item "c#1" → names are 1–80 characters, without "/" or "#"',
+      '✖ mak.over.part: "c" twice under the top → give each item its own name',
     ]);
   });
 
   it('string layers: loop has none; scan starts with a pattern, then each; drill uses each', () => {
-    expect(checkOver({ part: 'src/*.ts' }, 'none', 10)).toEqual(['✖ side.over.part: loop sweeps ideas you list → write the items as a list; use scan for files']);
-    expect(checkOver({ function: 'each' }, 'scan', 10)).toEqual(['✖ side.over.function: scan needs a file pattern first → e.g. function: src/**/*.ts']);
-    expect(checkOver({ file: 'src/*.ts', function: 'all' }, 'scan', 10)).toEqual(['✖ side.over.function: "all" → use each (we split the layer above)']);
-    expect(checkOver({ file: '../other/*.ts', function: 'each' }, 'scan', 10)).toEqual(['✖ side.over.file: "../other/*.ts" is outside the project → use a pattern inside it']);
-    expect(checkOver({ part: ['a'], story: ['b'] }, 'none', 10)).toEqual(['✖ side.over.story: a list at the top applies to nothing → nest it under its parent items (- name: x, story: [...]), or use each']);
+    expect(checkOver({ part: 'src/*.ts' }, 'none', 10)).toEqual(['✖ mak.over.part: loop sweeps ideas you list → write the items as a list; use scan for files']);
+    expect(checkOver({ function: 'each' }, 'scan', 10)).toEqual(['✖ mak.over.function: scan needs a file pattern first → e.g. function: src/**/*.ts']);
+    expect(checkOver({ file: 'src/*.ts', function: 'all' }, 'scan', 10)).toEqual(['✖ mak.over.function: "all" → use each (we split the layer above)']);
+    expect(checkOver({ file: '../other/*.ts', function: 'each' }, 'scan', 10)).toEqual(['✖ mak.over.file: "../other/*.ts" is outside the project → use a pattern inside it']);
+    expect(checkOver({ part: ['a'], story: ['b'] }, 'none', 10)).toEqual(['✖ mak.over.story: a list at the top applies to nothing → nest it under its parent items (- name: x, story: [...]), or use each']);
   });
 
   it('more listed items in a layer than the depth allows', () => {
     expect(checkOver({ part: Array.from({ length: 11 }, (_, i) => `p${i}`) }, 'none', 10)).toEqual([
-      '✖ side.over.part: 11 items → at most 10 per layer at this depth; raise depth or split the request',
+      '✖ mak.over.part: 11 items → at most 10 per layer at this depth; raise depth or split the request',
     ]);
     expect(checkOver({ part: [{ name: 'a', story: ['1', '2', '3'] }, { name: 'b', story: ['4', '5', '6'] }] }, 'none', 5)).toEqual([
-      '✖ side.over.story: 6 items → at most 5 per layer at this depth; raise depth or split the request',
+      '✖ mak.over.story: 6 items → at most 5 per layer at this depth; raise depth or split the request',
     ]);
   });
 });

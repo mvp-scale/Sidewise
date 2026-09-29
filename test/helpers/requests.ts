@@ -31,5 +31,5 @@ export function classRequest(o: { header?: string; fields?: Record<string, strin
   const fieldLines = Object.entries(fields)
     .filter(([, v]) => v !== null)
     .map(([k, v]) => `${k}: ${v}`);
-  return [o.header ?? 'sidewise class L1', ...fieldLines, '', ...(o.slots ?? RM_SLOTS), '', ...(o.primitives ?? RM_PRIMITIVES)].join('\n');
+  return [o.header ?? 'mm3 class L1', ...fieldLines, '', ...(o.slots ?? RM_SLOTS), '', ...(o.primitives ?? RM_PRIMITIVES)].join('\n');
 }

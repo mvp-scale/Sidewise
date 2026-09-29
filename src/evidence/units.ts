@@ -145,7 +145,7 @@ export function createCodeResolverAt(root: string, ref: string, notes: string[],
 }
 
 /** Re-reads one stored UnitRef's current text from disk, for drill continuing from a parent run. Errors are
- * plain strings, not "✖ field: …" stops — the caller (drill.ts) knows which field is at fault (side.from)
+ * plain strings, not "✖ field: …" stops — the caller (drill.ts) knows which field is at fault (mak.from)
  * and wraps the reason into its own stop text. */
 export function readUnit(root: string, unit: UnitRef): UnitReadResult {
   const full = path.resolve(root, unit.path);

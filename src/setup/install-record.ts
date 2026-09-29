@@ -1,13 +1,13 @@
 /**
- * `~/.config/sidewise/install.json`: how `sidewise init` installed the CLI (global/user/local, and the npm
- * prefix or project dir involved) — nothing else. `sidewise uninstall` reads it to know which `npm uninstall`
- * variant reverses the install; `sidewise doctor` reads it for the `cli:` line. Deliberately separate from
+ * `~/.config/mm3/install.json`: how `mm3 init` installed the CLI (global/user/local, and the npm
+ * prefix or project dir involved) — nothing else. `mm3 uninstall` reads it to know which `npm uninstall`
+ * variant reverses the install; `mm3 doctor` reads it for the `cli:` line. Deliberately separate from
  * env-file.ts's `env` file in the same directory: this file holds no secrets, so it's fine to read, log, or
  * paste into a bug report.
  */
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { sidewiseConfigDir } from './env-file.ts';
+import { mm3ConfigDir } from './env-file.ts';
 
 type Env = Record<string, string | undefined>;
 
@@ -23,7 +23,7 @@ export interface InstallRecord {
 }
 
 export function installRecordPath(env: Env = process.env): string {
-  return path.join(sidewiseConfigDir(env), 'install.json');
+  return path.join(mm3ConfigDir(env), 'install.json');
 }
 
 function isInstallRecord(v: unknown): v is InstallRecord {

@@ -1,4 +1,4 @@
-// sidewise report [hits|patterns|history]: free, read-only, no options beyond the view name. Every view is
+// mm3 report [hits|patterns|history]: free, read-only, no options beyond the view name. Every view is
 // checked on both engines (real SQLite and the linear fallback) — report must work unchanged when the on-disk
 // index is absent, exactly like view.ts already does.
 import { writeFileSync } from 'node:fs';
@@ -21,30 +21,30 @@ describe('runReport', () => {
     const { paths } = tempProject({});
     const r = runReport(undefined, { paths });
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('sidewise report hits');
+    expect(r.text).toContain('mm3 report hits');
     const bad = runReport('nonsense', { paths });
     expect(bad.exit).toBe(2);
-    expect(bad.text).toBe('✖ report: "nonsense" is not a view → use hits, patterns, history, web, graph, problems, wise, calls or fields\n→ see: sidewise agent report');
+    expect(bad.text).toBe('✖ report: "nonsense" is not a view → use hits, patterns, history, web, graph, problems, mdl, calls or fields\n→ see: mm3 agent report');
   });
 
   it('hits: no runs yet says so plainly', () => {
     const { paths } = tempProject({});
-    expect(runReport('hits', { paths }).text).toBe('sidewise report hits · no runs yet → "sidewise class <request>" starts one');
+    expect(runReport('hits', { paths }).text).toBe('mm3 report hits · no runs yet → "mm3 class <request>" starts one');
   });
 
   it('[C-163] hits: the newest run per place, worst gate first, on both engines', () => {
     const { root, paths } = tempProject({ 'src/user.ts': 'original code' });
-    appendContractRun(paths, sampleContractRun({ where: ['src/user.ts'], categories: { guards: 'pass' } }), Date.now(), 'b'); // SW-0001: pass
-    appendContractRun(paths, sampleContractRun({ where: ['src/other.ts'], categories: { injection: 'fail' } }), Date.now(), 'b'); // SW-0002: fail
+    appendContractRun(paths, sampleContractRun({ where: ['src/user.ts'], categories: { guards: 'pass' } }), Date.now(), 'b'); // MM3-0001: pass
+    appendContractRun(paths, sampleContractRun({ where: ['src/other.ts'], categories: { injection: 'fail' } }), Date.now(), 'b'); // MM3-0002: fail
     for (const forceFallback of ENGINES) {
       __testOnly.forceFallback = forceFallback;
       const r = runReport('hits', { paths });
       expect(r.exit).toBe(0);
       const lines = r.text.split('\n');
-      expect(lines[0]).toBe('sidewise report hits · 2 rows');
+      expect(lines[0]).toBe('mm3 report hits · 2 rows');
       // worst (fail) first, regardless of place name order.
-      expect(lines[1]).toContain('src/other.ts · injection fail · SW-0002');
-      expect(lines[2]).toContain('src/user.ts · guards pass · SW-0001');
+      expect(lines[1]).toContain('src/other.ts · injection fail · MM3-0002');
+      expect(lines[2]).toContain('src/user.ts · guards pass · MM3-0001');
     }
     void root;
   });
@@ -90,8 +90,8 @@ describe('runReport', () => {
       __testOnly.forceFallback = forceFallback;
       const r = runReport('hits', { paths });
       const lines = r.text.split('\n');
-      expect(lines[0]).toBe('sidewise report hits · 35 rows');
-      expect(lines[1]).toContain('src/f0.ts · cat0 fail · SW-0001'); // worst-gate row, still correctly flagged
+      expect(lines[0]).toBe('mm3 report hits · 35 rows');
+      expect(lines[1]).toContain('src/f0.ts · cat0 fail · MM3-0001'); // worst-gate row, still correctly flagged
       expect(lines[1]).toContain('· stale');
       expect(r.text).toContain('… 5 more not shown'); // 35 rows, ROW_LIMIT 30
     }
@@ -99,29 +99,29 @@ describe('runReport', () => {
 
   it('[C-164] patterns: no runs yet says so plainly, else groups by question set with pass/fail/places/outcomes', () => {
     const { paths } = tempProject({});
-    expect(runReport('patterns', { paths }).text).toBe('sidewise report patterns · no runs yet → "sidewise class <request>" starts one');
-    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), Date.now(), 'b'); // SW-0001
-    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'] }), Date.now(), 'b'); // SW-0002, same question set
-    appendOutcome(paths, 'SW-0001', 'held', 'owner');
+    expect(runReport('patterns', { paths }).text).toBe('mm3 report patterns · no runs yet → "mm3 class <request>" starts one');
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), Date.now(), 'b'); // MM3-0001
+    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'] }), Date.now(), 'b'); // MM3-0002, same question set
+    appendOutcome(paths, 'MM3-0001', 'held', 'owner');
     for (const forceFallback of ENGINES) {
       __testOnly.forceFallback = forceFallback;
       const r = runReport('patterns', { paths });
       expect(r.exit).toBe(0);
-      expect(r.text).toContain('sidewise report patterns · 1 pattern');
+      expect(r.text).toContain('mm3 report patterns · 1 pattern');
       expect(r.text).toMatch(/runs 2 · places 2 · pass 0 fail 2 unsure 0 · held 1 overruled 0 failed 0 open 1/);
     }
   });
 
   it('[C-165] history: no events yet says so plainly, else merges replay results and outcomes newest first', () => {
     const { paths } = tempProject({});
-    expect(runReport('history', { paths }).text).toBe('sidewise report history · nothing yet → run "replay" or "outcome" to start one');
+    expect(runReport('history', { paths }).text).toBe('mm3 report history · nothing yet → run "replay" or "outcome" to start one');
     const oneQuestion = { name: 'guards', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'q1?' }] };
-    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { guards: 'fail' } }), Date.now(), 'b'); // SW-0001
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { guards: 'fail' } }), Date.now(), 'b'); // MM3-0001
     appendContractRun(
       paths,
       sampleContractRun({
         verb: 'replay',
-        parent: 'SW-0001',
+        parent: 'MM3-0001',
         where: ['src/a.ts'],
         ask: { categories: [oneQuestion], layers: [] },
         // genuinely fixed: before misses, after passes.
@@ -130,10 +130,10 @@ describe('runReport', () => {
       }),
       Date.now(),
       'b',
-    ); // SW-0002: fixed
-    appendOutcome(paths, 'SW-0001', 'overruled', 'owner');
+    ); // MM3-0002: fixed
+    appendOutcome(paths, 'MM3-0001', 'overruled', 'owner');
     // A second parent whose OWN stored gate is stale/misleading relative to this replay's real before/after —
-    // exactly the SW-0006 shape the reviewer found: internally regressed, but a parent-vs-after comparison
+    // exactly the MM3-0006 shape the reviewer found: internally regressed, but a parent-vs-after comparison
     // would call it "fixed" since parent.categories.guards ('unsure') isn't 'pass' while the replay's own
     // stored after-gate is 'pass'.
     const threeQuestions = {
@@ -148,12 +148,12 @@ describe('runReport', () => {
         { n: 3, kind: 'yesno' as const, text: 'q3?' },
       ],
     };
-    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], categories: { guards: 'unsure' } }), Date.now(), 'b'); // SW-0003
+    appendContractRun(paths, sampleContractRun({ where: ['src/b.ts'], categories: { guards: 'unsure' } }), Date.now(), 'b'); // MM3-0003
     appendContractRun(
       paths,
       sampleContractRun({
         verb: 'replay',
-        parent: 'SW-0003',
+        parent: 'MM3-0003',
         where: ['src/b.ts'],
         ask: { categories: [threeQuestions], layers: [] },
         answers: {
@@ -172,14 +172,14 @@ describe('runReport', () => {
       }),
       Date.now(),
       'b',
-    ); // SW-0004: regressed (SW-0006-shaped bug)
+    ); // MM3-0004: regressed (MM3-0006-shaped bug)
     for (const forceFallback of ENGINES) {
       __testOnly.forceFallback = forceFallback;
       const r = runReport('history', { paths });
       expect(r.exit).toBe(0);
-      expect(r.text).toContain('src/a.ts · SW-0002 replay · fixed');
-      expect(r.text).toContain('src/b.ts · SW-0004 replay · regressed');
-      expect(r.text).toContain('src/a.ts · SW-0001 · overruled by owner');
+      expect(r.text).toContain('src/a.ts · MM3-0002 replay · fixed');
+      expect(r.text).toContain('src/b.ts · MM3-0004 replay · regressed');
+      expect(r.text).toContain('src/a.ts · MM3-0001 · overruled by owner');
     }
   });
 
@@ -189,7 +189,7 @@ describe('runReport', () => {
     __testOnly.forceFallback = true;
     const r = runReport('hits', { paths });
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('sidewise report hits · 1 row');
+    expect(r.text).toContain('mm3 report hits · 1 row');
   });
 
   it('[C-166] every view caps its rows and says how many more exist, rather than dropping them silently', () => {
@@ -207,7 +207,7 @@ describe('runReport', () => {
       );
     }
     const r = runReport('patterns', { paths });
-    expect(r.text).toContain('sidewise report patterns · 31 patterns');
+    expect(r.text).toContain('mm3 report patterns · 31 patterns');
     expect(r.text).toContain('… 1 more not shown');
     expect(r.text.split('\n')).toHaveLength(32); // heading + 30 rows + the "more" trailer
   });

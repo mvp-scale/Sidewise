@@ -31,7 +31,7 @@ function main(): void {
       continue;
     }
     for (const scenario of SCENARIOS) {
-      const projectRoot = mkdtempSync(path.join(os.tmpdir(), `sidewise-chaos-${agent}-${scenario.id}-`));
+      const projectRoot = mkdtempSync(path.join(os.tmpdir(), `mm3-chaos-${agent}-${scenario.id}-`));
       try {
         scenario.buildProject(projectRoot);
         console.log(`run ${agent} / ${scenario.id}...`);

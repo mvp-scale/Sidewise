@@ -1,18 +1,18 @@
 /**
- * `sidewise report [hits|patterns|history|web|graph|problems|wise|calls|fields]`: the one way knowledge leaves
+ * `mm3 report [hits|patterns|history|web|graph|problems|mdl|calls|fields]`: the one way knowledge leaves
  * the ledger besides a run's own response — free, read-only, never calls a provider, no options beyond the view
  * name (`hits` default) and `fields`'s own `--accept <field>`. hits/patterns/history read through
  * `withIndex(..., {readOnly:true})`, exactly like `view.ts`, so they work unchanged on the linear-fallback path
  * too (no on-disk index, or Node < 22.13's own test hook); `web` (report-web.ts) reads the whole ledger directly
  * instead (it needs every run, not a capped index-backed view) and is the one view that writes something — a
- * self-contained `.sidewise/viewer.html`. graph/problems/wise/calls/fields (plan 2c C3) read the graph tier
+ * self-contained `.mm3/viewer.html`. graph/problems/mdl/calls/fields (plan 2c C3) read the graph tier
  * and/or the hot tier's own raw tables straight off disk (ledger/graph.ts) — each calls `ensureHotIndexFresh`
- * (a real, non-readOnly `withIndex` catch-up/rebuild of the HOT tier) and, for graph/problems/wise/calls,
+ * (a real, non-readOnly `withIndex` catch-up/rebuild of the HOT tier) and, for graph/problems/mdl/calls,
  * `refreshGraph` after it (readers refresh both tiers; the paid path never does), so these always reflect the
  * ledger even with no index.db yet or a stale one — see `ensureHotIndexFresh`'s own comment for why raw-SQL
  * readers need this and hits/patterns/history don't. A clean message replaces a stack trace when
- * `GraphUnavailableError` fires (Node < 22.13). `fields` (plan 2c C3) reads undeclared `wise.extras` keys
- * straight off the hot tier's own `runs.wise` column and suggests a shape to promote one into `config.wise`
+ * `GraphUnavailableError` fires (Node < 22.13). `fields` (plan 2c C3) reads undeclared `mdl.extras` keys
+ * straight off the hot tier's own `runs.mdl` column and suggests a shape to promote one into `config.mdl`
  * with `--accept`.
  *   hits     — the newest run's own gate per place x category, worst first, flagging a one-subject answer
  *              whose code has since changed (re-derived live, on the bounded set of rows actually shown —
@@ -28,15 +28,15 @@
  *              a whole-graph dump.
  *   problems — family x place gate counts (ledger/graph.ts's problemCounts), worst (most fail) first — the
  *              ranked, agent-facing knowledge pull (research doc O6).
- *   wise     — every run's own wise fields (ledger/graph.ts's wiseRows), newest first.
+ *   mdl     — every run's own mdl fields (ledger/graph.ts's mdlRows), newest first.
  *   calls    — telemetry rolled up by day/verb/model/source (ledger/graph.ts's callStats), default last 30 days.
- *   fields   — undeclared `wise.extras` keys, with counts/samples and a suggested type to promote into
- *              `config.wise` (closed/pattern/reference), or `no suggestion yet`; `--accept <field>` writes the
- *              suggestion into `.sidewise/config.yaml`.
+ *   fields   — undeclared `mdl.extras` keys, with counts/samples and a suggested type to promote into
+ *              `config.mdl` (closed/pattern/reference), or `no suggestion yet`; `--accept <field>` writes the
+ *              suggestion into `.mm3/config.yaml`.
  */
 import { resolveConfig } from '../config/load.ts';
 import { writeConfigOverride } from '../config/write.ts';
-import { WISE_KEYS } from '../contract/wise-fields.ts';
+import { MDL_KEYS } from '../contract/mdl-fields.ts';
 import { answerKey, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
 import { readCodeEvidence } from '../evidence/code.ts';
 import {
@@ -47,11 +47,11 @@ import {
   problemCounts,
   refreshGraph,
   undeclaredFieldSamples,
-  wiseRows,
+  mdlRows,
 } from '../ledger/graph.ts';
 import { readRecordAt, stripLines, sweepPlaces, withIndex, type PatternRow } from '../ledger/index.ts';
 import { isContractRun, isRun, type ContractRun, type LedgerRecord } from '../ledger/log.ts';
-import type { SidewisePaths } from '../ledger/paths.ts';
+import type { Mm3Paths } from '../ledger/paths.ts';
 import { realRunner, type Runner } from '../setup/runner.ts';
 import { clip, hasControlChars } from '../util/text.ts';
 import { gradeReplay } from './replay.ts';
@@ -60,7 +60,7 @@ import { stopText } from './request.ts';
 import type { VerbResult } from './types.ts';
 
 export interface ReportContext {
-  paths: SidewisePaths;
+  paths: Mm3Paths;
   /** Only 'web' needs these; every other view ignores them. Optional so every existing call site (a pure read)
    *  stays unchanged — defaulted to the real process env/runner/platform when 'web' actually needs them. */
   env?: Record<string, string | undefined>;
@@ -68,11 +68,11 @@ export interface ReportContext {
   platform?: NodeJS.Platform;
 }
 
-const VIEWS = ['hits', 'patterns', 'history', 'web', 'graph', 'problems', 'wise', 'calls', 'fields'] as const;
+const VIEWS = ['hits', 'patterns', 'history', 'web', 'graph', 'problems', 'mdl', 'calls', 'fields'] as const;
 type ReportView = (typeof VIEWS)[number];
 const isView = (s: string): s is ReportView => (VIEWS as readonly string[]).includes(s);
 
-const VIEW_LIST_TEXT = 'hits, patterns, history, web, graph, problems, wise, calls or fields';
+const VIEW_LIST_TEXT = 'hits, patterns, history, web, graph, problems, mdl, calls or fields';
 
 const ROW_LIMIT = 30;
 
@@ -83,7 +83,7 @@ function withCap(lines: readonly string[], total: number): string[] {
   return total > shown.length ? [...shown, `… ${total - shown.length} more not shown`] : [...shown];
 }
 
-const heading = (view: ReportView, n: number, noun: string): string => `sidewise report ${view} · ${n} ${noun}${n === 1 ? '' : 's'}`;
+const heading = (view: ReportView, n: number, noun: string): string => `mm3 report ${view} · ${n} ${noun}${n === 1 ? '' : 's'}`;
 
 /** A one-subject run's category answer is stale when the code at its own `where` has changed since: re-derive
  *  the current evidence key for one of that category's questions (the same way class.ts computed it originally)
@@ -113,7 +113,7 @@ interface HitRow {
 
 const GATE_RANK: Record<string, number> = { fail: 0, unsure: 1, pass: 2 };
 
-function reportHits(paths: SidewisePaths): VerbResult {
+function reportHits(paths: Mm3Paths): VerbResult {
   const rows = withIndex(
     paths,
     (handle) => {
@@ -139,7 +139,7 @@ function reportHits(paths: SidewisePaths): VerbResult {
     },
     { readOnly: true },
   );
-  if (!rows.length) return { exit: 0, text: 'sidewise report hits · no runs yet → "sidewise class <request>" starts one' };
+  if (!rows.length) return { exit: 0, text: 'mm3 report hits · no runs yet → "mm3 class <request>" starts one' };
   rows.sort((a, b) => GATE_RANK[a.gate]! - GATE_RANK[b.gate]! || a.place.localeCompare(b.place) || a.category.localeCompare(b.category));
   // C-163: the stale re-read only ever runs for rows that actually make it into the capped output below.
   const shown = rows.slice(0, ROW_LIMIT);
@@ -150,9 +150,9 @@ function reportHits(paths: SidewisePaths): VerbResult {
   return { exit: 0, text: [heading('hits', rows.length, 'row'), ...withCap(lines, rows.length)].join('\n') };
 }
 
-function reportPatterns(paths: SidewisePaths): VerbResult {
+function reportPatterns(paths: Mm3Paths): VerbResult {
   const rows: PatternRow[] = withIndex(paths, (h) => h.patternCounts(), { readOnly: true });
-  if (!rows.length) return { exit: 0, text: 'sidewise report patterns · no runs yet → "sidewise class <request>" starts one' };
+  if (!rows.length) return { exit: 0, text: 'mm3 report patterns · no runs yet → "mm3 class <request>" starts one' };
   const lines = rows.map(
     (r) =>
       `${r.pattern} · runs ${r.runs} · places ${r.places} · pass ${r.pass} fail ${r.fail} unsure ${r.unsure} · ` +
@@ -185,7 +185,7 @@ function replayStatus(rec: ContractRun): 'fixed' | 'regressed' | undefined {
   return graded.categories.some((c) => c.before !== 'pass' && c.after === 'pass') ? 'fixed' : undefined;
 }
 
-function reportHistory(paths: SidewisePaths): VerbResult {
+function reportHistory(paths: Mm3Paths): VerbResult {
   const rows = withIndex(
     paths,
     (handle) => {
@@ -206,12 +206,12 @@ function reportHistory(paths: SidewisePaths): VerbResult {
     },
     { readOnly: true },
   );
-  if (!rows.length) return { exit: 0, text: 'sidewise report history · nothing yet → run "replay" or "outcome" to start one' };
+  if (!rows.length) return { exit: 0, text: 'mm3 report history · nothing yet → run "replay" or "outcome" to start one' };
   rows.sort((a, b) => (a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0));
   return { exit: 0, text: [heading('history', rows.length, 'event'), ...withCap(rows.map((r) => r.text), rows.length)].join('\n') };
 }
 
-/** graph/problems/wise/calls/fields are readers of the graph tier (ledger/graph.ts) and/or the hot tier's own
+/** graph/problems/mdl/calls/fields are readers of the graph tier (ledger/graph.ts) and/or the hot tier's own
  *  raw tables (ledger/index.ts's `runs`/`categories`/`places`), read straight off disk via `ledger/graph.ts`'s
  *  own SQL — unlike hits/patterns/history (which go through `withIndex(..., {readOnly:true})`'s `IndexHandle`
  *  and so can never be wrong, only slow, when the on-disk index is stale: a stale check falls back to a full
@@ -223,12 +223,12 @@ function reportHistory(paths: SidewisePaths): VerbResult {
  *  self-heal/catch-up a real writer already gets (`withIndex`, non-readOnly), just triggered from a read
  *  command instead — so "the ledger is always the truth" holds for every `report` view, not only the three
  *  that happened to go through `IndexHandle` already. */
-function ensureHotIndexFresh(paths: SidewisePaths): void {
+function ensureHotIndexFresh(paths: Mm3Paths): void {
   withIndex(paths, () => undefined);
 }
 
 function graphUnavailableText(view: ReportView): string {
-  return `sidewise report ${view} · graph needs node:sqlite (Node ≥ 22.13) → see "sidewise doctor"`;
+  return `mm3 report ${view} · graph needs node:sqlite (Node ≥ 22.13) → see "mm3 doctor"`;
 }
 
 /** Runs `fn` after ensuring BOTH tiers are fresh, turning `GraphUnavailableError` into the shared plain message
@@ -238,7 +238,7 @@ function graphUnavailableText(view: ReportView): string {
  *  own `nodes`/`triples` tables if it ran after `refreshGraph`; running it first means `refreshGraph` always
  *  gets the last word, self-healing from byte 0 if that just happened (exactly the "harmless" case its own
  *  header comment already documents), never leaving the graph tier stale behind a hot-tier rebuild it can't see. */
-function withGraphView(paths: SidewisePaths, env: Record<string, string | undefined>, view: ReportView, fn: () => VerbResult): VerbResult {
+function withGraphView(paths: Mm3Paths, env: Record<string, string | undefined>, view: ReportView, fn: () => VerbResult): VerbResult {
   try {
     ensureHotIndexFresh(paths);
     refreshGraph(paths, env);
@@ -249,34 +249,34 @@ function withGraphView(paths: SidewisePaths, env: Record<string, string | undefi
   return fn();
 }
 
-function reportProblems(paths: SidewisePaths, env: Record<string, string | undefined>): VerbResult {
+function reportProblems(paths: Mm3Paths, env: Record<string, string | undefined>): VerbResult {
   return withGraphView(paths, env, 'problems', () => {
     // problemCounts already ranks worst (most fail) first; the max limit is requested here so `withCap` below
     // reports an accurate "… N more not shown" count rather than one capped twice.
     const rows = problemCounts(paths, { limit: 500 });
-    if (!rows.length) return { exit: 0, text: 'sidewise report problems · no runs yet → "sidewise class <request>" starts one' };
+    if (!rows.length) return { exit: 0, text: 'mm3 report problems · no runs yet → "mm3 class <request>" starts one' };
     const lines = rows.map((r) => `${r.family} × ${clip(r.place, 50)} · fail ${r.fail} unsure ${r.unsure} pass ${r.pass}`);
     return { exit: 0, text: [heading('problems', rows.length, 'row'), ...withCap(lines, rows.length)].join('\n') };
   });
 }
 
-function reportWise(paths: SidewisePaths, env: Record<string, string | undefined>): VerbResult {
-  return withGraphView(paths, env, 'wise', () => {
-    const rows = wiseRows(paths, { limit: 1000 }); // already newest-first (ORDER BY ts DESC)
-    if (!rows.length) return { exit: 0, text: 'sidewise report wise · no runs yet → "sidewise class <request>" starts one' };
+function reportMdl(paths: Mm3Paths, env: Record<string, string | undefined>): VerbResult {
+  return withGraphView(paths, env, 'mdl', () => {
+    const rows = mdlRows(paths, { limit: 1000 }); // already newest-first (ORDER BY ts DESC)
+    if (!rows.length) return { exit: 0, text: 'mm3 report mdl · no runs yet → "mm3 class <request>" starts one' };
     const lines = rows.map(
       (r) =>
         `${r.id} ${r.verb} · why:${r.why ?? '—'} area:${r.area ?? '—'} stage:${r.stage ?? '—'} change:${r.change ?? '—'} risk:${r.risk ?? '—'} blast:${r.blast ?? '—'}` +
         (r.problem ? ` · ${clip(r.problem, 60)}` : ''),
     );
-    return { exit: 0, text: [heading('wise', rows.length, 'run'), ...withCap(lines, rows.length)].join('\n') };
+    return { exit: 0, text: [heading('mdl', rows.length, 'run'), ...withCap(lines, rows.length)].join('\n') };
   });
 }
 
-function reportCalls(paths: SidewisePaths, env: Record<string, string | undefined>): VerbResult {
+function reportCalls(paths: Mm3Paths, env: Record<string, string | undefined>): VerbResult {
   return withGraphView(paths, env, 'calls', () => {
     const rows = callStats(paths, {}); // its own default window (last 30 days) and cap — not overridden here
-    if (!rows.length) return { exit: 0, text: 'sidewise report calls · no calls in the last 30 days → "sidewise class <request>" starts one' };
+    if (!rows.length) return { exit: 0, text: 'mm3 report calls · no calls in the last 30 days → "mm3 class <request>" starts one' };
     rows.sort((a, b) => b.day.localeCompare(a.day) || a.verb.localeCompare(b.verb) || a.model.localeCompare(b.model) || a.source.localeCompare(b.source));
     const lines = rows.map((r) => `${r.day} · ${r.verb} · ${r.model} (${r.source}) · calls ${r.calls} · tokens ${r.tokens} · cost $${r.costUsd.toFixed(4)} · saved $${r.savedUsd.toFixed(4)}`);
     return { exit: 0, text: [heading('calls', rows.length, 'row'), ...withCap(lines, rows.length)].join('\n') };
@@ -346,10 +346,10 @@ function renderEdge(byId: Map<number, string>, g: EdgeGroup): string {
   return `${sLabel} --${pred}--> ${oLabel} (${g.provenance}) [${runsLabel(g.runs)}]`;
 }
 
-function reportGraph(paths: SidewisePaths, env: Record<string, string | undefined>, target: string | undefined): VerbResult {
+function reportGraph(paths: Mm3Paths, env: Record<string, string | undefined>, target: string | undefined): VerbResult {
   return withGraphView(paths, env, 'graph', () => {
     const t = target?.trim();
-    if (!t) return { exit: 0, text: 'sidewise report graph · name a target → sidewise report graph <kind>:<label> (e.g. category:injection)' };
+    if (!t) return { exit: 0, text: 'mm3 report graph · name a target → mm3 report graph <kind>:<label> (e.g. category:injection)' };
     const colon = t.indexOf(':');
     if (colon <= 0 || colon === t.length - 1) {
       return { exit: 2, text: stopText([`✖ report graph: "${clip(t, 40)}" is not kind:label → e.g. category:injection`], 'report') };
@@ -357,11 +357,11 @@ function reportGraph(paths: SidewisePaths, env: Record<string, string | undefine
     const kind = t.slice(0, colon);
     const label = t.slice(colon + 1);
     const { nodes, edges } = graphAround(paths, { kind, label, depth: 2 });
-    if (!nodes.length) return { exit: 0, text: `sidewise report graph ${t} · not found → run "sidewise class <request>" first, or check the kind:label spelling` };
+    if (!nodes.length) return { exit: 0, text: `mm3 report graph ${t} · not found → run "mm3 class <request>" first, or check the kind:label spelling` };
     const byId = new Map(nodes.map((n) => [n.id, `${n.kind}:${n.label}`]));
     const groups = groupEdges(edges);
     const lines = groups.map((g) => renderEdge(byId, g));
-    const headingLine = `sidewise report graph ${t} · ${groups.length} edge${groups.length === 1 ? '' : 's'} (depth 2, ${nodes.length} node${nodes.length === 1 ? '' : 's'})`;
+    const headingLine = `mm3 report graph ${t} · ${groups.length} edge${groups.length === 1 ? '' : 's'} (depth 2, ${nodes.length} node${nodes.length === 1 ? '' : 's'})`;
     return { exit: 0, text: [headingLine, ...withCap(lines, groups.length)].join('\n') };
   });
 }
@@ -404,16 +404,16 @@ function suggestionText(s: FieldSuggestion | undefined): string {
   return 'reference (link: where)';
 }
 
-function reportFields(paths: SidewisePaths, env: Record<string, string | undefined>, accept: string | undefined): VerbResult {
-  ensureHotIndexFresh(paths); // fields reads the hot tier's own `runs.wise` column directly; see ensureHotIndexFresh's own comment
+function reportFields(paths: Mm3Paths, env: Record<string, string | undefined>, accept: string | undefined): VerbResult {
+  ensureHotIndexFresh(paths); // fields reads the hot tier's own `runs.mdl` column directly; see ensureHotIndexFresh's own comment
   const { config } = resolveConfig(paths, env);
-  const knownKeys = [...WISE_KEYS, ...Object.keys(config.wise)];
+  const knownKeys = [...MDL_KEYS, ...Object.keys(config.mdl)];
   const fields = undeclaredFieldSamples(paths, { knownKeys });
 
   if (accept !== undefined) {
     const field = fields.find((f) => f.key === accept);
     if (!field) {
-      return { exit: 2, text: stopText([`✖ report fields --accept: "${clip(accept, 40)}" is not an undeclared field → run "sidewise report fields" to see what's available`], 'report') };
+      return { exit: 2, text: stopText([`✖ report fields --accept: "${clip(accept, 40)}" is not an undeclared field → run "mm3 report fields" to see what's available`], 'report') };
     }
     const suggestion = classifyField(field.count, field.values);
     if (!suggestion) {
@@ -421,16 +421,16 @@ function reportFields(paths: SidewisePaths, env: Record<string, string | undefin
     }
     const patch =
       suggestion.kind === 'closed'
-        ? { wise: { [accept]: { values: suggestion.values! } } }
+        ? { mdl: { [accept]: { values: suggestion.values! } } }
         : suggestion.kind === 'pattern'
-          ? { wise: { [accept]: { pattern: suggestion.pattern! } } }
-          : { wise: { [accept]: { link: 'where' } } };
+          ? { mdl: { [accept]: { pattern: suggestion.pattern! } } }
+          : { mdl: { [accept]: { link: 'where' } } };
     writeConfigOverride(paths, patch);
     const shown = suggestion.kind === 'closed' ? `values: [${suggestion.values!.join(', ')}]` : suggestion.kind === 'pattern' ? `pattern: ${suggestion.pattern}` : 'link: where';
-    return { exit: 0, text: `sidewise report fields --accept ${accept} · wrote wise.${accept} (${shown}) to .sidewise/config.yaml` };
+    return { exit: 0, text: `mm3 report fields --accept ${accept} · wrote mdl.${accept} (${shown}) to .mm3/config.yaml` };
   }
 
-  if (!fields.length) return { exit: 0, text: 'sidewise report fields · no undeclared fields yet → every wise key so far is a base field or already configured' };
+  if (!fields.length) return { exit: 0, text: 'mm3 report fields · no undeclared fields yet → every mdl key so far is a base field or already configured' };
   const lines = fields.map((f) => `${f.key} (${f.count} run${f.count === 1 ? '' : 's'}) · samples: ${f.samples.join(', ') || '(no values)'} · suggest: ${suggestionText(classifyField(f.count, f.values))}`);
   return { exit: 0, text: [heading('fields', fields.length, 'field'), ...withCap(lines, fields.length)].join('\n') };
 }
@@ -445,7 +445,7 @@ export function runReport(view: string | undefined, ctx: ReportContext, target?:
   if (requested === 'history') return reportHistory(ctx.paths);
   if (requested === 'graph') return reportGraph(ctx.paths, env, target);
   if (requested === 'problems') return reportProblems(ctx.paths, env);
-  if (requested === 'wise') return reportWise(ctx.paths, env);
+  if (requested === 'mdl') return reportMdl(ctx.paths, env);
   if (requested === 'calls') return reportCalls(ctx.paths, env);
   if (requested === 'fields') return reportFields(ctx.paths, env, accept);
   return runReportWeb({ paths: ctx.paths, env, runner: ctx.runner ?? realRunner, platform: ctx.platform ?? process.platform } satisfies ReportWebContext);

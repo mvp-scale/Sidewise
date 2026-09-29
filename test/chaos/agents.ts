@@ -1,6 +1,6 @@
 /**
  * Drives claude -p and gemini -p against one disposable scenario project each, with real (bounded) shell
- * access — the whole point is watching a real coding agent react to a faulted Sidewise. checkAgent skips an
+ * access — the whole point is watching a real coding agent react to a faulted MM3. checkAgent skips an
  * unavailable or logged-out CLI instead of failing the run. runAgentOnScenario is synchronous (spawnSync with a
  * wall-clock timeout) so test/chaos/run.ts's plain `for` loop never runs two agents, or two scenarios for the
  * same agent, at once (AGENTS.md rule 1: stay light on shared machines).
@@ -81,7 +81,7 @@ function checkClaude(): Availability {
 function checkGemini(): Availability {
   const ver = spawnSync('gemini', ['--version'], { encoding: 'utf8' });
   if (ver.error) return { ok: false, reason: 'gemini CLI not found on PATH' };
-  const scratch = mkdtempSync(path.join(os.tmpdir(), 'sidewise-chaos-probe-'));
+  const scratch = mkdtempSync(path.join(os.tmpdir(), 'mm3-chaos-probe-'));
   try {
     const probe = spawnSync('gemini', ['-p', 'reply with the word ok', '-o', 'json', '--skip-trust'], {
       cwd: scratch,
@@ -112,13 +112,13 @@ interface Outcome {
 }
 
 /** The exact command the prompt tells the agent to use — the absolute path to the built CLI, never a bare
- * `sidewise` (nothing installs it on PATH in this harness). */
+ * `mm3` (nothing installs it on PATH in this harness). */
 function commandFor(repoRoot: string): string {
   return `node ${path.join(repoRoot, 'dist/cli.js')} class request.yaml`;
 }
 
 function promptFor(scenario: ChaosScenario, repoRoot: string): string {
-  return `You are in a directory that already has a Sidewise request file, request.yaml. Use exactly this command to run Sidewise: \`${commandFor(repoRoot)}\`\n\n${scenario.prompt}`;
+  return `You are in a directory that already has an MM3 request file, request.yaml. Use exactly this command to run MM3: \`${commandFor(repoRoot)}\`\n\n${scenario.prompt}`;
 }
 
 function runClaude(prompt: string, projectRoot: string, env: NodeJS.ProcessEnv): Outcome {
@@ -176,13 +176,13 @@ function runGemini(prompt: string, projectRoot: string, env: NodeJS.ProcessEnv):
 }
 
 /** One bounded, synchronous run of one agent against one scenario. Builds the prompt, sets the chaos env
- * (Sidewise itself never touches the network here), and returns a redacted, file-safe result. */
+ * (MM3 itself never touches the network here), and returns a redacted, file-safe result. */
 export function runAgentOnScenario(kind: AgentKind, scenario: ChaosScenario, projectRoot: string, repoRoot: string): AgentRunResult {
   const env: NodeJS.ProcessEnv = {
     ...process.env,
-    SIDEWISE_HOME: projectRoot,
-    SIDEWISE_PROVIDER: 'chaos',
-    SIDEWISE_CHAOS: scenario.schedule,
+    MM3_HOME: projectRoot,
+    MM3_PROVIDER: 'chaos',
+    MM3_CHAOS: scenario.schedule,
     TYPESAFE_API_KEY: '',
     AI_GATEWAY_API_KEY: '',
   };

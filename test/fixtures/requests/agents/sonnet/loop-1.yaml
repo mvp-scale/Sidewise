@@ -1,4 +1,4 @@
-side:
+mak:
   goal: the multi-tenant billing design holds up under stress on boundaries and story risk
   depth: standard
   over:
@@ -28,5 +28,5 @@ side:
         pass: no
         6: Does {story} carry a risk of double-charging or double-processing a tenant?
         7: Does {story} depend on an external system with no fallback if that system is unavailable?
-wise:
+mdl:
   why: find

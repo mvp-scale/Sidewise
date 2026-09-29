@@ -1,5 +1,5 @@
 /**
- * Picks the classifier: SIDEWISE_PROVIDER=fake|chaos|typesafe wins; otherwise typesafe when a key is set, else
+ * Picks the classifier: MM3_PROVIDER=fake|chaos|typesafe wins; otherwise typesafe when a key is set, else
  * fake. providerIdentity names the one that would answer without building it (view needs it; it never calls).
  */
 import { CHAOS_MODEL, createChaosAdapter, parseSchedule } from './chaos.ts';
@@ -10,18 +10,18 @@ import { hasKey, resolveJevConfig, routeLabel, type JevFileConfig, type Provider
 
 type Env = Record<string, string | undefined>;
 
-/** plan 2c B1: `SIDEWISE_PROVIDER` still wins outright (env > config > default); `deps.fileConfig?.provider`
+/** plan 2c B1: `MM3_PROVIDER` still wins outright (env > config > default); `deps.fileConfig?.provider`
  *  (config.yaml's `provider:` key) is the fallback when no env var names one at all — same precedence as every
  *  other config-aware field in this codebase. */
 function wantedProvider(env: Env, deps: { fileConfig?: JevFileConfig }): string | undefined {
-  return env.SIDEWISE_PROVIDER?.trim() || deps.fileConfig?.provider;
+  return env.MM3_PROVIDER?.trim() || deps.fileConfig?.provider;
 }
 
 export function selectProvider(env: Env = process.env, deps: { fetch?: typeof fetch; chaosState?: string; resolveStored?: ResolveStored; fileConfig?: JevFileConfig } = {}): ClassifierPort {
   const wanted = wantedProvider(env, deps);
   if (wanted === 'fake') return createFakeAdapter();
   if (wanted === 'chaos') {
-    const s = parseSchedule(env.SIDEWISE_CHAOS);
+    const s = parseSchedule(env.MM3_CHAOS);
     if ('stop' in s) throw new Error(s.stop);
     return createChaosAdapter(s.steps, deps.chaosState);
   }
@@ -47,8 +47,8 @@ export function providerIdentity(env: Env = process.env, deps: { resolveStored?:
     const config = resolveJevConfig(env, deps);
     if (wanted === 'typesafe' || hasKey(config)) return { adapter: 'typesafe', model: config.model, route: routeLabel(config), baseURL: config.baseURL };
   } catch {
-    // A config error (a floating model, a bad SIDEWISE_BASE_URL) leaves the route/base URL unknowable here;
-    // `sidewise doctor` surfaces the real ✖ message instead of this best-effort fallback.
+    // A config error (a floating model, a bad MM3_BASE_URL) leaves the route/base URL unknowable here;
+    // `mm3 doctor` surfaces the real ✖ message instead of this best-effort fallback.
     return { adapter: 'typesafe', model: 'unknown', route: 'custom', baseURL: null };
   }
   return { adapter: 'fake', model: FAKE_MODEL, route: 'fake', baseURL: null };

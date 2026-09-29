@@ -8,10 +8,10 @@
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
 import type { ItemStatus } from '../../src/contract/grade.ts';
-import { AREAS as WISE_AREAS, DEPTHS, VERBS, WHYS, type Answer, type Category, type Depth, type Gate, type Layer, type Verb, type Wise } from '../../src/contract/types.ts';
+import { AREAS as MDL_AREAS, DEPTHS, VERBS, WHYS, type Answer, type Category, type Depth, type Gate, type Layer, type Verb, type Mdl } from '../../src/contract/types.ts';
 import type { ContractRun, ItemRecord, Outcome, RunRecord } from '../../src/ledger/log.ts';
 import { formatRunId, ulid } from '../../src/ledger/ids.ts';
-import type { SidewisePaths } from '../../src/ledger/paths.ts';
+import type { Mm3Paths } from '../../src/ledger/paths.ts';
 import { fnv1a, pick, seededRandom } from './prng.ts';
 import { AREAS as CODE_AREAS, PERSPECTIVES, TAGS } from './synthetic-log.ts';
 
@@ -48,7 +48,7 @@ const ACTORS = ['reviewer', 'owner', 'builder', 'agent'] as const;
 const GATES: readonly Gate[] = ['pass', 'fail', 'unsure'];
 const CONSENSUS_VALUES = ['STRONG', 'SPLIT', 'WEAK'] as const;
 const ITEM_STATUSES: readonly ItemStatus[] = ['asked', 'reused', 'skipped'];
-/** A failed call (no SW id) shows up occasionally, independent of the outcome rate. */
+/** A failed call (no MM3 id) shows up occasionally, independent of the outcome rate. */
 const FAILED_RATE = 0.02;
 
 const iso = (now: number): string => new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z');
@@ -149,7 +149,7 @@ function buildContractRun(
     parent,
     from: null,
     compare: null,
-    wise: rand() < 0.5 ? ({ why: pick(rand, WHYS), area: pick(rand, WISE_AREAS) } satisfies Wise) : null,
+    mdl: rand() < 0.5 ? ({ why: pick(rand, WHYS), area: pick(rand, MDL_AREAS) } satisfies Mdl) : null,
     ask: { categories: isSweep ? [] : [category], layers },
     over: isSweep ? { [area]: 'each' } : null,
     items,
@@ -161,7 +161,7 @@ function buildContractRun(
     goalGate: gate,
     goalP: Math.round(rand() * 100) / 100,
     consensus: pick(rand, CONSENSUS_VALUES),
-    response: `side:\n  id: ${id}\n  gate: ${gate}\n`,
+    response: `mak:\n  id: ${id}\n  gate: ${gate}\n`,
     notes: [],
     adapter: who.adapter,
     model: who.model,
@@ -172,7 +172,7 @@ function buildContractRun(
 
 /** Plain JSON objects, ids assigned in emission order — the same shape writeSyntheticLedger writes to disk. */
 export function generateLedgerRecords(opts: SynthLedgerOptions = {}): unknown[] {
-  const seed = opts.seed ?? 'sidewise-ledger';
+  const seed = opts.seed ?? 'mm3-ledger';
   const n = opts.runs ?? 200;
   const legacyShare = opts.legacyShare ?? 0.1;
   const outcomeRate = opts.outcomeRate ?? 0.5;
@@ -237,7 +237,7 @@ export function generateLedgerRecords(opts: SynthLedgerOptions = {}): unknown[] 
 export const toJsonl = (records: readonly unknown[]): string => (records.length ? `${records.map((r) => JSON.stringify(r)).join('\n')}\n` : '');
 
 /** One writeFileSync, no lock, no per-line append (generation, not a real run). */
-export function writeSyntheticLedger(paths: SidewisePaths, opts: SynthLedgerOptions = {}): { count: number; bytes: number } {
+export function writeSyntheticLedger(paths: Mm3Paths, opts: SynthLedgerOptions = {}): { count: number; bytes: number } {
   const records = generateLedgerRecords(opts);
   const count = records.filter((r) => (r as { kind?: unknown }).kind === 'run').length;
   const text = toJsonl(records);

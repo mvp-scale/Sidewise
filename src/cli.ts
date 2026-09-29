@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * The `sidewise` command: a thin shell over the verbs. Exit 0 ok · 1 provider or ledger error · 2 invalid
+ * The `mm3` command: a thin shell over the verbs. Exit 0 ok · 1 provider or ledger error · 2 invalid
  * request or usage · 3 budget blocked. Answers go to stdout; stops and errors go to stderr.
  *
  * `runCli(argv, ctx)` is the whole dispatch, side-effect-injectable via `ctx`: it never touches real
  * `process.stdout`/`process.stderr`/`process.exitCode` or real stdin (fd 0) directly — it returns `{exit, text}`
  * instead, and the real entrypoint at the bottom of this file is the only place that writes it out for real.
- * This is what lets `sidewise mcp` (src/mcp/*) run the exact same dispatch in-process, with the MCP tool call's
+ * This is what lets `mm3 mcp` (src/mcp/*) run the exact same dispatch in-process, with the MCP tool call's
  * own `stdin` string standing in for fd 0, with no second contract and no subprocess spawned per call.
  */
 import { readFileSync, statSync } from 'node:fs';
@@ -25,7 +25,7 @@ import { classifierFileConfig, resolveConfig } from './config/load.ts';
 import { RUN_ID } from './ledger/ids.ts';
 import { LockError, StoreError } from './ledger/lock.ts';
 import { appendOutcome, findRun, isContractRun, LedgerError, type Outcome } from './ledger/log.ts';
-import { resolvePaths, type SidewisePaths } from './ledger/paths.ts';
+import { resolvePaths, type Mm3Paths } from './ledger/paths.ts';
 import type { Level } from './lens/request.ts';
 import { runMcpServer, type McpIo } from './mcp/stdio.ts';
 import { resolveStoredKey } from './setup/keystore.ts';
@@ -64,49 +64,49 @@ const PACKAGE_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'
 
 // One usage line per command: a usage mistake prints the problem and just the line for that command.
 const LINES = {
-  view: 'sidewise view <folder | tag | SW-#### | request-file | -> [--level 1|2|3] [--summary]',
-  class: 'sidewise class <request-file | -> [--dry-run]',
-  replay: 'sidewise replay <request-file | -> [--dry-run]  ·  or: sidewise replay --parent SW-#### --compare <before>..<after> [--dry-run]',
-  scan: 'sidewise scan <request-file | -> [--dry-run]',
-  drill: 'sidewise drill <request-file | -> [--dry-run]',
-  loop: 'sidewise loop <request-file | -> [--dry-run]',
+  view: 'mm3 view <folder | tag | MM3-#### | request-file | -> [--level 1|2|3] [--summary]',
+  class: 'mm3 class <request-file | -> [--dry-run]',
+  replay: 'mm3 replay <request-file | -> [--dry-run]  ·  or: mm3 replay --parent MM3-#### --compare <before>..<after> [--dry-run]',
+  scan: 'mm3 scan <request-file | -> [--dry-run]',
+  drill: 'mm3 drill <request-file | -> [--dry-run]',
+  loop: 'mm3 loop <request-file | -> [--dry-run]',
   template:
-    'sidewise template <view|class|replay|scan|drill|loop> [--parent SW-#### --from <item-or-category>]  ·  or: --from <request.yaml> [--where <path>]... [--goal <text>]',
-  help: `sidewise help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}|${HELP_EXTRAS.join('|')}]`,
-  agent: `sidewise agent [${VERBS.join('|')}|${AGENT_EXTRAS.join('|')}]`,
-  report: 'sidewise report [hits|patterns|history]',
-  outcome: 'sidewise outcome <SW-####> held|overruled|failed --by <actor>',
-  budget: 'sidewise budget [show | reset | set --usd <n> --runs <n>]',
-  doctor: 'sidewise doctor [<file> | -]',
-  config: 'sidewise config',
-  init: 'sidewise init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]',
-  uninstall: 'sidewise uninstall [--all] [--keep-key] [--keep-data] [--yes]',
-  mcp: 'sidewise mcp',
+    'mm3 template <view|class|replay|scan|drill|loop> [--parent MM3-#### --from <item-or-category>]  ·  or: --from <request.yaml> [--where <path>]... [--goal <text>]',
+  help: `mm3 help [${VERBS.join('|')}|${HELP_TOPICS.join('|')}|${HELP_EXTRAS.join('|')}]`,
+  agent: `mm3 agent [${VERBS.join('|')}|${AGENT_EXTRAS.join('|')}]`,
+  report: 'mm3 report [hits|patterns|history]',
+  outcome: 'mm3 outcome <MM3-####> held|overruled|failed --by <actor>',
+  budget: 'mm3 budget [show | reset | set --usd <n> --runs <n>]',
+  doctor: 'mm3 doctor [<file> | -]',
+  config: 'mm3 config',
+  init: 'mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]',
+  uninstall: 'mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]',
+  mcp: 'mm3 mcp',
 } as const;
 type Command = keyof typeof LINES;
 // A bare usage list is unhelpful to someone who has never run this before, and round-4 smoke testing found a
-// cold CLI agent makes zero `sidewise` calls at all otherwise — it never discovers `sidewise agent` exists.
+// cold CLI agent makes zero `mm3` calls at all otherwise — it never discovers `mm3 agent` exists.
 // `agentFrontDoorLines()` (help/card.ts) gives, in order: the agent-first directive, the `new here?` hint for a
 // human, this tool's own one-line pitch, then a purpose bullet per verb — all shared with `agent`'s overview and
 // `help`'s own card, never a second hand-typed copy. [C-191]
 const USAGE = `${agentFrontDoorLines().join('\n')}\nusage:\n${Object.values(LINES).map((l) => `  ${l}`).join('\n')}`;
 const isCommand = (c: string): c is Command => Object.hasOwn(LINES, c);
 
-// The six verbs plus the five tools `sidewise agent` also carries a card for (report/outcome/budget/template/
+// The six verbs plus the five tools `mm3 agent` also carries a card for (report/outcome/budget/template/
 // doctor) — every other command (help, agent, config, init, uninstall, mcp) has no agent card to point at, so a
 // stop from one of those never gets the pointer below (config's own runConfig hand-writes its own "→ see:
-// sidewise agent config" line instead, the same way budget.ts's own errors do — see config/config.ts; doctor's
-// own `doctor <file|->` stops hand-write "→ see: sidewise agent doctor" the same way — see verbs/doctor.ts's
+// mm3 agent config" line instead, the same way budget.ts's own errors do — see config/config.ts; doctor's
+// own `doctor <file|->` stops hand-write "→ see: mm3 agent doctor" the same way — see verbs/doctor.ts's
 // `doctorStops` — this set only matters for doctor's OWN usage-mistake stops, e.g. an unreadable file). Every
 // stop a REQUEST can trigger already ends with this same
 // pointer via verbs/request.ts's `stopText` (C-153); the additions here close the remaining gaps that never run
 // through that path — a bare CLI usage mistake, a request file cli.ts itself couldn't even read, a missing
 // project, and outcome/budget's own argument checks.
 const AGENT_POINTABLE = new Set<Command>([...VERBS, 'report', 'outcome', 'budget', 'template', 'doctor']);
-const withAgentPointer = (text: string, command: Command): string => (AGENT_POINTABLE.has(command) ? `${text}\n→ see: sidewise agent ${command}` : text);
+const withAgentPointer = (text: string, command: Command): string => (AGENT_POINTABLE.has(command) ? `${text}\n→ see: mm3 agent ${command}` : text);
 
 /** A usage mistake: exit 2 with "✖ args: <problem> → <that command's usage line>", plus the same agent pointer
- *  every other stop ends with, when `command` is one `sidewise agent` actually has a card for. */
+ *  every other stop ends with, when `command` is one `mm3 agent` actually has a card for. */
 class UsageStop extends Error {
   constructor(command: Command, problem: string) {
     super(withAgentPointer(`✖ args: ${problem} → ${LINES[command]}`, command));
@@ -115,7 +115,7 @@ class UsageStop extends Error {
 }
 
 const OUTCOMES: readonly string[] = ['held', 'overruled', 'failed'];
-const NO_PROJECT = '✖ project: no .sidewise or .git folder here or above → run inside a project, or "mkdir .sidewise" to start one here';
+const NO_PROJECT = '✖ project: no .mm3 or .git folder here or above → run inside a project, or "mkdir .mm3" to start one here';
 // plan 2c B1: the default lives in config/defaults.ts's requestMaxBytes now (still 1_048_576) — a project can
 // lower or raise it via config.yaml; readRequest below takes the effective value as a parameter rather than
 // reading this constant directly, so every call site stays honest about where its own cap came from.
@@ -177,11 +177,11 @@ function readRequest(file: string, stdinSource: () => Buffer, maxBytes: number =
     return { stop: `✖ request: cannot read ${shown} (${code ?? 'error'}) → check the path and its permissions` };
   }
   if (bytes.length > maxBytes) return { stop: tooBig(maxBytes) };
-  if (bytes.includes(0)) return { stop: `✖ request: ${file === '-' ? 'stdin' : shown} is binary, not text → write the request as YAML, starting "side:"` };
+  if (bytes.includes(0)) return { stop: `✖ request: ${file === '-' ? 'stdin' : shown} is binary, not text → write the request as YAML, starting "mak:"` };
   return { text: bytes.toString('utf8') };
 }
 
-const BUDGET_EXAMPLE = 'e.g. sidewise budget set --usd 5 --runs 500';
+const BUDGET_EXAMPLE = 'e.g. mm3 budget set --usd 5 --runs 500';
 
 /** A --usd/--runs value as a positive finite number, or a stop naming the bad value. */
 function cap(flag: string, raw: string): number | string {
@@ -191,14 +191,14 @@ function cap(flag: string, raw: string): number | string {
 
 const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop } as const;
 
-// Item H (batch G): a key stored in the OS keychain or the user file (~/.config/sidewise/env), with no env
+// Item H (batch G): a key stored in the OS keychain or the user file (~/.config/mm3/env), with no env
 // var set, must behave identically everywhere a provider is chosen or identified — not just in doctor/agent,
 // which already pass this same lookup. One helper, reused at every call site below, so a future provider- or
 // identity-selection call can't be added without it by accident the way selectProvider/providerIdentity were.
 const resolveStoredFor = (c: CliCtx) => () => resolveStoredKey(c.runner, c.platform, c.env);
 
 /** Most provider-selection failures (no key) are bucketed as provider errors (exit 1); a JevConfigError can
- *  instead carry exit 2 — a bad SIDEWISE_BASE_URL is a config mistake to fix, not a runtime provider failure. */
+ *  instead carry exit 2 — a bad MM3_BASE_URL is a config mistake to fix, not a runtime provider failure. */
 const providerExit = (e: unknown): 1 | 2 => (e instanceof JevConfigError ? e.exit : 1);
 
 /** Everything a dispatch needs instead of reaching for `process.*` directly, so the same dispatch runs for real
@@ -222,7 +222,7 @@ export interface CliCtx {
 }
 
 /** class, scan, drill and loop share one shape: a request file (or -), optional --dry-run. */
-async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths: SidewisePaths, ctx: CliCtx): Promise<{ exit: number; text: string }> {
+async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths: Mm3Paths, ctx: CliCtx): Promise<{ exit: number; text: string }> {
   const twice = givenTwice(rest, ['dry-run']);
   if (twice) return finish(2, withAgentPointer(twice, command));
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { 'dry-run': { type: 'boolean', default: false } } });
@@ -250,7 +250,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
-    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, config, init, uninstall or mcp (sidewise --help)`);
+    return finish(2, `✖ args: "${clip(command, 40)}" is not a command → use view, class, replay, scan, drill, loop, template, help, agent, report, outcome, budget, doctor, config, init, uninstall or mcp (mm3 --help)`);
   }
 
   // "<command> --help"/"-h" is answered here, generically, for every command, before that command's own
@@ -262,7 +262,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   // doesn't exist. Runs ahead of the Node-version guard below: like the bare --help/-h above, this never
   // spends or touches the ledger, so it's free even on too old a Node.
   if (rest.includes('--help') || rest.includes('-h')) {
-    const seeMore = (VERBS as readonly string[]).includes(command) ? `\n→ see: sidewise help ${command} · sidewise agent ${command}` : '';
+    const seeMore = (VERBS as readonly string[]).includes(command) ? `\n→ see: mm3 help ${command} · mm3 agent ${command}` : '';
     return finish(0, `${LINES[command]}${seeMore}`);
   }
 
@@ -365,18 +365,18 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         const nodeStop = nodeVersionStop(ctx.nodeVersion);
         if (nodeStop) return Promise.resolve(finish(2, nodeStop));
         // runCli, not dispatch: dispatch can throw (LedgerError/BudgetError/UsageStop/...), and protocol.ts's
-        // own tools/call catch would then re-wrap an already-formed "✖ field: ..." message as "✖ sidewise:
+        // own tools/call catch would then re-wrap an already-formed "✖ field: ..." message as "✖ mm3:
         // ...", doubling the glyph. runCli's own catch normalizes every throw into one clean {exit, text}
         // first, exactly like the real CLI entrypoint at the bottom of this file. [C-140]
         //
-        // `project` (from the tool call's own arguments) stands in for SIDEWISE_HOME for this one call — the
+        // `project` (from the tool call's own arguments) stands in for MM3_HOME for this one call — the
         // plugin's own cwd is wherever Claude launched, not necessarily the project. The plugin never sets
-        // SIDEWISE_ACTOR, so without this every run/outcome would come through as `by: agent`; default an
+        // MM3_ACTOR, so without this every run/outcome would come through as `by: agent`; default an
         // MCP-driven call to "claude" instead (never a git identity — see src/mcp/actor.ts for why), but only
         // when the caller hasn't already set one — an explicit value must still win.
         const env = { ...ctx.env };
-        if (project) env.SIDEWISE_HOME = project;
-        if (!env.SIDEWISE_ACTOR?.trim()) env.SIDEWISE_ACTOR = resolveMcpActor();
+        if (project) env.MM3_HOME = project;
+        if (!env.MM3_ACTOR?.trim()) env.MM3_ACTOR = resolveMcpActor();
         return runCli(a, { ...ctx, env, stdin: () => Buffer.from(stdinText ?? '', 'utf8') });
       },
       ctx.pkg.version,
@@ -385,7 +385,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   }
 
   // init/uninstall need no project up front either: they check process.cwd() for a git project themselves
-  // (init's per-project steps; uninstall's .sidewise/ step), rather than resolvePaths()'s upward walk.
+  // (init's per-project steps; uninstall's .mm3/ step), rather than resolvePaths()'s upward walk.
   if (command === 'init') {
     const twice = givenTwice(rest, ['scope']);
     if (twice) return finish(2, twice);
@@ -517,7 +517,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       let text: string;
       if (usingFlags) {
         if (values.parent === undefined || values.compare === undefined) {
-          return finish(2, withAgentPointer('✖ --parent/--compare: give both, or neither → sidewise replay --parent SW-#### --compare <before>..<after>', command));
+          return finish(2, withAgentPointer('✖ --parent/--compare: give both, or neither → mm3 replay --parent MM3-#### --compare <before>..<after>', command));
         }
         positionalCount('replay', positionals, 0, 0);
         const sep = values.compare.indexOf('..');
@@ -540,10 +540,10 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
           const sample = concernNames.length > 0 ? concernNames.join(',') : 'injection,guards';
           return finish(
             2,
-            withAgentPointer(`✖ --expect: name the concerns this replay should fix → sidewise replay --parent SW-#### --compare <before>..<after> --expect ${sample}`, command),
+            withAgentPointer(`✖ --expect: name the concerns this replay should fix → mm3 replay --parent MM3-#### --compare <before>..<after> --expect ${sample}`, command),
           );
         }
-        text = stringify({ side: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
+        text = stringify({ mak: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount('replay', positionals, 1, 1);
         const read = readRequest(positionals[0]!, ctx.stdin, resolveConfig(paths, ctx.env).config.requestMaxBytes);
@@ -570,7 +570,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       positionalCount('outcome', positionals, 2, 2);
       const [id = '', outcome = ''] = positionals;
       if (!RUN_ID.test(id)) {
-        return finish(2, withAgentPointer(`✖ outcome: "${clip(id, 40)}" is not a run id → use the SW-#### that class printed, e.g. SW-0001`, command));
+        return finish(2, withAgentPointer(`✖ outcome: "${clip(id, 40)}" is not a run id → use the MM3-#### that class printed, e.g. MM3-0001`, command));
       }
       if (!OUTCOMES.includes(outcome)) {
         return finish(2, withAgentPointer(`✖ outcome: "${clip(outcome, 40)}" is not an outcome → use held, overruled or failed`, command));
@@ -578,7 +578,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       const by = values.by?.trim();
       if (!by) return finish(2, withAgentPointer('✖ --by: missing → add --by <who judged the run>', command));
       const { record, repeat } = appendOutcome(paths, id, outcome as Outcome, by);
-      return finish(0, `sidewise outcome ${record.of} ${record.outcome} · ${repeat ? 'already recorded ' : ''}by ${record.by}`);
+      return finish(0, `mm3 outcome ${record.of} ${record.outcome} · ${repeat ? 'already recorded ' : ''}by ${record.by}`);
     }
     case 'budget': {
       const [sub = 'show', ...more] = rest;
@@ -606,7 +606,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   // Unreachable by construction: `Command` minus the early-return branches above is exactly this switch's case
   // list. Kept only so `dispatch`'s return type stays `{exit, text}` on every path, including a future Command
   // added to LINES without a matching case here.
-  return finish(1, `✖ sidewise: internal: unhandled command "${command}"`);
+  return finish(1, `✖ mm3: internal: unhandled command "${command}"`);
 }
 
 /**
@@ -625,7 +625,7 @@ export async function runCli(argv: string[], ctx: CliCtx): Promise<{ exit: numbe
     if (e instanceof JevConfigError) return finish(e.exit, e.message);
     if (e instanceof LockError || e instanceof StoreError) return finish(1, e.message);
     const text = (e instanceof Error ? e.message : String(e)).split('\n')[0]!.slice(0, 200);
-    return finish(1, `✖ sidewise: ${text} → retry; if it repeats, report it with the command you ran`);
+    return finish(1, `✖ mm3: ${text} → retry; if it repeats, report it with the command you ran`);
   }
 }
 
@@ -654,7 +654,7 @@ function realCtx(): CliCtx {
 }
 
 // Only run for real when this file is the process's own entrypoint (`node dist/cli.js ...` / `node
-// bin/sidewise.mjs ...`) — not when something (a test, src/mcp/*) imports `runCli` from it as a module, which
+// bin/mm3.mjs ...`) — not when something (a test, src/mcp/*) imports `runCli` from it as a module, which
 // must never also kick off a real run against real process.argv/stdin/stdout as a side effect of the import.
 if (import.meta.url === `file://${process.argv[1]}`) {
   runCli(process.argv.slice(2), realCtx())
@@ -665,7 +665,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     .catch((e: unknown) => {
       // Last line of defence: runCli already catches everything dispatch can throw, so this is only for a
       // failure in realCtx() itself or in runCli's own signature — never a stack trace to the user either way.
-      process.stderr.write(`✖ sidewise: ${e instanceof Error ? e.message : String(e)} → retry; if it repeats, report it with the command you ran\n`);
+      process.stderr.write(`✖ mm3: ${e instanceof Error ? e.message : String(e)} → retry; if it repeats, report it with the command you ran\n`);
       process.exitCode = 1;
     });
 }

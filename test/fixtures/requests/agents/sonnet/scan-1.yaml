@@ -1,4 +1,4 @@
-side:
+mak:
   goal: no function in src/handlers/*.ts skips auth checks or leaks stack traces
   depth: quick
   over:
@@ -15,6 +15,6 @@ side:
         pass: no
         4: Does {function} return a raw stack trace or exception object in its response?
         5: Does {function} log or echo internal error details back to the caller?
-wise:
+mdl:
   why: find
   area: auth

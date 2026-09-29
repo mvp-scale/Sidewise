@@ -99,7 +99,7 @@ export function mapLayers(over: Record<string, unknown>): LayerMap {
       if ('problem' in it) continue;
       for (const [child, v] of Object.entries(it.children)) {
         if (chain.includes(child)) {
-          problems.push(`✖ side.over.${clip(child, 20)}: used at the top and inside "${clip(it.name, 30)}" → pick one`);
+          problems.push(`✖ mak.over.${clip(child, 20)}: used at the top and inside "${clip(it.name, 30)}" → pick one`);
           continue;
         }
         if (!layers.includes(child)) layers.push(child);
@@ -109,10 +109,10 @@ export function mapLayers(over: Record<string, unknown>): LayerMap {
     }
   };
   for (const l of chain) walk(l, over[l]);
-  if (layers.length > MAX_LAYERS) problems.push(`✖ side.over: ${layers.length} layers → at most ${MAX_LAYERS}; split the request`);
+  if (layers.length > MAX_LAYERS) problems.push(`✖ mak.over: ${layers.length} layers → at most ${MAX_LAYERS}; split the request`);
   // "concerns"/"decisions" are reserved for ask's own sections (plan 2b): a layer named either would make
   // ask: {<layer>: {concerns:, decisions:}} ambiguous with ask's one-subject shape.
-  for (const l of layers) if (l === 'concerns' || l === 'decisions') problems.push(`✖ side.over.${l}: "${l}" is reserved for ask sections → use a different layer name`);
+  for (const l of layers) if (l === 'concerns' || l === 'decisions') problems.push(`✖ mak.over.${l}: "${l}" is reserved for ask sections → use a different layer name`);
   return { layers, chain, ancestors, problems: [...new Set(problems)] };
 }
 
@@ -148,19 +148,19 @@ export function checkOver(over: Record<string, unknown>, rule: StringRule, cap: 
   chain.forEach((layer, i) => {
     const v = over[layer];
     if (typeof v !== 'string') {
-      if (i > 0) out.push(`✖ side.over.${layer}: a list at the top applies to nothing → nest it under its parent items (- name: x, ${layer}: [...]), or use each`);
+      if (i > 0) out.push(`✖ mak.over.${layer}: a list at the top applies to nothing → nest it under its parent items (- name: x, ${layer}: [...]), or use each`);
       return;
     }
-    if (rule === 'none') out.push(`✖ side.over.${layer}: loop sweeps ideas you list → write the items as a list; use scan for files`);
-    else if (rule === 'scan' && i === 0 && v === 'each') out.push(`✖ side.over.${layer}: scan needs a file pattern first → e.g. ${layer}: src/**/*.ts`);
-    else if ((rule === 'each-only' || i > 0) && v !== 'each') out.push(`✖ side.over.${layer}: "${clip(v, 30)}" → use each (we split the layer above)`);
-    else if (rule === 'scan' && i === 0 && (v.startsWith('/') || v.split('/').includes('..'))) out.push(`✖ side.over.${layer}: "${clip(v, 40)}" is outside the project → use a pattern inside it`);
+    if (rule === 'none') out.push(`✖ mak.over.${layer}: loop sweeps ideas you list → write the items as a list; use scan for files`);
+    else if (rule === 'scan' && i === 0 && v === 'each') out.push(`✖ mak.over.${layer}: scan needs a file pattern first → e.g. ${layer}: src/**/*.ts`);
+    else if ((rule === 'each-only' || i > 0) && v !== 'each') out.push(`✖ mak.over.${layer}: "${clip(v, 30)}" → use each (we split the layer above)`);
+    else if (rule === 'scan' && i === 0 && (v.startsWith('/') || v.split('/').includes('..'))) out.push(`✖ mak.over.${layer}: "${clip(v, 40)}" is outside the project → use a pattern inside it`);
   });
-  if (rule === 'scan' && typeof over[chain[0]!] !== 'string') out.push(`✖ side.over.${chain[0]}: scan needs a file pattern first → e.g. ${chain[0]}: src/**/*.ts`);
+  if (rule === 'scan' && typeof over[chain[0]!] !== 'string') out.push(`✖ mak.over.${chain[0]}: scan needs a file pattern first → e.g. ${chain[0]}: src/**/*.ts`);
   const walk = (layer: string, value: unknown, under: string): void => {
     if (typeof value === 'string') return;
     if (!Array.isArray(value)) {
-      out.push(`✖ side.over.${layer}: under ${under}, ${layer} must be a list → ${layer}: [a, b]`);
+      out.push(`✖ mak.over.${layer}: under ${under}, ${layer} must be a list → ${layer}: [a, b]`);
       return;
     }
     counts.set(layer, (counts.get(layer) ?? 0) + value.length);
@@ -168,15 +168,15 @@ export function checkOver(over: Record<string, unknown>, rule: StringRule, cap: 
     for (const raw of value) {
       const it = parseItem(raw);
       if ('problem' in it) {
-        out.push(`✖ side.over.${layer}: ${it.problem}`);
+        out.push(`✖ mak.over.${layer}: ${it.problem}`);
         continue;
       }
-      if (!NAME.test(it.name)) out.push(`✖ side.over.${layer}: item "${clip(it.name, 30)}" → names are 1–80 characters, without "/" or "#"`);
-      if (seen.has(it.name)) out.push(`✖ side.over.${layer}: "${clip(it.name, 30)}" twice under ${under} → give each item its own name`);
+      if (!NAME.test(it.name)) out.push(`✖ mak.over.${layer}: item "${clip(it.name, 30)}" → names are 1–80 characters, without "/" or "#"`);
+      if (seen.has(it.name)) out.push(`✖ mak.over.${layer}: "${clip(it.name, 30)}" twice under ${under} → give each item its own name`);
       seen.add(it.name);
       for (const [child, v] of Object.entries(it.children)) {
         if (!TAG.test(child) || child.length > 20) {
-          out.push(`✖ side.over.${layer}: under "${clip(it.name, 30)}", "${clip(child, 20)}" is not a layer name → lowercase, one word or kebab-case`);
+          out.push(`✖ mak.over.${layer}: under "${clip(it.name, 30)}", "${clip(child, 20)}" is not a layer name → lowercase, one word or kebab-case`);
           continue;
         }
         walk(child, v, `"${clip(it.name, 30)}"`);
@@ -185,7 +185,7 @@ export function checkOver(over: Record<string, unknown>, rule: StringRule, cap: 
   };
   for (const l of chain) walk(l, over[l], 'the top');
   for (const [layer, n] of counts) {
-    if (n > cap) out.push(`✖ side.over.${layer}: ${n} items → at most ${cap} per layer at this depth; raise depth or split the request`);
+    if (n > cap) out.push(`✖ mak.over.${layer}: ${n} items → at most ${cap} per layer at this depth; raise depth or split the request`);
   }
   return [...new Set(out)];
 }

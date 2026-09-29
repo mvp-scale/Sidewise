@@ -1,7 +1,7 @@
 /**
  * Help-first validation of a parsed request (every stop says what to change). Three passes, each reported on
  * its own so an agent fixes one kind of thing at a time:
- *   1. ____ blanks left from a template (sidewise template <verb>);
+ *   1. ____ blanks left from a template (mm3 template <verb>);
  *   2. the schema (schema-check.ts mirrors request.schema.json);
  *   3. the rules the schema can't express: the verb's own fields, numbering, sections, depth, layers and
  *      {blanks}. A problem that only weakens the answer is a note, never a stop — except: the concerns/decisions
@@ -11,7 +11,7 @@
 import { clip } from '../util/text.ts';
 import { blanksIn, checkOver, mapLayers, type StringRule } from './layers.ts';
 import { checkSchema, isObj } from './schema-check.ts';
-import type { WiseField } from './wise-fields.ts';
+import type { MdlField } from './mdl-fields.ts';
 import {
   DECISIONS_MAX,
   DECISIONS_MIN,
@@ -24,10 +24,10 @@ import {
   type Question,
   type Request,
   type Section,
-  type Side,
+  type Mak,
   type Stop,
   type Verb,
-  type Wise,
+  type Mdl,
   FAMILIES,
 } from './types.ts';
 
@@ -44,8 +44,8 @@ const NEEDS: Record<Verb, Field[]> = {
   drill: ['parent', 'from', 'ask'],
 };
 
-// side.parent is allowed on every verb now (plan 2b): required by drill/replay (NEEDS above), lineage-only
-// everywhere else — so it is deliberately absent from every list below. wise.parent remains an accepted alias.
+// mak.parent is allowed on every verb now (plan 2b): required by drill/replay (NEEDS above), lineage-only
+// everywhere else — so it is deliberately absent from every list below. mdl.parent remains an accepted alias.
 const NEVER: Record<Verb, Field[]> = {
   class: ['over', 'from', 'compare', 'expect'],
   view: ['over', 'from', 'compare', 'expect'],
@@ -72,13 +72,13 @@ function how(field: Field, verb: Verb): string {
     case 'where':
       return 'add "where: [path/to/file.ts]"';
     case 'ask':
-      return `add ask: with concerns: and decisions: (sidewise template ${verb})`;
+      return `add ask: with concerns: and decisions: (mm3 template ${verb})`;
     case 'parent':
-      return 'add "parent: SW-####" (the run this builds on)';
+      return 'add "parent: MM3-####" (the run this builds on)';
     case 'compare':
       return 'add "compare: {before: main, after: HEAD}"';
     case 'over':
-      return `add over: with the layers to sweep (sidewise template ${verb})`;
+      return `add over: with the layers to sweep (mm3 template ${verb})`;
     case 'from':
       return 'add "from: <an item id or a category of the parent run>"';
     case 'expect':
@@ -87,12 +87,12 @@ function how(field: Field, verb: Verb): string {
 }
 
 function never(field: Field, verb: Verb): string {
-  if (verb === 'replay' && field === 'ask') return "✖ side.ask: replay re-runs the parent's questions → remove ask; for new questions, use class";
-  if (field === 'expect') return '✖ side.expect: only replay predicts fixed concerns → remove it';
-  if (field === 'over') return `✖ side.over: ${verb} asks about one subject → remove over, or use loop or scan to sweep`;
-  if (field === 'where' && verb === 'scan') return '✖ side.where: scan reads the files in over → remove where';
-  if (field === 'where') return `✖ side.where: ${verb} reads the parent run's code → remove where`;
-  return `✖ side.${field}: ${verb} doesn't take it → remove it`;
+  if (verb === 'replay' && field === 'ask') return "✖ mak.ask: replay re-runs the parent's questions → remove ask; for new questions, use class";
+  if (field === 'expect') return '✖ mak.expect: only replay predicts fixed concerns → remove it';
+  if (field === 'over') return `✖ mak.over: ${verb} asks about one subject → remove over, or use loop or scan to sweep`;
+  if (field === 'where' && verb === 'scan') return '✖ mak.where: scan reads the files in over → remove where';
+  if (field === 'where') return `✖ mak.where: ${verb} reads the parent run's code → remove where`;
+  return `✖ mak.${field}: ${verb} doesn't take it → remove it`;
 }
 
 const cross = (text: string): Stop => ({ cls: 'cross', text });
@@ -100,7 +100,7 @@ const cross = (text: string): Stop => ({ cls: 'cross', text });
 /** Pass 1: any ____ left from a template. */
 function findBlanks(v: unknown, path: string, out: Stop[]): void {
   const label = (p: string): string => {
-    const q = /^side\.ask\..*\.(\d+)$/u.exec(p);
+    const q = /^mak\.ask\..*\.(\d+)$/u.exec(p);
     return q ? `question ${q[1]}` : p;
   };
   if (typeof v === 'string') {
@@ -261,25 +261,25 @@ function contractIssues(categories: readonly Category[], depth: Depth | undefine
   return out;
 }
 
-/** Pass 3: the rules the schema can't express. Returns the normalized side (and any downgraded-to-note
+/** Pass 3: the rules the schema can't express. Returns the normalized mak (and any downgraded-to-note
  *  contract issues) when there are no stops. */
-function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; side?: Side; notes: string[] } {
+function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; mak?: Mak; notes: string[] } {
   const out: Stop[] = [];
   const notes: string[] = [];
-  const side = raw.side as Record<string, unknown>;
-  if (side.verb !== undefined && side.verb !== verb) out.push(cross(`✖ side.verb: says "${side.verb}" but you ran ${verb} → remove side.verb, or run sidewise ${side.verb}`));
-  for (const f of NEEDS[verb]) if (!(f in side)) out.push(cross(`✖ side.${f}: ${verb} needs it → ${how(f, verb)}`));
-  for (const f of NEVER[verb]) if (f in side) out.push(cross(never(f, verb)));
+  const mak = raw.mak as Record<string, unknown>;
+  if (mak.verb !== undefined && mak.verb !== verb) out.push(cross(`✖ mak.verb: says "${mak.verb}" but you ran ${verb} → remove mak.verb, or run mm3 ${mak.verb}`));
+  for (const f of NEEDS[verb]) if (!(f in mak)) out.push(cross(`✖ mak.${f}: ${verb} needs it → ${how(f, verb)}`));
+  for (const f of NEVER[verb]) if (f in mak) out.push(cross(never(f, verb)));
 
-  const over = side.over as Record<string, unknown> | undefined;
-  const ask = (side.ask ?? {}) as Record<string, unknown>;
-  const depth = side.depth as Depth | undefined;
+  const over = mak.over as Record<string, unknown> | undefined;
+  const ask = (mak.ask ?? {}) as Record<string, unknown>;
+  const depth = mak.depth as Depth | undefined;
   const categories: Category[] = [];
   const layers: Layer[] = [];
 
   if (over === undefined) {
     const categoriesGiven = Object.keys(ask).length > 0;
-    const cats = buildCategories(ask, 'side.ask', out);
+    const cats = buildCategories(ask, 'mak.ask', out);
     categories.push(...cats);
     for (const c of cats) {
       for (const q of c.questions) {
@@ -289,11 +289,11 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
     }
     checkNumbers(cats, out);
     if (categoriesGiven) {
-      const issues = contractIssues(cats, depth, 'side.ask');
+      const issues = contractIssues(cats, depth, 'mak.ask');
       if (verb === 'view') {
         for (const i of issues) notes.push(`${i.field}: ${i.problem} (${i.fix}); class will stop on this`);
       } else {
-        for (const i of issues) out.push(cross(`✖ ${i.field}: ${i.problem} → ${i.fix} → see: sidewise agent probe`));
+        for (const i of issues) out.push(cross(`✖ ${i.field}: ${i.problem} → ${i.fix} → see: mm3 agent probe`));
       }
     }
   } else {
@@ -303,15 +303,15 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
     for (const [name, v] of Object.entries(ask)) {
       // The one-subject shape (concerns:/decisions: straight under ask) used where a sweep needs a layer name.
       if (name === 'concerns' || name === 'decisions' || (isObj(v) && 'pass' in v)) {
-        out.push(cross(`✖ side.ask.${name}: a sweep keys categories by layer → ask: {<layer>: {concerns: ..., decisions: ...}}`));
+        out.push(cross(`✖ mak.ask.${name}: a sweep keys categories by layer → ask: {<layer>: {concerns: ..., decisions: ...}}`));
         continue;
       }
       if (!map.layers.includes(name)) {
-        out.push(cross(`✖ side.ask.${name}: not a layer in over → use one of ${map.layers.join(', ')}`));
+        out.push(cross(`✖ mak.ask.${name}: not a layer in over → use one of ${map.layers.join(', ')}`));
         continue;
       }
       const sections = (v ?? {}) as Record<string, unknown>;
-      const cats = buildCategories(sections, `side.ask.${name}`, out);
+      const cats = buildCategories(sections, `mak.ask.${name}`, out);
       const allowed = [name, ...(map.ancestors.get(name) ?? [])];
       for (const c of cats) {
         for (const q of c.questions) {
@@ -328,11 +328,11 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
 
       if (cats.length > 0) {
         const isFinest = name === finest;
-        const issues = contractIssues(cats, isFinest ? depth : undefined, `side.ask.${name}`);
+        const issues = contractIssues(cats, isFinest ? depth : undefined, `mak.ask.${name}`);
         if (isFinest) {
-          for (const i of issues) out.push(cross(`✖ ${i.field}: ${i.problem} → ${i.fix} → see: sidewise agent probe`));
+          for (const i of issues) out.push(cross(`✖ ${i.field}: ${i.problem} → ${i.fix} → see: mm3 agent probe`));
         } else if (issues.length) {
-          notes.push(`side.ask.${name} ask is thin (optional layer; counts aren't enforced) — e.g. ${issues[0]!.field}: ${issues[0]!.problem}`);
+          notes.push(`mak.ask.${name} ask is thin (optional layer; counts aren't enforced) — e.g. ${issues[0]!.field}: ${issues[0]!.problem}`);
         }
       }
     }
@@ -343,15 +343,15 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
   return {
     stops: [],
     notes,
-    side: {
-      ...(side.verb !== undefined ? { verb: side.verb as Verb } : {}),
-      goal: side.goal as string,
+    mak: {
+      ...(mak.verb !== undefined ? { verb: mak.verb as Verb } : {}),
+      goal: mak.goal as string,
       ...(depth ? { depth } : {}),
-      where: (side.where as string[] | undefined) ?? [],
-      ...(side.parent !== undefined ? { parent: side.parent as string } : {}),
-      ...(side.from !== undefined ? { from: side.from as string } : {}),
-      ...(side.compare !== undefined ? { compare: side.compare as { before: string; after: string } } : {}),
-      ...(side.expect !== undefined ? { expect: side.expect as string[] | 'none' } : {}),
+      where: (mak.where as string[] | undefined) ?? [],
+      ...(mak.parent !== undefined ? { parent: mak.parent as string } : {}),
+      ...(mak.from !== undefined ? { from: mak.from as string } : {}),
+      ...(mak.compare !== undefined ? { compare: mak.compare as { before: string; after: string } } : {}),
+      ...(mak.expect !== undefined ? { expect: mak.expect as string[] | 'none' } : {}),
       categories: over === undefined ? categories : [],
       layers,
       ...(over !== undefined ? { over } : {}),
@@ -359,22 +359,22 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
   };
 }
 
-/** `rawText`: the original request text (before YAML parsing), passed through only so checkSchema's wise:
+/** `rawText`: the original request text (before YAML parsing), passed through only so checkSchema's mdl:
  *  line-cap check (plan 2c A4) can count the block's own source lines — everything else here works on the
- *  already-parsed `value`. `wiseFields` (plan 2c B1): the caller's effective (project-config-aware) wise table,
+ *  already-parsed `value`. `mdlFields` (plan 2c B1): the caller's effective (project-config-aware) mdl table,
  *  passed straight through to checkSchema; omitted, every caller keeps the built-in table. */
-export function validateRequest(value: unknown, verb: Verb, rawText?: string, wiseFields?: readonly WiseField[]): Validated {
+export function validateRequest(value: unknown, verb: Verb, rawText?: string, mdlFields?: readonly MdlField[]): Validated {
   const blanks: Stop[] = [];
   findBlanks(value, '', blanks);
   if (blanks.length) return { ok: false, stops: blanks };
-  const schema = checkSchema(value, verb, rawText, wiseFields);
+  const schema = checkSchema(value, verb, rawText, mdlFields);
   if (schema.length) return { ok: false, stops: schema };
   const raw = value as Record<string, unknown>;
-  const { stops, side, notes: crossNotes } = checkCross(raw, verb);
-  if (!side) return { ok: false, stops };
+  const { stops, mak, notes: crossNotes } = checkCross(raw, verb);
+  if (!mak) return { ok: false, stops };
   const notes: string[] = [...crossNotes];
-  const risky = IRREVERSIBLE.exec(side.goal);
+  const risky = IRREVERSIBLE.exec(mak.goal);
   if (risky) notes.push(`${IRREVERSIBLE_NOTE} ("${risky[0].toLowerCase()}")`);
-  const w = raw.wise as Wise | undefined;
-  return { ok: true, request: { side, wise: w && Object.keys(w).length ? w : null }, notes };
+  const w = raw.mdl as Mdl | undefined;
+  return { ok: true, request: { mak, mdl: w && Object.keys(w).length ? w : null }, notes };
 }

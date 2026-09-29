@@ -1,5 +1,5 @@
 /**
- * Everything init/uninstall/doctor need to know about how this CLI gets installed: whether `sidewise` already
+ * Everything init/uninstall/doctor need to know about how this CLI gets installed: whether `mm3` already
  * resolves on PATH, what "self" means to pass to `npm install -g <self>` (the registry spec normally, or an
  * absolute tarball path when this process was itself launched from one — `npx <tgz> init` or
  * `npm run dev:install`), and whether npm's global prefix is writable without sudo.
@@ -11,7 +11,7 @@
  * dependency, and a registry URL otherwise. This is what `npm install <tarball>` writes in a real project, and
  * what `npx <tgz>` writes in its own ephemeral `~/.npm/_npx/<hash>/package-lock.json` — confirmed empirically
  * against this repo's own `npm pack` output before relying on it here. A global install has no such lockfile,
- * so a tarball global-installed copy running `sidewise init` again falls back to the registry spec; noted as a
+ * so a tarball global-installed copy running `mm3 init` again falls back to the registry spec; noted as a
  * known gap rather than guessed at further.
  */
 import { accessSync, constants, readFileSync, statSync } from 'node:fs';

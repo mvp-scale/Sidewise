@@ -1,5 +1,5 @@
 /**
- * The `typesafe` ClassifierPort adapter, the only place Sidewise talks to a vendor. Every ask is ONE POST:
+ * The `typesafe` ClassifierPort adapter, the only place MM3 talks to a vendor. Every ask is ONE POST:
  * yes/no questions as noul, scales as score (criteria = the levels), choices as choice (criteria =
  * {option: option}), all in one questions map. A question about a sweep item sends structured instructions
  * {item, question}, so the classifier knows which entry of state.items it is about.
@@ -9,7 +9,7 @@ import type { ClassifierAnswer, ClassifierPort } from '../port.ts';
 import { choiceQuestion, createJevClient, hasKey, JevConfigError, noulQuestion, resolveJevConfig, scoreQuestion, type JevFileConfig, type JevQuestion, type JsonValue, type ResolveStored } from './client.ts';
 
 export const NO_TYPESAFE_KEY_MESSAGE =
-  '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY or AI_GATEWAY_API_KEY, or SIDEWISE_PROVIDER=fake to try requests';
+  '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY or AI_GATEWAY_API_KEY, or MM3_PROVIDER=fake to try requests';
 
 export function createTypesafeAdapter(
   env: Record<string, string | undefined> = process.env,

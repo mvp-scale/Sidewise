@@ -13,7 +13,7 @@ import { tempProject } from '../helpers/project.ts';
 import { sampleContractRun, sampleRun } from '../helpers/runs.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
 
-const env = { SIDEWISE_ACTOR: 'r' };
+const env = { MM3_ACTOR: 'r' };
 const T = Date.parse('2026-09-26T12:00:00Z');
 
 type Obj = Record<string, unknown>;
@@ -57,7 +57,7 @@ const fullAsk = (named: string, namedPass: 'yes' | 'no', k: number, start = 1, t
   return { concerns, decisions: { severity: scaleDecision(n, undefined, tag), route: choiceDecision(n + 1, undefined, tag) } };
 };
 
-const req = (side: Obj): string => stringify({ side });
+const req = (mak: Obj): string => stringify({ mak });
 
 const SCAN_REQ = req({ goal: 'handlers stay safe', depth: 'quick', over: { file: 'src/*.ts', function: 'each' }, ask: { function: fullAsk('injection', 'no', 1) } });
 const CLASS_REQ = req({ goal: 'check this code', depth: 'quick', where: ['src/a.ts'], ask: fullAsk('injection', 'no', 1) });
@@ -65,25 +65,25 @@ const CLASS_REQ = req({ goal: 'check this code', depth: 'quick', where: ['src/a.
 describe('drill: parent and from resolution', () => {
   it('a parent not in the ledger stops', async () => {
     const { paths } = tempProject({});
-    const r = await runDrill(req({ goal: 'check this thing', parent: 'SW-0042', from: 'x', ask: oneAsk('a', 1, 'yes') }), { paths, provider: stubProvider(), env });
+    const r = await runDrill(req({ goal: 'check this thing', parent: 'MM3-0042', from: 'x', ask: oneAsk('a', 1, 'yes') }), { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0042 is not in the ledger → check the id\n→ see: sidewise agent drill');
+    expect(r.text).toBe('✖ mak.parent: MM3-0042 is not in the ledger → check the id\n→ see: mm3 agent drill');
   });
 
   it('a legacy (Plan 1) parent stops', async () => {
     const { paths } = tempProject({});
-    appendRun(paths, sampleRun()); // SW-0001: a Plan 1 run, no v: 2
-    const r = await runDrill(req({ goal: 'check this thing', parent: 'SW-0001', from: 'x', ask: oneAsk('a', 1, 'yes') }), { paths, provider: stubProvider(), env });
+    appendRun(paths, sampleRun()); // MM3-0001: a Plan 1 run, no v: 2
+    const r = await runDrill(req({ goal: 'check this thing', parent: 'MM3-0001', from: 'x', ask: oneAsk('a', 1, 'yes') }), { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe('✖ side.parent: SW-0001 predates the YAML contract → run class or scan again\n→ see: sidewise agent drill');
+    expect(r.text).toBe('✖ mak.parent: MM3-0001 predates the YAML contract → run class or scan again\n→ see: mm3 agent drill');
   });
 
   // Fix #10: a sweep item that has code (a unit) can be drilled flat, one subject, no further layer — the
   // fresh ask: categories are answered straight against that item's own lines, class-style. [C-144]
   it('a sweep parent, no over:, from: names a coded item — a flat one-subject proof', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
-    await runScan(SCAN_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
-    const r = await runDrill(req({ goal: 'find the bug', parent: 'SW-0001', from: 'src/a.ts/findUser', ask: oneAsk('injection', 1, 'no') }), {
+    await runScan(SCAN_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // MM3-0001
+    const r = await runDrill(req({ goal: 'find the bug', parent: 'MM3-0001', from: 'src/a.ts/findUser', ask: oneAsk('injection', 1, 'no') }), {
       paths,
       provider: stubProvider({ yes: () => 0.95 }),
       env,
@@ -92,18 +92,18 @@ describe('drill: parent and from resolution', () => {
     expect(r.text).toContain('gate: fail');
     expect(r.text).toContain('injection: {gate: fail, 1: 0.95, 2: 0.95, 3: 0.95}');
     expect(r.text).toContain('consensus:');
-    // replay --parent points at THIS drill (SW-0002, items: null), not the sweep it was drilled from
-    // (SW-0001, items !== null — replay refuses a sweep parent outright).
-    expect(r.text).toContain('next: fix it, then sidewise replay --parent SW-0002 --compare <before>..<after>');
+    // replay --parent points at THIS drill (MM3-0002, items: null), not the sweep it was drilled from
+    // (MM3-0001, items !== null — replay refuses a sweep parent outright).
+    expect(r.text).toContain('next: fix it, then mm3 replay --parent MM3-0002 --compare <before>..<after>');
   });
 
-  // C-171: a sweep item's own whole-file range is Sidewise's own choice (scan's file-layer item), not a
+  // C-171: a sweep item's own whole-file range is MM3's own choice (scan's file-layer item), not a
   // user-typed where: — part 1 turning an oversized where: entry into a stop must never reach this path.
   it('a sweep parent, no over:, from: names an oversized FILE-layer item — still proves flat, no stop [C-171]', async () => {
     const big = Array.from({ length: 1000 }, () => 'x'.repeat(30)).join('\n'); // well over the per-file evidence limit
     const { paths } = tempProject({ 'src/big.ts': big });
-    await runScan(SCAN_REQ, { paths, provider: stubProvider({ yes: () => 0.1 }), env }); // SW-0001; src/big.ts has no functions, just the file item
-    const r = await runDrill(req({ goal: 'check the whole file', parent: 'SW-0001', from: 'src/big.ts', ask: oneAsk('injection', 1, 'no') }), {
+    await runScan(SCAN_REQ, { paths, provider: stubProvider({ yes: () => 0.1 }), env }); // MM3-0001; src/big.ts has no functions, just the file item
+    const r = await runDrill(req({ goal: 'check the whole file', parent: 'MM3-0001', from: 'src/big.ts', ask: oneAsk('injection', 1, 'no') }), {
       paths,
       provider: stubProvider({ yes: () => 0.2 }),
       env,
@@ -117,38 +117,38 @@ describe('drill: parent and from resolution', () => {
   it('a sweep parent (loop), no over:, from: names an idea item — a clean stop, not a crash', async () => {
     const { paths } = tempProject({});
     const loopReq = req({ goal: 'the plan holds up', depth: 'quick', over: { part: ['payments'] }, ask: { part: fullAsk('risk', 'no', 1) } });
-    await runLoop(loopReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
-    const bad = req({ goal: 'find the bug', parent: 'SW-0001', from: 'payments', ask: oneAsk('a', 1, 'yes') });
+    await runLoop(loopReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // MM3-0001
+    const bad = req({ goal: 'find the bug', parent: 'MM3-0001', from: 'payments', ask: oneAsk('a', 1, 'yes') });
     const r = await runDrill(bad, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
     expect(r.text).toBe(
-      '✖ side.from: "payments" has no code → add over: with the next layer down, or drill an item scan found (sidewise template drill --parent SW-0001 --from payments)\n→ see: sidewise agent drill',
+      '✖ mak.from: "payments" has no code → add over: with the next layer down, or drill an item scan found (mm3 template drill --parent MM3-0001 --from payments)\n→ see: mm3 agent drill',
     );
   });
 
   it('a sweep parent, a from: that names no item it listed', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
-    await runScan(SCAN_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
-    const bad = req({ goal: 'find the bug', parent: 'SW-0001', from: 'nope', over: { call: 'each' }, ask: { call: oneAsk('x', 1, 'no') } });
+    await runScan(SCAN_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // MM3-0001
+    const bad = req({ goal: 'find the bug', parent: 'MM3-0001', from: 'nope', over: { call: 'each' }, ask: { call: oneAsk('x', 1, 'no') } });
     const r = await runDrill(bad, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
-    expect(r.text).toContain('✖ side.from: "nope" is not an item SW-0001 listed → use one of:');
+    expect(r.text).toContain('✖ mak.from: "nope" is not an item MM3-0001 listed → use one of:');
   });
 
   it('a one-subject parent given over: stops', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'x' });
-    await runClass(CLASS_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
-    const bad = req({ goal: 'find the bug', parent: 'SW-0001', from: 'injection', over: { call: 'each' }, ask: { call: oneAsk('x', 1, 'no') } });
+    await runClass(CLASS_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // MM3-0001
+    const bad = req({ goal: 'find the bug', parent: 'MM3-0001', from: 'injection', over: { call: 'each' }, ask: { call: oneAsk('x', 1, 'no') } });
     const r = await runDrill(bad, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
-    expect(r.text).toBe("✖ side.over: SW-0001 wasn't a sweep → remove over\n→ see: sidewise agent drill");
+    expect(r.text).toBe("✖ mak.over: MM3-0001 wasn't a sweep → remove over\n→ see: mm3 agent drill");
   });
 });
 
 describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing as a count', () => {
   const drillReq = req({
     goal: 'Find exactly where request text reaches the query',
-    parent: 'SW-0001',
+    parent: 'MM3-0001',
     from: 'src/a.ts/findUser',
     depth: 'quick',
     over: { call: 'each' },
@@ -165,11 +165,11 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     expect(r.text).toContain('src/a.ts/findUser/db.query: {injection: fail, 1: 0.96, 2: 0.96, 3: 0.96}');
     expect(r.text).toContain('passing: 0');
     // Controller ruling (task-21-brief): a sweep parent's fail/unsure next fixes-and-reruns the drill (cheap,
-    // reuse-aware), never sidewise replay — replay.ts refuses a sweep parent (Decision 2).
+    // reuse-aware), never mm3 replay — replay.ts refuses a sweep parent (Decision 2).
     expect(r.text).toContain('next: fix it, then run this drill again');
-    expect(r.text).not.toContain('sidewise replay');
+    expect(r.text).not.toContain('mm3 replay');
     const [run] = readLedger(paths).filter((x) => isContractRun(x) && x.verb === 'drill');
-    expect(run).toMatchObject({ parent: 'SW-0001', from: 'src/a.ts/findUser' });
+    expect(run).toMatchObject({ parent: 'MM3-0001', from: 'src/a.ts/findUser' });
   });
 
   it('--dry-run: no provider call, no ledger line [C-088]', async () => {
@@ -181,7 +181,7 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     // fullAsk(1) on the finest layer: 3 categories x 3 probes + 2 decisions = 11 questions for the one call item.
     expect(r.text).toBe('plan:\n  calls: 1\n  questions: 11\n  items: 1\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
-    expect(readLedger(paths).filter(isContractRun)).toHaveLength(1); // just the scan parent, SW-0001
+    expect(readLedger(paths).filter(isContractRun)).toHaveLength(1); // just the scan parent, MM3-0001
   });
 
   it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
@@ -196,8 +196,8 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
   // added here — this shape, like loop's, has never documented one; see C-078's own worked example).
   it('a fully-reused sweep drill is never blocked by an already-reached cap', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
-    await runScan(SCAN_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001
-    await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.96 }), env }); // SW-0002
+    await runScan(SCAN_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // MM3-0001
+    await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.96 }), env }); // MM3-0002
     setBudget(paths, { capRuns: 2 }); // exactly used up
     const r = await runDrill(drillReq, { paths, provider: stubProvider(), env }); // fully reused: no call needed
     expect(r.exit).toBe(0);
@@ -235,7 +235,7 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
       ask: { categories: [], layers: [{ name: 'function', categories: [{ name: 'injection', section: 'concerns', pass: 'no', need: 'all', tags: [], questions: [{ n: 1, kind: 'yesno', text: 'is it unsafe?' }] }] }] },
       over: { file: 'src/*.ts', function: 'each' },
     });
-    appendContractRun(paths, parent, T, 'b'); // SW-0001
+    appendContractRun(paths, parent, T, 'b'); // MM3-0001
     const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');
@@ -259,10 +259,10 @@ describe('drill: a sweep parent (loop) — an idea item has no unit, unlike scan
   it('drilling into an idea item with a new list of ideas works (no code to resolve, so no resolver is needed)', async () => {
     const { paths } = tempProject({});
     const failsDone = failsFirstCategory('payments/refunds');
-    await runLoop(loopReq, { paths, provider: stubProvider({ yes: (q) => (failsDone(q) ? 0.2 : 0.9) }), env }); // SW-0001
+    await runLoop(loopReq, { paths, provider: stubProvider({ yes: (q) => (failsDone(q) ? 0.2 : 0.9) }), env }); // MM3-0001
     const drillReq = req({
       goal: 'find why refunds is unsound',
-      parent: 'SW-0001',
+      parent: 'MM3-0001',
       from: 'payments/refunds',
       depth: 'quick',
       over: { cause: ['double charge', 'silent failure'] },
@@ -278,10 +278,10 @@ describe('drill: a sweep parent (loop) — an idea item has no unit, unlike scan
   it('drilling into an idea item with "each" cannot resolve code that does not exist — a clean stop, not a crash', async () => {
     const { paths } = tempProject({});
     const failsDone = failsFirstCategory('payments/refunds');
-    await runLoop(loopReq, { paths, provider: stubProvider({ yes: (q) => (failsDone(q) ? 0.2 : 0.9) }), env }); // SW-0001
+    await runLoop(loopReq, { paths, provider: stubProvider({ yes: (q) => (failsDone(q) ? 0.2 : 0.9) }), env }); // MM3-0001
     const drillReq = req({
       goal: 'find why refunds is unsound',
-      parent: 'SW-0001',
+      parent: 'MM3-0001',
       from: 'payments/refunds',
       depth: 'quick',
       over: { cause: 'each' },
@@ -290,7 +290,7 @@ describe('drill: a sweep parent (loop) — an idea item has no unit, unlike scan
     const r = await runDrill(drillReq, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
     expect(r.text).toBe(
-      '✖ side.over.cause: "payments/refunds" is an idea, not code → give cause as a list of items (there is nothing to split with each)\n→ see: sidewise agent drill',
+      '✖ mak.over.cause: "payments/refunds" is an idea, not code → give cause as a list of items (there is nothing to split with each)\n→ see: mm3 agent drill',
     );
   });
 });
@@ -298,7 +298,7 @@ describe('drill: a sweep parent (loop) — an idea item has no unit, unlike scan
 describe('drill: a one-subject parent (class) — the class shape', () => {
   const drillReq = req({
     goal: 'Find exactly where request text reaches the query',
-    parent: 'SW-0001',
+    parent: 'MM3-0001',
     from: 'injection',
     ask: {
       concerns: {
@@ -323,7 +323,7 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     expect(r.text).toContain('source: {gate: fail, 1: 0.95, 2: 0.95, 3: 0.95}');
     expect(r.text).toContain('consensus:');
     // Controller ruling: a one-subject parent's fail/unsure next keeps fix-then-replay.
-    expect(r.text).toContain('next: fix it, then sidewise replay --parent SW-0001 --compare <before>..<after>');
+    expect(r.text).toContain('next: fix it, then mm3 replay --parent MM3-0001 --compare <before>..<after>');
 
     // [C-079] the narrower "source" category drill invented becomes part of the record at this place: it
     // rides drill's own run (where: parent.where), so view's per-category history now carries it too — view
@@ -335,16 +335,16 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
       ask: { concerns: { source: { pass: 'no', 1: 'Is the value concatenated straight into the string?', 2: 'Does it skip a parameterized query?' } } },
     });
     const v = runView(viewText, 1, { paths, env: {} });
-    expect(v.text).toContain('source: {runs: 1, pass: 0, fail: 1, last: SW-0002}');
+    expect(v.text).toContain('source: {runs: 1, pass: 0, fail: 1, last: MM3-0002}');
   });
 
   it('a from that names neither a category nor an item: a clean stop', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'x' });
     await runClass(CLASS_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env });
-    const bad = req({ goal: 'find the bug', parent: 'SW-0001', from: 'nope', ask: oneAsk('a', 1, 'yes') });
+    const bad = req({ goal: 'find the bug', parent: 'MM3-0001', from: 'nope', ask: oneAsk('a', 1, 'yes') });
     const r = await runDrill(bad, { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
-    expect(r.text).toContain('✖ side.from: "nope" is not a category of SW-0001');
+    expect(r.text).toContain('✖ mak.from: "nope" is not a category of MM3-0001');
   });
 
   it('--dry-run: no provider call, no ledger line [C-088]', async () => {
@@ -356,19 +356,19 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     // goal + source's 3 probes + severity + route = 6.
     expect(r.text).toBe('plan:\n  calls: 1\n  questions: 6\n  reused: 0\n  route: fake\nnotes: ["dry run: no call, no spend"]\n');
     expect(provider.calls).toHaveLength(0);
-    expect(readLedger(paths).filter(isContractRun)).toHaveLength(1); // just the class parent, SW-0001
+    expect(readLedger(paths).filter(isContractRun)).toHaveLength(1); // just the class parent, MM3-0001
   });
 
   // Fix #5/#6 follow-through: same pattern as class.ts — reuse is resolved before preflight, so a fully-reused
   // drill is never blocked by an already-reached budget cap, and the response says which run its answers came from.
   it('a fully-reused drill is never blocked by an already-reached cap, and names the run it reused [C-149]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
-    await runClass(CLASS_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // SW-0001, 1 run
-    await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95 }), env }); // SW-0002, 1 run
+    await runClass(CLASS_REQ, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // MM3-0001, 1 run
+    await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95 }), env }); // MM3-0002, 1 run
     setBudget(paths, { capRuns: 2 }); // exactly used up by the two runs above
     const r = await runDrill(drillReq, { paths, provider: stubProvider(), env }); // fully reused: no call needed
     expect(r.exit).toBe(0);
-    expect(r.text).toContain('reused: [SW-0002]');
+    expect(r.text).toContain('reused: [MM3-0002]');
   });
 
   it('a rehearsal adapter (fake) labels its notes "not evidence" (BRIEF §5) [C-092]', async () => {
@@ -385,7 +385,7 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });
     mkdirSync(paths.dir, { recursive: true });
     writeFileSync(paths.budget, JSON.stringify({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z' }));
-    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // SW-0001: the default "injection" category
+    appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'] }), T, 'b'); // MM3-0001: the default "injection" category
     const r = await runDrill(drillReq, { paths, provider: stubProvider({ yes: () => 0.95 }), env });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('budget file created with defaults ($5.00 · 500 runs)');

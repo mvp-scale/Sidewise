@@ -1,6 +1,6 @@
 /**
- * `sidewise report web`: the one view that writes something — a self-contained, read-only
- * `.sidewise/viewer.html`, opened in a browser when one is available. Everything it shows is derived, read-side,
+ * `mm3 report web`: the one view that writes something — a self-contained, read-only
+ * `.mm3/viewer.html`, opened in a browser when one is available. Everything it shows is derived, read-side,
  * from records the other verbs already wrote (readLedger, never the id index — this never touches index.db).
  *
  * The place x concern consensus is a straight port of an internal consensus prototype's graph: for every
@@ -15,7 +15,7 @@
  * agree or disagree in.
  *
  * `fail`→`pass` and `pass`→`fail` arcs come straight out of the same (place, concern) history the consensus
- * above already groups: every hit sorted by its own run's `ts` (never by SW id — ids repeat across a
+ * above already groups: every hit sorted by its own run's `ts` (never by MM3 id — ids repeat across a
  * concatenated/multi-session ledger, and even within one ledger, id order and ts order can't be assumed the
  * same), earliest vs latest. Earliest `fail` and latest `pass` is a fix that held; the reverse is a regression;
  * anything else (agreement, or an `unsure` at either end) is neither — this is deliberately a two-point read,
@@ -41,7 +41,7 @@ import path from 'node:path';
 import type { Category, Gate } from '../contract/types.ts';
 import { sweepPlaces, stripLines } from '../ledger/index.ts';
 import { isContractRun, isRun, readLedger, type ContractRun, type FailedRecord, type LedgerRecord, type Outcome, type OutcomeRecord } from '../ledger/log.ts';
-import { ensureDir, type SidewisePaths } from '../ledger/paths.ts';
+import { ensureDir, type Mm3Paths } from '../ledger/paths.ts';
 import type { Runner } from '../setup/runner.ts';
 import type { VerbResult } from './types.ts';
 
@@ -164,8 +164,8 @@ function placeSummary(rec: ContractRun): string {
   return sweep.length ? sweep.join(', ') : '(no place)';
 }
 
-function wiseTags(rec: ContractRun): string[] {
-  const w = rec.wise;
+function mdlTags(rec: ContractRun): string[] {
+  const w = rec.mdl;
   if (!w) return [];
   const tags: string[] = [];
   if (w.why) tags.push(`why:${w.why}`);
@@ -199,7 +199,7 @@ interface Edge {
   gate: Gate;
   p: number | null;
   qtext: string;
-  /** The run's own ts (never the SW id) — the only thing arcs are ever ordered by. */
+  /** The run's own ts (never the MM3 id) — the only thing arcs are ever ordered by. */
   ts: string;
 }
 
@@ -210,7 +210,7 @@ function collectEdges(runs: readonly ContractRun[]): { edges: Edge[]; runTags: M
   const edges: Edge[] = [];
   const runTags = new Map<string, string[]>();
   for (const rec of runs) {
-    runTags.set(rec.id, wiseTags(rec));
+    runTags.set(rec.id, mdlTags(rec));
     if (rec.items) {
       const layerCats = new Map<string, Category[]>();
       for (const layer of rec.ask.layers) layerCats.set(layer.name, layer.categories);
@@ -293,7 +293,7 @@ function mergePathAliases(places: readonly string[]): { canonicalOf: Map<string,
   return { canonicalOf, merged: canonicalOf.size };
 }
 
-/** Every (place, concern) pair's earliest and latest hit, ordered by the run's own `ts` — never by SW id, which
+/** Every (place, concern) pair's earliest and latest hit, ordered by the run's own `ts` — never by MM3 id, which
  *  repeats across a concatenated/multi-session ledger and isn't chronological even within one ledger. Earliest
  *  `fail` -> latest `pass` is a fix that held; the reverse is a regression; anything else (agreement, or an
  *  `unsure` at either end) isn't reported at all — a deliberate two-point read, not a full walk of every flip. */
@@ -618,7 +618,7 @@ ul.story-list li { padding:3px 0; border-bottom:1px solid var(--border); overflo
 const BODY = `
 <header class="topbar">
   <div class="topbar-left">
-    <span class="brand">SIDEWISE</span>
+    <span class="brand">MM3</span>
     <nav class="tabs" role="tablist">
       <button class="tab-btn" type="button" data-tab="map" aria-selected="true" role="tab">Map</button>
       <button class="tab-btn" type="button" data-tab="heat" aria-selected="false" role="tab">Heat map</button>
@@ -673,7 +673,7 @@ const BODY = `
     </div>
   </aside>
 </div>
-<footer class="viewer-footer">A System One needs a Knowledge One. · Sidewise</footer>
+<footer class="viewer-footer">A System One needs a Knowledge One. · MM3</footer>
 `;
 
 // Vanilla JS, no dependencies: reads #viewer-data with JSON.parse (never eval), and writes every piece of
@@ -829,7 +829,7 @@ const CLIENT_JS = `
     else document.documentElement.removeAttribute('data-theme');
   }
   var saved = null;
-  try { saved = localStorage.getItem('sidewise-viewer-theme'); } catch (e) { saved = null; }
+  try { saved = localStorage.getItem('mm3-viewer-theme'); } catch (e) { saved = null; }
   if (saved === 'light' || saved === 'dark') applyTheme(saved);
   themeBtn.addEventListener('click', function () {
     var current = document.documentElement.getAttribute('data-theme');
@@ -837,8 +837,8 @@ const CLIENT_JS = `
     var next = current === 'dark' ? 'light' : current === 'light' ? null : (prefersDark ? 'light' : 'dark');
     applyTheme(next);
     try {
-      if (next) localStorage.setItem('sidewise-viewer-theme', next);
-      else localStorage.removeItem('sidewise-viewer-theme');
+      if (next) localStorage.setItem('mm3-viewer-theme', next);
+      else localStorage.removeItem('mm3-viewer-theme');
     } catch (e) { /* per-viewer convenience only; a blocked store just means the toggle doesn't persist */ }
   });
 
@@ -853,7 +853,7 @@ export function renderViewerHtml(data: ViewerData): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sidewise ledger viewer</title>
+<title>MM3 ledger viewer</title>
 <style>${CSS}</style>
 </head>
 <body>
@@ -866,7 +866,7 @@ ${BODY}
 }
 
 export interface ReportWebContext {
-  paths: SidewisePaths;
+  paths: Mm3Paths;
   env: Record<string, string | undefined>;
   runner: Runner;
   platform: NodeJS.Platform;
@@ -887,7 +887,7 @@ function tryOpen(filePath: string, platform: NodeJS.Platform, runner: Runner, en
 }
 
 /** Free and read-only on the ledger: readLedger only (never withIndex — this never touches index.db), then one
- *  write, `.sidewise/viewer.html`, and a best-effort open. Always prints the file's path, opened or not. */
+ *  write, `.mm3/viewer.html`, and a best-effort open. Always prints the file's path, opened or not. */
 export function runReportWeb(ctx: ReportWebContext): VerbResult {
   const records = readLedger(ctx.paths, { partialTail: true });
   const data = buildViewerData(records, ctx.now ? ctx.now() : Date.now());
@@ -899,6 +899,6 @@ export function runReportWeb(ctx: ReportWebContext): VerbResult {
   const opened = tryOpen(viewerPath, ctx.platform, ctx.runner, ctx.env);
   const runCount = data.windows.all.story.runs;
   const placeCount = data.windows.all.layers.reduce((n, l) => n + l.cards.length, 0);
-  const summary = `sidewise report web · wrote ${shown} (${runCount} run${runCount === 1 ? '' : 's'}, ${placeCount} place${placeCount === 1 ? '' : 's'})`;
+  const summary = `mm3 report web · wrote ${shown} (${runCount} run${runCount === 1 ? '' : 's'}, ${placeCount} place${placeCount === 1 ? '' : 's'})`;
   return { exit: 0, text: opened ? `${summary} → opened in your browser` : `${summary} → open it yourself, no browser available` };
 }

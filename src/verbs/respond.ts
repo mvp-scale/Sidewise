@@ -1,12 +1,12 @@
 /**
  * The compact YAML response, shared by every verb (contract "Every response"). Pure formatting, no I/O: builds
- * the `side:`/`plan:` Value tree and hands it to emit.ts. Pins the exact shapes later verbs (replay, loop, scan,
+ * the `mak:`/`plan:` Value tree and hands it to emit.ts. Pins the exact shapes later verbs (replay, loop, scan,
  * drill) depend on — a change here is a change to what every verb prints.
  */
 import { isRehearsal } from '../classifier/port.ts';
 import { emit, m, type Value } from '../contract/emit.ts';
 import type { CategoryGrade, ItemGrade, Shown, SubjectGrade } from '../contract/grade.ts';
-import type { Answer, Category, Depth, Gate, Side, Wise } from '../contract/types.ts';
+import type { Answer, Category, Depth, Gate, Mak, Mdl } from '../contract/types.ts';
 import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
 import { computeConsensus, type Consensus, type SlotAnswer } from '../lens/consensus.ts';
 import { clip } from '../util/text.ts';
@@ -20,8 +20,8 @@ export function categoryEntry(g: CategoryGrade): [string, Value] {
   return [g.name, m(['gate', g.gate], ...[...g.values].map(([n, v]): [string, Value] => [String(n), shownValue(v)]))];
 }
 
-/** One subject's `side:` block: id, gate, the goal (when asked), every category, then whatever the verb adds. */
-export function subjectSide(id: string, gate: Gate, subject: SubjectGrade, extra?: Array<[string, Value]>): Map<string, Value> {
+/** One subject's `mak:` block: id, gate, the goal (when asked), every category, then whatever the verb adds. */
+export function subjectMak(id: string, gate: Gate, subject: SubjectGrade, extra?: Array<[string, Value]>): Map<string, Value> {
   return m(
     ['id', id],
     ['gate', gate],
@@ -54,30 +54,30 @@ export function consensusAndEscalate(
   return { consensus, escalate };
 }
 
-/** `wise: {recorded: [...]}` fields, or the string "none" when nothing was recorded. Named in `Wise`'s own
+/** `mdl: {recorded: [...]}` fields, or the string "none" when nothing was recorded. Named in `Mdl`'s own
  *  field order (why, area, stage, change, risk, problem, uses, touches, blast — plan 2c's `uses` replaces plan
- *  2b's `nodes` in the same slot); any custom keys (wise.extras) are appended next, sorted; `extra` (e.g.
+ *  2b's `nodes` in the same slot); any custom keys (mdl.extras) are appended next, sorted; `extra` (e.g.
  *  replay.ts's `['parent']`) always comes last. */
-export function wiseRecorded(wise: Wise | null, extra?: readonly string[]): Value {
+export function mdlRecorded(mdl: Mdl | null, extra?: readonly string[]): Value {
   const fields = [
-    ...(wise?.why ? ['why'] : []),
-    ...(wise?.area && (!Array.isArray(wise.area) || wise.area.length) ? ['area'] : []),
-    ...(wise?.stage ? ['stage'] : []),
-    ...(wise?.change ? ['change'] : []),
-    ...(wise?.risk ? ['risk'] : []),
-    ...(wise?.problem ? ['problem'] : []),
-    ...(wise?.uses?.length ? ['uses'] : []),
-    ...(wise?.touches?.length ? ['touches'] : []),
-    ...(wise?.blast ? ['blast'] : []),
-    ...(wise?.extras ? Object.keys(wise.extras).sort() : []),
+    ...(mdl?.why ? ['why'] : []),
+    ...(mdl?.area && (!Array.isArray(mdl.area) || mdl.area.length) ? ['area'] : []),
+    ...(mdl?.stage ? ['stage'] : []),
+    ...(mdl?.change ? ['change'] : []),
+    ...(mdl?.risk ? ['risk'] : []),
+    ...(mdl?.problem ? ['problem'] : []),
+    ...(mdl?.uses?.length ? ['uses'] : []),
+    ...(mdl?.touches?.length ? ['touches'] : []),
+    ...(mdl?.blast ? ['blast'] : []),
+    ...(mdl?.extras ? Object.keys(mdl.extras).sort() : []),
     ...(extra ?? []),
   ];
   return fields.length ? fields : 'none';
 }
 
-/** `wise` is always shown as {recorded: ...} (contract: "wise: {recorded: [why, area]}", or "{recorded: none}"). */
-export function respondText(side: Map<string, Value>, wise: Value, next: string, notes: readonly string[]): string {
-  return emit(m(['side', side], ['wise', m(['recorded', wise])], ['next', next], ['notes', [...notes]]));
+/** `mdl` is always shown as {recorded: ...} (contract: "mdl: {recorded: [why, area]}", or "{recorded: none}"). */
+export function respondText(mak: Map<string, Value>, mdl: Value, next: string, notes: readonly string[]): string {
+  return emit(m(['mak', mak], ['mdl', m(['recorded', mdl])], ['next', next], ['notes', [...notes]]));
 }
 
 /** Validation and evidence notes first; a rehearsal adapter (fake, chaos — port.ts's own REHEARSAL_ADAPTERS)
@@ -109,7 +109,7 @@ export function outcomeNext(id: string, gate: Gate, graded: readonly CategoryGra
 }
 
 export function drillNext(id: string, target: string): string {
-  return `sidewise template drill --parent ${id} --from ${target}`;
+  return `mm3 template drill --parent ${id} --from ${target}`;
 }
 
 /**
@@ -168,7 +168,7 @@ const MAX_PROBE_WARNINGS = 3;
 
 /** Extensions the file-path backtick check treats as "looks like a real file" — enough to tell `src/other.ts`
  *  or `config.json` (a path with nothing to answer from) apart from a backticked code identifier like
- *  `db.query` or `req.query.id` (the sidewise-probe skill tells agents to backtick both kinds). */
+ *  `db.query` or `req.query.id` (the mm3-probe skill tells agents to backtick both kinds). */
 const PATH_EXTENSIONS = new Set([
   'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'py', 'go', 'rs', 'java', 'rb', 'php', 'cs', 'json', 'yaml', 'yml', 'html', 'sql', 'md', 'sh', 'env',
 ]);
@@ -184,29 +184,29 @@ function looksLikeFilePath(text: string): boolean {
 }
 
 /** Every yes/no/scale/choice question across a request's own shape: flat categories for one subject, or every
- *  layer's categories for a sweep — never both at once (`Side.categories` is empty in a sweep, `Side.layers` is
+ *  layer's categories for a sweep — never both at once (`Mak.categories` is empty in a sweep, `Mak.layers` is
  *  empty for one subject). */
-function allQuestions(side: Side): readonly { text: string }[] {
-  return [...side.categories, ...side.layers.flatMap((l) => l.categories)].flatMap((c) => c.questions);
+function allQuestions(mak: Mak): readonly { text: string }[] {
+  return [...mak.categories, ...mak.layers.flatMap((l) => l.categories)].flatMap((c) => c.questions);
 }
 
 /** Item F (round 4 fix batch G): up to 3 `probe:`-prefixed WARNINGS in `--dry-run`'s own notes for
  *  mechanically-checkable authoring issues in `ask:` — never a new stop, never a new validator rule. Explicitly
  *  skips a category mixing yes/no polarity words: that's a semantic judgment call, not something this can check
- *  by pattern alone (`sidewise agent probe`'s own rule 4 already teaches it in prose). A question over 160
+ *  by pattern alone (`mm3 agent probe`'s own rule 4 already teaches it in prose). A question over 160
  *  characters is likewise skipped here — the schema stops that outright (schema-check.ts), so by the time a
  *  request reaches `--dry-run` it can no longer be true. */
-export function probeWarnings(side: Side): string[] {
+export function probeWarnings(mak: Mak): string[] {
   const warnings: string[] = [];
-  for (const q of allQuestions(side)) {
+  for (const q of allQuestions(mak)) {
     const marks = q.text.match(/\?/g)?.length ?? 0;
     if (marks >= 2 || / and /.test(q.text)) {
       warnings.push(`probe: "${clip(q.text, 60)}" reads as two questions joined into one — split it`);
     }
-    if (side.where.length > 0) {
+    if (mak.where.length > 0) {
       for (const m of q.text.matchAll(/`([^`]+)`/g)) {
         const named = m[1]!;
-        if (looksLikeFilePath(named) && !side.where.includes(named) && !side.where.some((w) => w.startsWith(`${named}:`))) {
+        if (looksLikeFilePath(named) && !mak.where.includes(named) && !mak.where.some((w) => w.startsWith(`${named}:`))) {
           warnings.push(`probe: "${clip(named, 60)}" is named in a question but not in where: — it has nothing to answer from`);
         }
       }

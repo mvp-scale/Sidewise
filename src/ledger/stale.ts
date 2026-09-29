@@ -11,7 +11,7 @@ import type { Question } from '../contract/types.ts';
 import { clip } from '../util/text.ts';
 import { readRecordAt, stripLines, withIndex } from './index.ts';
 import { isContractRun } from './log.ts';
-import type { SidewisePaths } from './paths.ts';
+import type { Mm3Paths } from './paths.ts';
 
 const MAX_STALE_NOTES = 3;
 
@@ -29,7 +29,7 @@ function sameQuestion(older: Question, asking: AskedQuestion): boolean {
  *  origin) share that origin, so they'd otherwise produce identical notes and burn the whole
  *  `MAX_STALE_NOTES` budget on duplicates instead of distinct information. `reusedFrom[qid] ?? rec.id` is the
  *  origin: the run a reuse copy actually got its answer from, or the record itself when it wasn't a reuse. */
-export function staleNotes(paths: SidewisePaths, where: readonly string[], toAsk: readonly (readonly [AskedQuestion, string])[]): string[] {
+export function staleNotes(paths: Mm3Paths, where: readonly string[], toAsk: readonly (readonly [AskedQuestion, string])[]): string[] {
   if (!toAsk.length || !where.length) return [];
   const places = [...new Set(where.map(stripLines))];
   return withIndex(

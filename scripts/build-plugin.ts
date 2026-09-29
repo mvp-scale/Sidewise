@@ -1,6 +1,6 @@
 /**
  * `npm run build:plugin`: bundles `src/cli.ts` and its one runtime dependency (`yaml`) into a single committed
- * ESM file, `bin/sidewise.mjs` — the second packaging (owner ruling, 2026-09-27-plugin-self-contained.md, P1).
+ * ESM file, `bin/mm3.mjs` — the second packaging (owner ruling, 2026-09-27-plugin-self-contained.md, P1).
  * Claude Code copies the plugin folder from git and never runs a build step, so this file has to be checked in
  * and kept in sync by hand (`npm run check:plugin`, scripts/check-plugin.ts, re-uses `bundlePlugin` below
  * against a temp path and diffs it against the committed one). `npm run build` (tsc, dist/) is unrelated and
@@ -19,7 +19,7 @@ export const ENTRY = 'src/cli.ts';
 // 'process' specifier). The banner below defines that missing `require` via `node:module`'s createRequire, so
 // the shim's own `typeof require !== 'undefined'` check finds a real one and just uses it — the standard fix
 // for esbuild's Node+ESM+CJS-interop gap, not something specific to this codebase.
-const REQUIRE_SHIM_BANNER = "import { createRequire as __sidewiseCreateRequire } from 'node:module';\nconst require = __sidewiseCreateRequire(import.meta.url);";
+const REQUIRE_SHIM_BANNER = "import { createRequire as __mm3CreateRequire } from 'node:module';\nconst require = __mm3CreateRequire(import.meta.url);";
 
 /** Bundles src/cli.ts to `outFile` (ESM, Node platform — esbuild's `platform: 'node'` treats every `node:`
  *  builtin as external automatically; `yaml`, the one real npm dependency, gets bundled in). The shebang
@@ -37,13 +37,13 @@ export async function bundlePlugin(outFile: string): Promise<void> {
     external: ['node:*'],
     banner: { js: REQUIRE_SHIM_BANNER },
   });
-  // node ${CLAUDE_PLUGIN_ROOT}/bin/sidewise.mjs is run directly by `node`, so the executable bit isn't load-
+  // node ${CLAUDE_PLUGIN_ROOT}/bin/mm3.mjs is run directly by `node`, so the executable bit isn't load-
   // bearing the way dist/cli.js's is for a package-manager-installed bin symlink — set it anyway, to match.
   chmodSync(outFile, 0o755);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const out = 'bin/sidewise.mjs';
+  const out = 'bin/mm3.mjs';
   await bundlePlugin(out);
   console.log(`built ${out} (${statSync(out).size} bytes)`);
 }

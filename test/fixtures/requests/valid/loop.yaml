@@ -1,4 +1,4 @@
-side:
+mak:
   goal: The checkout redesign is sound
   depth: quick
   where: [src/checkout/]
@@ -45,6 +45,6 @@ side:
           13:
             choice: What should happen to "{story}" next?
             options: [build-now, rework, redesign]
-wise:
+mdl:
   why: validate
   area: api

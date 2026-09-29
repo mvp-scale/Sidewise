@@ -1,24 +1,24 @@
 /**
- * The ledger: .sidewise/log.jsonl, append-only, one record shape for every verb. Runs get SW-#### in order
+ * The ledger: .mm3/log.jsonl, append-only, one record shape for every verb. Runs get MM3-#### in order
  * under the lock, plus a ULID. Outcomes are separate appended lines, never edits. Everything is redacted
  * before it is written; identities (run actor, outcome by) keep emails so they stay comparable, but never secrets.
  * Two run shapes: contract runs (`v: 2`, written by every verb) and Plan 1's text-format runs (no `v`, read only).
- * Both count toward SW ids.
+ * Both count toward MM3 ids.
  */
 import { accessSync, appendFileSync, closeSync, constants, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { ItemStatus } from '../contract/grade.ts';
 import type { UnitRef } from '../contract/layers.ts';
-import type { Answer, Category, Depth, Gate, Layer, Verb, Wise } from '../contract/types.ts';
+import type { Answer, Category, Depth, Gate, Layer, Verb, Mdl } from '../contract/types.ts';
 import type { Consensus } from '../lens/consensus.ts';
 import type { Level, Place } from '../lens/request.ts';
 import { formatRunId, ulid } from './ids.ts';
 // A deliberate two-way import with index.ts: log.ts calls withIndex/readRecordAt (only inside function bodies,
 // never at module load time), and index.ts calls back into isRecord/LedgerError/shownLog the same way. Safe in
 // ESM as long as neither side touches the other's exports before both modules finish loading, which holds here.
-import { normalizeRecordWise, readRecordAt, withIndex } from './index.ts';
+import { normalizeRecordMdl, readRecordAt, withIndex } from './index.ts';
 import { onStore, withLock } from './lock.ts';
-import { ensureDir, type SidewisePaths } from './paths.ts';
+import { ensureDir, type Mm3Paths } from './paths.ts';
 import { redact, redactDeep, redactSecrets } from './redact.ts';
 
 export type Outcome = 'held' | 'overruled' | 'failed';
@@ -120,7 +120,7 @@ export interface ContractRun {
   parent: string | null;
   from: string | null;
   compare: { before: string; after: string } | null;
-  wise: Wise | null;
+  mdl: Mdl | null;
   /** The questions asked: categories (one subject) or layers (a sweep). replay stores its parent's. */
   ask: { categories: Category[]; layers: Layer[] };
   over: Record<string, unknown> | null;
@@ -154,7 +154,7 @@ export interface ContractRun {
    *  route/baseURL above: an older record simply never had one. The index's own column for this is named
    *  after the OTel semantic convention `vcs.ref.head.revision` (docs only — no code depends on that name). */
   commit?: string | null;
-  /** replay only (plan 2c B2): which of the parent's concerns this run's own `side.expect` predicted would
+  /** replay only (plan 2c B2): which of the parent's concerns this run's own `mak.expect` predicted would
    *  turn to pass — a list of concern names, or the literal `'none'` (predict no flips). Optional so an older
    *  record (predating this field) still reads. */
   expect?: string[] | 'none';
@@ -184,11 +184,11 @@ export interface OutcomeRecord {
 
 /**
  * A paid call whose answer could not be used (junk, missing answers, probabilities outside 0..1). It carries no
- * SW id (run ids stay gap-free) but is counted in the budget, so budget runs == run records + failed records.
+ * MM3 id (run ids stay gap-free) but is counted in the budget, so budget runs == run records + failed records.
  */
 export interface FailedRecord {
   kind: 'failed';
-  /** The record's ulid (a failed call has no SW-#### id). */
+  /** The record's ulid (a failed call has no MM3-#### id). */
   id: string;
   uid: string;
   ts: string;
@@ -203,7 +203,7 @@ export interface FailedRecord {
 export type NewFailed = Omit<FailedRecord, 'kind' | 'id' | 'uid' | 'ts'>;
 
 /**
- * A free `view` draft check (plan 2b): never a run (no SW-#### id — `id` is its own ulid, same as a failed
+ * A free `view` draft check (plan 2b): never a run (no MM3-#### id — `id` is its own ulid, same as a failed
  * record), never counted toward the budget, and never counted as a run anywhere (index.ts's `applyLine` already
  * only treats `kind === 'run'` as a run; every run-counting/report path is untouched by this kind existing).
  * Logged so the ledger can see what agents search for, which CONTRACT already claimed happens ("the lookup is
@@ -277,14 +277,14 @@ export function isRecord(v: unknown): v is LedgerRecord {
 
 /** The ledger's path, shown relative to the project root (never absolute — AGENTS.md: no machine paths in output
  *  or errors). Shared with ledger/index.ts so a line's error text always names the file the same way readLedger does. */
-export const shownLog = (paths: SidewisePaths): string => path.relative(paths.root, paths.log).split(path.sep).join('/');
+export const shownLog = (paths: Mm3Paths): string => path.relative(paths.root, paths.log).split(path.sep).join('/');
 
 /**
  * Every record, in order. A line that isn't a record refuses the whole read (fail closed): ids are counted from it.
  * `partialTail` (readers that don't hold the lock, like view): a bad last line with no trailing newline is skipped,
  * since it may be an append in progress. Writers always read strictly, under the lock.
  */
-export function readLedger(paths: SidewisePaths, opts: { partialTail?: boolean } = {}): LedgerRecord[] {
+export function readLedger(paths: Mm3Paths, opts: { partialTail?: boolean } = {}): LedgerRecord[] {
   const text = onStore(paths.log, 'read', () => (existsSync(paths.log) ? readFileSync(paths.log, 'utf8') : ''));
   const shown = shownLog(paths);
   const records: LedgerRecord[] = [];
@@ -303,7 +303,7 @@ export function readLedger(paths: SidewisePaths, opts: { partialTail?: boolean }
       if (inProgress) return;
       throw new LedgerError(`✖ ledger: line ${i + 1} of ${shown} is not a ledger record → fix or remove that line`);
     }
-    records.push(normalizeRecordWise(value));
+    records.push(normalizeRecordMdl(value));
   });
   return records;
 }
@@ -317,7 +317,7 @@ export function readLedger(paths: SidewisePaths, opts: { partialTail?: boolean }
  * bytes, never the whole log — needs checking here, via a targeted read (openSync/readSync at `upto`, never
  * readFileSync of the whole file), with the exact readLedger wording and line number.
  */
-function checkTail(paths: SidewisePaths, upto: number, lineCount: number): void {
+function checkTail(paths: Mm3Paths, upto: number, lineCount: number): void {
   if (!existsSync(paths.log)) return;
   const size = statSync(paths.log).size;
   if (size <= upto) return;
@@ -355,7 +355,7 @@ function checkTail(paths: SidewisePaths, upto: number, lineCount: number): void 
  *  preserves the same StoreError normalization readLedger got "for free" (an errno failure — log.jsonl replaced
  *  by a folder — would otherwise surface as a raw fs error here, unlike nextRunNumber/findRun's call sites,
  *  which are fine surfacing it raw). */
-export function checkLedger(paths: SidewisePaths): void {
+export function checkLedger(paths: Mm3Paths): void {
   withLock(paths.lock, () => {
     // onStore wraps both steps together (an errno failure from either — e.g. log.jsonl replaced by a folder —
     // becomes one clean StoreError, not a raw fs error): a LedgerError has no `.code`, so onStore/storeError
@@ -393,7 +393,7 @@ function logEndsCleanly(logPath: string): boolean {
   }
 }
 
-function appendLine(paths: SidewisePaths, record: LedgerRecord): void {
+function appendLine(paths: Mm3Paths, record: LedgerRecord): void {
   onStore(paths.log, 'write', () => {
     ensureDir(paths);
     const needsBreak = !logEndsCleanly(paths.log);
@@ -402,7 +402,7 @@ function appendLine(paths: SidewisePaths, record: LedgerRecord): void {
 }
 
 /** The next SW number, from the id index (ledger/index.ts) instead of a linear scan. The caller holds the lock. */
-export function nextRunNumber(paths: SidewisePaths): number {
+export function nextRunNumber(paths: Mm3Paths): number {
   return withIndex(paths, (h) => h.runCount()) + 1;
 }
 
@@ -414,7 +414,7 @@ function matchingRun(at: number, logPath: string, id: string): RunRecord | Contr
 }
 
 /**
- * A run of either shape by SW id, or undefined: one index lookup plus one line read, never a full scan.
+ * A run of either shape by MM3 id, or undefined: one index lookup plus one line read, never a full scan.
  * A missing offset is trusted as-is (id genuinely not in the ledger) — no rebuild, so a miss stays cheap, which
  * is the whole point of the index. But a *stale* offset (a bad entry, or the log changing between the index
  * read and this one — truncated or replaced by another process, with no lock held) never crashes and never
@@ -423,12 +423,12 @@ function matchingRun(at: number, logPath: string, id: string): RunRecord | Contr
  * that's genuinely corrupt (not just a stale offset) still fails closed with readLedger's usual LedgerError,
  * thrown from within that rebuild, not swallowed here.
  * Always `readOnly`: findRun is a pure query, called both inside an already-held lock (appendOutcome) and,
- * just as often, outside any lock at all (replay/drill resolving side.parent, including during --dry-run,
+ * just as often, outside any lock at all (replay/drill resolving mak.parent, including during --dry-run,
  * before preflight ever runs) — it must never be the thing that takes the ledger lock to rebuild/catch up the
  * on-disk index on a real writer's behalf. When the on-disk index isn't already fresh, it falls back to an
  * in-memory scan instead (always correct, just not persisted) rather than write anything to disk.
  */
-export function findRun(paths: SidewisePaths, id: string): RunRecord | ContractRun | undefined {
+export function findRun(paths: Mm3Paths, id: string): RunRecord | ContractRun | undefined {
   const at = withIndex(paths, (h) => h.findOffset(id), { readOnly: true });
   if (at === undefined) return undefined;
   const first = matchingRun(at, paths.log, id);
@@ -437,15 +437,15 @@ export function findRun(paths: SidewisePaths, id: string): RunRecord | ContractR
   return at2 === undefined ? undefined : matchingRun(at2, paths.log, id);
 }
 
-/** Appends a run with the next SW id. The caller holds the lock (see appendRun, and recordCall in record.ts). */
-export function appendRunLocked(paths: SidewisePaths, run: NewRun, now: number = Date.now()): RunRecord {
+/** Appends a run with the next MM3 id. The caller holds the lock (see appendRun, and recordCall in record.ts). */
+export function appendRunLocked(paths: Mm3Paths, run: NewRun, now: number = Date.now()): RunRecord {
   const record: RunRecord = { kind: 'run', id: formatRunId(nextRunNumber(paths)), uid: ulid(now), ts: iso(now), ...redactDeep(run), actor: redactSecrets(run.actor) };
   appendLine(paths, record);
   return record;
 }
 
-/** Appends a contract run with the next SW id. The caller holds the lock (recordCall, or appendContractRun). */
-export function appendContractRunLocked(paths: SidewisePaths, run: NewContractRun, now: number, budget: string): ContractRun {
+/** Appends a contract run with the next MM3 id. The caller holds the lock (recordCall, or appendContractRun). */
+export function appendContractRunLocked(paths: Mm3Paths, run: NewContractRun, now: number, budget: string): ContractRun {
   const id = formatRunId(nextRunNumber(paths));
   const { response, ...rest } = run;
   const record: ContractRun = {
@@ -463,14 +463,14 @@ export function appendContractRunLocked(paths: SidewisePaths, run: NewContractRu
 }
 
 /** A run that made no paid call (every answer reused): logged under the lock, not counted against the budget. */
-export function appendContractRun(paths: SidewisePaths, run: NewContractRun, now: number, budget: string): ContractRun {
+export function appendContractRun(paths: Mm3Paths, run: NewContractRun, now: number, budget: string): ContractRun {
   return withLock(paths.lock, () => appendContractRunLocked(paths, run, now, budget));
 }
 
 /** Appends a failed call. The caller holds the lock. The ledger is validated first (via the index, plus
  *  checkTail for an in-progress tail the index alone tolerates — see checkLedger's comment), so a corrupt one
  *  refuses here too. */
-export function appendFailedLocked(paths: SidewisePaths, failed: NewFailed, now: number = Date.now()): FailedRecord {
+export function appendFailedLocked(paths: Mm3Paths, failed: NewFailed, now: number = Date.now()): FailedRecord {
   onStore(paths.log, 'read', () => {
     const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));
     checkTail(paths, at.upto, at.lineCount);
@@ -481,13 +481,13 @@ export function appendFailedLocked(paths: SidewisePaths, failed: NewFailed, now:
   return record;
 }
 
-export function appendRun(paths: SidewisePaths, run: NewRun, now: number = Date.now()): RunRecord {
+export function appendRun(paths: Mm3Paths, run: NewRun, now: number = Date.now()): RunRecord {
   return withLock(paths.lock, () => appendRunLocked(paths, run, now));
 }
 
 /** A free view lookup (see LookupRecord's own comment): takes the lock like every other append (concurrent
- *  writers must never interleave lines), but assigns no SW-#### id and never touches the budget. */
-export function appendLookup(paths: SidewisePaths, lookup: NewLookup, now: number = Date.now()): LookupRecord {
+ *  writers must never interleave lines), but assigns no MM3-#### id and never touches the budget. */
+export function appendLookup(paths: Mm3Paths, lookup: NewLookup, now: number = Date.now()): LookupRecord {
   return withLock(paths.lock, () => {
     const uid = ulid(now);
     const record: LookupRecord = { kind: 'lookup', id: uid, uid, ts: iso(now), ...redactDeep(lookup) };
@@ -509,15 +509,15 @@ export function appendLookup(paths: SidewisePaths, lookup: NewLookup, now: numbe
  * itself a write, so — like every other write path — it must refuse on a bad or in-progress tail rather than
  * append past it.
  */
-export function appendOutcome(paths: SidewisePaths, of: string, outcome: Outcome, by: string, now: number = Date.now()): { record: OutcomeRecord; repeat: boolean } {
+export function appendOutcome(paths: Mm3Paths, of: string, outcome: Outcome, by: string, now: number = Date.now()): { record: OutcomeRecord; repeat: boolean } {
   return withLock(paths.lock, () => {
     const run = findRun(paths, of);
     // Neither stop can reuse verbs/request.ts's stopText: ledger/ sits below verbs/, and importing it here would
     // be a layering inversion (the same reason budget/budget.ts appends its own literal suffix instead).
-    if (!run) throw new LedgerError(`✖ outcome: ${of} is not in the ledger → check the id with "sidewise view ${of}"\n→ see: sidewise agent outcome`, 2);
+    if (!run) throw new LedgerError(`✖ outcome: ${of} is not in the ledger → check the id with "mm3 view ${of}"\n→ see: mm3 agent outcome`, 2);
     const who = redactSecrets(by); // the same transform the run's actor went through: compare like with like
     if (outcome === 'held' && who === run.actor) {
-      throw new LedgerError(`✖ outcome: ${who} asked ${of}, so it can't mark it held → another agent or the owner records "held"\n→ see: sidewise agent outcome`);
+      throw new LedgerError(`✖ outcome: ${who} asked ${of}, so it can't mark it held → another agent or the owner records "held"\n→ see: mm3 agent outcome`);
     }
     onStore(paths.log, 'read', () => {
       const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));

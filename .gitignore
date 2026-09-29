@@ -5,7 +5,7 @@ coverage/
 .env
 .env.*
 !.env.example
-.sidewise/
+.mm3/
 .claude/settings.local.json
 lab/
 CLAUDE.local.md

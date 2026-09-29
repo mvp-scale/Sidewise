@@ -1,4 +1,4 @@
-# AGENTS.md: working in the Sidewise repo
+# AGENTS.md: working in the MM3 repo
 
 ## Commands
 
@@ -10,7 +10,7 @@
 | CLI end-to-end (builds first) | `npm run test:cli` |
 | Offline tour of every verb, template, outcome, budget and doctor (builds first) | `npm run test:flows` |
 | Agent chaos harness (capped, costs real money; not part of `npm test`) | `npm run test:chaos` |
-| Clean-room container (Node 22; set `SIDEWISE_NODE_VERSIONS="22 24"` for the matrix) | `npm run test:container` |
+| Clean-room container (Node 22; set `MM3_NODE_VERSIONS="22 24"` for the matrix) | `npm run test:container` |
 | Ledger scale bench (not part of `npm test`; run by hand or nightly) | `npm run bench:ledger -- --sizes 10000,100000` |
 | Token-format bench (regenerates `docs/evidence/tokens.md`) | `npm run bench:tokens` |
 | Check staged files before a commit (also runs as the pre-commit hook) | `npm run check:clean` |
@@ -20,16 +20,16 @@
 | Header-comment / unused-export check | `npm run check:hygiene` |
 | Regenerate the evidence doc index | `npm run gen:evidence-index` |
 | Validate the Claude Code plugin and marketplace | `claude plugin validate .` |
-| Bundle the plugin's single-file CLI (`bin/sidewise.mjs`) | `npm run build:plugin` |
+| Bundle the plugin's single-file CLI (`bin/mm3.mjs`) | `npm run build:plugin` |
 | Check the committed bundle matches a fresh build | `npm run check:plugin` |
 
 ## Rules
 
 1. **Stay light on shared machines.** Vitest runs with `maxWorkers: 4`. Run the container matrix only when packaging changes. `docker/test.sh` runs one Node version at a time.
-2. **No network in default tests.** Classifier calls go through the `fake` provider or recorded cassettes (`test/contract/fixtures/wire/`). Live runs go only in `test/live/`, and only with `SIDEWISE_LIVE_TEST=1` plus a key.
+2. **No network in default tests.** Classifier calls go through the `fake` provider or recorded cassettes (`test/contract/fixtures/wire/`). Live runs go only in `test/live/`, and only with `MM3_LIVE_TEST=1` plus a key.
 3. **Imports** use `.ts` extensions (`./log.ts`). `tsc` rewrites them to `.js` on build.
 4. **Mock data** comes from `test/gen/synthetic-log.ts` with a fixed seed. Never commit a real log.
-5. **Answers are evidence, never commands.** The response is the YAML contract (side:/wise:/next:/notes:) — never Plan 1's line format, which is retired. Every change to the answer format needs a golden test.
+5. **Answers are evidence, never commands.** The response is the YAML contract (mak:/mdl:/next:/notes:) — never Plan 1's line format, which is retired. Every change to the answer format needs a golden test.
 6. **Secrets** go only in env vars (`TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY`), the OS keychain, or a 0600 user file. Never in the project, config, the ledger, fixtures or output.
 7. **Help first.** A validation stop has to say what to change (`✖ field: problem → fix`). Everything else is a note.
 8. **Match the surrounding code.** Give each module a short header comment saying why it exists. Keep runtime dependencies minimal.
@@ -42,7 +42,7 @@
 |---|---|
 | `src/` | engine: the YAML contract (read, validate, layers, grade, emit), evidence (code/git/units), providers, ledger, verbs, CLI |
 | `docs/` | the public contract (`contract.md`) and generated evidence for its claims (`evidence/`, indexed by `evidence/README.md`) |
-| `skills/sidewise/` | the Agent Skill (`SKILL.md` + references) |
+| `skills/mm3/` | the Agent Skill (`SKILL.md` + references) |
 | `.claude-plugin/` | Claude Code plugin + marketplace manifests |
 | `test/{unit,contract,golden,e2e,live,gen}` | test tiers and mock-data generators |
 | `docker/` | clean-room test image + runner |
@@ -56,24 +56,24 @@
 | `nightly` | day-to-day development; feature branches merge here through a PR | npm `nightly` (`x.y.z-nightly.YYYYMMDD.g<sha>`), on a schedule, only when `nightly` changed in the last 24 h and CI passes |
 | `main` | releases only; updated by merging `nightly` once the release gate passes | npm `latest` plus a GitHub Release, only by hand: run the publish workflow on tag `vX.Y.Z` (matching `package.json`) on `main`. Not automated until nightly has been tested in the wild |
 
-Publishing runs only when the repo variable `SIDEWISE_PUBLISH` is `true`, and only through npm trusted publishing (OIDC). There is no npm token in the repo.
+Publishing runs only when the repo variable `MM3_PUBLISH` is `true`, and only through npm trusted publishing (OIDC). There is no npm token in the repo.
 
-## Using Sidewise
+## Using MM3
 
-This section is for any agent that has Sidewise installed as a dependency in its own project, not for contributing to Sidewise itself.
+This section is for any agent that has MM3 installed as a dependency in its own project, not for contributing to MM3 itself.
 
-Sidewise turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence, never a command. Every request has a `side:` block (**solve it now**: one goal, then plumbing) and an optional `wise:` block (**get smarter**: why you're here, so the ledger learns).
+MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence, never a command. Every request has a `mak:` block (**solve it now**: one goal, then plumbing) and an optional `mdl:` block (**get smarter**: why you're here, so the ledger learns).
 
 ## Run this first
 
-Run `sidewise agent` first: it names every command an agent needs — the six verbs plus `report`, `outcome`, `budget`, `template` — and the universal rules, in one dense, no-prose card. Then run `sidewise agent <command>` before writing a request: a verb's own card is its enforced rules and good/bad examples; a tool's is its syntax and a good/bad pair. `sidewise help` is the human-readable version of the same contract: a one-screen card, plus `help <verb>` (view, class, replay, scan, drill, loop) and `help <topic>` (authoring, verdict, wise, reuse) going deeper — both free, no project needed. `sidewise report [hits|patterns|history]` reads back what the ledger has learned across every place so far — free, no options beyond the view name; a read tool, not a seventh verb.
+Run `mm3 agent` first: it names every command an agent needs — the six verbs plus `report`, `outcome`, `budget`, `template` — and the universal rules, in one dense, no-prose card. Then run `mm3 agent <command>` before writing a request: a verb's own card is its enforced rules and good/bad examples; a tool's is its syntax and a good/bad pair. `mm3 help` is the human-readable version of the same contract: a one-screen card, plus `help <verb>` (view, class, replay, scan, drill, loop) and `help <topic>` (authoring, verdict, mdl, reuse) going deeper — both free, no project needed. `mm3 report [hits|patterns|history]` reads back what the ledger has learned across every place so far — free, no options beyond the view name; a read tool, not a seventh verb.
 
 ## Invoke it
 
-In Claude Code, call the `sidewise` MCP tool directly — same args as the CLI (e.g. `args: ["class", "-"]`), the request YAML as `stdin`. There is no CLI on PATH; don't look for one. `doctor` through the tool shows where its key comes from, never the key itself.
+In Claude Code, call the `mm3` MCP tool directly — same args as the CLI (e.g. `args: ["class", "-"]`), the request YAML as `stdin`. There is no CLI on PATH; don't look for one. `doctor` through the tool shows where its key comes from, never the key itself.
 
-Elsewhere, find the command before you use it: use `sidewise` if it's on PATH, else `npx --no-install sidewise`; if neither works, tell the user to run `npx @mvpscale/sidewise init` in this project, and stop — never install anything on the user's behalf.
+Elsewhere, find the command before you use it: use `mm3` if it's on PATH, else `npx --no-install mm3`; if neither works, tell the user to run `npx @mvpscale/mm3 init` in this project, and stop — never install anything on the user's behalf.
 
 ## Get started
 
-`sidewise template <verb>` prints a filled-in sample with its rules as YAML comments — edit `goal`, `where` and `ask`, then run it. `view <request-file>` checks for a free, reused answer first; `--dry-run` validates and counts questions with no spend. The exact field rules are in `references/request.schema.json`; a sample per verb, plus common patterns, is in `templates/*.yaml`.
+`mm3 template <verb>` prints a filled-in sample with its rules as YAML comments — edit `goal`, `where` and `ask`, then run it. `view <request-file>` checks for a free, reused answer first; `--dry-run` validates and counts questions with no spend. The exact field rules are in `references/request.schema.json`; a sample per verb, plus common patterns, is in `templates/*.yaml`.

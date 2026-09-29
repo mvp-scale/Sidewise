@@ -1,11 +1,11 @@
 /**
- * The ONE code defaults table for `.sidewise/config.yaml` (plan 2c B1): every setting Sidewise can run with,
+ * The ONE code defaults table for `.mm3/config.yaml` (plan 2c B1): every setting MM3 can run with,
  * and the value it runs with when a project's config is silent on it. `config/load.ts` merges a project's
  * sparse overrides on top of this; `config/validate.ts` checks a raw override object shape-by-shape against
  * it. Nothing here reads a file or an env var — this module is pure data plus the types that describe it.
  */
 
-/** Where an effective value actually came from — `sidewise config` shows this per key. */
+/** Where an effective value actually came from — `mm3 config` shows this per key. */
 export type ConfigSource = 'default' | 'config' | 'env';
 
 export interface PricingRate {
@@ -15,11 +15,11 @@ export interface PricingRate {
   perCall?: number;
 }
 
-/** A project's per-field override of the built-in wise catalog (src/contract/wise-fields.ts). Renames go
+/** A project's per-field override of the built-in mdl catalog (src/contract/mdl-fields.ts). Renames go
  *  through `as` (an alias, never a redefinition of the C4 levels, which are never overridable). Not yet
- *  consumed by wise-fields.ts/the wise card/the template wise blocks — this module only carries the shape
+ *  consumed by mdl-fields.ts/the mdl card/the template mdl blocks — this module only carries the shape
  *  through validation and the effective-config printer; wiring it into the card generation is a later piece. */
-export interface WiseFieldOverride {
+export interface MdlFieldOverride {
   values?: string[];
   note?: string;
   as?: string;
@@ -28,7 +28,7 @@ export interface WiseFieldOverride {
   literal?: boolean;
 }
 
-export interface SidewiseConfig {
+export interface Mm3Config {
   budget: { usd: number; runs: number; per: 'total' | 'day' | 'hour'; since?: string };
   provider?: string;
   baseURL?: string;
@@ -53,11 +53,11 @@ export interface SidewiseConfig {
     /** undefined = off (no commit-count-based re-ask). */
     maxCommits?: number;
   };
-  /** Per built-in wise field key (why/area/stage/change/risk/problem/uses/blast/touches) → its override. */
-  wise: Record<string, WiseFieldOverride>;
+  /** Per built-in mdl field key (why/area/stage/change/risk/problem/uses/blast/touches) → its override. */
+  mdl: Record<string, MdlFieldOverride>;
 }
 
-export const DEFAULT_CONFIG: SidewiseConfig = {
+export const DEFAULT_CONFIG: Mm3Config = {
   budget: { usd: 5, runs: 500, per: 'total' },
   pricing: {
     'jev-1.13.0': { inputPerMTok: 42 / 1_000 }, // $42/Btok = $0.042/Mtok (docs.typesafe.ai/models.md) — see answers.ts
@@ -68,17 +68,17 @@ export const DEFAULT_CONFIG: SidewiseConfig = {
   sweep: { maxQuestionsPerCall: 500 },
   requestMaxBytes: 1_048_576,
   reuse: {},
-  wise: {},
+  mdl: {},
 };
 
-/** Top-level config keys, in the order `sidewise config` prints them. Used by validate.ts for the
+/** Top-level config keys, in the order `mm3 config` prints them. Used by validate.ts for the
  *  unknown-key/did-you-mean check and by load.ts for the printer. */
-export const CONFIG_KEYS = ['budget', 'provider', 'baseURL', 'model', 'pricing', 'timeoutMs', 'retries', 'backoffMs', 'sweep', 'requestMaxBytes', 'reuse', 'wise'] as const;
+export const CONFIG_KEYS = ['budget', 'provider', 'baseURL', 'model', 'pricing', 'timeoutMs', 'retries', 'backoffMs', 'sweep', 'requestMaxBytes', 'reuse', 'mdl'] as const;
 
 /** Request-contract concepts an agent might mistake for project settings — plan 2c B1's "not configurable
  *  (request contract) → set it per request" stop. `depth` is the named example in the plan; the others are the
- *  same category of per-request-only field (side: keys that never belong at the project level). */
-export const CONTRACT_ONLY_KEYS = ['depth', 'goal', 'where', 'ask', 'over', 'wise.parent'] as const;
+ *  same category of per-request-only field (mak: keys that never belong at the project level). */
+export const CONTRACT_ONLY_KEYS = ['depth', 'goal', 'where', 'ask', 'over', 'mdl.parent'] as const;
 
 /** A key name that looks like it's meant to hold a secret, wherever it appears in the config tree — plan 2c
  *  B1's "keys go in env or the keychain" stop (AGENTS.md rule 6: secrets never in the project or config). */

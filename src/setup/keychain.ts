@@ -1,5 +1,5 @@
 /**
- * The OS keychain, one fixed slot (service "sidewise", account "typesafe"): macOS via `security`, Linux via
+ * The OS keychain, one fixed slot (service "mm3", account "typesafe"): macOS via `security`, Linux via
  * `secret-tool`. Windows has no equivalent that's trivial and argv-safe (see storeKey's own doc for why
  * `security`/an interactive prompt don't count as "trivial" either), so it always falls through to the env
  * file there, and on any other platform. Every call goes through the injected Runner; storing a secret always
@@ -12,11 +12,11 @@ const cleanLine = (s: string): string => s.replace(/\r?\n+$/u, '');
 
 export function keychainLookup(runner: Runner, platform: NodeJS.Platform): string | undefined {
   if (platform === 'darwin') {
-    const r = runner('security', ['find-generic-password', '-s', 'sidewise', '-a', 'typesafe', '-w'], { timeoutMs: TIMEOUT_MS });
+    const r = runner('security', ['find-generic-password', '-s', 'mm3', '-a', 'typesafe', '-w'], { timeoutMs: TIMEOUT_MS });
     return r.status === 0 && r.stdout.trim() ? cleanLine(r.stdout) : undefined;
   }
   if (platform === 'linux') {
-    const r = runner('secret-tool', ['lookup', 'service', 'sidewise', 'account', 'typesafe'], { timeoutMs: TIMEOUT_MS });
+    const r = runner('secret-tool', ['lookup', 'service', 'mm3', 'account', 'typesafe'], { timeoutMs: TIMEOUT_MS });
     return r.status === 0 && r.stdout.trim() ? cleanLine(r.stdout) : undefined;
   }
   return undefined; // Windows and anything else: see the module doc
@@ -27,7 +27,7 @@ export function keychainLookup(runner: Runner, platform: NodeJS.Platform): strin
  *  way, and putting it on argv is refused outright. Linux's `secret-tool store` genuinely reads stdin. */
 export function keychainStore(runner: Runner, platform: NodeJS.Platform, secret: string): 'stored' | 'unavailable' {
   if (platform === 'linux') {
-    const r = runner('secret-tool', ['store', '--label=Sidewise', 'service', 'sidewise', 'account', 'typesafe'], { input: secret, timeoutMs: TIMEOUT_MS });
+    const r = runner('secret-tool', ['store', '--label=MM3', 'service', 'mm3', 'account', 'typesafe'], { input: secret, timeoutMs: TIMEOUT_MS });
     return r.status === 0 ? 'stored' : 'unavailable';
   }
   return 'unavailable';
@@ -35,10 +35,10 @@ export function keychainStore(runner: Runner, platform: NodeJS.Platform, secret:
 
 export function keychainRemove(runner: Runner, platform: NodeJS.Platform): boolean {
   if (platform === 'darwin') {
-    return runner('security', ['delete-generic-password', '-s', 'sidewise', '-a', 'typesafe'], { timeoutMs: TIMEOUT_MS }).status === 0;
+    return runner('security', ['delete-generic-password', '-s', 'mm3', '-a', 'typesafe'], { timeoutMs: TIMEOUT_MS }).status === 0;
   }
   if (platform === 'linux') {
-    return runner('secret-tool', ['clear', 'service', 'sidewise', 'account', 'typesafe'], { timeoutMs: TIMEOUT_MS }).status === 0;
+    return runner('secret-tool', ['clear', 'service', 'mm3', 'account', 'typesafe'], { timeoutMs: TIMEOUT_MS }).status === 0;
   }
   return false;
 }

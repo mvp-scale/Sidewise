@@ -20,8 +20,8 @@ function entryPointPaths(): string[] {
 
 export const REQUIRED: readonly string[] = [
   ...entryPointPaths(),
-  'skills/sidewise/SKILL.md',
-  'skills/sidewise/references/request.schema.json',
+  'skills/mm3/SKILL.md',
+  'skills/mm3/references/request.schema.json',
   '.claude-plugin/plugin.json',
   '.claude-plugin/marketplace.json',
   'README.md',

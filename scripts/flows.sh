@@ -1,12 +1,12 @@
 #!/bin/sh
-# A repeatable, offline tour of every Sidewise verb and flow: fake + chaos providers, no network, no key.
+# A repeatable, offline tour of every MM3 verb and flow: fake + chaos providers, no network, no key.
 # Proves the six verbs, template, outcome, budget and doctor end to end before turning on the live TypeSafe
 # classifier. Builds nothing itself (run "npm run build" first) — creates a throwaway git repo under a mktemp
-# dir, points SIDEWISE_HOME at it, and runs each flow in order, printing one line per step:
+# dir, points MM3_HOME at it, and runs each flow in order, printing one line per step:
 #   ✔ <flow>: <step> (ok)      a step passed
 #   ✖ <flow>: <step> ...       a step failed → the script exits non-zero right there
 #   ⚠ <flow>: <step> ...       a real product bug (not a script bug): noted, the tour keeps going
-# The flows share one ledger, so their SW-#### ids and the fake provider's deterministic answers are fixed
+# The flows share one ledger, so their MM3-#### ids and the fake provider's deterministic answers are fixed
 # by the order below — reordering flows changes the ids and gate values later flows assert on.
 #   npm run test:flows
 set -u
@@ -23,13 +23,13 @@ KNOWN_BUGS=""
 now_ms() { date +%s%3N; }
 TOTAL_START=$(now_ms)
 
-# run <sidewise args...>: node "$CLI" "$@" under the current env, stdout+stderr merged into $OUT, code into $CODE.
+# run <mm3 args...>: node "$CLI" "$@" under the current env, stdout+stderr merged into $OUT, code into $CODE.
 run() {
   OUT=$(node "$CLI" "$@" 2>&1)
   CODE=$?
 }
 
-# runenv "<VAR=val VAR2=val2>" <sidewise args...>: same, with extra env vars for just this call.
+# runenv "<VAR=val VAR2=val2>" <mm3 args...>: same, with extra env vars for just this call.
 runenv() {
   envstr=$1
   shift
@@ -78,8 +78,8 @@ D=$(mktemp -d)
 trap 'rm -rf "$D"' EXIT
 cd "$D"
 git init -q
-git config user.email "flows@sidewise.local"
-git config user.name "sidewise-flows"
+git config user.email "flows@mm3.local"
+git config user.name "mm3-flows"
 mkdir -p src/handlers
 cat > src/user.ts <<'EOF'
 export function findUser(id: string) {
@@ -94,16 +94,16 @@ echo "// reviewed" >> src/user.ts
 git add -A && git commit -q -m "second: a reviewer comment"
 C2=$(git rev-parse HEAD)
 
-export SIDEWISE_HOME="$D"
+export MM3_HOME="$D"
 export XDG_CONFIG_HOME="$D/.config"   # never the developer's own key file
-export SIDEWISE_PROVIDER=fake
+export MM3_PROVIDER=fake
 
-# plan 2c B1: budget.json is no longer the live authority (.sidewise/config.yaml is; spend is ledger-derived) —
+# plan 2c B1: budget.json is no longer the live authority (.mm3/config.yaml is; spend is ledger-derived) —
 # a brand-new project just runs on silent defaults now, with no "budget file created" note at all. Seed a
 # legacy budget.json here so flow 3's first paid call still demonstrates the one real remaining case: a legacy
 # file migrating into config.yaml, once.
-mkdir -p "$D/.sidewise"
-cat > "$D/.sidewise/budget.json" <<'EOF'
+mkdir -p "$D/.mm3"
+cat > "$D/.mm3/budget.json" <<'EOF'
 {"capUsd": 5, "capRuns": 500, "spentUsd": 0, "runs": 0, "resetAt": "2020-01-01T00:00:00Z"}
 EOF
 
@@ -113,7 +113,7 @@ echo "flows.sh: project=$D  cli=$CLI"
 flow_start
 run doctor
 need_exit "01-doctor" "no key" 0
-need_has "01-doctor" "no key" 'key: no  → run "sidewise init" to add one'
+need_has "01-doctor" "no key" 'key: no  → run "mm3 init" to add one'
 pass "01-doctor" "no key -> exit 0, no key reported"
 flow_done "01-doctor"
 
@@ -139,12 +139,12 @@ pass "03-class" "template -> dry-run plan"
 
 run class req-class.yaml
 need_exit "03-class" "class (paid)" 0
-need_has "03-class" "class (paid)" "id: SW-0001"
+need_has "03-class" "class (paid)" "id: MM3-0001"
 need_has "03-class" "class (paid)" "gate: fail"
 need_has "03-class" "class (paid)" "budget file created"
 need_has "03-class" "class (paid)" "not evidence"
 FIRST_NEXT=$(printf '%s\n' "$OUT" | command -p grep '^next:' | sed 's/^next: //')
-pass "03-class" "first paid call: SW-0001, budget file created, fake labeled not evidence"
+pass "03-class" "first paid call: MM3-0001, budget file created, fake labeled not evidence"
 flow_done "03-class"
 
 # ---- 4. class again, identical -> exact reuse ---------------------------------------------------------------
@@ -152,40 +152,40 @@ flow_start
 RUNS_BEFORE=$(node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of [0-9]+ runs.*/\1/')
 run class req-class.yaml
 need_exit "04-reuse" "identical class again" 0
-need_has "04-reuse" "identical class again" "id: SW-0002"
+need_has "04-reuse" "identical class again" "id: MM3-0002"
 case "$OUT" in
   *"budget file created"*) fail "04-reuse" "identical class again" "$OUT (budget file created again — should only happen once)" ;;
 esac
 RUNS_AFTER=$(node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of [0-9]+ runs.*/\1/')
 [ "$RUNS_BEFORE" = "$RUNS_AFTER" ] || fail "04-reuse" "budget run count unchanged" "before=$RUNS_BEFORE after=$RUNS_AFTER"
-pass "04-reuse" "new id SW-0002, budget run count unchanged ($RUNS_AFTER)"
+pass "04-reuse" "new id MM3-0002, budget run count unchanged ($RUNS_AFTER)"
 flow_done "04-reuse"
 
 # ---- 5. view <request> -> reuse: <id>; view <id> -> lineage ------------------------------------------------
 flow_start
 run view req-class.yaml
 need_exit "05-view-lookup" "view <request>" 0
-need_has "05-view-lookup" "view <request>" "reuse: SW-0002"
-pass "05-view-lookup" "view <request> shows reuse: SW-0002"
+need_has "05-view-lookup" "view <request>" "reuse: MM3-0002"
+pass "05-view-lookup" "view <request> shows reuse: MM3-0002"
 
-run view SW-0001
+run view MM3-0001
 need_exit "05-view-lookup" "view <id>" 0
 need_has "05-view-lookup" "view <id>" "lineage"
-need_has "05-view-lookup" "view <id>" "SW-0001"
+need_has "05-view-lookup" "view <id>" "MM3-0001"
 pass "05-view-lookup" "view <id> shows lineage"
 flow_done "05-view-lookup"
 
 # ---- 6. class fail -> next: -> template drill --parent --from -> drill (one-subject parent) ---------------
 flow_start
 case "$FIRST_NEXT" in
-  "sidewise template drill --parent"*) : ;;
+  "mm3 template drill --parent"*) : ;;
   *) fail "06-drill-subject" "next: names a template drill command" "$FIRST_NEXT" ;;
 esac
-NEXT_ARGS=${FIRST_NEXT#sidewise }
+NEXT_ARGS=${FIRST_NEXT#mm3 }
 # shellcheck disable=SC2086
 run $NEXT_ARGS
 need_exit "06-drill-subject" "next: -> template drill --parent --from" 0
-need_has "06-drill-subject" "next: -> template drill --parent --from" "parent: SW-0001"
+need_has "06-drill-subject" "next: -> template drill --parent --from" "parent: MM3-0001"
 printf '%s\n' "$OUT" > req-drill.yaml
 
 run drill req-drill.yaml
@@ -196,11 +196,11 @@ flow_done "06-drill-subject"
 
 # ---- 7. class -> replay --parent <id> --compare <c1>..<c2> -------------------------------------------------
 flow_start
-run replay --parent SW-0001 --compare "$C1..$C2" --expect injection
+run replay --parent MM3-0001 --compare "$C1..$C2" --expect injection
 need_exit "07-replay" "replay --parent --compare" 0
 need_has "07-replay" "replay --parent --compare" "regressed:"
 need_has "07-replay" "replay --parent --compare" "fixed:"
-pass "07-replay" "replay re-runs SW-0001 across the two commits: fixed/still/regressed shape"
+pass "07-replay" "replay re-runs MM3-0001 across the two commits: fixed/still/regressed shape"
 flow_done "07-replay"
 
 # ---- 8. template scan -> scan -> template drill --parent <scan id> --from <item> -> drill (sweep parent) --
@@ -240,7 +240,7 @@ LOOP_ID=$(printf '%s\n' "$OUT" | command -p grep '^  id:' | sed 's/^  id: //')
 pass "09-loop-drill" "loop swept ideas ($LOOP_ID)"
 
 cat > req-drill-loop-ok.yaml <<EOF
-side:
+mak:
   goal: Are the sub-parts sound?
   parent: $LOOP_ID
   from: gateway
@@ -275,7 +275,7 @@ side:
           11:
             choice: What should happen to {sub} next?
             options: [build-now, rework, redesign]
-wise:
+mdl:
   why: debug
   area: api
 EOF
@@ -284,7 +284,7 @@ need_exit "09-loop-drill" "drill from a loop item, list-valued over" 0
 pass "09-loop-drill" "drill with a list-valued over: works on an idea item"
 
 cat > req-drill-loop-bad.yaml <<EOF
-side:
+mak:
   goal: Are the sub-parts sound?
   parent: $LOOP_ID
   from: gateway
@@ -319,7 +319,7 @@ side:
           11:
             choice: What should happen to {sub} next?
             options: [build-now, rework, redesign]
-wise:
+mdl:
   why: debug
   area: api
 EOF
@@ -331,17 +331,17 @@ flow_done "09-loop-drill"
 
 # ---- 10. outcome: self-held refused, held by another actor, repeat is a no-op ------------------------------
 flow_start
-run outcome SW-0001 held --by agent
+run outcome MM3-0001 held --by agent
 need_exit "10-outcome" "self-held refused" 1
 need_has "10-outcome" "self-held refused" "can't mark it held"
 pass "10-outcome" "the run's own actor can't hold it (exit 1)"
 
-run outcome SW-0001 held --by qa-reviewer
+run outcome MM3-0001 held --by qa-reviewer
 need_exit "10-outcome" "held by another actor" 0
 need_has "10-outcome" "held by another actor" "held · by qa-reviewer"
 pass "10-outcome" "another actor's held is recorded"
 
-run outcome SW-0001 held --by qa-reviewer
+run outcome MM3-0001 held --by qa-reviewer
 need_exit "10-outcome" "repeat is a no-op" 0
 need_has "10-outcome" "repeat is a no-op" "already recorded"
 pass "10-outcome" "repeating the same outcome is a no-op"
@@ -368,7 +368,7 @@ run class req-class-budget.yaml
 need_exit "11-budget" "next paid verb over cap" 3
 # fix #5c: only the run cap tripped here (spend is still $0.00 of the $0.01 cap) — the hint says "set --runs",
 # not "reset" (which fits when the dollar cap is the one involved).
-need_has "11-budget" "next paid verb over cap" "sidewise budget set --runs"
+need_has "11-budget" "next paid verb over cap" "mm3 budget set --runs"
 pass "11-budget" "the next paid verb is blocked with the right hint (exit 3)"
 
 run budget reset
@@ -389,34 +389,34 @@ flow_done "11-budget"
 
 # ---- 12. invalid request -----------------------------------------------------------------------------------
 flow_start
-printf 'side:\n  goal: x\n' > req-bad.yaml
+printf 'mak:\n  goal: x\n' > req-bad.yaml
 run class req-bad.yaml
 need_exit "12-invalid" "invalid request" 2
-need_has "12-invalid" "invalid request" "✖ side.goal:"
+need_has "12-invalid" "invalid request" "✖ mak.goal:"
 need_has "12-invalid" "invalid request" "→"
 pass "12-invalid" "✖ field: problem -> fix, exit 2"
 flow_done "12-invalid"
 
 # ---- 13. chaos provider -------------------------------------------------------------------------------------
 flow_start
-runenv "SIDEWISE_PROVIDER=chaos SIDEWISE_CHAOS=503" class req-class.yaml
+runenv "MM3_PROVIDER=chaos MM3_CHAOS=503" class req-class.yaml
 need_exit "13-chaos" "chaos 503 (no retry in the chaos adapter itself)" 1
 need_has "13-chaos" "chaos 503 (no retry in the chaos adapter itself)" "HTTP 503"
 pass "13-chaos" "a scheduled 503 fails the call with a one-line reason, exit 1"
 
-runenv "SIDEWISE_PROVIDER=chaos" class req-class.yaml
+runenv "MM3_PROVIDER=chaos" class req-class.yaml
 need_exit "13-chaos" "chaos default schedule (ok)" 0
-pass "13-chaos" "an empty SIDEWISE_CHAOS schedule always answers ok"
+pass "13-chaos" "an empty MM3_CHAOS schedule always answers ok"
 flow_done "13-chaos"
 
-# ---- 14. SIDEWISE_BASE_URL ----------------------------------------------------------------------------------
+# ---- 14. MM3_BASE_URL ----------------------------------------------------------------------------------
 flow_start
-runenv "SIDEWISE_PROVIDER= TYPESAFE_API_KEY=dummy SIDEWISE_BASE_URL=http://example.com" doctor
+runenv "MM3_PROVIDER= TYPESAFE_API_KEY=dummy MM3_BASE_URL=http://example.com" doctor
 need_exit "14-base-url" "bad base URL -> doctor exit 2" 2
-need_has "14-base-url" "bad base URL -> doctor exit 2" "SIDEWISE_BASE_URL"
-pass "14-base-url" "a non-https SIDEWISE_BASE_URL stops doctor at exit 2"
+need_has "14-base-url" "bad base URL -> doctor exit 2" "MM3_BASE_URL"
+pass "14-base-url" "a non-https MM3_BASE_URL stops doctor at exit 2"
 
-runenv "SIDEWISE_PROVIDER= TYPESAFE_API_KEY=dummy" class req-class.yaml --dry-run
+runenv "MM3_PROVIDER= TYPESAFE_API_KEY=dummy" class req-class.yaml --dry-run
 need_exit "14-base-url" "dummy key, class --dry-run -> route direct, no network" 0
 need_has "14-base-url" "dummy key, class --dry-run -> route direct, no network" "route: direct"
 pass "14-base-url" "dry-run only: shows route direct with a dummy key, never calls out"

@@ -1,5 +1,5 @@
 /**
- * The real stdin/stdout loop for `sidewise mcp`: newline-delimited JSON-RPC 2.0 over stdio (one message per
+ * The real stdin/stdout loop for `mm3 mcp`: newline-delimited JSON-RPC 2.0 over stdio (one message per
  * line, no embedded newlines, per the MCP transport spec). stdout carries ONLY the JSON-RPC channel — nothing
  * else is ever written there. A line that fails to parse gets a JSON-RPC parse-error response with `id: null`,
  * same as any other malformed request; a notification (no response from handleMessage) writes nothing back.
@@ -12,7 +12,7 @@ export interface McpIo {
   output: NodeJS.WritableStream;
 }
 
-/** Resolves once `io.input` closes (the client disconnecting, or real stdin's EOF) — `sidewise mcp` awaits this
+/** Resolves once `io.input` closes (the client disconnecting, or real stdin's EOF) — `mm3 mcp` awaits this
  *  and then exits 0, per the stdio transport's own shutdown rule. */
 export function runMcpServer(io: McpIo, runOne: RunOne, serverVersion: string): Promise<void> {
   return new Promise((resolve) => {

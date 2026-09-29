@@ -1,6 +1,6 @@
 {
-  "name": "sidewise",
-  "displayName": "Sidewise",
+  "name": "mm3",
+  "displayName": "MM3",
   "version": "0.0.0",
   "description": "Side answers for coding agents: compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
   "author": { "name": "mvp-scale" },

@@ -1,5 +1,5 @@
 /**
- * Deterministic synthetic sidewise.jsonl: N runs across areas/tags/perspectives, with outcome lines.
+ * Deterministic synthetic mm3.jsonl: N runs across areas/tags/perspectives, with outcome lines.
  * Feeds the hot-cache, weak-spot and budget tests. `weak` plants known problem slices (a higher
  * overruled/failed rate) so detection can be asserted, not eyeballed.
  * Shapes match the engine log entries (runs and outcome lines).
@@ -54,7 +54,7 @@ export const PERSPECTIVES = ['builder', 'reviewer', 'planner', 'owner'] as const
 export const MODES = ['class', 'scan', 'drill', 'loop', 'view', 'trace'] as const;
 
 export function generateLog(opts: SynthOptions = {}): (SynthRun | SynthOutcome)[] {
-  const rand = seededRandom(opts.seed ?? 'sidewise');
+  const rand = seededRandom(opts.seed ?? 'mm3');
   const n = opts.runs ?? 200;
   const outcomeRate = opts.outcomeRate ?? 0.6;
   const baseBad = opts.baseBadRate ?? 0.15;

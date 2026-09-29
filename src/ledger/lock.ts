@@ -8,7 +8,7 @@
  * has just taken. An orphaned lock.break (older than 2 s; a breaker holds it for microseconds) is removed.
  * A lock that is not a regular readable file (a folder) stops at once: waiting would never end.
  * A timeout throws LockError, which verbs catch; it lives here so ledger and budget can share it without a cycle.
- * So does StoreError: a filesystem failure under .sidewise/ (not writable, a folder where a file should be),
+ * So does StoreError: a filesystem failure under .mm3/ (not writable, a folder where a file should be),
  * turned into one clean line instead of a raw errno and a machine path.
  */
 import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from 'node:fs';
@@ -28,14 +28,14 @@ export class StoreError extends Error {
   }
 }
 
-// Everything we write lives at <project>/.sidewise/<name>, so its last two segments are its project-relative path.
+// Everything we write lives at <project>/.mm3/<name>, so its last two segments are its project-relative path.
 const shownStore = (file: string): string => `${path.basename(path.dirname(file))}/${path.basename(file)}`;
 
-/** An errno failure on a .sidewise/ file as a StoreError; anything else is passed through untouched. */
+/** An errno failure on a .mm3/ file as a StoreError; anything else is passed through untouched. */
 export function storeError(e: unknown, file: string, action: 'read' | 'write'): unknown {
   const code = (e as NodeJS.ErrnoException | undefined)?.code;
   if (typeof code !== 'string') return e;
-  return new StoreError(`✖ files: cannot ${action} ${shownStore(file)} (${code}) → make .sidewise/ a writable folder, with log.jsonl and budget.json as files`);
+  return new StoreError(`✖ files: cannot ${action} ${shownStore(file)} (${code}) → make .mm3/ a writable folder, with log.jsonl and budget.json as files`);
 }
 
 /** Runs fn, rethrowing an errno failure as a StoreError that names the file. */

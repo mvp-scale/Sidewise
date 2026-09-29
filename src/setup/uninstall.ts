@@ -1,15 +1,15 @@
 /**
- * `sidewise uninstall`: reverses init. Using Sidewise is scoped per project, so by default this only disables
+ * `mm3 uninstall`: reverses init. Using MM3 is scoped per project, so by default this only disables
  * the CURRENT project — the plugin's project-scope install, and (with confirmation; kept by default, since
- * it's the user's run history) that project's `.sidewise/`. The per-user parts — the stored key and the CLI
+ * it's the user's run history) that project's `.mm3/`. The per-user parts — the stored key and the CLI
  * itself, shared across every project — are only touched with `--all`, which also then reaches every plugin
  * scope found (not just this project's) and the marketplace/cache dir it left behind. `--yes` takes the
- * default answer everywhere: yes for removal steps that run, no for `.sidewise/` (removing run history needs
+ * default answer everywhere: yes for removal steps that run, no for `.mm3/` (removing run history needs
  * an explicit yes). `--keep-key`/`--keep-data` skip their step outright, with no question asked.
  *
  * Each step checks its own filesystem/PATH facts before asking (`stepKey` skips the question outright when
  * nothing is stored; `stepCli` falls back to `detectInstallMode` when `install.json` is missing but the CLI's
- * own resolved PATH entry makes the install mode obvious, same as `sidewise doctor`'s own `cli:` line) and
+ * own resolved PATH entry makes the install mode obvious, same as `mm3 doctor`'s own `cli:` line) and
  * again after acting, so anything still found — from a failure, or a deliberate "keep it" — gets folded into a
  * final "manual backup" block with the exact command or path to finish the job by hand. The immediate
  * `✖ problem` line already says what went wrong (AGENTS.md rule 7); the backup block is the single place to
@@ -52,13 +52,13 @@ async function ask(promptText: string, defaultAnswer: boolean, flags: UninstallF
 }
 
 /** When there's no `install.json` (predates this record, was cleared, or a hand-installed copy `init` never
- *  touched), guess the install mode from the CLI's own resolved PATH entry — the same signal `sidewise doctor`
+ *  touched), guess the install mode from the CLI's own resolved PATH entry — the same signal `mm3 doctor`
  *  already trusts for its `cli:` line: under this project's own `node_modules` → local; under npm's global
  *  prefix → global; under the user prefix (`~/.local`, what `--user` installs into) → user. Undefined when
- *  `sidewise` isn't found on PATH at all, or resolves somewhere none of the three explain — nothing safe to
+ *  `mm3` isn't found on PATH at all, or resolves somewhere none of the three explain — nothing safe to
  *  guess from either way, same as no record. */
 function detectInstallMode(ctx: UninstallCtx): { mode: InstallMode; npmPrefix?: string; projectDir?: string } | undefined {
-  const onPath = findOnPath('sidewise', ctx.env, ctx.platform);
+  const onPath = findOnPath('mm3', ctx.env, ctx.platform);
   if (!onPath) return undefined;
   let real: string;
   try {
@@ -88,12 +88,12 @@ async function stepPlugin(flags: UninstallFlags, ctx: UninstallCtx, manual: stri
   if (!scopesToRemove.length && !marketplace && !cacheDirExists) return [line('already', 'plugin', 'nothing to remove here')];
 
   const manualCmds = [
-    ...scopesToRemove.map((s) => `claude plugin uninstall sidewise@mvp-scale --scope ${s}`),
+    ...scopesToRemove.map((s) => `claude plugin uninstall mm3@mvp-scale --scope ${s}`),
     ...(marketplace ? ['claude plugin marketplace remove mvp-scale'] : []),
     ...(cacheDirExists ? [`rm -rf ${pluginCacheDir(ctx.homeDir)}`] : []),
   ];
   const found = [
-    scopesToRemove.length ? `sidewise@mvp-scale at ${scopesToRemove.join(', ')} scope` : '',
+    scopesToRemove.length ? `mm3@mvp-scale at ${scopesToRemove.join(', ')} scope` : '',
     marketplace ? 'the mvp-scale marketplace' : '',
     cacheDirExists ? 'a leftover plugin cache dir' : '',
   ]
@@ -109,10 +109,10 @@ async function stepPlugin(flags: UninstallFlags, ctx: UninstallCtx, manual: stri
   for (const scope of scopesToRemove) {
     const r = uninstallPlugin(ctx.runner, scope);
     if (r.status === 0) {
-      lines.push(line('done', 'plugin', `uninstalled sidewise@mvp-scale (${scope} scope)`));
+      lines.push(line('done', 'plugin', `uninstalled mm3@mvp-scale (${scope} scope)`));
     } else {
       lines.push(line('problem', 'plugin', `could not uninstall (${scope} scope)`));
-      manual.push(`plugin (${scope} scope): claude plugin uninstall sidewise@mvp-scale --scope ${scope}`);
+      manual.push(`plugin (${scope} scope): claude plugin uninstall mm3@mvp-scale --scope ${scope}`);
     }
   }
   if (marketplace) {
@@ -142,7 +142,7 @@ async function stepKey(flags: UninstallFlags, ctx: UninstallCtx, manual: string[
 
   const remove = await ask(`Found a stored key (${found.source === 'keychain' ? 'OS keychain' : 'the env file'}). Remove it?`, true, flags, ctx.io);
   if (!remove) {
-    manual.push('key: remove it by hand — the OS keychain entry, and/or TYPESAFE_API_KEY/AI_GATEWAY_API_KEY in the env file sidewise init wrote');
+    manual.push('key: remove it by hand — the OS keychain entry, and/or TYPESAFE_API_KEY/AI_GATEWAY_API_KEY in the env file mm3 init wrote');
     return [line('skipped', 'key', 'skipped (kept)')];
   }
   const { removed } = removeStoredKey(ctx.runner, ctx.platform, ctx.env);
@@ -155,18 +155,18 @@ async function stepKey(flags: UninstallFlags, ctx: UninstallCtx, manual: string[
   return lines;
 }
 
-/** This project's own `.sidewise/` — always considered (not gated on --all: it's this project's data,
+/** This project's own `.mm3/` — always considered (not gated on --all: it's this project's data,
  *  regardless of whether the per-user parts are also being removed), kept by default even under --yes.
  *  Re-checks after `rmSync` (a permission problem doesn't always throw the way `force: true` expects) and
  *  folds a kept-or-failed directory into the manual backup block either way. */
 async function stepData(flags: UninstallFlags, ctx: UninstallCtx, manual: string[]): Promise<string[]> {
   if (flags.keepData) return [line('skipped', 'project', 'skipped (--keep-data)')];
-  const dir = `${ctx.cwd}/.sidewise`;
-  if (!existsSync(dir)) return [line('already', 'project', 'no .sidewise/ here')];
-  const remove = flags.yes ? false : await confirm("Remove this project's .sidewise/ (your run history)? This cannot be undone.", false, ctx.io);
+  const dir = `${ctx.cwd}/.mm3`;
+  if (!existsSync(dir)) return [line('already', 'project', 'no .mm3/ here')];
+  const remove = flags.yes ? false : await confirm("Remove this project's .mm3/ (your run history)? This cannot be undone.", false, ctx.io);
   if (!remove) {
     manual.push(`project data: rm -rf ${dir}`);
-    return [line('skipped', 'project', 'kept .sidewise/ (default: no)')];
+    return [line('skipped', 'project', 'kept .mm3/ (default: no)')];
   }
   try {
     rmSync(dir, { recursive: true, force: true });
@@ -177,7 +177,7 @@ async function stepData(flags: UninstallFlags, ctx: UninstallCtx, manual: string
     manual.push(`project data: rm -rf ${dir}`);
     return [line('problem', 'project', `could not remove ${dir} → remove it by hand: rm -rf ${dir}`)];
   }
-  return [line('done', 'project', 'removed .sidewise/')];
+  return [line('done', 'project', 'removed .mm3/')];
 }
 
 /** Per user, shared across every project — only touched with `--all`. Falls back to `detectInstallMode` when
@@ -214,7 +214,7 @@ async function stepCli(flags: UninstallFlags, ctx: UninstallCtx, manual: string[
   }
   clearInstallRecord(ctx.env);
   const lines = [line('done', 'cli', `uninstalled (was --${loc.mode}${guessedNote})`)];
-  const stillOnPath = findOnPath('sidewise', ctx.env, ctx.platform);
+  const stillOnPath = findOnPath('mm3', ctx.env, ctx.platform);
   if (stillOnPath) {
     lines.push(line('problem', 'cli', `still resolves on PATH at ${stillOnPath} → a stale PATH entry or a second copy elsewhere; remove it by hand if a shell still finds it`));
     manual.push(`cli: still on PATH at ${stillOnPath} — check for a second install or a stale shell hash`);

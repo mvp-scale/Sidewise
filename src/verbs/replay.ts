@@ -18,17 +18,17 @@ import { combine, gradeItems, gradeSubject, goalGate, sweepGate, worstFirst, typ
 import { firstStringLayer } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions, type AskedQuestion } from '../contract/translate.ts';
 import type { Answer, Category, Gate, Request } from '../contract/types.ts';
-import { effectiveWiseFields } from '../contract/wise-fields.ts';
+import { effectiveMdlFields } from '../contract/mdl-fields.ts';
 import { isGitOption, readGitEvidence, resolveRefSha, WHOLE_FILE_NOTE } from '../evidence/git.ts';
 import { createCodeResolver, createCodeResolverAt } from '../evidence/units.ts';
 import { findRun, isContractRun, type ContractRun, type NewContractRun, type TelemetryEntry } from '../ledger/log.ts';
 import { redact } from '../ledger/redact.ts';
 import { cacheTelemetry, lookupAnswers, reusedAgeNotes, type Reusable } from '../ledger/reuse.ts';
 import { m, type Value } from '../contract/emit.ts';
-import type { SidewiseConfig } from '../config/defaults.ts';
+import type { Mm3Config } from '../config/defaults.ts';
 import { actorOf, askAll, createdNote, preflight, record, recordFree, splitReuse, type PlannedCall } from './pay.ts';
 import { loadRequest, stopText } from './request.ts';
-import { commonNotes, COST_ESTIMATED_NOTE, drillNext, dryRunText, outcomeNext, regressionNext, respondText, reusedIds, sweepNext, wiseRecorded } from './respond.ts';
+import { commonNotes, COST_ESTIMATED_NOTE, drillNext, dryRunText, outcomeNext, regressionNext, respondText, reusedIds, sweepNext, mdlRecorded } from './respond.ts';
 import { itemRecords, planNeedsBudget, plannedCallCount, planSweep, recordSweep, runSweep } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
@@ -97,19 +97,19 @@ export function gradeReplay(categories: readonly Category[], answers: Record<str
 }
 
 export async function runReplay(text: string, ctx: VerbContext): Promise<VerbResult> {
-  // plan 2c B1: a project's own .sidewise/config.yaml wise: overrides apply to every wise: block it validates.
+  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
-  const wiseFields = effectiveWiseFields(cfg.wise);
-  const loaded = loadRequest(text, 'replay', wiseFields);
+  const mdlFields = effectiveMdlFields(cfg.mdl);
+  const loaded = loadRequest(text, 'replay', mdlFields);
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 
-  const parent = findRun(ctx.paths, request.side.parent!);
-  // Each of these three ran as a bare string, missing the "→ see: sidewise agent replay" pointer every other
+  const parent = findRun(ctx.paths, request.mak.parent!);
+  // Each of these three ran as a bare string, missing the "→ see: mm3 agent replay" pointer every other
   // stop carries (stopText's own job) — round 2/3 smoke testing hit all three with no pointer to follow
   // (round3-findings.md, STOPS.md #1). Routed through stopText so they match every other verb's stop shape.
-  if (!parent) return { exit: 2, text: stopText([`✖ side.parent: ${request.side.parent} is not in the ledger → check the id`], 'replay') };
-  if (!isContractRun(parent)) return { exit: 2, text: stopText([`✖ side.parent: ${parent.id} predates the YAML contract → run class again on this code`], 'replay') };
+  if (!parent) return { exit: 2, text: stopText([`✖ mak.parent: ${request.mak.parent} is not in the ledger → check the id`], 'replay') };
+  if (!isContractRun(parent)) return { exit: 2, text: stopText([`✖ mak.parent: ${parent.id} predates the YAML contract → run class again on this code`], 'replay') };
   // plan 2c C2: a sweep parent (scan, loop, or drill's sweep form) is replayed by re-running its own sweep at
   // both refs, not refused — see runSweepReplay's own header comment.
   if (parent.items !== null) return runSweepReplay(ctx, request, loaded, parent, cfg);
@@ -119,11 +119,11 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   // "none" to predict no flips at all (plan 2c N4) — every named entry must be a real concern of the parent;
   // decisions categories don't count (they're never "fixed").
   const concernNames = categories.filter((c) => c.section === 'concerns').map((c) => c.name);
-  const expect = request.side.expect!;
+  const expect = request.mak.expect!;
   const expectList = expect === 'none' ? [] : expect;
   const badExpect = expectList.find((name) => !concernNames.includes(name));
   if (badExpect !== undefined) {
-    return { exit: 2, text: stopText([`✖ side.expect: "${badExpect}" is not a concern of ${parent.id} → use one of ${concernNames.join(', ')}`], 'replay') };
+    return { exit: 2, text: stopText([`✖ mak.expect: "${badExpect}" is not a concern of ${parent.id} → use one of ${concernNames.join(', ')}`], 'replay') };
   }
   // Two ranges on one file (parent.where can hold both) must read and charge it once, not once per range.
   const paths = [...new Set(parent.where.map((w) => w.split(':')[0]!))];
@@ -132,7 +132,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
 
   // Evidence (both refs) is read before the dry-run branch, same as class/scan/drill/loop, so a dry run still
   // catches a missing ref instead of skipping the check.
-  const compare = request.side.compare!;
+  const compare = request.mak.compare!;
   const before = readGitEvidence(ctx.paths.root, compare.before, 'before', paths);
   const after = readGitEvidence(ctx.paths.root, compare.after, 'after', paths);
   if (!before.ok || !after.ok) {
@@ -144,7 +144,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   const beforeEvidenceStr = subjectEvidence(before.files);
   const afterEvidenceStr = subjectEvidence(after.files);
   const beforeQuestions = subjectQuestions(categories, 'before:');
-  const afterQuestions = [goalQuestion(request.side.goal), ...subjectQuestions(categories, 'after:')];
+  const afterQuestions = [goalQuestion(request.mak.goal), ...subjectQuestions(categories, 'after:')];
   const beforeKeyed = beforeQuestions.map((q) => [q, answerKey(beforeEvidenceStr, q)] as const);
   const afterKeyed = afterQuestions.map((q) => [q, answerKey(afterEvidenceStr, q)] as const);
   // Reuse is resolved before preflight/dry-run, same as class.ts: a fully-reused replay's free run is never
@@ -155,7 +155,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   const answers: Record<string, Answer> = {};
   const reusedFrom: Record<string, string> = {};
   const beforeCall = planCall(beforeKeyed, beforeReused, { code: before.files }, answers, reusedFrom);
-  const afterCall = planCall(afterKeyed, afterReused, { goal: redact(request.side.goal), code: after.files }, answers, reusedFrom);
+  const afterCall = planCall(afterKeyed, afterReused, { goal: redact(request.mak.goal), code: after.files }, answers, reusedFrom);
   const calls: PlannedCall[] = [...(beforeCall ? [beforeCall] : []), ...(afterCall ? [afterCall] : [])];
 
   if (ctx.dryRun) {
@@ -250,13 +250,13 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
         ['regressed', regressed],
         ...(reusedRunIds.length ? [['reused', reusedRunIds] as [string, Value]] : []),
       ),
-      wiseRecorded(request.wise, ['parent']),
+      mdlRecorded(request.mdl, ['parent']),
       // A regression alone can fail the gate even when every "after" category passes on its own (C-064) —
       // outcomeNext's gate-matching search would then find nothing and wrongly blame the goal (GOAL_ONLY_NEXT).
       // regressed takes priority: name it, per C-065 (revert or drill into it). [C-091]
       regressed.length
         ? regressionNext(id, regressed, categories)
-        : outcomeNext(id, gate, afterCatsGrade.categories, categories, `sidewise outcome ${request.side.parent} held --by <you>`),
+        : outcomeNext(id, gate, afterCatsGrade.categories, categories, `mm3 outcome ${request.mak.parent} held --by <you>`),
       commonNotes(
         [...loaded.notes, ...evidenceNotes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         `2 states · ${budget}`,
@@ -274,15 +274,15 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   const run: NewContractRun = {
     verb: 'replay',
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
     depth: null,
     where: parent.where,
-    parent: request.side.parent!,
+    parent: request.mak.parent!,
     from: null,
     compare,
     expect,
-    wise: request.wise,
+    mdl: request.mdl,
     ask: { categories, layers: [] },
     over: null,
     items: null,
@@ -417,7 +417,7 @@ function sweepResolverAt(root: string, ref: string, notes: string[], wherePaths:
  *    `regressed` always wins, pointing at the first regressed item, even when the sweep gate would otherwise
  *    read pass on its own categories.
  */
-async function runSweepReplay(ctx: VerbContext, request: Request, loaded: { notes: string[] }, parent: ContractRun, cfg: SidewiseConfig): Promise<VerbResult> {
+async function runSweepReplay(ctx: VerbContext, request: Request, loaded: { notes: string[] }, parent: ContractRun, cfg: Mm3Config): Promise<VerbResult> {
   const layers = parent.ask.layers;
   const over = parent.over ?? {};
 
@@ -428,20 +428,20 @@ async function runSweepReplay(ctx: VerbContext, request: Request, loaded: { note
   if (chain0 !== undefined && over[chain0] === 'each') {
     return {
       exit: 2,
-      text: stopText([`✖ side.parent: ${parent.id} is a drill continuation (over: starts with "each") → replay can't rebuild its root item; run the sweep again instead`], 'replay'),
+      text: stopText([`✖ mak.parent: ${parent.id} is a drill continuation (over: starts with "each") → replay can't rebuild its root item; run the sweep again instead`], 'replay'),
     };
   }
 
   const concernNames = [...new Set(layers.flatMap((l) => l.categories.filter((c) => c.section === 'concerns').map((c) => c.name)))];
-  const expect = request.side.expect!;
+  const expect = request.mak.expect!;
   const expectList = expect === 'none' ? [] : expect;
   const badExpect = expectList.find((name) => !concernNames.includes(name));
   if (badExpect !== undefined) {
-    return { exit: 2, text: stopText([`✖ side.expect: "${badExpect}" is not a concern of ${parent.id} → use one of ${concernNames.join(', ')}`], 'replay') };
+    return { exit: 2, text: stopText([`✖ mak.expect: "${badExpect}" is not a concern of ${parent.id} → use one of ${concernNames.join(', ')}`], 'replay') };
   }
 
   const itemPaths = [...new Set(Object.values(parent.items ?? {}).flatMap((it) => (it.unit ? [it.unit.path] : [])))];
-  const compare = request.side.compare!;
+  const compare = request.mak.compare!;
   const needsCode = firstStringLayer(over) !== null;
 
   // Evidence (both refs) is checked before the dry-run branch, same as the one-subject path above (C-148): a
@@ -450,16 +450,16 @@ async function runSweepReplay(ctx: VerbContext, request: Request, loaded: { note
   if (needsCode) {
     const checkRef = (ref: string, field: 'before' | 'after'): string | undefined => {
       if (ref === 'worktree') return undefined;
-      if (isGitOption(ref)) return `✖ side.compare.${field}: "${ref}" looks like an option, not a ref → use a branch, tag or commit`;
+      if (isGitOption(ref)) return `✖ mak.compare.${field}: "${ref}" looks like an option, not a ref → use a branch, tag or commit`;
       return resolveRefSha(ctx.paths.root, ref, itemPaths) === null
-        ? `✖ side.compare.${field}: "${ref}" not found by git (or the project isn't a repo there) → check the ref`
+        ? `✖ mak.compare.${field}: "${ref}" not found by git (or the project isn't a repo there) → check the ref`
         : undefined;
     };
     const errors = [checkRef(compare.before, 'before'), checkRef(compare.after, 'after')].filter((e): e is string => e !== undefined);
     if (errors.length) return { exit: 2, text: stopText(errors, 'replay') };
   }
 
-  const sweepRequest: Request = { side: { goal: request.side.goal, where: [], categories: [], layers, over }, wise: request.wise };
+  const sweepRequest: Request = { mak: { goal: request.mak.goal, where: [], categories: [], layers, over }, mdl: request.mdl };
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const beforeNotes: string[] = [];
@@ -582,10 +582,10 @@ async function runSweepReplay(ctx: VerbContext, request: Request, loaded: { note
         ['regressed', regressedFlat],
         ...(reusedRunIds.length ? [['reused', reusedRunIds] as [string, Value]] : []),
       ),
-      wiseRecorded(request.wise, ['parent']),
+      mdlRecorded(request.mdl, ['parent']),
       regressedFlat.length
         ? drillNext(id, regressedFlat[0]!.split('#')[0]!)
-        : sweepNext(id, gate, worstFirst(afterGrades.values()), afterGraded, `sidewise outcome ${request.side.parent} held --by <you>`),
+        : sweepNext(id, gate, worstFirst(afterGrades.values()), afterGraded, `mm3 outcome ${request.mak.parent} held --by <you>`),
       commonNotes(
         [
           ...loaded.notes,
@@ -620,15 +620,15 @@ async function runSweepReplay(ctx: VerbContext, request: Request, loaded: { note
   const run: NewContractRun = {
     verb: 'replay',
     actor: actorOf(ctx),
-    task: ctx.env.SIDEWISE_TASK?.trim() || null,
-    goal: request.side.goal,
+    task: ctx.env.MM3_TASK?.trim() || null,
+    goal: request.mak.goal,
     depth: null,
     where,
-    parent: request.side.parent!,
+    parent: request.mak.parent!,
     from: null,
     compare,
     expect,
-    wise: request.wise,
+    mdl: request.mdl,
     ask: { categories: [], layers },
     over,
     items: itemRecords(afterPlan.items, afterGrades),

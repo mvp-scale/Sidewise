@@ -1,6 +1,6 @@
-# scan: sweeps code Sidewise reads itself. over: builds layers (file -> function -> call); ask: keys by layer,
+# scan: sweeps code MM3 reads itself. over: builds layers (file -> function -> call); ask: keys by layer,
 # and the contract (3k concerns x 3 angles + 2-5 decisions) is enforced on the finest layer (here: function).
-side:
+mak:
   goal: Handlers don't trust request input    # required
   # verb: scan                                # optional — must match the command you run, or the request is sent back
   depth: quick                                # required — at most 10 items asked per layer (standard 20, thorough 30) — extra items are skipped, not failed
@@ -22,7 +22,7 @@ side:
           5: Does {function} skip comparing the record's owner to the caller?
           6: Could {function} return another user's record by changing the id alone?
         leaks:
-          family: output                        # output's own roles (sidewise agent probe): source, encode, render
+          family: output                        # output's own roles (mm3 agent probe): source, encode, render
           pass: no
           7: Does {function} return a raw database error to the caller?              # source
           8: Does {function} log the full request body?                             # encode (no redaction before it's written out)
@@ -44,15 +44,15 @@ side:
         #     choice: Can this be answered from the code shown?
         #     options: [enough, partial, missing]
                                                # scan never takes where: (over: is what it reads), from:, compare: or parent:
-wise:                                         # optional block; every field inside it is optional too
+mdl:                                         # optional block; every field inside it is optional too
   why: find                                   # optional — validate | find | debug
   area: api                                   # optional — data | api | ui | auth | hosting | build | tests
   # stage: build                              # optional — design | build | review | pre-merge | post-fix | release
   # change: fix                               # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
-  # parent: SW-0001                           # optional — a related run, for lineage
+  # parent: MM3-0001                           # optional — a related run, for lineage
   # problem: Screening every request handler for unvalidated input reaching a query or a missing permission check   # optional
-  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `mm3 agent mdl` for the grammar
   #   - container:api -> component:handlers -> container:db
   # touches: [handlers]                       # optional — up to 5 entities/objects this run is about
   # blast: system                             # optional — code | component | container | system | person

@@ -2,7 +2,7 @@
 import { readRequestText } from '../contract/read.ts';
 import type { Request, Verb } from '../contract/types.ts';
 import { validateRequest } from '../contract/validate.ts';
-import type { WiseField } from '../contract/wise-fields.ts';
+import type { MdlField } from '../contract/mdl-fields.ts';
 import type { VerbResult } from './types.ts';
 
 const MAX_STOPS = 5;
@@ -15,23 +15,23 @@ const MAX_STOPS = 5;
 type AgentTarget = Verb | 'report' | 'outcome' | 'budget' | 'template';
 
 /** At most 5 stops, then one line saying how many more (pasted junk must not flood an agent's context), then a
- *  pointer at that verb/tool's own agent card — every stop is a knowledge gap `sidewise agent <target>` can
+ *  pointer at that verb/tool's own agent card — every stop is a knowledge gap `mm3 agent <target>` can
  *  close, not just the field it names. A stop is read by an agent, not a person at a terminal, so it points at
- *  the terse agent view (`sidewise agent`), not the prose `sidewise help`. Empty input (never a real call site
+ *  the terse agent view (`mm3 agent`), not the prose `mm3 help`. Empty input (never a real call site
  *  today — every caller already guards on its own failure check) stays empty, no bare pointer line. */
 export function stopText(stops: readonly string[], verb: AgentTarget): string {
   if (!stops.length) return '';
   const lines = stops.length <= MAX_STOPS ? [...stops] : [...stops.slice(0, MAX_STOPS), `✖ request: ${stops.length - MAX_STOPS} more problems → fix the ones above, then run again`];
-  return [...lines, `→ see: sidewise agent ${verb}`].join('\n');
+  return [...lines, `→ see: mm3 agent ${verb}`].join('\n');
 }
 
-/** `wiseFields` (plan 2c B1): the caller's effective (project `.sidewise/config.yaml` `wise:`-aware) field
- *  table — build it once via `effectiveWiseFields(resolveConfig(paths, env).config.wise)` and pass it in;
+/** `mdlFields` (plan 2c B1): the caller's effective (project `.mm3/config.yaml` `mdl:`-aware) field
+ *  table — build it once via `effectiveMdlFields(resolveConfig(paths, env).config.mdl)` and pass it in;
  *  omitted, this validates against the built-in table only (the pre-B1 behavior every existing caller keeps). */
-export function loadRequest(text: string, verb: Verb, wiseFields?: readonly WiseField[]): { ok: true; request: Request; notes: string[] } | { ok: false; result: VerbResult } {
+export function loadRequest(text: string, verb: Verb, mdlFields?: readonly MdlField[]): { ok: true; request: Request; notes: string[] } | { ok: false; result: VerbResult } {
   const read = readRequestText(text);
   if (!read.ok) return { ok: false, result: { exit: 2, text: stopText(read.stops, verb) } };
-  const v = validateRequest(read.value, verb, text, wiseFields);
+  const v = validateRequest(read.value, verb, text, mdlFields);
   if (!v.ok) return { ok: false, result: { exit: 2, text: stopText(v.stops.map((s) => s.text), verb) } };
   return { ok: true, request: v.request, notes: v.notes };
 }

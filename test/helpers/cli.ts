@@ -8,7 +8,7 @@ import { isSqliteExperimentalWarning } from '../../src/ledger/index.ts';
 export const CLI = path.resolve('dist/cli.js');
 
 /** True when this test run's own Node has node:sqlite (>= 22.13) — the same test-running process the CLI
- *  subprocess inherits its `node` binary from, so this predicts whether a real run persists .sidewise/index.db
+ *  subprocess inherits its `node` binary from, so this predicts whether a real run persists .mm3/index.db
  *  (SQLite) or leaves nothing on disk for the index (the Node < 22.13 fallback, e.g. this repo's Node 20 host).
  *  Resolving node:sqlite at all fires its own deferred ExperimentalWarning the first time any process does it
  *  (verified directly — asynchronous, printed after the resolving call returns). Wraps process.emitWarning
@@ -35,16 +35,16 @@ export interface CliResult {
 }
 
 export function cliEnv(root: string | undefined, extra: Record<string, string> = {}): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, SIDEWISE_PROVIDER: 'fake', SIDEWISE_ACTOR: 'e2e-agent', TYPESAFE_API_KEY: '', AI_GATEWAY_API_KEY: '',
-    // Never the developer's own ~/.config/sidewise/env key file.
-    XDG_CONFIG_HOME: path.join(os.tmpdir(), 'sidewise-test-no-config'), ...extra };
-  if (root === undefined) delete env.SIDEWISE_HOME;
-  else env.SIDEWISE_HOME = root;
+  const env: NodeJS.ProcessEnv = { ...process.env, MM3_PROVIDER: 'fake', MM3_ACTOR: 'e2e-agent', TYPESAFE_API_KEY: '', AI_GATEWAY_API_KEY: '',
+    // Never the developer's own ~/.config/mm3/env key file.
+    XDG_CONFIG_HOME: path.join(os.tmpdir(), 'mm3-test-no-config'), ...extra };
+  if (root === undefined) delete env.MM3_HOME;
+  else env.MM3_HOME = root;
   return env;
 }
 
-/** One run, synchronous. `root` is both the cwd and SIDEWISE_HOME unless `home: false`. */
-export function sidewise(root: string, args: string[], o: { input?: string | Buffer; home?: boolean; env?: Record<string, string>; timeoutMs?: number } = {}): CliResult {
+/** One run, synchronous. `root` is both the cwd and MM3_HOME unless `home: false`. */
+export function mm3(root: string, args: string[], o: { input?: string | Buffer; home?: boolean; env?: Record<string, string>; timeoutMs?: number } = {}): CliResult {
   const r = spawnSync(process.execPath, [CLI, ...args], {
     cwd: root,
     input: o.input ?? '',
@@ -56,7 +56,7 @@ export function sidewise(root: string, args: string[], o: { input?: string | Buf
 }
 
 /** One run as a child process, for launching many at once. */
-export function sidewiseAsync(root: string, args: string[], env: Record<string, string> = {}): Promise<CliResult> {
+export function mm3Async(root: string, args: string[], env: Record<string, string> = {}): Promise<CliResult> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [CLI, ...args], { cwd: root, env: cliEnv(root, env), stdio: ['ignore', 'pipe', 'pipe'] });
     let stdout = '';
@@ -69,10 +69,10 @@ export function sidewiseAsync(root: string, args: string[], env: Record<string, 
 }
 
 /**
- * Every file under <root>/.sidewise with its bytes, or null when the folder does not exist. Strict (pre-ff5f3e8,
- * and no longer skipping index.db*, per fix round 1's binding 7): an empty `.sidewise/` is NOT treated the same
+ * Every file under <root>/.mm3 with its bytes, or null when the folder does not exist. Strict (pre-ff5f3e8,
+ * and no longer skipping index.db*, per fix round 1's binding 7): an empty `.mm3/` is NOT treated the same
  * as no directory at all, and index.db/-wal/-shm are now VISIBLE to this snapshot — design binding #7 says a dry
- * run, view, or any command in a project with no ledger yet must not create `.sidewise/` in the first place, and
+ * run, view, or any command in a project with no ledger yet must not create `.mm3/` in the first place, and
  * that --dry-run/view must never create or rewrite index.db in a project that already has one (they're read-only
  * against the index — see ledger/index.ts's `readOnly` option); this snapshot has to be able to catch either
  * violation. Safe to compare byte-for-byte across a read-only call: verified directly that a plain SQLite open
@@ -81,7 +81,7 @@ export function sidewiseAsync(root: string, args: string[], env: Record<string, 
  * connection closes — only an index.db actually rebuilt or caught up on disk changes what this snapshot sees.
  */
 export function snapshot(root: string): Record<string, string> | null {
-  const dir = path.join(root, '.sidewise');
+  const dir = path.join(root, '.mm3');
   if (!existsSync(dir)) return null;
   const out: Record<string, string> = {};
   for (const name of readdirSync(dir).sort()) {
@@ -111,14 +111,14 @@ export function snapshotLedgerAndBudget(root: string): Record<string, string> | 
 }
 
 /** A failure an agent can act on: exit code, nothing on stdout, one "✖ … → …" line on stderr (a request-
- *  validation stop may carry one further "→ see: sidewise agent <verb>" line — stripped here, so every existing
+ *  validation stop may carry one further "→ see: mm3 agent <verb>" line — stripped here, so every existing
  *  caller keeps comparing against just the "✖ …" line; test/unit/request.test.ts pins that pointer's own exact
  *  shape), no stack frames. */
 export function expectCleanStop(r: CliResult, status: number): string {
   const problems: string[] = [];
   if (r.status !== status) problems.push(`exit ${r.status}, wanted ${status}`);
   if (r.stdout !== '') problems.push(`stdout not empty: ${JSON.stringify(r.stdout)}`);
-  const body = r.stderr.replace(/\n→ see: sidewise agent \S+\n$/u, '\n');
+  const body = r.stderr.replace(/\n→ see: mm3 agent \S+\n$/u, '\n');
   if (!/^✖ [^\n]+ → [^\n]+\n$/.test(body)) problems.push(`stderr is not one "✖ … → …" line: ${JSON.stringify(r.stderr)}`);
   if (/\n\s+at /.test(r.stderr)) problems.push('stack trace on stderr');
   if (problems.length) throw new Error(problems.join('; '));

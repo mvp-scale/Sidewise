@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG, type PricingRate } from '../../config/defaults.ts';
 
 export class JevConfigError extends Error {
   /** 1 (default): a provider problem (no key) — bucketed with other provider errors. 2: a config value the
-   *  caller must fix before anything runs (a bad SIDEWISE_BASE_URL) — a usage mistake, not a runtime provider
+   *  caller must fix before anything runs (a bad MM3_BASE_URL) — a usage mistake, not a runtime provider
    *  failure. */
   readonly exit: 1 | 2;
   constructor(message: string, exit: 1 | 2 = 1) {
@@ -66,7 +66,7 @@ export interface JevConfig {
    *  its own hardcoded defaults (MAX_RETRIES/BASE_BACKOFF_MS) when this is undefined. */
   retries?: number;
   backoffMs?: number;
-  /** Plan 2c B2: the effective config's per-model rate table (`.sidewise/config.yaml`'s `pricing:`, merged over
+  /** Plan 2c B2: the effective config's per-model rate table (`.mm3/config.yaml`'s `pricing:`, merged over
    *  `DEFAULT_CONFIG.pricing` — see resolveJevConfig below), threaded to `createJevClient`/`answers.ts`'s
    *  `costOf` so an estimate uses the project's own rates. `resolveJevConfig` always populates it from a real
    *  config; optional only so a hand-built `JevConfig` fixture (tests) need not supply one — `costOf` already
@@ -75,7 +75,7 @@ export interface JevConfig {
 }
 
 /** The middle layer between env and the hardcoded defaults below (plan 2c B1: env > config > default) — a
- *  project's `.sidewise/config.yaml`, already resolved by `src/config/load.ts`'s `classifierFileConfig`. Purely
+ *  project's `.mm3/config.yaml`, already resolved by `src/config/load.ts`'s `classifierFileConfig`. Purely
  *  additive: every existing call site that omits this keeps behaving exactly as before. */
 export interface JevFileConfig {
   provider?: string;
@@ -126,35 +126,35 @@ function resolveTimeoutMs(env: Env, fileConfig?: JevFileConfig): number {
 
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
 
-/** SIDEWISE_BASE_URL: a documented escape hatch (a proxy, a self-hosted mirror, tests), replacing the
+/** MM3_BASE_URL: a documented escape hatch (a proxy, a self-hosted mirror, tests), replacing the
  *  undocumented JEV_BASE_URL — there is one name, not two. Must parse as a URL; https is required, except
  *  http for localhost/127.0.0.1/[::1] (a local dev proxy). Anything else is a config stop in the
  *  "✖ field: problem → fix" style, at exit 2 (a bad override is a usage mistake to fix, not a runtime
  *  provider failure). */
 function resolveBaseURL(env: Env, baseDefault: string, fileConfig?: JevFileConfig): string {
-  const raw = clean(env.SIDEWISE_BASE_URL) ?? fileConfig?.baseURL;
+  const raw = clean(env.MM3_BASE_URL) ?? fileConfig?.baseURL;
   if (raw === undefined) return baseDefault;
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
-    throw new JevConfigError(`✖ SIDEWISE_BASE_URL: "${raw}" is not a valid URL → use an https URL, e.g. https://api.example.com`, 2);
+    throw new JevConfigError(`✖ MM3_BASE_URL: "${raw}" is not a valid URL → use an https URL, e.g. https://api.example.com`, 2);
   }
   const local = LOCAL_HOSTS.has(url.hostname);
   if (url.protocol === 'https:' || (url.protocol === 'http:' && local)) return raw.replace(/\/+$/, '');
   throw new JevConfigError(
-    `✖ SIDEWISE_BASE_URL: "${raw}" is ${url.protocol.replace(':', '')}, not https → use https, or http only for localhost/127.0.0.1/[::1]`,
+    `✖ MM3_BASE_URL: "${raw}" is ${url.protocol.replace(':', '')}, not https → use https, or http only for localhost/127.0.0.1/[::1]`,
     2,
   );
 }
 
 /**
  * Resolve config from env. Never throws for a missing key (dry-run needs the model id and route); it does
- * throw for a floating model alias or a bad SIDEWISE_BASE_URL.
+ * throw for a floating model alias or a bad MM3_BASE_URL.
  *   JEV_MODEL           pinned model, default `jev-1.13.0`
  *   JEV_GATEWAY_MODEL   gateway model id, default `typesafe-ai/jev` (whether the gateway can pin a version
  *                       is unconfirmed; the server-echoed model is recorded on every result)
- *   SIDEWISE_BASE_URL   override the base URL (proxies, self-hosting, tests) — https required except for
+ *   MM3_BASE_URL   override the base URL (proxies, self-hosting, tests) — https required except for
  *                       localhost/127.0.0.1/[::1] (see resolveBaseURL)
  *   JEV_TIMEOUT_MS      per-attempt timeout
  *
@@ -163,10 +163,10 @@ function resolveBaseURL(env: Env, baseDefault: string, fileConfig?: JevFileConfi
  * Omitting it keeps this call exactly as pure as before: no existing caller starts doing keychain/file I/O
  * just by this feature landing.
  *
- * `deps.fileConfig` (plan 2c B1, default: none): a project's `.sidewise/config.yaml`, already resolved to plain
+ * `deps.fileConfig` (plan 2c B1, default: none): a project's `.mm3/config.yaml`, already resolved to plain
  * fields by `src/config/load.ts`'s `classifierFileConfig`. Purely additive, same discipline as resolveStored —
  * every existing call site that omits it keeps reading env-then-hardcoded-default exactly as before. When
- * given, it's the middle layer: env (JEV_MODEL/SIDEWISE_BASE_URL/JEV_TIMEOUT_MS) still wins over it, and it
+ * given, it's the middle layer: env (JEV_MODEL/MM3_BASE_URL/JEV_TIMEOUT_MS) still wins over it, and it
  * still wins over the hardcoded defaults above.
  */
 export function resolveJevConfig(env: Env = process.env, deps: { resolveStored?: ResolveStored; fileConfig?: JevFileConfig } = {}): JevConfig {
@@ -199,7 +199,7 @@ export function hasKey(config: JevConfig): boolean {
 export type ProviderRoute = 'direct' | 'gateway' | 'custom';
 
 /** The route to show/record: 'direct'/'gateway' when the base URL is still that route's own default,
- *  else 'custom' — a SIDEWISE_BASE_URL override changed which endpoint actually answers. */
+ *  else 'custom' — a MM3_BASE_URL override changed which endpoint actually answers. */
 export function routeLabel(config: JevConfig): ProviderRoute {
   const baseDefault = config.route === 'gateway' ? GATEWAY_BASE_URL : DIRECT_BASE_URL;
   return config.baseURL === baseDefault ? config.route : 'custom';

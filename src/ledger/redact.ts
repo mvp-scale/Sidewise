@@ -36,7 +36,7 @@ const EMAIL = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2
 // The identifier around the keyword is bounded ({0,64}): unbounded, the two runs backtrack cubically. A longer
 // name is still caught, from the keyword (or the last "_" before it) onwards.
 //
-// C-200: this also matches Sidewise's OWN structured response/ledger keys — a sweep item or category name an
+// C-200: this also matches MM3's OWN structured response/ledger keys — a sweep item or category name an
 // agent chose itself (issue-token, verify-token, set-new-password), never a real secret. Without the `(?![{[])`
 // guard below, the "value" half (`[^\s'"]{8,}`, which stops only at whitespace or a quote) happily swallows the
 // immediately-following YAML mapping or list as if it were the secret: `issue-token: {depends: unsure, ...}`

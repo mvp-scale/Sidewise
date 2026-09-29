@@ -1,4 +1,4 @@
-// The TypeSafe adapter: sidewise questions → wire calls → sidewise answers (scale folded back from a choice),
+// The TypeSafe adapter: mm3 questions → wire calls → mm3 answers (scale folded back from a choice),
 // plus provider selection.
 import { describe, expect, it } from 'vitest';
 import { selectProvider } from '../../src/classifier/select.ts';
@@ -63,9 +63,9 @@ describe('selectProvider', () => {
     expect(selectProvider(env).adapter).toBe('typesafe');
   });
 
-  it('SIDEWISE_PROVIDER wins, and an unknown name is refused', () => {
-    expect(selectProvider({ ...env, SIDEWISE_PROVIDER: 'fake' }).adapter).toBe('fake');
-    expect(() => selectProvider({ SIDEWISE_PROVIDER: 'nope' })).toThrow(/not a provider/);
-    expect(() => selectProvider({ SIDEWISE_PROVIDER: 'typesafe' })).toThrow(/no TypeSafe key/);
+  it('MM3_PROVIDER wins, and an unknown name is refused', () => {
+    expect(selectProvider({ ...env, MM3_PROVIDER: 'fake' }).adapter).toBe('fake');
+    expect(() => selectProvider({ MM3_PROVIDER: 'nope' })).toThrow(/not a provider/);
+    expect(() => selectProvider({ MM3_PROVIDER: 'typesafe' })).toThrow(/no TypeSafe key/);
   });
 });

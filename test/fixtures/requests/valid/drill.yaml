@@ -1,6 +1,6 @@
-side:
+mak:
   goal: Find exactly where request text reaches the query
-  parent: SW-0060
+  parent: MM3-0060
   from: src/handlers/user.ts/findUser
   depth: quick
   over:
@@ -34,6 +34,6 @@ side:
           11:
             choice: What should happen to {call} next?
             options: [ship, fix, block]
-wise:
+mdl:
   why: debug
   area: data

@@ -1,4 +1,4 @@
-/** Run ids: a collision-proof ULID stored on every record, plus SW-#### assigned in order under the ledger lock. */
+/** Run ids: a collision-proof ULID stored on every record, plus MM3-#### assigned in order under the ledger lock. */
 import { randomBytes } from 'node:crypto';
 
 const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';

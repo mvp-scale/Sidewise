@@ -1,7 +1,7 @@
 /**
  * The three chaos scenarios the agent harness runs, shared across both agent CLIs (not three each — see
  * test/chaos/run.ts). Each seeds the same src/user.ts fixture plus the contract's own `class` example, and asks
- * a real coding agent to run the built CLI against it under a SIDEWISE_CHAOS schedule and report back honestly.
+ * a real coding agent to run the built CLI against it under a MM3_CHAOS schedule and report back honestly.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ function seedProject(root: string): void {
 export const SCENARIOS: readonly ChaosScenario[] = [
   {
     id: 'clean',
-    description: 'a normal run: SIDEWISE_CHAOS is empty, so every call falls through to the fake\'s answers',
+    description: 'a normal run: MM3_CHAOS is empty, so every call falls through to the fake\'s answers',
     schedule: '',
     buildProject: seedProject,
     prompt: 'Run it once. In one sentence, say what the `gate` came back as and what the `next:` line tells you to do.',

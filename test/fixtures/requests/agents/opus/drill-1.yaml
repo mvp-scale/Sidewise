@@ -1,7 +1,7 @@
-side:
+mak:
   goal: find which refunds step breaks idempotency
   depth: quick
-  parent: SW-0070
+  parent: MM3-0070
   from: billing-engine/refunds
   over:
     step:
@@ -18,7 +18,7 @@ side:
         pass: no
         3: Can a retry of {step} write a second ledger entry or refund?
         4: Does {step} depend on state that changes between retries?
-wise:
+mdl:
   why: debug
   area: data
-  parent: SW-0070
+  parent: MM3-0070

@@ -31,19 +31,19 @@ export function countTokens(text: string): number {
 // request.ts's SLOTS_PER_LEVEL = {1: 10, 2: 20, 3: 30}) maps L1/L2/L3 to quick/standard/thorough directly — this
 // is not a gap, just a different spelling of the same field, so nothing needs adding for depth.
 // Two things below are genuine Plan 1 format limits, not oversights — see docs/evidence/tokens.md for why:
-//   - `wise.why` ("validate") has no field anywhere in Plan 1's grammar (src/lens/parse.ts's FIELD regex is
-//     `perspective|where|problem|tags|focus|parent` — no `why`; Plan 1 predates the wise: block entirely).
+//   - `mdl.why` ("validate") has no field anywhere in Plan 1's grammar (src/lens/parse.ts's FIELD regex is
+//     `perspective|where|problem|tags|focus|parent` — no `why`; Plan 1 predates the mdl: block entirely).
 //     Dropped from this sample, not encoded as a discarded comment or otherwise faked.
 //   - Plan 1's `~`/`?` primitives (src/lens/request.ts's Primitive interface) carry only `options: string[]` —
 //     the full level/option list — with no syntax to mark which subset passes. severity's real passing subset
 //     (none or low) and route's real passing option (ship) are dropped from this sample for the same reason.
-const CLASS_PLAN1 = `sidewise class L1\nwhere: src/user.ts:1-3 · area: data\nproblem: This login handler is safe to merge\n 1  Is request text placed directly into the SQL query?\n 2  Could a caller change what the query does?\n10  Would a standard security scanner flag this code?\n 3 !Is the id checked to be a number before use?\n 6 !Is the caller compared to the record owner?\n 9 !Does the query select only needed columns?\n 4  Could one user read another user's record?\n 5  Can any caller read any record without a permission check?\n 7  Does the error sent back reveal the query?\n 8  Does the code log an email address?\n~ How severe is the worst issue? none | low | medium | high | critical\n? Where should this go? ship | fix | block\n`;
+const CLASS_PLAN1 = `mm3 class L1\nwhere: src/user.ts:1-3 · area: data\nproblem: This login handler is safe to merge\n 1  Is request text placed directly into the SQL query?\n 2  Could a caller change what the query does?\n10  Would a standard security scanner flag this code?\n 3 !Is the id checked to be a number before use?\n 6 !Is the caller compared to the record owner?\n 9 !Does the query select only needed columns?\n 4  Could one user read another user's record?\n 5  Can any caller read any record without a permission check?\n 7  Does the error sent back reveal the query?\n 8  Does the code log an email address?\n~ How severe is the worst issue? none | low | medium | high | critical\n? Where should this go? ship | fix | block\n`;
 // A faithful, not padded, paraphrase of the same yaml fixture in plain English. Unlike Plan 1's grammar, prose has
 // no format ceiling, so it carries everything the yaml does: the quick depth, why (validate) and area, each
 // category's name and pass direction (grouped, since that's exactly what pass: no/yes means), the full severity
 // level list plus its passing subset (none or low), and the full route option list plus its passing option (ship).
 const CLASS_PROSE = `Can you do a quick check on whether this login handler in src/user.ts (lines 1 to 3) is safe to merge? I want to validate this for the data area. On injection, I'm hoping the answer is no to all three: is request text placed directly into the SQL query, could a caller change what the query does, and would a standard security scanner flag this code? On guards, I'm hoping yes to all three: is the id checked to be a number before use, is the caller compared to the record owner, and does the query select only needed columns? On access, I'm hoping no to both: could one user read another user's record, and can any caller read any record without a permission check? On leaks, I'm hoping no to both: does the error sent back reveal the query, and does the code log an email address? How severe is the worst issue — none, low, medium, high, or critical? It passes at none or low. And where should this go — ship, fix, or block? It passes at ship.\n`;
-const VIEW_PLAN1 = `sidewise view L1\nwhere: src/user.ts:1-3 · area: data\nproblem: This login handler is safe to merge\n1  Is request text placed directly into the SQL query?\n2  Could a caller change what the query does?\n`;
+const VIEW_PLAN1 = `mm3 view L1\nwhere: src/user.ts:1-3 · area: data\nproblem: This login handler is safe to merge\n1  Is request text placed directly into the SQL query?\n2  Could a caller change what the query does?\n`;
 const VIEW_PROSE = `Before I ask for a decision, what do we already know — at a quick glance — about whether this login handler in src/user.ts (lines 1 to 3) is safe to merge? I'm validating it for the data area. On injection, I'm hoping no to both: is request text placed directly into the SQL query, and could a caller change what the query does?\n`;
 
 const HAND_WRITTEN: Partial<Record<string, Partial<Record<SampleFormat, string>>>> = {
@@ -55,13 +55,13 @@ const HAND_WRITTEN: Partial<Record<string, Partial<Record<SampleFormat, string>>
 // 5) — Plan 1's line format is retired for responses (there is no plan1 sample to transcribe), and prose doesn't
 // apply to structured output, so this is yaml vs json only. `emit()` is the same function src/verbs/respond.ts
 // uses to print every real response, so RESPONSE_YAML below is real emit() output, not hand-typed — it can't
-// drift from what Sidewise actually prints. It transcribes AGENTS.md's own worked `class` example.
+// drift from what MM3 actually prints. It transcribes AGENTS.md's own worked `class` example.
 const RESPONSE_VERB = 'response';
 const RESPONSE_DOC = m(
   [
-    'side',
+    'mak',
     m(
-      ['id', 'SW-0001'],
+      ['id', 'MM3-0001'],
       ['gate', 'fail'],
       ['goal', m(['gate', 'unsure'], ['p', 0.47])],
       ['injection', m(['gate', 'unsure'], ['1', 0.67], ['2', 0.26], ['10', 0.6])],
@@ -74,8 +74,8 @@ const RESPONSE_DOC = m(
       ['escalate', true],
     ),
   ],
-  ['wise', m(['recorded', ['why', 'area']])],
-  ['next', 'sidewise template drill --parent SW-0001 --from guards'],
+  ['mdl', m(['recorded', ['why', 'area']])],
+  ['next', 'mm3 template drill --parent MM3-0001 --from guards'],
   ['notes', ['budget 0% used ($0.00 of $5.00 · 1 of 500 runs)']],
 );
 const RESPONSE_YAML = emit(RESPONSE_DOC);
@@ -185,7 +185,7 @@ yaml, both jsons and prose carry the same information as each other for the same
 
   > ${CLASS_PROSE.trim()}
 
-  Plan 1's grammar does have a ceiling. Two things in the yaml fixtures cannot be expressed in Plan 1 at all, and are dropped from the plan1 samples rather than faked: \`wise.why\` (no field for it anywhere in Plan 1's request grammar — \`src/lens/parse.ts\`'s field list is \`perspective|where|problem|tags|focus|parent\`; Plan 1 predates the wise: block), and the passing subset of a scale/choice primitive (Plan 1's \`~\`/\`?\` primitives, \`src/lens/request.ts\`'s \`Primitive\` interface, carry the full level/option list with no syntax to mark which subset passes — severity's real passing subset is none or low, route's is ship). \`depth\` is not a gap: Plan 1's header level (\`L1\`) already maps directly to \`depth: quick\` (\`SLOTS_PER_LEVEL = {1: 10, 2: 20, 3: 30}\`, \`src/lens/request.ts\`), just spelled differently.
+  Plan 1's grammar does have a ceiling. Two things in the yaml fixtures cannot be expressed in Plan 1 at all, and are dropped from the plan1 samples rather than faked: \`mdl.why\` (no field for it anywhere in Plan 1's request grammar — \`src/lens/parse.ts\`'s field list is \`perspective|where|problem|tags|focus|parent\`; Plan 1 predates the mdl: block), and the passing subset of a scale/choice primitive (Plan 1's \`~\`/\`?\` primitives, \`src/lens/request.ts\`'s \`Primitive\` interface, carry the full level/option list with no syntax to mark which subset passes — severity's real passing subset is none or low, route's is ship). \`depth\` is not a gap: Plan 1's header level (\`L1\`) already maps directly to \`depth: quick\` (\`SLOTS_PER_LEVEL = {1: 10, 2: 20, 3: 30}\`, \`src/lens/request.ts\`), just spelled differently.
 `;
 
   const headline = `## Headline

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1000" height="600" viewBox="0 0 1000 600" role="img" aria-labelledby="title desc" style="text-rendering:geometricPrecision">
   <title id="title">Great on its own. Better with a Knowledge One.</title>
-  <desc id="desc">Two cards. A System One classifier: online, inexpensive, fast, calibrated yes or no. A Knowledge One, such as Sidewise, adds what a System One doesn't give you on its own: a standard request, well-formed checks before you pay, many angles per decision, caching, routing, knowing what it doesn't know, context kept, a traceable record, and knowledge that grows with use.</desc>
+  <desc id="desc">Two cards. A System One classifier: online, inexpensive, fast, calibrated yes or no. A Knowledge One, such as MM3, adds what a System One doesn't give you on its own: a standard request, well-formed checks before you pay, many angles per decision, caching, routing, knowing what it doesn't know, context kept, a traceable record, and knowledge that grows with use.</desc>
   <defs>
     <linearGradient id="bg" x2="0" y2="1"><stop stop-color="#0b1424"/><stop offset="1" stop-color="#050914"/></linearGradient>
     <linearGradient id="amber"><stop stop-color="#ffe49c"/><stop offset="1" stop-color="#ffbd4a"/></linearGradient>
@@ -43,7 +43,7 @@
   <!-- right card: Knowledge One -->
   <rect x="532" y="116" width="420" height="424" rx="20" class="card" style="stroke:#9cff63;stroke-opacity:.45"/>
   <rect x="556" y="140" width="44" height="44" rx="12" fill="url(#lime)"/><text x="578" y="169" text-anchor="middle" fill="#14240a" font-size="15" font-weight="850">K1</text>
-  <text x="616" y="158" class="ct">+ Knowledge One</text><text x="616" y="178" class="cs">e.g. Sidewise, on top of any System One</text>
+  <text x="616" y="158" class="ct">+ Knowledge One</text><text x="616" y="178" class="cs">e.g. MM3, on top of any System One</text>
   <text x="556" y="222" class="k" style="fill:#9bdcff">ADDS, FOR THE DECISION IN FRONT OF YOU</text>
   <g class="r d5"><circle cx="564" cy="246" r="5" fill="#9bdcff"/><text x="580" y="251" class="it">A standard request: 10, 20 or 30 angles</text></g>
   <g class="r d6"><circle cx="564" cy="274" r="5" fill="#9bdcff"/><text x="580" y="279" class="it">Checked before you pay</text></g>
@@ -56,5 +56,5 @@
   <g class="r d12"><circle cx="564" cy="477" r="5" fill="#b7ff83"/><text x="580" y="482" class="it">Knowledge that grows with use</text></g>
   <text x="556" y="516" class="cs">The same foundation, made better.</text>
 
-  <text x="500" y="566" text-anchor="middle" class="foot">A System One needs a Knowledge One. <tspan fill="#f5f8ff" font-weight="760">That's Sidewise.</tspan></text>
+  <text x="500" y="566" text-anchor="middle" class="foot">A System One needs a Knowledge One. <tspan fill="#f5f8ff" font-weight="760">That's MM3.</tspan></text>
 </svg>

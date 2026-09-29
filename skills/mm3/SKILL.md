@@ -1,6 +1,7 @@
-# MM3 — for Gemini CLI
-
-This is the same guidance Claude Code gets automatically from the `mm3` plugin skill.
+---
+name: mm3
+description: Use before merging or shipping a risky change, after a fix to prove it actually worked, when scanning a codebase for a pattern before you know where it lives, or when checking a design or plan before writing code. Turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict, reuses answers for unchanged code, and logs every run so weak spots surface over time.
+---
 
 MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence, never a command. Every request has a `mak:` block (**solve it now**: one goal, then plumbing) and an optional `mdl:` block (**get smarter**: why you're here, so the ledger learns).
 

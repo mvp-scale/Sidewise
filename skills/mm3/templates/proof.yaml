@@ -1,7 +1,7 @@
 # proof pattern (class-shaped): the tightest shape for one narrow claim — every question phrased so "yes" is
 # the fine answer, need: all (the default) on every category. The contract still needs exactly 3 concerns
 # categories at quick depth; keep the other two just as narrow as the first, not padding.
-side:
+mak:
   goal: The refund handler cannot double-charge a card
   depth: quick
   where: [src/billing/refund.ts:1-60]
@@ -33,6 +33,6 @@ side:
         11:
           choice: Where should this go?
           options: [ship, fix, block]
-wise:
+mdl:
   why: validate
   area: data

@@ -1,8 +1,8 @@
-/** Where the ledger lives: <root>/.sidewise/. Root = SIDEWISE_HOME, else the nearest folder with .sidewise or .git. */
+/** Where the ledger lives: <root>/.mm3/. Root = MM3_HOME, else the nearest folder with .mm3 or .git. */
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-export interface SidewisePaths {
+export interface Mm3Paths {
   root: string;
   dir: string;
   log: string;
@@ -18,8 +18,8 @@ export interface SidewisePaths {
   config: string;
 }
 
-export function pathsFor(root: string): SidewisePaths {
-  const dir = path.join(root, '.sidewise');
+export function pathsFor(root: string): Mm3Paths {
+  const dir = path.join(root, '.mm3');
   return {
     root,
     dir,
@@ -32,9 +32,9 @@ export function pathsFor(root: string): SidewisePaths {
 }
 
 /**
- * Creates .sidewise/ (if missing) and a self-ignoring `.sidewise/.gitignore` holding `*`, so nothing inside
- * is committed by default even when a user never ran `sidewise init` and
- * `.sidewise/` is only ever created lazily, by the first ledger/budget/index write. Called from every one of
+ * Creates .mm3/ (if missing) and a self-ignoring `.mm3/.gitignore` holding `*`, so nothing inside
+ * is committed by default even when a user never ran `mm3 init` and
+ * `.mm3/` is only ever created lazily, by the first ledger/budget/index write. Called from every one of
  * those write paths (log.ts, budget.ts, ledger/index.ts) and from init's own explicit "create the project"
  * step, so first-run users are covered either way. Idempotent and cheap: skips the write once the file exists.
  *
@@ -44,17 +44,17 @@ export function pathsFor(root: string): SidewisePaths {
  * with the rest of the project; nothing here ever creates that file itself (config/load.ts only ever reads
  * it, and only if a user put it there).
  */
-export function ensureDir(paths: Pick<SidewisePaths, 'dir'>): void {
+export function ensureDir(paths: Pick<Mm3Paths, 'dir'>): void {
   mkdirSync(paths.dir, { recursive: true });
   const gitignore = path.join(paths.dir, '.gitignore');
   if (!existsSync(gitignore)) writeFileSync(gitignore, '*\n!config.yaml\n');
 }
 
-/** The nearest folder at or above cwd holding .sidewise or .git; undefined outside any project. */
+/** The nearest folder at or above cwd holding .mm3 or .git; undefined outside any project. */
 export function findRoot(cwd: string): string | undefined {
   let dir = path.resolve(cwd);
   for (;;) {
-    if (existsSync(path.join(dir, '.sidewise')) || existsSync(path.join(dir, '.git'))) return dir;
+    if (existsSync(path.join(dir, '.mm3')) || existsSync(path.join(dir, '.git'))) return dir;
     const up = path.dirname(dir);
     if (up === dir) return undefined;
     dir = up;
@@ -62,11 +62,11 @@ export function findRoot(cwd: string): string | undefined {
 }
 
 /**
- * The project's paths, or undefined outside any project: we never create .sidewise/ in whatever folder an agent
- * happens to be in (its home, /tmp, a scratch dir). SIDEWISE_HOME names the project explicitly.
+ * The project's paths, or undefined outside any project: we never create .mm3/ in whatever folder an agent
+ * happens to be in (its home, /tmp, a scratch dir). MM3_HOME names the project explicitly.
  */
-export function resolvePaths(cwd: string = process.cwd(), env: Record<string, string | undefined> = process.env): SidewisePaths | undefined {
-  const home = env.SIDEWISE_HOME?.trim();
+export function resolvePaths(cwd: string = process.cwd(), env: Record<string, string | undefined> = process.env): Mm3Paths | undefined {
+  const home = env.MM3_HOME?.trim();
   const root = home ? path.resolve(home) : findRoot(cwd);
   return root === undefined ? undefined : pathsFor(root);
 }

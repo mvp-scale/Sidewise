@@ -15,7 +15,7 @@ describe('readGitEvidence: an option-shaped ref never reaches git', () => {
     const { root } = tempProject({ 'src/a.ts': 'x' });
     const spawn = vi.fn();
     const r = readGitEvidence(root, '--output=x', 'before', ['src/a.ts'], { spawn: spawn as never });
-    expect(r).toEqual({ ok: false, errors: ['✖ side.compare.before: "--output=x" looks like an option, not a ref → use a branch, tag or commit'] });
+    expect(r).toEqual({ ok: false, errors: ['✖ mak.compare.before: "--output=x" looks like an option, not a ref → use a branch, tag or commit'] });
     expect(spawn).not.toHaveBeenCalled();
   });
 
@@ -34,16 +34,16 @@ describe('readGitEvidence: an option-shaped ref never reaches git', () => {
     expect(r.ok).toBe(false);
   });
 
-  // Fix #13: replay can't see a nested repo — readGitEvidence always ran git at the Sidewise root, so a file
+  // Fix #13: replay can't see a nested repo — readGitEvidence always ran git at the MM3 root, so a file
   // whose own repo lives one level down (a monorepo package, a vendored project) was always "not found by
   // git", even on a real, committed ref. Runs git in the file's OWN nearest repo instead. [C-147]
-  it('reads a file whose own git repo is nested one level below the Sidewise root', (ctx) => {
+  it('reads a file whose own git repo is nested one level below the MM3 root', (ctx) => {
     const { root } = tempProject({});
     if (!hasGit()) return ctx.skip();
     const nested = path.join(root, 'nested');
     mkdirSync(path.join(nested, 'src'), { recursive: true });
     writeFileSync(path.join(nested, 'src', 'a.ts'), 'export const x = 1;\n');
-    gitInit(nested); // the Sidewise root itself is never a git repo here — old code had nothing to fall back to
+    gitInit(nested); // the MM3 root itself is never a git repo here — old code had nothing to fall back to
     const ref = gitCommit(nested, 'nested commit');
     const r = readGitEvidence(root, ref, 'before', ['nested/src/a.ts']);
     expect(r).toEqual({ ok: true, files: { 'nested/src/a.ts': 'export const x = 1;\n' }, notes: ['reading whole files: line ranges may not match the parent run'] });
@@ -74,7 +74,7 @@ describe('currentCommitSha (plan 2b: the ledger\'s own run.commit field)', () =>
     const nested = path.join(root, 'nested');
     mkdirSync(path.join(nested, 'src'), { recursive: true });
     writeFileSync(path.join(nested, 'src', 'a.ts'), 'export const x = 1;\n');
-    gitInit(nested); // the Sidewise root itself is never a git repo here
+    gitInit(nested); // the MM3 root itself is never a git repo here
     const sha = gitCommit(nested, 'nested commit');
     expect(currentCommitSha(root, ['nested/src/a.ts:1-3'])).toBe(sha);
   });

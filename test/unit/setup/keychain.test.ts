@@ -19,13 +19,13 @@ describe('keychainLookup', () => {
   it('linux: secret-tool lookup, no secret needed as input', () => {
     const { runner, calls } = recorder(() => ({ status: 0, stdout: 'the-secret\n', stderr: '' }));
     expect(keychainLookup(runner, 'linux')).toBe('the-secret');
-    expect(calls).toEqual([{ cmd: 'secret-tool', args: ['lookup', 'service', 'sidewise', 'account', 'typesafe'], input: undefined }]);
+    expect(calls).toEqual([{ cmd: 'secret-tool', args: ['lookup', 'service', 'mm3', 'account', 'typesafe'], input: undefined }]);
   });
 
   it('darwin: security find-generic-password', () => {
     const { runner, calls } = recorder(() => ({ status: 0, stdout: 'mac-secret\n', stderr: '' }));
     expect(keychainLookup(runner, 'darwin')).toBe('mac-secret');
-    expect(calls[0]).toEqual({ cmd: 'security', args: ['find-generic-password', '-s', 'sidewise', '-a', 'typesafe', '-w'], input: undefined });
+    expect(calls[0]).toEqual({ cmd: 'security', args: ['find-generic-password', '-s', 'mm3', '-a', 'typesafe', '-w'], input: undefined });
   });
 
   it('windows and anything else: undefined, never spawns anything', () => {
@@ -45,7 +45,7 @@ describe('keychainStore: the secret is only ever on stdin', () => {
   it('linux: secret-tool store', () => {
     const { runner, calls } = recorder(() => ({ status: 0, stdout: '', stderr: '' }));
     expect(keychainStore(runner, 'linux', 'super-secret')).toBe('stored');
-    expect(calls).toEqual([{ cmd: 'secret-tool', args: ['store', '--label=Sidewise', 'service', 'sidewise', 'account', 'typesafe'], input: 'super-secret' }]);
+    expect(calls).toEqual([{ cmd: 'secret-tool', args: ['store', '--label=MM3', 'service', 'mm3', 'account', 'typesafe'], input: 'super-secret' }]);
   });
 
   it('darwin always "unavailable": security add-generic-password can\'t take this off argv', () => {
@@ -65,11 +65,11 @@ describe('keychainRemove', () => {
   it('linux clears, darwin deletes, windows is always false', () => {
     const { runner: linuxRunner, calls: linuxCalls } = recorder(() => ({ status: 0, stdout: '', stderr: '' }));
     expect(keychainRemove(linuxRunner, 'linux')).toBe(true);
-    expect(linuxCalls[0]).toMatchObject({ cmd: 'secret-tool', args: ['clear', 'service', 'sidewise', 'account', 'typesafe'] });
+    expect(linuxCalls[0]).toMatchObject({ cmd: 'secret-tool', args: ['clear', 'service', 'mm3', 'account', 'typesafe'] });
 
     const { runner: macRunner, calls: macCalls } = recorder(() => ({ status: 0, stdout: '', stderr: '' }));
     expect(keychainRemove(macRunner, 'darwin')).toBe(true);
-    expect(macCalls[0]).toMatchObject({ cmd: 'security', args: ['delete-generic-password', '-s', 'sidewise', '-a', 'typesafe'] });
+    expect(macCalls[0]).toMatchObject({ cmd: 'security', args: ['delete-generic-password', '-s', 'mm3', '-a', 'typesafe'] });
 
     expect(keychainRemove(() => ({ status: 0, stdout: '', stderr: '' }), 'win32')).toBe(false);
   });

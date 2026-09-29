@@ -1,4 +1,4 @@
-/** The request and answer model of the YAML call contract v1 (skills/sidewise/references/contract.md). */
+/** The request and answer model of the YAML call contract v1 (skills/mm3/references/contract.md). */
 export const VERBS = ['view', 'class', 'replay', 'scan', 'drill', 'loop'] as const;
 export type Verb = (typeof VERBS)[number];
 
@@ -17,7 +17,7 @@ export const AREAS = ['data', 'api', 'ui', 'auth', 'hosting', 'build', 'tests'] 
 export type Why = (typeof WHYS)[number];
 export type Area = (typeof AREAS)[number];
 
-/** The wise catalog: three more optional, closed fields alongside why/area. */
+/** The mdl catalog: three more optional, closed fields alongside why/area. */
 export const STAGES = ['design', 'build', 'review', 'pre-merge', 'post-fix', 'release', 'operate'] as const;
 export const CHANGES = ['feature', 'fix', 'refactor', 'dependency', 'config'] as const;
 export const RISKS = ['low', 'medium', 'high'] as const;
@@ -37,7 +37,7 @@ export const DECISIONS_MAX = 5;
 export const FAMILIES = ['access', 'injection', 'secrets', 'input', 'output', 'availability', 'correctness', 'design', 'design-risk', 'done', 'other'] as const;
 export type Family = (typeof FAMILIES)[number];
 
-/** wise.blast: how far a change's own blast radius reaches, C4-style. */
+/** mdl.blast: how far a change's own blast radius reaches, C4-style. */
 export const BLASTS = ['code', 'component', 'container', 'system', 'person'] as const;
 export type Blast = (typeof BLASTS)[number];
 
@@ -69,7 +69,7 @@ export interface Layer {
   categories: Category[];
 }
 
-export interface Side {
+export interface Mak {
   verb?: Verb;
   goal: string;
   depth?: Depth;
@@ -90,7 +90,7 @@ export interface Side {
   over?: Record<string, unknown>;
 }
 
-export interface Wise {
+export interface Mdl {
   why?: Why;
   /** Single value, or a list of up to 2 (plan 2c: "omit for whole-system questions: uses carries the map"). */
   area?: Area | Area[];
@@ -100,9 +100,9 @@ export interface Wise {
   parent?: string;
   /** One line: what the agent is solving right now. */
   problem?: string;
-  /** Up to 5 C4 chains: "level:name( -> level:name)*" (wise-fields.ts's CHAIN_RE). Replaces plan 2b's single
-   *  `nodes` string (removed, nothing published): a reader of an OLD ledger record that still has `wise.nodes`
-   *  must keep treating it as a 1-item `uses` (plan 2c A4) — see wise-fields.ts's normalizeWise. */
+  /** Up to 5 C4 chains: "level:name( -> level:name)*" (mdl-fields.ts's CHAIN_RE). Replaces plan 2b's single
+   *  `nodes` string (removed, nothing published): a reader of an OLD ledger record that still has `mdl.nodes`
+   *  must keep treating it as a 1-item `uses` (plan 2c A4) — see mdl-fields.ts's normalizeMdl. */
   uses?: string[];
   /** Entities/objects the run touches, up to 5. */
   touches?: string[];
@@ -112,8 +112,8 @@ export interface Wise {
 }
 
 export interface Request {
-  side: Side;
-  wise: Wise | null;
+  mak: Mak;
+  mdl: Mdl | null;
 }
 
 /** A validation stop. `schema`: the JSON Schema rejects it too. `cross`: a rule the schema can't express. */

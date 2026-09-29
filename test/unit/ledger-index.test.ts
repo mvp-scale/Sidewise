@@ -44,7 +44,7 @@ const hasNodeSqlite = (() => {
   return !!getBuiltin('node:sqlite');
 })();
 
-/** generateLedgerRecords always numbers its own batch from SW-0001 — right for a fresh ledger, but a real
+/** generateLedgerRecords always numbers its own batch from MM3-0001 — right for a fresh ledger, but a real
  *  "append more to an existing ledger" scenario needs ids that continue past what's already there (a real
  *  ledger's ids are always unique: nextRunNumber always computes off the CURRENT count). Remaps `idOffset` runs
  *  are already used, matching the runs table's `id PK` schema — a colliding id would (correctly) INSERT OR
@@ -67,7 +67,7 @@ describe('the index matches a linear scan', () => {
     const runs = linear.filter((r) => r.kind === 'run');
     expect(nextRunNumber(paths)).toBe(runs.length + 1);
     expect(runs.length).toBeGreaterThanOrEqual(count); // outcomes/failed don't count as runs
-    for (const id of [runs[0]!.id, runs[Math.floor(runs.length / 2)]!.id, runs.at(-1)!.id, 'SW-9999']) {
+    for (const id of [runs[0]!.id, runs[Math.floor(runs.length / 2)]!.id, runs.at(-1)!.id, 'MM3-9999']) {
       expect(findRun(paths, id)).toEqual(linear.find((r) => r.kind === 'run' && r.id === id));
     }
   });
@@ -89,7 +89,7 @@ describe('the index matches a linear scan', () => {
     const { paths } = tempProject({});
     writeSyntheticLedger(paths, { seed: 'idx-3', runs: 5 });
     const before = nextRunNumber(paths);
-    const partial = JSON.stringify({ kind: 'run', v: 2, id: 'SW-9999' }).slice(0, -1); // truncated, mid-write
+    const partial = JSON.stringify({ kind: 'run', v: 2, id: 'MM3-9999' }).slice(0, -1); // truncated, mid-write
     appendFileSync(paths.log, partial); // no trailing \n
     expect(nextRunNumber(paths)).toBe(before); // not counted: might still be writing
     appendFileSync(paths.log, '}\n'); // "finish" it as a line the shape checker will still reject (missing fields) — corruption, not a real run
@@ -102,7 +102,7 @@ describe('the index matches a linear scan', () => {
     nextRunNumber(paths); // caches an index at upto = end of the first 3 (or more, with outcomes) lines
     const before = readLedger(paths).length;
     appendFileSync(paths.log, 'not json at all\n');
-    expect(() => nextRunNumber(paths)).toThrow(`✖ ledger: line ${before + 1} of .sidewise/log.jsonl is not valid JSON → fix or remove that line`);
+    expect(() => nextRunNumber(paths)).toThrow(`✖ ledger: line ${before + 1} of .mm3/log.jsonl is not valid JSON → fix or remove that line`);
   });
 
   it('a log shorter than the index (replaced or truncated) rebuilds instead of trusting stale offsets', () => {
@@ -126,7 +126,7 @@ describe('the index matches a linear scan', () => {
       },
       categories: {},
     });
-    appendContractRun(paths, run, Date.now(), 'b'); // SW-0001
+    appendContractRun(paths, run, Date.now(), 'b'); // MM3-0001
     // sweepPlaces itself, off the now-appended (fully-shaped) record: exactly one deduped 'where' and one 'tag'.
     const saved = readLedger(paths).find(isContractRun)!;
     expect(sweepPlaces(saved)).toEqual([
@@ -137,8 +137,8 @@ describe('the index matches a linear scan', () => {
       __testOnly.forceFallback = forceFallback;
       const byPath = withIndex(paths, (h) => h.placeCandidates('src/a.ts'));
       const byTag = withIndex(paths, (h) => h.placeCandidates('sql-risk'));
-      expect(byPath.map((c) => c.id)).toEqual(['SW-0001']);
-      expect(byTag.map((c) => c.id)).toEqual(['SW-0001']);
+      expect(byPath.map((c) => c.id)).toEqual(['MM3-0001']);
+      expect(byTag.map((c) => c.id)).toEqual(['MM3-0001']);
     }
   });
 });
@@ -245,15 +245,15 @@ describe('findRun recovers from a stale or bad index without crashing', () => {
   });
 });
 
-// plan 2c F1: a record written before plan 2c may still carry the old `wise.nodes` (a single chain string)
+// plan 2c F1: a record written before plan 2c may still carry the old `mdl.nodes` (a single chain string)
 // instead of `uses` — readRecordAt (report.ts's and view.ts's own per-record reader, and findRun which uses it)
 // must read it back as a 1-item `uses` list.
-it('readRecordAt reads an old wise.nodes record as a 1-item uses list', () => {
+it('readRecordAt reads an old mdl.nodes record as a 1-item uses list', () => {
   const { paths } = tempProject({});
-  const withNodes = sampleContractRun({ wise: { nodes: 'container:web-app' } } as unknown as Parameters<typeof sampleContractRun>[0]);
+  const withNodes = sampleContractRun({ mdl: { nodes: 'container:web-app' } } as unknown as Parameters<typeof sampleContractRun>[0]);
   const saved = appendContractRun(paths, withNodes, Date.parse('2026-09-25T12:00:00Z'), 'b');
   const run = findRun(paths, saved.id);
-  expect(run && isContractRun(run) ? run.wise : undefined).toEqual({ uses: ['container:web-app'] });
+  expect(run && isContractRun(run) ? run.mdl : undefined).toEqual({ uses: ['container:web-app'] });
 });
 
 describe('the fallback path gives identical results to whatever engine is really available', () => {
@@ -302,7 +302,7 @@ describe('the fallback path gives identical results to whatever engine is really
       }),
       Date.now(),
       'b',
-    ); // SW-0001: two categories, two families
+    ); // MM3-0001: two categories, two families
     appendContractRun(
       paths,
       sampleContractRun({
@@ -311,7 +311,7 @@ describe('the fallback path gives identical results to whatever engine is really
       }),
       Date.now(),
       'b',
-    ); // SW-0002: a second run in the SAME family as SW-0001's "injection" — proves aggregation across runs
+    ); // MM3-0002: a second run in the SAME family as MM3-0001's "injection" — proves aggregation across runs
 
     for (const forceFallback of [false, true]) {
       __testOnly.forceFallback = forceFallback;
@@ -371,13 +371,13 @@ describe('a query that throws mid-fn falls back cleanly, with no leaked partial 
 });
 
 describe('dry runs and free reads create nothing on disk when there is no ledger yet', () => {
-  it('withIndex over a missing log never creates .sidewise/, with or without the fallback forced', () => {
+  it('withIndex over a missing log never creates .mm3/, with or without the fallback forced', () => {
     for (const forceFallback of [false, true]) {
       __testOnly.forceFallback = forceFallback;
       const { root, paths } = tempProject({});
       expect(existsSync(paths.dir)).toBe(false);
       expect(withIndex(paths, (h) => h.runCount())).toBe(0);
-      expect(withIndex(paths, (h) => h.findOffset('SW-0001'))).toBeUndefined();
+      expect(withIndex(paths, (h) => h.findOffset('MM3-0001'))).toBeUndefined();
       expect(lookupAnswers(paths, { adapter: 'a', model: 'm' }, ['k']).size).toBe(0);
       expect(exactReuse(paths, { adapter: 'a', model: 'm' }, ['k'])).toBeUndefined();
       expect(existsSync(paths.dir)).toBe(false);

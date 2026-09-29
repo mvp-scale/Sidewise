@@ -1,5 +1,5 @@
 # loop: sweeps ideas the agent itself writes (a design, a plan) before any code exists. No file evidence.
-side:
+mak:
   goal: The checkout redesign is sound        # required
   # verb: loop                                # optional — must match the command you run, or the request is sent back
   depth: quick                                # required — sets the concerns count on the finest layer (story) below; also caps items per layer (10/20/30)
@@ -15,7 +15,7 @@ side:
     part:                          # part is not the finest layer: thin on purpose, counts aren't enforced here (a note if thin)
       concerns:
         boundaries:
-          family: design                        # design's own roles (sidewise agent probe): responsibility, dependency, testability
+          family: design                        # design's own roles (mm3 agent probe): responsibility, dependency, testability
           pass: yes
           1: Does {part} own one clear responsibility?              # responsibility
           2: Can {part} be deployed without the others?              # dependency
@@ -50,15 +50,15 @@ side:
             choice: What should happen to "{story}" next?
             options: [build-now, rework, redesign]
                                                # loop never takes from:, compare: or parent: — it has no parent run to build on
-wise:                                         # optional block; every field inside it is optional too
+mdl:                                         # optional block; every field inside it is optional too
   why: validate                               # optional — validate | find | debug
   area: api                                   # optional — data | api | ui | auth | hosting | build | tests
   # stage: design                             # optional — design | build | review | pre-merge | post-fix | release
   # change: feature                           # optional — feature | fix | refactor | dependency | config
   # risk: medium                              # optional — low | medium | high
-  # parent: SW-0001                           # optional — a related run, for lineage
+  # parent: MM3-0001                           # optional — a related run, for lineage
   # problem: Stress-testing the checkout split into gateway/payments/ledger before writing any code   # optional
-  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `sidewise agent wise` for the grammar
+  # uses:                                     # optional — up to 5 C4 chains: level:name ( -> level:name)*; run `mm3 agent mdl` for the grammar
   #   - system:checkout -> container:gateway
   #   - system:checkout -> container:payments
   # touches: [gateway, payments, ledger]       # optional — up to 5 entities/objects this run is about

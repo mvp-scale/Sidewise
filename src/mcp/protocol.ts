@@ -1,7 +1,7 @@
 /**
- * Pure JSON-RPC 2.0 message handling for the `sidewise` MCP tool — no real I/O here (see stdio.ts for the
- * actual stdin/stdout loop, and cli.ts's `mcp` command for the wiring). One tool, `sidewise`, runs exactly what
- * `sidewise <args...>` would run, in-process, with `stdin` standing in for the CLI's own stdin — there's no
+ * Pure JSON-RPC 2.0 message handling for the `mm3` MCP tool — no real I/O here (see stdio.ts for the
+ * actual stdin/stdout loop, and cli.ts's `mcp` command for the wiring). One tool, `mm3`, runs exactly what
+ * `mm3 <args...>` would run, in-process, with `stdin` standing in for the CLI's own stdin — there's no
  * second contract; the same YAML goes in and comes out. `toolDefinition`'s own description leads with a
  * directive rather than a description: a cold agent's first call should be `args: ["agent"]` (src/help/agent.ts),
  * since that's the only thing telling it `agent`/`template`/`report`/`outcome`/`budget` exist at all — the tool
@@ -29,15 +29,15 @@ export interface JsonRpcResponse {
   error?: { code: number; message: string };
 }
 
-/** Runs one `sidewise <args...>` call in-process; `stdin` stands in for fd 0 (e.g. a `-` positional).
- *  `project` stands in for `SIDEWISE_HOME` for this one call — the plugin's own cwd is wherever
+/** Runs one `mm3 <args...>` call in-process; `stdin` stands in for fd 0 (e.g. a `-` positional).
+ *  `project` stands in for `MM3_HOME` for this one call — the plugin's own cwd is wherever
  *  Claude launched, not necessarily the project, and there's no way to `cd` before an MCP tool call. */
 export type RunOne = (args: string[], stdin?: string, project?: string) => Promise<{ exit: number; text: string }>;
 
 const SUPPORTED_VERSIONS = ['2024-11-05', '2025-03-26', '2025-06-18', '2025-11-25'] as const;
 const DEFAULT_VERSION = '2025-06-18';
 
-export const TOOL_NAME = 'sidewise';
+export const TOOL_NAME = 'mm3';
 
 /** The one tool this server exposes: same args/stdin as the CLI, same text + exit code back. */
 export function toolDefinition(): { name: string; description: string; inputSchema: Record<string, unknown> } {
@@ -45,15 +45,15 @@ export function toolDefinition(): { name: string; description: string; inputSche
     name: TOOL_NAME,
     description:
       'First call args: ["agent"] to learn the commands and rules, then args: ["agent", "<command>"] before ' +
-      'writing a request. Otherwise runs any sidewise CLI command in this project — the same arguments and ' +
-      'stdin the sidewise CLI takes (e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). ' +
-      'Returns the same text output sidewise would print, and marks the result an error when the exit code is not 0.',
+      'writing a request. Otherwise runs any mm3 CLI command in this project — the same arguments and ' +
+      'stdin the mm3 CLI takes (e.g. args: ["class","-"], stdin: <request YAML>, or args: ["doctor"]). ' +
+      'Returns the same text output mm3 would print, and marks the result an error when the exit code is not 0.',
     inputSchema: {
       type: 'object',
       properties: {
-        args: { type: 'array', items: { type: 'string' }, description: 'sidewise CLI arguments, e.g. ["doctor"] or ["class","-"]' },
+        args: { type: 'array', items: { type: 'string' }, description: 'mm3 CLI arguments, e.g. ["doctor"] or ["class","-"]' },
         stdin: { type: 'string', description: 'Text to feed as stdin, for a "-" argument (e.g. the request YAML).' },
-        project: { type: 'string', description: 'The project directory to use (SIDEWISE_HOME), when it is not the current working directory.' },
+        project: { type: 'string', description: 'The project directory to use (MM3_HOME), when it is not the current working directory.' },
       },
       required: ['args'],
     },
@@ -76,7 +76,7 @@ export async function handleMessage(msg: JsonRpcRequest, deps: { runOne: RunOne;
     const params = (msg.params ?? {}) as { protocolVersion?: unknown };
     const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : undefined;
     const protocolVersion = requested && (SUPPORTED_VERSIONS as readonly string[]).includes(requested) ? requested : DEFAULT_VERSION;
-    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'sidewise', version: deps.serverVersion } });
+    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'mm3', version: deps.serverVersion } });
   }
 
   if (method === 'ping') return ok(id, {});
@@ -95,7 +95,7 @@ export async function handleMessage(msg: JsonRpcRequest, deps: { runOne: RunOne;
       return ok(id, { content: [{ type: 'text', text }], isError: exit !== 0 });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      return ok(id, { content: [{ type: 'text', text: `✖ sidewise: ${message}` }], isError: true });
+      return ok(id, { content: [{ type: 'text', text: `✖ mm3: ${message}` }], isError: true });
     }
   }
 

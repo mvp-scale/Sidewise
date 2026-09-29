@@ -1,5 +1,5 @@
 /**
- * The graph tier: a SECOND, independent set of tables in the SAME `.sidewise/index.db` file the hot tier
+ * The graph tier: a SECOND, independent set of tables in the SAME `.mm3/index.db` file the hot tier
  * (ledger/index.ts) already uses — its own `nodes`/`triples` tables, its own `meta` keys (`graph_schema_version`,
  * `graph_upto`), never touching the hot tier's own `schema_version`/`upto`/`runs`/`places`/`categories` etc. A
  * graph-schema change here never forces the hot tier to rebuild (plan 2c C3); the other direction also holds:
@@ -17,7 +17,7 @@
  *     means the same place/category/chain-part always resolves to the same row.
  *   triples(p, s, o, run, provenance, score) WITHOUT ROWID, PK (p,s,o,run) — `p` is plain-TEXT lower-kebab (the
  *     fixed predicate vocabulary below, or a custom/config-driven one), NOT dictionary-encoded (the vocabulary
- *     is small and fixed; a second join buys nothing at this scale). `run` is the witnessing run's own SW-####
+ *     is small and fixed; a second join buys nothing at this scale). `run` is the witnessing run's own MM3-####
  *     id as plain TEXT provenance/witness metadata — NOT a node id — completely separate from `s`/`o` (which
  *     ARE node ids). A run can ALSO appear as a graph subject/object (`nodes(kind='run', label=<id>)`) — that
  *     duplication (a run id as both a `nodes.label` and, separately, many `triples.run` values) is intentional.
@@ -29,10 +29,10 @@
  * no-op re-insert of identical rows (INSERT OR IGNORE + the PK make this free) — so no per-run dedup bookkeeping
  * is needed beyond "don't call insert needlessly inside one pass."
  *
- * `wise.problem` is deliberately NEVER promoted into a triple ("solves" was considered and dropped): it's
- * already fully captured, verbatim, in the hot tier's own `runs.wise` JSON column (index.ts's private
- * `wiseJson`) — a future `v_wise` reader reads it from there directly. Do not "fix" this later by adding a
- * problem triple; it would just duplicate what `runs.wise` already answers.
+ * `mdl.problem` is deliberately NEVER promoted into a triple ("solves" was considered and dropped): it's
+ * already fully captured, verbatim, in the hot tier's own `runs.mdl` JSON column (index.ts's private
+ * `mdlJson`) — a future `v_mdl` reader reads it from there directly. Do not "fix" this later by adding a
+ * problem triple; it would just duplicate what `runs.mdl` already answers.
  *
  * Predicate vocabulary implemented in `ingestContractRun`/`ingestOutcome` below (plan 2c C3): about, is-a,
  * checks (run --checks--> category: the run checked this category — controller fix, 2026-09-28: this used to
@@ -42,7 +42,7 @@
  * `categories` table already answers "which gate did this run give this category" without a graph triple for
  * it), at, contains (three sources: uses-chain '/' segments, sweep item hierarchy, and an inferred
  * place×component cross-signal), builds-on/narrows/replays, resolved-as, reaches, touches, uses, plus
- * custom/config-driven fields (`wise.extras`, via `.sidewise/config.yaml`'s `wise.<key>` overrides). Every
+ * custom/config-driven fields (`mdl.extras`, via `.mm3/config.yaml`'s `mdl.<key>` overrides). Every
  * triple's own `provenance` column (extracted | declared | inferred) is always populated, never null — a
  * reader (`report graph`) shows it on every edge, not only the inferred ones.
  *
@@ -52,13 +52,13 @@
  * different, already-solved problem for a different tier).
  */
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import type { WiseFieldOverride } from '../config/defaults.ts';
+import type { MdlFieldOverride } from '../config/defaults.ts';
 import { resolveConfig } from '../config/load.ts';
 import type { Category } from '../contract/types.ts';
-import { getSqliteCtor, normalizeRecordWise, readRecordAt, stripLines } from './index.ts';
+import { getSqliteCtor, normalizeRecordMdl, readRecordAt, stripLines } from './index.ts';
 import { isContractRun, type ContractRun, type LedgerRecord, type OutcomeRecord } from './log.ts';
 import { withLock } from './lock.ts';
-import { ensureDir, type SidewisePaths } from './paths.ts';
+import { ensureDir, type Mm3Paths } from './paths.ts';
 
 // Bumped to '2' (from '1') here: the PK (p, s, o, run) WITHOUT ROWID orders `triples` by predicate first, so
 // neither an OUTBOUND walk (`WHERE s = ?`, any predicate — `graphAround`'s own out-edges and `traverse`'s
@@ -137,7 +137,7 @@ function setMeta(db: GraphDb, key: string, value: string): void {
 
 /** Entity resolution at ingest (I6): trim every label; a `place` label additionally goes through `stripLines`
  *  (drops a trailing ":start" / ":start-end") plus a leading "./" strip. C4-chain labels are already
- *  lower-kebab by the wise grammar, so nothing further is needed for them beyond what the caller already does
+ *  lower-kebab by the mdl grammar, so nothing further is needed for them beyond what the caller already does
  *  (stripping a trailing "?" before it ever reaches here). */
 function normalizeLabel(kind: string, raw: string): string {
   let s = raw.trim();
@@ -188,7 +188,7 @@ function runPlaces(rec: ContractRun): string[] {
 }
 
 /** A C4-chain part ("component:web-app/orders-handler?") split into its level and its full name, with a
- *  trailing "?" (guessed/unbuilt) dropped from the label — the grammar (wise-fields.ts's CHAIN_RE) already
+ *  trailing "?" (guessed/unbuilt) dropped from the label — the grammar (mdl-fields.ts's CHAIN_RE) already
  *  validated every string reaching here, so no re-validation happens. */
 function parseChainPart(part: string): { level: string; name: string } {
   const colon = part.indexOf(':');
@@ -198,10 +198,10 @@ function parseChainPart(part: string): { level: string; name: string } {
   return { level, name };
 }
 
-/** Rules 1/10/11/12/13 (about/reaches/touches/uses/uses-contains) — the ONLY wise-driven predicates that a
- *  project's config can mark `literal: true` and thereby skip (config/defaults.ts's WiseFieldOverride). */
-function isLiteral(wiseConfig: Record<string, WiseFieldOverride>, key: string): boolean {
-  return wiseConfig[key]?.literal === true;
+/** Rules 1/10/11/12/13 (about/reaches/touches/uses/uses-contains) — the ONLY mdl-driven predicates that a
+ *  project's config can mark `literal: true` and thereby skip (config/defaults.ts's MdlFieldOverride). */
+function isLiteral(mdlConfig: Record<string, MdlFieldOverride>, key: string): boolean {
+  return mdlConfig[key]?.literal === true;
 }
 
 /** pass/fail/unsure → 1/0/0.5, for a `judged` triple's own `score` column — deliberate simplification
@@ -211,16 +211,16 @@ function gateScore(gate: string | undefined): number | null {
   return gate === 'pass' ? 1 : gate === 'fail' ? 0 : gate === 'unsure' ? 0.5 : null;
 }
 
-/** One contract run's own triples (plan 2c C3's predicate list). `wiseConfig` is the effective project config's
- *  `wise:` overrides (`resolveConfig(...).config.wise`), resolved once per `refreshGraph` call, never per line. */
-function ingestContractRun(db: GraphDb, rec: ContractRun, wiseConfig: Record<string, WiseFieldOverride>): void {
+/** One contract run's own triples (plan 2c C3's predicate list). `mdlConfig` is the effective project config's
+ *  `mdl:` overrides (`resolveConfig(...).config.mdl`), resolved once per `refreshGraph` call, never per line. */
+function ingestContractRun(db: GraphDb, rec: ContractRun, mdlConfig: Record<string, MdlFieldOverride>): void {
   const RUN = rec.id;
   const runNode = nodeId(db, 'run', RUN);
-  const wise = rec.wise;
+  const mdl = rec.mdl;
 
-  // 1. about — wise.area (≤2), unless config marks it literal.
-  if (wise?.area !== undefined && !isLiteral(wiseConfig, 'area')) {
-    const areas = Array.isArray(wise.area) ? wise.area : [wise.area];
+  // 1. about — mdl.area (≤2), unless config marks it literal.
+  if (mdl?.area !== undefined && !isLiteral(mdlConfig, 'area')) {
+    const areas = Array.isArray(mdl.area) ? mdl.area : [mdl.area];
     for (const a of areas) addTriple(db, 'about', runNode, nodeId(db, 'area', a), RUN, 'extracted', null);
   }
 
@@ -291,20 +291,20 @@ function ingestContractRun(db: GraphDb, rec: ContractRun, wiseConfig: Record<str
     addTriple(db, pred, runNode, nodeId(db, 'run', rec.parent), RUN, 'extracted', null);
   }
 
-  // 10. reaches — wise.blast (a single value), unless config marks it literal.
-  if (wise?.blast !== undefined && !isLiteral(wiseConfig, 'blast')) {
-    addTriple(db, 'reaches', runNode, nodeId(db, 'level', wise.blast), RUN, 'extracted', null);
+  // 10. reaches — mdl.blast (a single value), unless config marks it literal.
+  if (mdl?.blast !== undefined && !isLiteral(mdlConfig, 'blast')) {
+    addTriple(db, 'reaches', runNode, nodeId(db, 'level', mdl.blast), RUN, 'extracted', null);
   }
 
-  // 11. touches — wise.touches (≤5), unless config marks it literal.
-  if (wise?.touches !== undefined && !isLiteral(wiseConfig, 'touches')) {
-    for (const t of wise.touches) addTriple(db, 'touches', runNode, nodeId(db, 'entity', t.toLowerCase().trim()), RUN, 'extracted', null);
+  // 11. touches — mdl.touches (≤5), unless config marks it literal.
+  if (mdl?.touches !== undefined && !isLiteral(mdlConfig, 'touches')) {
+    for (const t of mdl.touches) addTriple(db, 'touches', runNode, nodeId(db, 'entity', t.toLowerCase().trim()), RUN, 'extracted', null);
   }
 
   // 12/13. uses + its own "contains" (from '/' segments), unless config marks 'uses' literal.
   const compOrCode = new Set<number>();
-  if (wise?.uses !== undefined && !isLiteral(wiseConfig, 'uses')) {
-    for (const chain of wise.uses) {
+  if (mdl?.uses !== undefined && !isLiteral(mdlConfig, 'uses')) {
+    for (const chain of mdl.uses) {
       const parts = chain.split(' -> ').map(parseChainPart);
       const partNodeIds = parts.map((part) => nodeId(db, part.level, part.name));
       for (let i = 0; i < partNodeIds.length - 1; i++) addTriple(db, 'uses', partNodeIds[i]!, partNodeIds[i + 1]!, RUN, 'declared', null);
@@ -337,13 +337,13 @@ function ingestContractRun(db: GraphDb, rec: ContractRun, wiseConfig: Record<str
 
   // 15. solves — deliberately NOT stored; see this module's own header comment.
 
-  // 16. custom / config-driven fields (wise.extras) — an unconfigured custom key stays a property only (no
+  // 16. custom / config-driven fields (mdl.extras) — an unconfigured custom key stays a property only (no
   // triple); a configured one promotes to a node, optionally cross-linked to `where`/item places via `link`.
-  const extras = wise?.extras;
+  const extras = mdl?.extras;
   if (extras) {
     const places = runPlaces(rec);
     for (const [key, rawValue] of Object.entries(extras)) {
-      const override = wiseConfig[key];
+      const override = mdlConfig[key];
       if (!override) continue; // undeclared custom key: property-only, never promoted into the graph
       const predicate = override.as ?? key;
       const values = Array.isArray(rawValue) ? rawValue : [rawValue];
@@ -393,7 +393,7 @@ function scanCompleteLines(buf: Buffer, from: number, to: number): { consumed: n
 /** True when the graph tier needs work: missing/wrong-schema (a full rebuild), or merely behind the log's
  *  current size (an incremental catch-up). Never throws for "no sqlite" here — that surfaces properly from the
  *  real attempt inside `catchUpGraph`, which this function's callers always run next when it returns true. */
-function needsCatchUp(paths: SidewisePaths, logSize: number): boolean {
+function needsCatchUp(paths: Mm3Paths, logSize: number): boolean {
   if (!existsSync(paths.index)) return true;
   let db: GraphDb;
   try {
@@ -415,7 +415,7 @@ function needsCatchUp(paths: SidewisePaths, logSize: number): boolean {
 /** Runs under paths.lock (see refreshGraph): re-derives the effective config once, schema-checks (rebuilding
  *  from byte 0 on a mismatch), then ingests every complete new line since the stored watermark, in one
  *  transaction, and persists the new watermark. */
-function catchUpGraph(paths: SidewisePaths, env: Record<string, string | undefined>): void {
+function catchUpGraph(paths: Mm3Paths, env: Record<string, string | undefined>): void {
   ensureDir(paths);
   const db = openGraphDb(paths.index);
   try {
@@ -426,7 +426,7 @@ function catchUpGraph(paths: SidewisePaths, env: Record<string, string | undefin
     if (upto >= size) return; // another process already caught this up while we waited for the lock
     const buf = readFileSync(paths.log);
     const { consumed, lines } = scanCompleteLines(buf, upto, size);
-    const wiseConfig = resolveConfig(paths, env).config.wise;
+    const mdlConfig = resolveConfig(paths, env).config.mdl;
     db.exec('BEGIN');
     try {
       for (const raw of lines) {
@@ -439,8 +439,8 @@ function catchUpGraph(paths: SidewisePaths, env: Record<string, string | undefin
           continue; // the hot tier/readLedger already fail the ledger closed on real corruption; be lenient here
         }
         if (!parsed || typeof parsed !== 'object') continue;
-        const rec = normalizeRecordWise(parsed as LedgerRecord);
-        if (rec.kind === 'run' && isContractRun(rec)) ingestContractRun(db, rec, wiseConfig);
+        const rec = normalizeRecordMdl(parsed as LedgerRecord);
+        if (rec.kind === 'run' && isContractRun(rec)) ingestContractRun(db, rec, mdlConfig);
         else if (rec.kind === 'outcome') ingestOutcome(db, rec);
       }
       setMeta(db, 'graph_upto', String(consumed));
@@ -459,10 +459,10 @@ function catchUpGraph(paths: SidewisePaths, env: Record<string, string | undefin
  * scan from its own `graph_upto` watermark. Idempotent and cheap when already fresh (checked before taking the
  * lock at all — a pure-read fast path, same spirit as the hot tier's own `tryOpenAndCheck`); re-checked again
  * INSIDE the lock in case another process already caught up while this one waited (same race the hot tier's
- * own `refreshUnderLock` guards against). A project with no ledger yet does nothing at all — no `.sidewise/`,
+ * own `refreshUnderLock` guards against). A project with no ledger yet does nothing at all — no `.mm3/`,
  * no `index.db` — matching the hot tier's own "never touch disk before the first write" rule.
  */
-export function refreshGraph(paths: SidewisePaths, env: Record<string, string | undefined> = process.env): void {
+export function refreshGraph(paths: Mm3Paths, env: Record<string, string | undefined> = process.env): void {
   const logStat = existsSync(paths.log) ? statSync(paths.log) : undefined;
   if (!logStat || logStat.size === 0) return;
   if (!needsCatchUp(paths, logStat.size)) return;
@@ -470,7 +470,7 @@ export function refreshGraph(paths: SidewisePaths, env: Record<string, string | 
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Query / traversal surface (a later piece wires these into `sidewise report`). Every reader here is a PURE
+// Query / traversal surface (a later piece wires these into `mm3 report`). Every reader here is a PURE
 // read: never takes the lock, never writes, and degrades to an empty/undefined result (never a crash) when the
 // graph tier's tables don't exist yet (a project whose graph has never been refreshed) — the caller decides
 // whether to call `refreshGraph` first.
@@ -494,7 +494,7 @@ const EMPTY_NEIGHBORHOOD: { nodes: (GraphNode & { id: number })[]; edges: GraphE
 
 /** A small neighborhood around one node: every node within `depth` hops (either direction) and the edges
  *  between them. `depth` defaults to 2 and is capped at 6 (research doc O3), same as `traverse` below. */
-export function graphAround(paths: SidewisePaths, opts: { kind: string; label: string; depth?: number }): { nodes: (GraphNode & { id: number })[]; edges: GraphEdge[] } {
+export function graphAround(paths: Mm3Paths, opts: { kind: string; label: string; depth?: number }): { nodes: (GraphNode & { id: number })[]; edges: GraphEdge[] } {
   if (!existsSync(paths.index)) return EMPTY_NEIGHBORHOOD;
   const db = openGraphDb(paths.index);
   try {
@@ -538,7 +538,7 @@ export function graphAround(paths: SidewisePaths, opts: { kind: string; label: s
   }
 }
 
-export interface WiseRow {
+export interface MdlRow {
   id: string;
   verb: string;
   ts: string;
@@ -551,10 +551,10 @@ export interface WiseRow {
   blast: string | null;
 }
 
-/** Runs × their own wise fields, straight off the hot tier's own `runs.wise` JSON column via `json_extract` —
- *  the same idiom `scripts/bench-ledger.ts`'s `benchWiseQuery` already proves works. Reads a table (`runs`) that
+/** Runs × their own mdl fields, straight off the hot tier's own `runs.mdl` JSON column via `json_extract` —
+ *  the same idiom `scripts/bench-ledger.ts`'s `benchMdlQuery` already proves works. Reads a table (`runs`) that
  *  belongs to the hot tier, not this one — fine, it's the same db file, no coupling to index.ts's internals. */
-export function wiseRows(paths: SidewisePaths, opts: { limit?: number } = {}): WiseRow[] {
+export function mdlRows(paths: Mm3Paths, opts: { limit?: number } = {}): MdlRow[] {
   if (!existsSync(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
@@ -562,13 +562,13 @@ export function wiseRows(paths: SidewisePaths, opts: { limit?: number } = {}): W
     const rows = db
       .prepare(
         `SELECT id, verb, ts,
-           json_extract(wise, '$.wise.why') AS why,
-           json_extract(wise, '$.wise.area') AS area,
-           json_extract(wise, '$.wise.stage') AS stage,
-           json_extract(wise, '$.wise.change') AS change,
-           json_extract(wise, '$.wise.risk') AS risk,
-           json_extract(wise, '$.wise.problem') AS problem,
-           json_extract(wise, '$.wise.blast') AS blast
+           json_extract(mdl, '$.mdl.why') AS why,
+           json_extract(mdl, '$.mdl.area') AS area,
+           json_extract(mdl, '$.mdl.stage') AS stage,
+           json_extract(mdl, '$.mdl.change') AS change,
+           json_extract(mdl, '$.mdl.risk') AS risk,
+           json_extract(mdl, '$.mdl.problem') AS problem,
+           json_extract(mdl, '$.mdl.blast') AS blast
          FROM runs ORDER BY ts DESC LIMIT ?`,
       )
       .all(limit);
@@ -602,7 +602,7 @@ export interface ProblemCount {
 /** family × place × gate counts — computed directly from the hot tier's own `categories`/`places` tables (a
  *  plain SQL join), NOT from `triples`: faster, and this piece doesn't need the graph tier's own tables at all.
  *  Ranked worst (most fail) first, capped. */
-export function problemCounts(paths: SidewisePaths, opts: { limit?: number } = {}): ProblemCount[] {
+export function problemCounts(paths: Mm3Paths, opts: { limit?: number } = {}): ProblemCount[] {
   if (!existsSync(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
@@ -650,7 +650,7 @@ export interface CallStat {
  *  simply wasn't recorded) carries no `telemetry` array — rather than drop it from this view entirely, its own
  *  `calls`/`costUsd`/`adapter`/`model` (always present, every schema version) fill in one `source: 'none'` row
  *  per day/verb/model, with `tokens`/`savedUsd` left at 0 (unknown at that granularity). */
-export function callStats(paths: SidewisePaths, opts: { sinceIso?: string; limit?: number } = {}): CallStat[] {
+export function callStats(paths: Mm3Paths, opts: { sinceIso?: string; limit?: number } = {}): CallStat[] {
   if (!existsSync(paths.index)) return [];
   const since = opts.sinceIso ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const limit = Math.min(Math.max(opts.limit ?? 500, 1), 5000);
@@ -698,7 +698,7 @@ export function callStats(paths: SidewisePaths, opts: { sinceIso?: string; limit
 
 export interface UndeclaredField {
   key: string;
-  /** How many runs' own `wise.extras` carried this key (once per run, regardless of a list value). */
+  /** How many runs' own `mdl.extras` carried this key (once per run, regardless of a list value). */
   count: number;
   /** Up to MAX_SAMPLES_PER_KEY raw values, for a card/report to show. */
   samples: string[];
@@ -711,27 +711,27 @@ const MAX_UNDECLARED_KEYS = 50;
 const MAX_VALUES_PER_KEY = 200;
 const MAX_SAMPLES_PER_KEY = 5;
 
-/** `sidewise report fields` (plan 2c C3): every `wise.extras` key across the hot tier's own `runs.wise` JSON
- *  column (see index.ts's `wiseJson`: `{wise, categories}`, the same column `wiseRows` above already reads)
- *  that ISN'T one of `opts.knownKeys` — the caller passes the built-in wise catalog keys plus whatever a
- *  project's own `config.wise` already declares. Bounded on both axes (distinct keys, and distinct values per
+/** `mm3 report fields` (plan 2c C3): every `mdl.extras` key across the hot tier's own `runs.mdl` JSON
+ *  column (see index.ts's `mdlJson`: `{mdl, categories}`, the same column `mdlRows` above already reads)
+ *  that ISN'T one of `opts.knownKeys` — the caller passes the built-in mdl catalog keys plus whatever a
+ *  project's own `config.mdl` already declares. Bounded on both axes (distinct keys, and distinct values per
  *  key) so a large ledger with many one-off custom keys can't turn this into an unbounded scan — "foundational
  *  only," per this piece's own instructions, not a general-purpose analytics query. */
-export function undeclaredFieldSamples(paths: SidewisePaths, opts: { knownKeys: readonly string[] }): UndeclaredField[] {
+export function undeclaredFieldSamples(paths: Mm3Paths, opts: { knownKeys: readonly string[] }): UndeclaredField[] {
   if (!existsSync(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const known = new Set(opts.knownKeys);
-    const rows = db.prepare('SELECT wise FROM runs WHERE wise IS NOT NULL').all();
+    const rows = db.prepare('SELECT mdl FROM runs WHERE mdl IS NOT NULL').all();
     const byKey = new Map<string, { count: number; values: string[] }>();
     for (const row of rows) {
       let parsed: unknown;
       try {
-        parsed = JSON.parse(String(row.wise));
+        parsed = JSON.parse(String(row.mdl));
       } catch {
         continue;
       }
-      const extras = (parsed as { wise?: { extras?: Record<string, unknown> } } | null)?.wise?.extras;
+      const extras = (parsed as { mdl?: { extras?: Record<string, unknown> } } | null)?.mdl?.extras;
       if (!extras || typeof extras !== 'object') continue;
       for (const [key, rawValue] of Object.entries(extras)) {
         if (known.has(key)) continue;
@@ -768,7 +768,7 @@ const PATH_SEP = '\u001f'; // never appears in a real label; safer than a human-
  *  (research doc O3), with a cycle guard (a comma-joined visited-id list + `NOT LIKE`) and a row `LIMIT` so a
  *  dense graph can't blow up one query. Returns instantly (and correctly — zero rows) when the graph is
  *  empty/small or the start node doesn't exist. */
-export function traverse(paths: SidewisePaths, opts: { kind: string; label: string; maxDepth?: number; limit?: number }): TraversalHit[] {
+export function traverse(paths: Mm3Paths, opts: { kind: string; label: string; maxDepth?: number; limit?: number }): TraversalHit[] {
   if (!existsSync(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {

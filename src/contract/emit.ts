@@ -1,5 +1,5 @@
 /**
- * The compact YAML response (contract "Every response"). Top-level keys are block. Inside side: (and plan:)
+ * The compact YAML response (contract "Every response"). Top-level keys are block. Inside mak: (and plan:)
  * each entry is one line (a scalar, or a one-line flow map or list), except a map of maps (failing:,
  * categories:), which gets one line per entry. Counts print as integers and probabilities to 2 places.
  * Response maps are Maps, not objects: an object would move the keys "1", "2" ahead of "gate".
@@ -14,7 +14,7 @@ const RESERVED = /^(?:true|false|null|~|yes|no|on|off|y|n)$/iu;
 /** Strings the YAML 1.2 core schema would read as a number. */
 const NUMBER_LIKE = /^(?:[-+]?(?:\d+|\d*\.\d+|\d+\.\d*)(?:[eE][-+]?\d+)?|0x[0-9a-fA-F]+|0o[0-7]+|[-+]?\.(?:inf|Inf|INF)|\.(?:nan|NaN|NAN))$/u;
 const INDICATOR = /^[-?:,[\]{}#&*!|>'"%@`]/u;
-const BLOCK_TOP = new Set(['side', 'plan', 'doctor', 'config']);
+const BLOCK_TOP = new Set(['mak', 'plan', 'doctor', 'config']);
 
 /** A string as a plain scalar when that is safe in this context, else double-quoted (JSON is valid YAML). */
 export function scalar(s: string, flow: boolean): string {

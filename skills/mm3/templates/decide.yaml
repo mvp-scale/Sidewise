@@ -1,13 +1,13 @@
 # decide pattern (class-shaped): a choice question turns a verdict into a decision among named options, not
 # just pass/fail. No new verb or option; just run class.
-side:
+mak:
   goal: Which fix should ship for the injection bug
   depth: quick                      # exactly 3 concerns categories x 3 probes for quick; decisions don't count toward it
   where: [src/handlers/user.ts:1-40]
   ask:
     concerns:
       safety:
-        family: correctness                     # correctness's own roles (sidewise agent probe): input, rule, result
+        family: correctness                     # correctness's own roles (mm3 agent probe): input, rule, result
         pass: yes
         1: Does the parameterized-query fix remove the injection?           # result
         2: Does it handle every call site, not just the reported one?       # rule (the fix's own completeness rule)
@@ -33,6 +33,6 @@ side:
         11:
           choice: Which fix should ship?
           options: [parameterize, escape, rewrite, block-merge]
-wise:
+mdl:
   why: validate
   area: data

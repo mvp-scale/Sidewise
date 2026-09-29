@@ -1,6 +1,6 @@
-// config (plan 2c B1): loadConfig (src/config/load.ts's resolveConfig) reads .sidewise/config.yaml if present,
+// config (plan 2c B1): loadConfig (src/config/load.ts's resolveConfig) reads .mm3/config.yaml if present,
 // validates and sparse-merges it over DEFAULT_CONFIG, and labels each field's source (default/config/env).
-// `sidewise config` (runConfig/formatConfig) prints the effective table; a broken file surfaces stops without
+// `mm3 config` (runConfig/formatConfig) prints the effective table; a broken file surfaces stops without
 // hiding the rest. The classifier-side `fileConfig` threading (resolveJevConfig/selectProvider) must stay
 // byte-for-byte backward compatible when omitted.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -76,7 +76,7 @@ describe('resolveConfig: a broken config.yaml', () => {
 describe('resolveConfig: env beats config beats default', () => {
   // For these 4 fields, this module's config.<field> is a display value only (config-or-default, never env) —
   // load.ts's own header comment explains why: resolveJevConfig is the real routing authority and re-checks env
-  // itself. What resolveConfig DOES do is label the source 'env' here, purely for sidewise config's printer.
+  // itself. What resolveConfig DOES do is label the source 'env' here, purely for mm3 config's printer.
   it('provider/baseURL/model/timeoutMs: env sets the source label; resolveJevConfig is where env actually wins', () => {
     const { paths } = tempProject();
     mkdirSync(paths.dir, { recursive: true });
@@ -98,7 +98,7 @@ describe('resolveConfig: env beats config beats default', () => {
   });
 });
 
-describe('sidewise config (runConfig): free, shows every key and its source', () => {
+describe('mm3 config (runConfig): free, shows every key and its source', () => {
   it('no project: exit 0, every top-level key shown as default', () => {
     const r = runConfig({}, undefined, 'none');
     expect(r.exit).toBe(0);
@@ -140,7 +140,7 @@ describe('resolveJevConfig / selectProvider: fileConfig is purely additive', () 
   });
 
   it('env still wins over fileConfig', () => {
-    const r = resolveJevConfig({ JEV_MODEL: 'jev-1.13.0', SIDEWISE_BASE_URL: 'https://env.example.com' }, { fileConfig: { model: 'jev-2.0.0', baseURL: 'https://proxy.example.com' } });
+    const r = resolveJevConfig({ JEV_MODEL: 'jev-1.13.0', MM3_BASE_URL: 'https://env.example.com' }, { fileConfig: { model: 'jev-2.0.0', baseURL: 'https://proxy.example.com' } });
     expect(r.model).toBe('jev-1.13.0');
     expect(r.baseURL).toBe('https://env.example.com');
   });
@@ -152,10 +152,10 @@ describe('resolveJevConfig / selectProvider: fileConfig is purely additive', () 
 
   it('selectProvider: fileConfig.provider is the middle layer, env still wins', () => {
     expect(selectProvider({}, { fileConfig: { provider: 'fake' } }).adapter).toBe('fake');
-    expect(selectProvider({ SIDEWISE_PROVIDER: 'fake' }, { fileConfig: { provider: 'chaos' } }).adapter).toBe('fake');
+    expect(selectProvider({ MM3_PROVIDER: 'fake' }, { fileConfig: { provider: 'chaos' } }).adapter).toBe('fake');
   });
 
-  it('classifierFileConfig: reads straight off a resolved SidewiseConfig', () => {
+  it('classifierFileConfig: reads straight off a resolved Mm3Config', () => {
     const resolved = resolveConfig(undefined, {});
     const fc = classifierFileConfig(resolved.config);
     expect(fc.timeoutMs).toBe(DEFAULT_CONFIG.timeoutMs);

@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const SKILL_MDS = ['skills/sidewise/SKILL.md', 'skills/sidewise-probe/SKILL.md'];
+const SKILL_MDS = ['skills/mm3/SKILL.md', 'skills/mm3-probe/SKILL.md'];
 
 describe.each(SKILL_MDS)('%s has no Claude Code substitution tokens', (file) => {
   const text = readFileSync(file, 'utf8');

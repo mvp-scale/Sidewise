@@ -32,8 +32,8 @@ describe('ids', () => {
   });
 
   it('formatRunId pads to 4 digits and grows past 9999', () => {
-    expect(formatRunId(7)).toBe('SW-0007');
-    expect(formatRunId(12345)).toBe('SW-12345');
+    expect(formatRunId(7)).toBe('MM3-0007');
+    expect(formatRunId(12345)).toBe('MM3-12345');
   });
 });
 
@@ -72,7 +72,7 @@ describe('redact', () => {
 });
 
 describe('paths', () => {
-  it('finds the nearest folder holding .sidewise or .git', () => {
+  it('finds the nearest folder holding .mm3 or .git', () => {
     const { root } = tempProject({ 'a/b/c.ts': 'x' });
     mkdirSync(path.join(root, '.git'));
     expect(findRoot(path.join(root, 'a', 'b'))).toBe(root);
@@ -98,7 +98,7 @@ describe('lock', () => {
       err = e;
     }
     expect(err).toBeInstanceOf(LockError);
-    expect((err as Error).message).toBe('✖ lock: .sidewise/lock is locked → wait for the other run, or delete the lock file if no run is active');
+    expect((err as Error).message).toBe('✖ lock: .mm3/lock is locked → wait for the other run, or delete the lock file if no run is active');
     expect((err as Error).message).not.toContain(root);
   });
 
@@ -150,7 +150,7 @@ describe('lock', () => {
     const { paths } = tempProject({});
     mkdirSync(paths.lock, { recursive: true });
     const start = Date.now();
-    expect(() => withLock(paths.lock, () => 1, { timeoutMs: 5000 })).toThrow(new StoreError('✖ files: .sidewise/lock is not a lock file → remove it'));
+    expect(() => withLock(paths.lock, () => 1, { timeoutMs: 5000 })).toThrow(new StoreError('✖ files: .mm3/lock is not a lock file → remove it'));
     expect(Date.now() - start).toBeLessThan(1000);
     expect(existsSync(`${paths.lock}.break`)).toBe(false);
   });
@@ -195,10 +195,10 @@ describe('log', () => {
     const { paths } = tempProject({});
     const a = appendRun(paths, sampleRun(), Date.parse('2026-09-25T12:00:00Z'));
     const b = appendRun(paths, sampleRun({ parent: a.id }));
-    expect(a).toMatchObject({ kind: 'run', id: 'SW-0001', ts: '2026-09-25T12:00:00Z' });
+    expect(a).toMatchObject({ kind: 'run', id: 'MM3-0001', ts: '2026-09-25T12:00:00Z' });
     expect(a.uid).toHaveLength(26);
-    expect(b).toMatchObject({ id: 'SW-0002', parent: 'SW-0001' });
-    expect(readLedger(paths).filter(isRun).map((r) => r.id)).toEqual(['SW-0001', 'SW-0002']);
+    expect(b).toMatchObject({ id: 'MM3-0002', parent: 'MM3-0001' });
+    expect(readLedger(paths).filter(isRun).map((r) => r.id)).toEqual(['MM3-0001', 'MM3-0002']);
   });
 
   it('redacts secrets before writing', () => {
@@ -211,29 +211,29 @@ describe('log', () => {
   it('starts a fresh line after a half-written line, and reports the bad line number on read', () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun());
-    appendFileSync(paths.log, '{"kind":"run","id":"SW-00');
-    expect(() => readLedger(paths)).toThrow(/line 2 of \.sidewise\/log\.jsonl is not valid JSON → fix or remove that line/);
+    appendFileSync(paths.log, '{"kind":"run","id":"MM3-00');
+    expect(() => readLedger(paths)).toThrow(/line 2 of \.mm3\/log\.jsonl is not valid JSON → fix or remove that line/);
   });
 
-  // plan 2c F1: a record written before plan 2c may still carry the old `wise.nodes` (a single chain string)
+  // plan 2c F1: a record written before plan 2c may still carry the old `mdl.nodes` (a single chain string)
   // instead of `uses` — readLedger (report-web.ts's and view.ts's byPlaceFullScan's own reader) must read it
   // back as a 1-item `uses` list, not leave the old shape for every caller to check for itself.
-  it('reads an old wise.nodes record as a 1-item uses list', () => {
+  it('reads an old mdl.nodes record as a 1-item uses list', () => {
     const { paths } = tempProject({});
-    const withNodes = sampleContractRun({ wise: { nodes: 'container:web-app' } } as unknown as Partial<NewContractRun>);
+    const withNodes = sampleContractRun({ mdl: { nodes: 'container:web-app' } } as unknown as Partial<NewContractRun>);
     appendContractRun(paths, withNodes, Date.parse('2026-09-25T12:00:00Z'), 'b');
     const [run] = readLedger(paths).filter(isContractRun);
-    expect(run!.wise).toEqual({ uses: ['container:web-app'] });
+    expect(run!.mdl).toEqual({ uses: ['container:web-app'] });
   });
 
   it('records outcomes; the asker cannot mark its own run held', () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun({ actor: 'reviewer' }));
-    expect(() => appendOutcome(paths, 'SW-0001', 'held', 'reviewer')).toThrow(/reviewer asked SW-0001, so it can't mark it held/);
-    expect(() => appendOutcome(paths, 'SW-0009', 'held', 'owner')).toThrow(/SW-0009 is not in the ledger/);
-    appendOutcome(paths, 'SW-0001', 'overruled', 'reviewer');
-    appendOutcome(paths, 'SW-0001', 'held', 'owner');
-    expect(latestOutcome(readLedger(paths), 'SW-0001')).toBe('held');
+    expect(() => appendOutcome(paths, 'MM3-0001', 'held', 'reviewer')).toThrow(/reviewer asked MM3-0001, so it can't mark it held/);
+    expect(() => appendOutcome(paths, 'MM3-0009', 'held', 'owner')).toThrow(/MM3-0009 is not in the ledger/);
+    appendOutcome(paths, 'MM3-0001', 'overruled', 'reviewer');
+    appendOutcome(paths, 'MM3-0001', 'held', 'owner');
+    expect(latestOutcome(readLedger(paths), 'MM3-0001')).toBe('held');
   });
 
   it('an email actor is kept, so it cannot mark its own run held', () => {
@@ -241,8 +241,8 @@ describe('log', () => {
     appendRun(paths, sampleRun({ actor: 'dev@example.com', problem: 'mail dev@example.com' }));
     const [run] = readLedger(paths).filter(isRun);
     expect(run).toMatchObject({ actor: 'dev@example.com', problem: 'mail [redacted]' });
-    expect(() => appendOutcome(paths, 'SW-0001', 'held', 'dev@example.com')).toThrow(/dev@example.com asked SW-0001, so it can't mark it held/);
-    expect(appendOutcome(paths, 'SW-0001', 'held', 'owner@example.com').record).toMatchObject({ by: 'owner@example.com' });
+    expect(() => appendOutcome(paths, 'MM3-0001', 'held', 'dev@example.com')).toThrow(/dev@example.com asked MM3-0001, so it can't mark it held/);
+    expect(appendOutcome(paths, 'MM3-0001', 'held', 'owner@example.com').record).toMatchObject({ by: 'owner@example.com' });
   });
 
   it('a token-shaped actor is still redacted, and the same token as by is still refused', () => {
@@ -250,14 +250,14 @@ describe('log', () => {
     appendRun(paths, sampleRun({ actor: GH_TOKEN }));
     expect(readFileSync(paths.log, 'utf8')).not.toContain(GH_TOKEN);
     expect(readLedger(paths).filter(isRun)[0]!.actor).toBe('[redacted]');
-    expect(() => appendOutcome(paths, 'SW-0001', 'held', GH_TOKEN)).toThrow(/can't mark it held/);
+    expect(() => appendOutcome(paths, 'MM3-0001', 'held', GH_TOKEN)).toThrow(/can't mark it held/);
     expect(readFileSync(paths.log, 'utf8')).not.toContain(GH_TOKEN);
   });
 
   it('redacts secrets in the by field before writing an outcome', () => {
     const { paths } = tempProject({});
     appendRun(paths, sampleRun({ actor: 'reviewer' }));
-    appendOutcome(paths, 'SW-0001', 'held', `owner ${GH_TOKEN}`);
+    appendOutcome(paths, 'MM3-0001', 'held', `owner ${GH_TOKEN}`);
     expect(readFileSync(paths.log, 'utf8')).not.toContain(GH_TOKEN);
     expect(readLedger(paths).find((r) => r.kind === 'outcome')).toMatchObject({ by: 'owner [redacted]' });
   });

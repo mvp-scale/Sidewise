@@ -35,7 +35,7 @@ interface JevClient {
   ask(request: JevRequest, opts?: { signal?: AbortSignal }): Promise<JevResponse>;
 }
 
-const NO_KEY_MESSAGE = '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY (direct) or AI_GATEWAY_API_KEY (gateway), or SIDEWISE_PROVIDER=fake to try requests';
+const NO_KEY_MESSAGE = '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY (direct) or AI_GATEWAY_API_KEY (gateway), or MM3_PROVIDER=fake to try requests';
 
 /** Retries beyond the first attempt: 2 more tries, 3 attempts total — the hardcoded default; plan 2c B1's
  *  `config.retries`/`config.backoffMs` (config.yaml → JevConfig, see typesafe/config.ts) override either one

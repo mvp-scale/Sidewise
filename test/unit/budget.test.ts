@@ -25,7 +25,7 @@ describe('budget', () => {
     // fix #5c: the run cap alone tripped (the $ cap has room), so raising it fits better than resetting spend.
     expect(gate).toEqual({
       ok: false,
-      message: '✖ budget: cap reached ($0.00 of $5.00 · 2 of 2 runs) → the owner runs "sidewise budget set --runs <n>"\n→ see: sidewise agent budget',
+      message: '✖ budget: cap reached ($0.00 of $5.00 · 2 of 2 runs) → the owner runs "mm3 budget set --runs <n>"\n→ see: mm3 agent budget',
     });
   });
 
@@ -35,7 +35,7 @@ describe('budget', () => {
     recordSpend(paths, 1.2, T + 1000);
     expect(checkBudget(loadBudget(paths, T + 2000).state)).toEqual({
       ok: false,
-      message: '✖ budget: cap reached ($1.20 of $1.00 · 1 of 500 runs) → the owner runs "sidewise budget reset"\n→ see: sidewise agent budget',
+      message: '✖ budget: cap reached ($1.20 of $1.00 · 1 of 500 runs) → the owner runs "mm3 budget reset"\n→ see: mm3 agent budget',
     });
     // reset moves `since` well past the spend above — the ledger line itself is untouched (never erased), only
     // excluded from the window going forward.
@@ -52,7 +52,7 @@ describe('budget', () => {
     recordSpend(paths, 1.2, T + 1000);
     expect(checkBudget(loadBudget(paths, T + 2000).state)).toEqual({
       ok: false,
-      message: '✖ budget: cap reached ($1.20 of $1.00 · 1 of 1 runs) → the owner runs "sidewise budget reset"\n→ see: sidewise agent budget',
+      message: '✖ budget: cap reached ($1.20 of $1.00 · 1 of 1 runs) → the owner runs "mm3 budget reset"\n→ see: mm3 agent budget',
     });
   });
 

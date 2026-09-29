@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { hasNodeSqlite, sidewise, sidewiseAsync, type CliResult } from '../../helpers/cli.ts';
+import { hasNodeSqlite, mm3, mm3Async, type CliResult } from '../../helpers/cli.ts';
 import { tempProject } from '../../helpers/project.ts';
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
@@ -21,21 +21,21 @@ interface Line {
   of?: string;
 }
 
-/** Reads the current run count straight off the built `sidewise budget` line (plan 2c B1: budget is
+/** Reads the current run count straight off the built `mm3 budget` line (plan 2c B1: budget is
  *  ledger-derived, no separate budget.json to read) — e.g. "budget 0% used ($0.00 of $5.00 · 3 of 500 runs)". */
 function budgetRunsOf(root: string): number {
-  const out = sidewise(root, ['budget']).stdout;
+  const out = mm3(root, ['budget']).stdout;
   const m = /· (\d+) of \d+ runs\)/.exec(out);
-  if (!m) throw new Error(`could not read a run count from "sidewise budget": ${JSON.stringify(out)}`);
+  if (!m) throw new Error(`could not read a run count from "mm3 budget": ${JSON.stringify(out)}`);
   return Number(m[1]);
 }
 
 /** Every log line parsed (a line that doesn't parse fails the test), plus the ledger-derived budget run count.
- *  `files` is snapshotted BEFORE the `sidewise budget` call this needs for `budgetRuns` — that call is itself a
+ *  `files` is snapshotted BEFORE the `mm3 budget` call this needs for `budgetRuns` — that call is itself a
  *  real CLI invocation (it can self-heal/persist index.db, same as any other command), so reading the directory
  *  after it would contaminate a caller that's asserting on `.files` alone (see the SIGKILL test below). */
 function state(root: string): { lines: Line[]; runIds: string[]; counted: number; budgetRuns: number; files: string[] } {
-  const dir = path.join(root, '.sidewise');
+  const dir = path.join(root, '.mm3');
   const lines = readFileSync(path.join(dir, 'log.jsonl'), 'utf8')
     .split('\n')
     .filter((l) => l.trim())
@@ -47,7 +47,7 @@ function state(root: string): { lines: Line[]; runIds: string[]; counted: number
 }
 
 const expectedIds = (n: number): string[] => Array.from({ length: n }, (_, i) => `SW-${String(i + 1).padStart(4, '0')}`);
-const printedId = (r: CliResult): string | undefined => /^ {2}id: (SW-\d{4,})$/m.exec(r.stdout)?.[1];
+const printedId = (r: CliResult): string | undefined => /^ {2}id: (MM3-\d{4,})$/m.exec(r.stdout)?.[1];
 const isLockTimeout = (r: CliResult): boolean => r.status === 1 && r.stdout === '' && /^✖ lock: [^\n]+ → [^\n]+\n$/.test(r.stderr);
 
 function project(): string {
@@ -69,7 +69,7 @@ function reqFile(root: string, tag: string): string {
 describe('separate processes at once', () => {
   it('10 × class on a fresh project: unique gap-free ids, every line parses, budget runs == run + failed records', async () => {
     const root = project();
-    const results = await Promise.all(Array.from({ length: 10 }, (_, i) => sidewiseAsync(root, ['class', reqFile(root, String(i))])));
+    const results = await Promise.all(Array.from({ length: 10 }, (_, i) => mm3Async(root, ['class', reqFile(root, String(i))])));
     for (const r of results) expect(r.status === 0 || isLockTimeout(r), `${r.status} ${r.stderr}`).toBe(true);
     const ok = results.filter((r) => r.status === 0);
     const s = state(root);
@@ -81,13 +81,13 @@ describe('separate processes at once', () => {
 
   it('class and outcome interleaved: every outcome names a logged run, ids stay gap-free, budget agrees', async () => {
     const root = project();
-    for (let i = 0; i < 3; i++) expect(sidewise(root, ['class', reqFile(root, `seq${i}`)]).status).toBe(0);
+    for (let i = 0; i < 3; i++) expect(mm3(root, ['class', reqFile(root, `seq${i}`)]).status).toBe(0);
     const jobs = [
-      ...Array.from({ length: 4 }, (_, i) => sidewiseAsync(root, ['class', reqFile(root, `par${i}`)])),
-      sidewiseAsync(root, ['outcome', 'SW-0001', 'failed', '--by', 'owner']),
-      sidewiseAsync(root, ['outcome', 'SW-0002', 'overruled', '--by', 'owner']),
-      sidewiseAsync(root, ['outcome', 'SW-0003', 'held', '--by', 'owner']),
-      sidewiseAsync(root, ['outcome', 'SW-0001', 'held', '--by', 'reviewer-2']),
+      ...Array.from({ length: 4 }, (_, i) => mm3Async(root, ['class', reqFile(root, `par${i}`)])),
+      mm3Async(root, ['outcome', 'MM3-0001', 'failed', '--by', 'owner']),
+      mm3Async(root, ['outcome', 'MM3-0002', 'overruled', '--by', 'owner']),
+      mm3Async(root, ['outcome', 'MM3-0003', 'held', '--by', 'owner']),
+      mm3Async(root, ['outcome', 'MM3-0001', 'held', '--by', 'reviewer-2']),
     ];
     const results = await Promise.all(jobs);
     for (const r of results) expect(r.status, r.stderr).toBe(0);
@@ -103,13 +103,13 @@ describe('separate processes at once', () => {
 
   it('6 runs racing a cap of 3: at least 3 succeed, the rest are blocked; the cap may be overshot by up to concurrent − 1 (at most 8 runs)', async () => {
     const root = project();
-    expect(sidewise(root, ['budget', 'set', '--runs', '3']).status).toBe(0);
-    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => sidewiseAsync(root, ['class', reqFile(root, String(i))])));
+    expect(mm3(root, ['budget', 'set', '--runs', '3']).status).toBe(0);
+    const results = await Promise.all(Array.from({ length: 6 }, (_, i) => mm3Async(root, ['class', reqFile(root, String(i))])));
     const ok = results.filter((r) => r.status === 0);
     const blocked = results.filter((r) => r.status === 3);
     expect(ok.length + blocked.length).toBe(6);
     for (const r of blocked) {
-      expect(r.stderr).toMatch(/^✖ budget: cap reached \([^\n]+\) → the owner runs "sidewise budget set --runs <n>"\n→ see: sidewise agent budget\n$/);
+      expect(r.stderr).toMatch(/^✖ budget: cap reached \([^\n]+\) → the owner runs "mm3 budget set --runs <n>"\n→ see: mm3 agent budget\n$/);
     }
     expect(ok.length).toBeGreaterThanOrEqual(3);
     expect(ok.length).toBeLessThanOrEqual(3 + (6 - 1));
@@ -117,14 +117,14 @@ describe('separate processes at once', () => {
     expect(s.runIds).toEqual(expectedIds(ok.length));
     expect(s.budgetRuns).toBe(s.counted);
     expect(s.counted).toBe(ok.length);
-    expect(sidewise(root, ['class', 'req.yaml']).status).toBe(3); // over the cap now: blocked until reset
+    expect(mm3(root, ['class', 'req.yaml']).status).toBe(3); // over the cap now: blocked until reset
   }, 60_000);
 
   // The dead holder's lock is broken once it is 2 s old (the grace for a pid in another namespace), so the next run
   // takes about 2 s plus its own run time; 4.5 s leaves room on a loaded machine and still proves no 5 s timeout.
   it('a process killed (SIGKILL) while holding the lock: the next run proceeds after the 2 s grace, not the 5 s timeout', async () => {
     const root = project();
-    const lock = path.join(root, '.sidewise', 'lock');
+    const lock = path.join(root, '.mm3', 'lock');
     const holder = spawn(
       process.execPath,
       ['-e', `const fs=require('fs');fs.mkdirSync(${JSON.stringify(path.dirname(lock))},{recursive:true});fs.writeFileSync(${JSON.stringify(lock)},process.pid+'\\n',{flag:'wx'});console.log('held');setInterval(()=>{},1000);`],
@@ -137,7 +137,7 @@ describe('separate processes at once', () => {
     expect(readFileSync(lock, 'utf8')).toBe(`${holder.pid}\n`); // the dead holder's lock is still there
 
     const start = Date.now();
-    const r = await sidewiseAsync(root, ['class', 'req.yaml']);
+    const r = await mm3Async(root, ['class', 'req.yaml']);
     expect(r.status, r.stderr).toBe(0);
     expect(Date.now() - start).toBeLessThan(4500);
     // Unlike EXPECTED_FILES: this is a truly fresh project's very first command — log.jsonl doesn't exist yet

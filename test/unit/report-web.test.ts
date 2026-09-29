@@ -1,4 +1,4 @@
-// sidewise report web: the place x concern consensus (STRONG/CONFLICT/SINGLE, same-checklist, fail<->pass
+// mm3 report web: the place x concern consensus (STRONG/CONFLICT/SINGLE, same-checklist, fail<->pass
 // arcs) ported from lab/research/consensus-proto/proto.py, the self-contained viewer.html it writes, and the
 // escaping that keeps untrusted ledger text from breaking out of its embedded <script type="application/json">.
 import { readFileSync } from 'node:fs';
@@ -132,10 +132,10 @@ describe('report-web: buildViewerData (the ported place x concern consensus)', (
     expect(card(all, 'src/a.ts').runCount).toBe(1);
   });
 
-  it('the left rail lists category concerns and wise-field tags with run counts', () => {
+  it('the left rail lists category concerns and mdl-field tags with run counts', () => {
     const { paths } = tempProject({});
-    appendContractRun(paths, sampleContractRun({ where: ['a.ts'], wise: { why: 'validate', area: 'api' } }), Date.now(), 'b');
-    appendContractRun(paths, sampleContractRun({ where: ['b.ts'], wise: { why: 'validate', area: 'data' } }), Date.now(), 'b');
+    appendContractRun(paths, sampleContractRun({ where: ['a.ts'], mdl: { why: 'validate', area: 'api' } }), Date.now(), 'b');
+    appendContractRun(paths, sampleContractRun({ where: ['b.ts'], mdl: { why: 'validate', area: 'data' } }), Date.now(), 'b');
     const all = buildViewerData(readLedger(paths)).windows.all;
     const byKey = new Map(all.concerns.map((c) => [c.key, c]));
     expect(byKey.get('injection')).toMatchObject({ kind: 'category', count: 2 });
@@ -144,21 +144,21 @@ describe('report-web: buildViewerData (the ported place x concern consensus)', (
     expect(byKey.get('area:data')).toMatchObject({ kind: 'tag', count: 1 });
   });
 
-  it('[C-204] arcs are ordered by run ts, never by SW id: fail (earlier ts) then pass (later ts) is a fix held; the reverse is a regression', () => {
+  it('[C-204] arcs are ordered by run ts, never by MM3 id: fail (earlier ts) then pass (later ts) is a fix held; the reverse is a regression', () => {
     const { paths } = tempProject({});
     const cat = oneQuestion('guards', 'q1?');
-    // P1: SW-0001 gets the LOWER id but a LATER ts (pass); SW-0002 gets the HIGHER id but an EARLIER ts (fail).
+    // P1: MM3-0001 gets the LOWER id but a LATER ts (pass); MM3-0002 gets the HIGHER id but an EARLIER ts (fail).
     // Ordering by id would read this as pass -> fail (a regression, wrong); ordering by ts (the truth, e.g. a
     // concatenated multi-session ledger where ids repeat and aren't chronological) reads it as the fix it is.
-    appendContractRun(paths, sampleContractRun({ where: ['app/routes/contributions.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'pass' } }), 2_000_000, 'b'); // SW-0001, later ts
-    appendContractRun(paths, sampleContractRun({ where: ['app/routes/contributions.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'fail' } }), 1_000_000, 'b'); // SW-0002, earlier ts
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/contributions.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'pass' } }), 2_000_000, 'b'); // MM3-0001, later ts
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/contributions.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'fail' } }), 1_000_000, 'b'); // MM3-0002, earlier ts
     // P2: the mirror image (a real regression), same id/ts scramble.
-    appendContractRun(paths, sampleContractRun({ where: ['app/routes/other.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'fail' } }), 2_000_000, 'b'); // SW-0003, later ts
-    appendContractRun(paths, sampleContractRun({ where: ['app/routes/other.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'pass' } }), 1_000_000, 'b'); // SW-0004, earlier ts
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/other.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'fail' } }), 2_000_000, 'b'); // MM3-0003, later ts
+    appendContractRun(paths, sampleContractRun({ where: ['app/routes/other.js'], ask: { categories: [cat], layers: [] }, categories: { guards: 'pass' } }), 1_000_000, 'b'); // MM3-0004, earlier ts
 
     const story = buildViewerData(readLedger(paths)).windows.all.story;
-    expect(story.fixes).toEqual([{ place: 'app/routes/contributions.js', concern: 'guards', fromId: 'SW-0002', toId: 'SW-0001' }]);
-    expect(story.regressions).toEqual([{ place: 'app/routes/other.js', concern: 'guards', fromId: 'SW-0004', toId: 'SW-0003' }]);
+    expect(story.fixes).toEqual([{ place: 'app/routes/contributions.js', concern: 'guards', fromId: 'MM3-0002', toId: 'MM3-0001' }]);
+    expect(story.regressions).toEqual([{ place: 'app/routes/other.js', concern: 'guards', fromId: 'MM3-0004', toId: 'MM3-0003' }]);
   });
 
   it('[C-204] a path asked about from two different roots is folded into the shorter one (a suffix match), and the story panel counts it', () => {
@@ -175,12 +175,12 @@ describe('report-web: buildViewerData (the ported place x concern consensus)', (
 
   it('latest findings are the newest fails; outcomes tally held/overruled/failed, and an untriaged fail counts as open', () => {
     const { paths } = tempProject({});
-    appendContractRun(paths, sampleContractRun({ where: ['src/old.ts'], goal: 'old finding', categories: { injection: 'fail' } }), Date.now() - 2000, 'b'); // SW-0001
-    appendContractRun(paths, sampleContractRun({ where: ['src/new.ts'], goal: 'new finding', categories: { injection: 'fail' } }), Date.now() - 1000, 'b'); // SW-0002
-    appendOutcome(paths, 'SW-0001', 'overruled', 'owner');
+    appendContractRun(paths, sampleContractRun({ where: ['src/old.ts'], goal: 'old finding', categories: { injection: 'fail' } }), Date.now() - 2000, 'b'); // MM3-0001
+    appendContractRun(paths, sampleContractRun({ where: ['src/new.ts'], goal: 'new finding', categories: { injection: 'fail' } }), Date.now() - 1000, 'b'); // MM3-0002
+    appendOutcome(paths, 'MM3-0001', 'overruled', 'owner');
     const story = buildViewerData(readLedger(paths)).windows.all.story;
-    expect(story.findings[0]).toMatchObject({ id: 'SW-0002', goal: 'new finding' }); // newest first
-    expect(story.outcomes).toEqual({ held: 0, overruled: 1, failed: 0, open: 1 }); // SW-0002 never got an outcome
+    expect(story.findings[0]).toMatchObject({ id: 'MM3-0002', goal: 'new finding' }); // newest first
+    expect(story.outcomes).toEqual({ held: 0, overruled: 1, failed: 0, open: 1 }); // MM3-0002 never got an outcome
   });
 
   it('actors, paid calls and spend roll up over the window; last30 drops a record older than 30 days', () => {
@@ -224,7 +224,7 @@ function recordingRunner(status: number): { runner: Runner; calls: { cmd: string
 }
 
 describe('report-web: runReportWeb', () => {
-  it('[C-204] writes .sidewise/viewer.html, leaves the ledger byte-identical, and the embedded JSON holds the expected places/concerns/consensus', () => {
+  it('[C-204] writes .mm3/viewer.html, leaves the ledger byte-identical, and the embedded JSON holds the expected places/concerns/consensus', () => {
     const { paths } = tempProject({});
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { injection: 'fail' } }), Date.now(), 'b');
     appendContractRun(paths, sampleContractRun({ where: ['src/a.ts'], categories: { injection: 'fail' } }), Date.now(), 'b');
@@ -235,15 +235,15 @@ describe('report-web: runReportWeb', () => {
 
     expect(r.exit).toBe(0);
     const viewerPath = path.join(paths.dir, 'viewer.html');
-    expect(r.text).toContain('.sidewise/viewer.html');
+    expect(r.text).toContain('.mm3/viewer.html');
     expect(r.text).toContain('opened in your browser');
     expect(calls).toEqual([{ cmd: 'xdg-open', args: [viewerPath] }]);
     expect(readFileSync(paths.log)).toEqual(before); // read-only on the ledger itself
 
     const html = readFileSync(viewerPath, 'utf8');
     expect(html).toContain('<!doctype html');
-    expect(html).toContain('Sidewise ledger viewer');
-    expect(html).toContain('A System One needs a Knowledge One. · Sidewise');
+    expect(html).toContain('MM3 ledger viewer');
+    expect(html).toContain('A System One needs a Knowledge One. · MM3');
     const match = /<script type="application\/json" id="viewer-data">([\s\S]*?)<\/script>/u.exec(html);
     expect(match).toBeTruthy();
     const data = JSON.parse(match![1]!) as ViewerData;
@@ -275,7 +275,7 @@ describe('report-web: runReportWeb', () => {
     const failing = recordingRunner(1);
     const r1 = runReportWeb({ paths, env: { DISPLAY: ':0' }, runner: failing.runner, platform: 'linux' });
     expect(r1.exit).toBe(0);
-    expect(r1.text).toContain('.sidewise/viewer.html');
+    expect(r1.text).toContain('.mm3/viewer.html');
     expect(r1.text).toContain('open it yourself, no browser available');
 
     const noDisplay = recordingRunner(0);
@@ -299,7 +299,7 @@ describe('report-web: runReportWeb', () => {
     expect(win.calls).toEqual([{ cmd: 'cmd', args: ['/c', 'start', '', viewerPath] }]);
   });
 
-  it('always creates .sidewise/ and writes a viewer even with no runs yet', () => {
+  it('always creates .mm3/ and writes a viewer even with no runs yet', () => {
     const { paths } = tempProject({});
     const r = runReportWeb({ paths, env: {}, runner: recordingRunner(0).runner, platform: 'linux' });
     expect(r.exit).toBe(0);

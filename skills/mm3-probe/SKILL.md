@@ -1,11 +1,11 @@
 ---
-name: sidewise-probe
-description: Use before writing or editing any Sidewise request — a probe, a category, or a template. Teaches which yes/no questions are worth asking (three angles per concern, one role table per family) and which are empty ("is this secure?"), plus the decisions/wise fields that make a request worth reusing.
+name: mm3-probe
+description: Use before writing or editing any MM3 request — a probe, a category, or a template. Teaches which yes/no questions are worth asking (three angles per concern, one role table per family) and which are empty ("is this secure?"), plus the decisions/mdl fields that make a request worth reusing.
 ---
 
-A Sidewise request is only as good as its questions. The schema (`references/request.schema.json` in the `sidewise` skill) enforces the *shape* — exact counts, one kind per category, numbered with no gaps. It cannot tell a sharp question from a vacuous one. This skill teaches the difference before you write either.
+An MM3 request is only as good as its questions. The schema (`references/request.schema.json` in the `mm3` skill) enforces the *shape* — exact counts, one kind per category, numbered with no gaps. It cannot tell a sharp question from a vacuous one. This skill teaches the difference before you write either.
 
-Read this before filling in `ask:` on a template — `sidewise template <verb>` gives you the plumbing; this gives you the questions.
+Read this before filling in `ask:` on a template — `mm3 template <verb>` gives you the plumbing; this gives you the questions.
 
 ## The contract in one screen
 
@@ -80,9 +80,9 @@ Every request's decisions section needs at least one **scale** and one **choice*
 
 A third, optional pattern is worth adding to `class`/`scan` whenever the code you sent might not be the whole picture: a **scope** choice, `enough, partial, missing` — `partial`/`missing` are both a signal to widen `where:` and re-run, not to trust the verdict as-is.
 
-## wise in about 70 tokens
+## mdl in about 70 tokens
 
-`wise:` never reaches the classifier — it's free context the ledger learns from. Every field is optional: fill what you know, omit what doesn't apply. `why`/`area`/`stage`/`change`/`risk`/`blast` are closed lists — for this project's actual allowed values, run `sidewise agent wise` (they're config-driven, so they're never hard-coded here). Two fields carry more than a bare value:
+`mdl:` never reaches the classifier — it's free context the ledger learns from. Every field is optional: fill what you know, omit what doesn't apply. `why`/`area`/`stage`/`change`/`risk`/`blast` are closed lists — for this project's actual allowed values, run `mm3 agent mdl` (they're config-driven, so they're never hard-coded here). Two fields carry more than a bare value:
 
 - `problem` — one line: what you're actually solving right now.
 - `uses` — up to 5 chains describing what this run touches, in the C4 model (c4model.com): five levels, each inside the one above.
@@ -108,7 +108,7 @@ Plus:
 Example, on a run fixing an injection flaw in a user-lookup handler:
 
 ```yaml
-wise:
+mdl:
   why: validate
   problem: Removing the SQL injection in findUser flagged by an earlier scan
   uses:
@@ -127,4 +127,4 @@ wise:
 - **replay** — no new probes at all: it replays the parent's exact questions on two git states. The only new field is `expect:`, your own prediction of which parent concerns should flip to pass.
 - **view** — a free, no-spend check of a draft's `ask:` against everything above, before you pay for a real run.
 
-`sidewise agent probe` (and `sidewise help probe`) carry the enforced phrasing rules this skill builds on, cited to their TypeSafe source pages, plus this same role table and good/bad pair in a dense, no-prose form.
+`mm3 agent probe` (and `mm3 help probe`) carry the enforced phrasing rules this skill builds on, cited to their TypeSafe source pages, plus this same role table and good/bad pair in a dense, no-prose form.

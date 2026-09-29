@@ -6,7 +6,7 @@
  */
 import { MAX_QUESTION_CHARS } from '../contract/schema-check.ts';
 import { AREAS, CHANGES, DECISIONS_MAX, DECISIONS_MIN, DEPTH_COUNT, FAMILIES, RISKS, STAGES, SWEEP_ITEM_CAP, WHYS } from '../contract/types.ts';
-import { MAX_WISE_LINES, UNKNOWN_VALUE } from '../contract/wise-fields.ts';
+import { MAX_MDL_LINES, UNKNOWN_VALUE } from '../contract/mdl-fields.ts';
 
 /** Oxford-ish "a, b or c" — matches schema-check.ts's own `list()` wording in stop text. */
 const list = (xs: readonly string[]): string => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} or ${xs.at(-1)}` : xs[0]!);
@@ -21,15 +21,15 @@ export const RULES: readonly Rule[] = [
   {
     // Plan 2b resolution: each concerns category's 3 probes plays a distinct role, named by the category's
     // family (given, or defaulted from the category name — see FAMILIES below); the role table itself (3 named
-    // roles per family) is too wide for one dense-card bullet, so it lives in `sidewise agent probe`/`help
-    // probe` (FAMILY_ROLES below, same file, one source) and the sidewise-probe skill, both pointed at here.
-    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories, each with 3 probes in a distinct role — family: ${list(FAMILIES)} (role table: sidewise agent probe) — a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer`,
+    // roles per family) is too wide for one dense-card bullet, so it lives in `mm3 agent probe`/`help
+    // probe` (FAMILY_ROLES below, same file, one source) and the mm3-probe skill, both pointed at here.
+    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories, each with 3 probes in a distinct role — family: ${list(FAMILIES)} (role table: mm3 agent probe) — a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer`,
     in: ['card', 'authoring', 'class', 'scan', 'loop'],
   },
   { text: `where: at most 5 path entries — this is all the code a run sees`, in: ['card', 'authoring', 'class', 'view'] },
   {
     // Round-4 finding: a cold agent hit `✖ question 1: is longer than 160 characters` with zero prior warning
-    // in `agent view`/`agent probe` — this is Sidewise's own hard validator cap (schema-check.ts's
+    // in `agent view`/`agent probe` — this is MM3's own hard validator cap (schema-check.ts's
     // MAX_QUESTION_CHARS), not TypeSafe guidance, so it lives here rather than in PROBE_RULES below; tagged
     // 'probe' too so `agent probe`/`help probe` carry it alongside TypeSafe's own question-shape rules. [C-194]
     text: `a question (or the goal) is at most ${MAX_QUESTION_CHARS} characters, one line — longer text is rejected outright`,
@@ -37,13 +37,13 @@ export const RULES: readonly Rule[] = [
   },
   { text: `pass: yes clears at >= 0.70; pass: no clears at <= 0.30; in between is unsure`, in: ['card', 'verdict'] },
   { text: `every question in a category must point the same way as its pass:`, in: ['authoring'] },
-  { text: `wise.why is one of ${list(WHYS)}`, in: ['wise'] },
-  { text: `wise.area is one of ${list(AREAS)}, single or a list of up to 2`, in: ['wise'] },
-  { text: `wise.stage is one of ${list(STAGES)}`, in: ['wise'] },
-  { text: `wise.change is one of ${list(CHANGES)}`, in: ['wise'] },
-  { text: `wise.risk is one of ${list(RISKS)}`, in: ['wise'] },
-  { text: `every closed wise field also accepts "${UNKNOWN_VALUE}"`, in: ['wise'] },
-  { text: `the wise block is capped at ${MAX_WISE_LINES} YAML lines`, in: ['wise'] },
+  { text: `mdl.why is one of ${list(WHYS)}`, in: ['mdl'] },
+  { text: `mdl.area is one of ${list(AREAS)}, single or a list of up to 2`, in: ['mdl'] },
+  { text: `mdl.stage is one of ${list(STAGES)}`, in: ['mdl'] },
+  { text: `mdl.change is one of ${list(CHANGES)}`, in: ['mdl'] },
+  { text: `mdl.risk is one of ${list(RISKS)}`, in: ['mdl'] },
+  { text: `every closed mdl field also accepts "${UNKNOWN_VALUE}"`, in: ['mdl'] },
+  { text: `the mdl block is capped at ${MAX_MDL_LINES} YAML lines`, in: ['mdl'] },
   { text: `decisions: ${DECISIONS_MIN}–${DECISIONS_MAX} categories, scale or choice only, at least one scale and one choice`, in: ['authoring'] },
   { text: 'questions are numbered 1…N across the whole request, decisions included', in: ['card', 'authoring', 'class', 'scan', 'drill', 'loop'] },
 ];
@@ -54,7 +54,7 @@ export function ruleLines(tag: string): string[] {
 }
 
 /**
- * The "teach a valid probe" rules: the shape of a well-formed Sidewise question, TypeSafe's own published
+ * The "teach a valid probe" rules: the shape of a well-formed MM3 question, TypeSafe's own published
  * guidance, labelled as best practice for higher-quality answers — guidance, not new validator enforcement.
  * `help probe` (topics.ts) renders these WITH their TypeSafe citation; `agent probe` (agent.ts) renders the
  * same text bare, no citation — one shared list so the two views can't drift apart, same discipline as
@@ -66,7 +66,7 @@ interface ProbeRule {
   readonly cite: string;
 }
 
-/** The family role table (Sidewise's own model, not TypeSafe's — skills/sidewise-probe/SKILL.md has the full
+/** The family role table (MM3's own model, not TypeSafe's — skills/mm3-probe/SKILL.md has the full
  *  explanation and worked examples): a concern's ~3 probes are 3 angles through one path. Shared by
  *  `agent probe` (bare) and `help probe` (its own framing), same discipline as PROBE_RULES/VERDICT_FACTS. */
 export const FAMILY_ROLES: readonly { family: string; roles: readonly [string, string, string] }[] = [
@@ -82,7 +82,7 @@ export const FAMILY_ROLES: readonly { family: string; roles: readonly [string, s
   { family: 'done', roles: ['concrete', 'testable', 'owned'] },
 ];
 
-/** One bad probe and the same path rewritten as three angles — Sidewise's own worked example, shared the same
+/** One bad probe and the same path rewritten as three angles — MM3's own worked example, shared the same
  *  way as FAMILY_ROLES above. */
 export const BAD_PROBE_EXAMPLE = {
   bad: 'Is this method secure?',
@@ -145,9 +145,9 @@ export const VERDICT_FACTS: readonly string[] = [
   "a probability near 0.50 means the evidence points both ways about equally, not a medium-strength yes — that's exactly why it lands in `unsure` rather than a weak pass",
   "the answer's shape is guaranteed (a number in range, a level that's really one of yours) — whether it's the RIGHT number is what consensus, escalate and your own reading are for, not the schema",
   "`replay`'s per-category grade: `fixed` (failed or unsure before, passes now), `still` (failed or unsure before, still doesn't), `regressed` (passed before, not any more — regressed alone fails the gate even when every `after` category passes)",
-  '`reused: [SW-####]` names prior runs an answer\'s evidence and question text matched exactly — free, not a new call',
+  '`reused: [MM3-####]` names prior runs an answer\'s evidence and question text matched exactly — free, not a new call',
   'the cache returns old answers to old questions; learning comes from new ones',
-  "`sidewise report hits` flags a one-subject answer `stale` once the code at its own `where` has changed since — re-run it rather than trust it",
+  "`mm3 report hits` flags a one-subject answer `stale` once the code at its own `where` has changed since — re-run it rather than trust it",
   'a run can fail to answer for different reasons, and the exit code says which: a bad request never reaches the classifier (exit 2); a provider or ledger problem does (exit 1); a blocked budget never spends at all (exit 3) — read which one you got before treating a stop as `unsure`',
-  'a stop always reads `✖ field: problem → fix`; run `sidewise help <verb>` when one doesn\'t make sense',
+  'a stop always reads `✖ field: problem → fix`; run `mm3 help <verb>` when one doesn\'t make sense',
 ];

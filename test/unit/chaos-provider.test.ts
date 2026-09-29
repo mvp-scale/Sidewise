@@ -26,7 +26,7 @@ describe('parseSchedule', () => {
   it('reads a comma list, empty means always ok, and names a bad step', () => {
     expect(parseSchedule('503, malformed,ok')).toEqual({ steps: ['503', 'malformed', 'ok'] });
     expect(parseSchedule(undefined)).toEqual({ steps: [] });
-    expect(parseSchedule('5o3')).toEqual({ stop: '✖ provider: SIDEWISE_CHAOS has "5o3" → use a comma list of ok, 401, 429, 503, 529, timeout, malformed, missing' });
+    expect(parseSchedule('5o3')).toEqual({ stop: '✖ provider: MM3_CHAOS has "5o3" → use a comma list of ok, 401, 429, 503, 529, timeout, malformed, missing' });
   });
 });
 
@@ -54,24 +54,24 @@ describe('chaos adapter', () => {
 });
 
 describe('selectProvider and providerIdentity', () => {
-  it('SIDEWISE_PROVIDER=chaos uses SIDEWISE_CHAOS; a bad schedule is a clean stop', async () => {
-    const p = selectProvider({ SIDEWISE_PROVIDER: 'chaos', SIDEWISE_CHAOS: '503' });
+  it('MM3_PROVIDER=chaos uses MM3_CHAOS; a bad schedule is a clean stop', async () => {
+    const p = selectProvider({ MM3_PROVIDER: 'chaos', MM3_CHAOS: '503' });
     expect(p.adapter).toBe('chaos');
     await expect(p.ask(Q, {})).rejects.toThrow('HTTP 503');
-    expect(() => selectProvider({ SIDEWISE_PROVIDER: 'chaos', SIDEWISE_CHAOS: 'boom' })).toThrow(/SIDEWISE_CHAOS has "boom"/);
-    expect(() => selectProvider({ SIDEWISE_PROVIDER: 'nope' })).toThrow('✖ provider: "nope" is not a provider → use fake, chaos or typesafe');
+    expect(() => selectProvider({ MM3_PROVIDER: 'chaos', MM3_CHAOS: 'boom' })).toThrow(/MM3_CHAOS has "boom"/);
+    expect(() => selectProvider({ MM3_PROVIDER: 'nope' })).toThrow('✖ provider: "nope" is not a provider → use fake, chaos or typesafe');
   });
 
   it('names the provider that would answer, without building it (no key needed)', () => {
-    expect(providerIdentity({})).toEqual({ adapter: 'fake', model: 'sidewise-fake-1', route: 'fake', baseURL: null });
-    expect(providerIdentity({ SIDEWISE_PROVIDER: 'chaos' })).toEqual({ adapter: 'chaos', model: CHAOS_MODEL, route: 'chaos', baseURL: null });
+    expect(providerIdentity({})).toEqual({ adapter: 'fake', model: 'mm3-fake-1', route: 'fake', baseURL: null });
+    expect(providerIdentity({ MM3_PROVIDER: 'chaos' })).toEqual({ adapter: 'chaos', model: CHAOS_MODEL, route: 'chaos', baseURL: null });
     expect(providerIdentity({ TYPESAFE_API_KEY: 'k' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'direct', baseURL: 'https://api.typesafe.ai' });
-    expect(providerIdentity({ SIDEWISE_PROVIDER: 'typesafe' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'direct', baseURL: 'https://api.typesafe.ai' });
+    expect(providerIdentity({ MM3_PROVIDER: 'typesafe' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'direct', baseURL: 'https://api.typesafe.ai' });
   });
 
-  it('names the gateway route, and a custom route when SIDEWISE_BASE_URL overrides the default (P2)', () => {
+  it('names the gateway route, and a custom route when MM3_BASE_URL overrides the default (P2)', () => {
     expect(providerIdentity({ AI_GATEWAY_API_KEY: 'g' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'gateway', baseURL: 'https://ai-gateway.vercel.sh/typesafe' });
-    expect(providerIdentity({ TYPESAFE_API_KEY: 'k', SIDEWISE_BASE_URL: 'http://localhost:8080' })).toEqual({
+    expect(providerIdentity({ TYPESAFE_API_KEY: 'k', MM3_BASE_URL: 'http://localhost:8080' })).toEqual({
       adapter: 'typesafe',
       model: 'jev-1.13.0',
       route: 'custom',

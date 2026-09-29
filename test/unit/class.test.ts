@@ -15,7 +15,7 @@ import { stubProvider } from '../helpers/stub-provider.ts';
 const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) => ({ ...(await inner.ask(q, s)), costEstimated: true }) });
 
 const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
-const env = { SIDEWISE_ACTOR: 'reviewer-7' };
+const env = { MM3_ACTOR: 'reviewer-7' };
 // The fixture's own concerns: injection [1,2,3], access [4,5,6], leaks [7,8,9] (all pass: no), then
 // decisions: severity [10, scale] and route [11, choice] — 11 numbered questions + goal = 12 total.
 // 10 (severity) and 11 (route) aren't yes/no: stubProvider only uses `pick` for those, never `yes`.
@@ -36,12 +36,12 @@ describe('class', () => {
     expect(provider.calls).toHaveLength(1);
     // [C-035] one subject's call state is exactly {goal, code} — no run-level id/ts/actor/task ever reaches
     // the classifier ([C-023]: those are stamped by the engine afterwards, from the run it logs, not sent),
-    // and [C-005]: wise (why/area here) never reaches it either — wise is ledger-only context.
+    // and [C-005]: mdl (why/area here) never reaches it either — mdl is ledger-only context.
     expect(Object.keys(provider.calls[0]!.state)).toEqual(['goal', 'code']);
     // [C-048] question text is never repeated in the response; the agent already has it by number.
     expect(r.text).not.toContain('Is request text placed directly into the SQL query?');
     const [run] = readLedger(paths).filter(isContractRun);
-    expect(run).toMatchObject({ id: 'SW-0001', v: 2, verb: 'class', calls: 1, consensus: 'STRONG' });
+    expect(run).toMatchObject({ id: 'MM3-0001', v: 2, verb: 'class', calls: 1, consensus: 'STRONG' });
     expect(loadBudget(paths).state.runs).toBe(1);
   });
 
@@ -53,10 +53,10 @@ describe('class', () => {
     expect(provider.calls).toHaveLength(1); // no second call
     expect(r2.exit).toBe(0);
     const runs = readLedger(paths).filter(isContractRun);
-    expect(runs[1]).toMatchObject({ id: 'SW-0002', calls: 0 });
+    expect(runs[1]).toMatchObject({ id: 'MM3-0002', calls: 0 });
     expect(loadBudget(paths).state.runs).toBe(1); // the free run isn't counted
     expect(r2.text).not.toContain('budget file created'); // only the run that actually created it says so
-    expect(r2.text).toContain('reused: [SW-0001]'); // [C-130] fix #6: which run's answers this one reused
+    expect(r2.text).toContain('reused: [MM3-0001]'); // [C-130] fix #6: which run's answers this one reused
   });
 
   // plan 2c B2/B, item 6: a fully-reused run's own telemetry gains a source:'cache' entry naming the origin,
@@ -65,8 +65,8 @@ describe('class', () => {
   it('a fully-reused second run records cache-side telemetry alongside the free run [C-130]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
-    await runClass(CLASS_YAML, { paths, provider, env }); // SW-0001: one real call, 12 questions (goal + 11)
-    await runClass(CLASS_YAML, { paths, provider, env }); // SW-0002: fully reused
+    await runClass(CLASS_YAML, { paths, provider, env }); // MM3-0001: one real call, 12 questions (goal + 11)
+    await runClass(CLASS_YAML, { paths, provider, env }); // MM3-0002: fully reused
     const runs = readLedger(paths).filter(isContractRun);
     const origin = runs[0]!;
     const originTotalQuestions = origin.telemetry!.filter((t) => t.source === 'provider').reduce((n, t) => n + t.questions, 0);
@@ -76,13 +76,13 @@ describe('class', () => {
   it('[C-160] a re-ask on the same place after the code changed says which older run answered it before', async () => {
     const { root, paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
-    await runClass(CLASS_YAML, { paths, provider, env }); // SW-0001, on the original code
+    await runClass(CLASS_YAML, { paths, provider, env }); // MM3-0001, on the original code
     writeFileSync(path.join(root, 'src/user.ts'), 'export function findUser(id) { return db.query("SELECT * FROM users WHERE id = ?", [id]); }\n');
     const r2 = await runClass(CLASS_YAML, { paths, provider, env }); // same place, same questions, changed code
     expect(r2.exit).toBe(0);
     expect(r2.text).not.toContain('reused'); // the evidence changed: nothing was free this time
     // notes: is a flow list; a note containing ": " is quoted, JSON-style, by emit.ts's own scalar() rule.
-    expect(r2.text).toContain(JSON.stringify('stale: SW-0001 answered "Is request text placed directly into the SQL quer…" on older code (p 0.94)'));
+    expect(r2.text).toContain(JSON.stringify('stale: MM3-0001 answered "Is request text placed directly into the SQL quer…" on older code (p 0.94)'));
   });
 
   // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
@@ -155,14 +155,14 @@ describe('class', () => {
     const r = await runClass(CLASS_YAML, { paths, provider, env });
     expect(r.exit).toBe(2);
     expect(r.text).toContain('too big to send');
-    expect(r.text).toContain('→ see: sidewise agent class');
+    expect(r.text).toContain('→ see: mm3 agent class');
     expect(provider.calls).toHaveLength(0);
     expect(readLedger(paths)).toEqual([]);
   });
 
   it('an invalid request exits 2 before touching the budget or the ledger [C-002]', async () => {
     const { paths } = tempProject({});
-    const r = await runClass('side:\n  goal: too short one\n', { paths, provider: stubProvider(), env });
+    const r = await runClass('mak:\n  goal: too short one\n', { paths, provider: stubProvider(), env });
     expect(r.exit).toBe(2);
     expect(readLedger(paths)).toEqual([]);
   });
@@ -202,7 +202,7 @@ describe('class', () => {
     gitInit(root);
     gitCommit(root, 'seed');
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });
-    await runClass(CLASS_YAML, { paths, provider, env }); // SW-0001, answers this exact evidence
+    await runClass(CLASS_YAML, { paths, provider, env }); // MM3-0001, answers this exact evidence
     expect(provider.calls).toHaveLength(1);
 
     // Move HEAD 2 commits past the run that answered it, with no change to src/user.ts itself (same evidence).

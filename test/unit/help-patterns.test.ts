@@ -68,15 +68,15 @@ describe('help/patterns.ts: good/bad pairs shared by help and agent', () => {
           // (evidence/code.ts's own C-169 stop) tells bad from good, so build the fixture the snippet's own
           // path names.
           if (!goodParsed.ok) return;
-          const root = mkdtempSync(path.join(os.tmpdir(), 'sidewise-patterns-'));
+          const root = mkdtempSync(path.join(os.tmpdir(), 'mm3-patterns-'));
           const big = Array.from({ length: 1000 }, () => 'x'.repeat(30)).join('\n'); // well over the per-file limit
-          for (const w of [...goodParsed.request.side.where, ...badParsed.request.side.where]) {
+          for (const w of [...goodParsed.request.mak.where, ...badParsed.request.mak.where]) {
             const rel = w.replace(/:\d+(-\d+)?$/u, '');
             mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
             writeFileSync(path.join(root, rel), big);
           }
-          const badEvidence = readCodeEvidence(root, badParsed.request.side.where);
-          const goodEvidence = readCodeEvidence(root, goodParsed.request.side.where);
+          const badEvidence = readCodeEvidence(root, badParsed.request.mak.where);
+          const goodEvidence = readCodeEvidence(root, goodParsed.request.mak.where);
           expect(goodEvidence.ok).toBe(true);
           expect(badEvidence.ok).toBe(false);
           expect(!badEvidence.ok && badEvidence.errors.join('\n')).toContain('too big to send');

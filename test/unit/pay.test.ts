@@ -7,19 +7,19 @@ import { createChaosAdapter, type ChaosStep } from '../../src/classifier/chaos.t
 import type { ClassifierPort, ClassifierResult } from '../../src/classifier/port.ts';
 import { goalQuestion, type AskedQuestion } from '../../src/contract/translate.ts';
 import { isContractRun, readLedger } from '../../src/ledger/log.ts';
-import type { SidewisePaths } from '../../src/ledger/paths.ts';
+import type { Mm3Paths } from '../../src/ledger/paths.ts';
 import { askAll, oneLine, preflight, record, recordFree, type PlannedCall } from '../../src/verbs/pay.ts';
 import type { VerbContext } from '../../src/verbs/types.ts';
 import { tempProject } from '../helpers/project.ts';
 import { sampleContractRun } from '../helpers/runs.ts';
 import { stubProvider } from '../helpers/stub-provider.ts';
 
-const env = { SIDEWISE_ACTOR: 'reviewer-7' };
+const env = { MM3_ACTOR: 'reviewer-7' };
 const Q: AskedQuestion[] = [goalQuestion('It is safe'), { id: '1', n: 1, kind: 'yesno', text: 'Is it wrong?' }, { id: '2', n: 2, kind: 'scale', text: 'How bad?', levels: ['low', 'high'] }];
 const call = (questions = Q): PlannedCall => ({ state: { goal: 'It is safe' }, questions });
-const ctxOf = (paths: SidewisePaths, provider: ClassifierPort): VerbContext => ({ paths, provider, env });
+const ctxOf = (paths: Mm3Paths, provider: ClassifierPort): VerbContext => ({ paths, provider, env });
 
-function expectAgree(paths: SidewisePaths): void {
+function expectAgree(paths: Mm3Paths): void {
   const records = readLedger(paths);
   const counted = records.filter((r) => (isContractRun(r) && r.calls > 0) || r.kind === 'failed').length;
   expect(loadBudget(paths).state.runs).toBe(counted);
@@ -48,7 +48,7 @@ describe('preflight: stops before any call or spend', () => {
     // fix #5c: the run cap alone tripped, so the hint is "set --runs", not "reset" (see budget.test.ts).
     expect(!r.ok && r.result).toEqual({
       exit: 3,
-      text: '✖ budget: cap reached ($0.00 of $5.00 · 1 of 1 runs) → the owner runs "sidewise budget set --runs <n>"\n→ see: sidewise agent budget',
+      text: '✖ budget: cap reached ($0.00 of $5.00 · 1 of 1 runs) → the owner runs "mm3 budget set --runs <n>"\n→ see: mm3 agent budget',
     });
   });
 
@@ -78,24 +78,24 @@ describe('preflight: stops before any call or spend', () => {
     const b = tempProject({}).paths;
     mkdirSync(b.dir, { recursive: true });
     writeFileSync(b.log, 'garbage\n');
-    expect(preflight(ctxOf(b, stubProvider()))).toEqual({ ok: false, result: { exit: 1, text: '✖ ledger: line 1 of .sidewise/log.jsonl is not valid JSON → fix or remove that line' } });
+    expect(preflight(ctxOf(b, stubProvider()))).toEqual({ ok: false, result: { exit: 1, text: '✖ ledger: line 1 of .mm3/log.jsonl is not valid JSON → fix or remove that line' } });
     const c = tempProject({}).paths;
     mkdirSync(c.log, { recursive: true });
     expect(preflight(ctxOf(c, stubProvider()))).toMatchObject({ ok: false, result: { exit: 1 } });
   });
 });
 
-function recordCall1(paths: SidewisePaths): void {
+function recordCall1(paths: Mm3Paths): void {
   const r = record(ctxOf(paths, stubProvider()), 0, sampleContractRun());
   if (!r.ok) throw new Error(r.result.text);
 }
 
 describe('askAll: provider faults', () => {
   it.each<[ChaosStep, string]>([
-    ['503', '✖ classifier: HTTP 503: service unavailable → retry later, or set SIDEWISE_PROVIDER=fake to check the request'],
-    ['429', '✖ classifier: HTTP 429: rate limited → retry later, or set SIDEWISE_PROVIDER=fake to check the request'],
-    ['401', '✖ classifier: HTTP 401: invalid API key → retry later, or set SIDEWISE_PROVIDER=fake to check the request'],
-    ['timeout', '✖ classifier: request timed out after 20000ms → retry later, or set SIDEWISE_PROVIDER=fake to check the request'],
+    ['503', '✖ classifier: HTTP 503: service unavailable → retry later, or set MM3_PROVIDER=fake to check the request'],
+    ['429', '✖ classifier: HTTP 429: rate limited → retry later, or set MM3_PROVIDER=fake to check the request'],
+    ['401', '✖ classifier: HTTP 401: invalid API key → retry later, or set MM3_PROVIDER=fake to check the request'],
+    ['timeout', '✖ classifier: request timed out after 20000ms → retry later, or set MM3_PROVIDER=fake to check the request'],
   ])('%s on the first call: exit 1, nothing logged, NOT counted', async (step, text) => {
     const { paths } = tempProject({});
     const r = await askAll(ctxOf(paths, createChaosAdapter([step])), 'class', [call()]);
@@ -214,7 +214,7 @@ describe('record: the spend and the run in one lock section', () => {
     mkdirSync(paths.dir, { recursive: true });
     writeFileSync(paths.lock, `${process.pid}\n`);
     const r = record(ctxOf(paths, stubProvider()), 0, sampleContractRun());
-    expect(r).toEqual({ ok: false, result: { exit: 1, text: '✖ lock: .sidewise/lock is locked → wait for the other run, or delete the lock file if no run is active (the call was NOT counted against the budget)' } });
+    expect(r).toEqual({ ok: false, result: { exit: 1, text: '✖ lock: .mm3/lock is locked → wait for the other run, or delete the lock file if no run is active (the call was NOT counted against the budget)' } });
     rmSync(paths.lock);
     expect(loadBudget(paths).state.runs).toBe(0);
     expect(readLedger(paths)).toEqual([]);
@@ -225,7 +225,7 @@ describe('record: the spend and the run in one lock section', () => {
     mkdirSync(paths.dir, { recursive: true });
     appendFileSync(paths.log, 'garbage\n');
     const r = record(ctxOf(paths, stubProvider()), 0.02, sampleContractRun());
-    expect(!r.ok && r.result.text).toBe('✖ ledger: line 1 of .sidewise/log.jsonl is not valid JSON → fix or remove that line (the call was NOT counted against the budget)');
+    expect(!r.ok && r.result.text).toBe('✖ ledger: line 1 of .mm3/log.jsonl is not valid JSON → fix or remove that line (the call was NOT counted against the budget)');
     // plan 2c B1: budget state is derived from the ledger itself, so a corrupted ledger can no longer answer
     // "what's the current spend/run count" at all — loadBudget correctly fails closed here too, same as every
     // other ledger read on corrupt log.jsonl; there is no separate budget.json counter left to check instead.
@@ -235,7 +235,7 @@ describe('record: the spend and the run in one lock section', () => {
   it('recordFree logs a run that made no call, without spending', () => {
     const { paths } = tempProject({});
     const r = recordFree(ctxOf(paths, stubProvider()), sampleContractRun({ calls: 0 }));
-    expect(r.ok && r.value.run.id).toBe('SW-0001');
+    expect(r.ok && r.value.run.id).toBe('MM3-0001');
     expect(loadBudget(paths).state.runs).toBe(0);
     expectAgree(paths);
   });

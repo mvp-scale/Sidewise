@@ -4,7 +4,7 @@
   "description": "Agent tooling from mvp-scale.",
   "plugins": [
     {
-      "name": "sidewise",
+      "name": "mm3",
       "source": ".",
       "description": "Side answers for coding agents, with a log that learns where agents go wrong."
     }

@@ -1,4 +1,4 @@
-# Sidewise
+# MM3
 
 **A System One needs a Knowledge One.**
 
@@ -6,7 +6,7 @@
 
 Turn a yes/no checklist about your code into a calibrated pass / fail / unsure verdict, and keep everything it learns.
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE) [![npm](https://img.shields.io/npm/v/@mvpscale/sidewise)](https://www.npmjs.com/package/@mvpscale/sidewise) [![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-orange)](#install)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE) [![npm](https://img.shields.io/npm/v/@mvpscale/mm3)](https://www.npmjs.com/package/@mvpscale/mm3) [![Claude Code plugin](https://img.shields.io/badge/Claude%20Code-plugin-orange)](#install)
 
 ```
 Builders want agents that make the call…    minus the homework they graded themselves.
@@ -28,7 +28,7 @@ export async function getUser(req, db) {
 You ask: the full request — 3 concerns categories (9 yes/no probes) plus a severity scale and a routing choice:
 
 ```yaml
-side:
+mak:
   goal: This login handler is safe to merge
   depth: quick
   where: [src/user.ts:1-3]
@@ -62,7 +62,7 @@ side:
         11:
           choice: Where should this go?
           options: [ship, fix, block]
-wise:
+mdl:
   why: validate
   area: data
 ```
@@ -70,8 +70,8 @@ wise:
 You get: one call to TypeSafe's Jev, real output:
 
 ```yaml
-side:
-  id: SW-0001
+mak:
+  id: MM3-0001
   gate: fail
   goal: {gate: fail, p: 0.02}
   injection: {gate: fail, 1: 0.98, 2: 0.93, 3: 0.95}
@@ -81,40 +81,40 @@ side:
   route:     {gate: fail, 11: {top: fix, p: 0.55}}
   consensus: STRONG
   escalate: false
-wise: {recorded: [why, area]}
-next: sidewise template drill --parent SW-0001 --from injection
+mdl: {recorded: [why, area]}
+next: mm3 template drill --parent MM3-0001 --from injection
 ```
 
-Every concern has its own verdict and odds. The goal fails, severity is critical, and `next:` says where to look deeper. It's all kept, reused free until the code changes, and mapped by `sidewise report`.
+Every concern has its own verdict and odds. The goal fails, severity is critical, and `next:` says where to look deeper. It's all kept, reused free until the code changes, and mapped by `mm3 report`.
 
 ## Install
 
 **Claude Code:**
 ```
 /plugin marketplace add mvp-scale/Sidewise
-/plugin install sidewise@mvp-scale
+/plugin install mm3@mvp-scale
 ```
 Pick **project** scope. For the key: press Enter on "TypeSafe API key", paste, Enter, "Save configuration".
 
 **Anywhere else** (terminal, Codex, Gemini CLI…), inside your project:
 ```bash
-npx @mvpscale/sidewise init
+npx @mvpscale/mm3 init
 ```
 Needs Node 22.13+. No key? Free sample answers, clearly labelled, never evidence.
 
 ## Quickstart
 
 ```bash
-# sidewise-quickstart
-sidewise template class > review.yaml
-sidewise class review.yaml
-sidewise view src
-sidewise report
-sidewise outcome SW-0001 held --by you
-sidewise budget
+# mm3-quickstart
+mm3 template class > review.yaml
+mm3 class review.yaml
+mm3 view src
+mm3 report
+mm3 outcome MM3-0001 held --by you
+mm3 budget
 ```
 
-Agents: run `sidewise agent` first. Humans: `sidewise help`.
+Agents: run `mm3 agent` first. Humans: `mm3 help`.
 
 ## Why: a Knowledge One system
 
@@ -131,7 +131,7 @@ What's needed is a standard way to ask, and a place to keep what you learn:
 6. You…                                     tell us what we missed.
 ```
 
-Sidewise splits the problem in half: **Side** decides now, **Wise** learns as you go.
+MM3 splits the problem in half: **Side** decides now, **Wise** learns as you go.
 
 ## Honest status
 

@@ -6,10 +6,10 @@ import { countTokens, loadSamples, renderTokenDoc, runTokenBench } from '../../s
 
 describe('countTokens', () => {
   it('is deterministic, non-negative, and monotone: more text never counts as fewer tokens', () => {
-    const a = countTokens('side:\n  goal: This login handler is safe to merge\n');
-    expect(countTokens('side:\n  goal: This login handler is safe to merge\n')).toBe(a);
+    const a = countTokens('mak:\n  goal: This login handler is safe to merge\n');
+    expect(countTokens('mak:\n  goal: This login handler is safe to merge\n')).toBe(a);
     expect(a).toBeGreaterThan(0);
-    expect(countTokens('side:\n  goal: This login handler is safe to merge\n  depth: quick\n')).toBeGreaterThanOrEqual(a);
+    expect(countTokens('mak:\n  goal: This login handler is safe to merge\n  depth: quick\n')).toBeGreaterThanOrEqual(a);
     expect(countTokens('')).toBe(0);
   });
 
@@ -20,8 +20,8 @@ describe('countTokens', () => {
   // don't. This is one of this bench's own headline findings (docs/evidence/tokens.md), confirmed the same way
   // across every fixture, not a one-off: a real BPE tokenizer, unlike chars/4, can show a counterintuitive result.
   it('is sensitive to structural punctuation, not just length: compact json packs its braces/quotes/colons into fewer merged tokens than yaml\'s per-line indentation does', () => {
-    const yaml = 'side:\n  goal: Is it safe\n  where: [src/user.ts]\n';
-    const json = JSON.stringify({ side: { goal: 'Is it safe', where: ['src/user.ts'] } });
+    const yaml = 'mak:\n  goal: Is it safe\n  where: [src/user.ts]\n';
+    const json = JSON.stringify({ mak: { goal: 'Is it safe', where: ['src/user.ts'] } });
     expect(countTokens(yaml)).toBeGreaterThan(countTokens(json));
   });
 });
@@ -32,7 +32,7 @@ describe('loadSamples', () => {
     const classYaml = samples.find((s) => s.verb === 'class' && s.format === 'yaml')!;
     expect(classYaml.text).toBe(readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8'));
     const classJson = samples.find((s) => s.verb === 'class' && s.format === 'json')!;
-    expect(JSON.parse(classJson.text)).toEqual(expect.objectContaining({ side: expect.objectContaining({ goal: 'This login handler is safe to merge' }) }));
+    expect(JSON.parse(classJson.text)).toEqual(expect.objectContaining({ mak: expect.objectContaining({ goal: 'This login handler is safe to merge' }) }));
     const classJsonPretty = samples.find((s) => s.verb === 'class' && s.format === 'jsonPretty')!;
     expect(JSON.parse(classJsonPretty.text)).toEqual(JSON.parse(classJson.text));
     expect(classJsonPretty.text).toContain('\n  ');

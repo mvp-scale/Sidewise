@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc" style="text-rendering:geometricPrecision">
   <title id="title">System One works. You own its problems. Knowledge One solves each one.</title>
-  <desc id="desc">Top lane: your prompt goes through tokenization and a System One classifier you don't control, a single yes or no comes back and the code ships, with drifting wording, one angle, no trace, no memory, and paying again. Bottom lane: Sidewise sends a standard YAML request, validates and annotates it for free, checks the ledger index for a reusable answer, routes to the System One of your choice, returns a verdict per concern with the odds in one call, appends everything to an append-only ledger, and indexes it in SQLite as a cache and a knowledge base you can build on.</desc>
+  <desc id="desc">Top lane: your prompt goes through tokenization and a System One classifier you don't control, a single yes or no comes back and the code ships, with drifting wording, one angle, no trace, no memory, and paying again. Bottom lane: MM3 sends a standard YAML request, validates and annotates it for free, checks the ledger index for a reusable answer, routes to the System One of your choice, returns a verdict per concern with the odds in one call, appends everything to an append-only ledger, and indexes it in SQLite as a cache and a knowledge base you can build on.</desc>
   <defs>
     <linearGradient id="bg" x2="0" y2="1"><stop stop-color="#0b1424"/><stop offset="1" stop-color="#050914"/></linearGradient>
     <linearGradient id="sky"><stop stop-color="#9bdcff"/><stop offset="1" stop-color="#62bde9"/></linearGradient>
@@ -51,7 +51,7 @@
   <text class="bad"><tspan x="730" y="206">✗ one angle,</tspan><tspan x="730" dy="14">   no odds</tspan></text>
   <text class="bad"><tspan x="868" y="206">✗ no trace, no memory</tspan><tspan x="868" dy="14">✗ pay again next time</tspan></text>
 
-  <text x="40" y="300" class="lane" style="fill:#b7ff83">+ Knowledge One (Sidewise)</text>
+  <text x="40" y="300" class="lane" style="fill:#b7ff83">+ Knowledge One (MM3)</text>
   <line x1="158" y1="357" x2="1004" y2="357" stroke="#93a7bd" stroke-opacity=".45" stroke-width="2" marker-end="url(#arrow)"/>
   <rect x="40" y="330" width="118" height="54" rx="12" class="box"/><text x="99" y="353" text-anchor="middle" class="bt">standard request</text><text x="99" y="370" text-anchor="middle" class="bs">compact YAML</text>
   <rect x="178" y="330" width="118" height="54" rx="12" class="box"/><text x="237" y="353" text-anchor="middle" class="bt">validate + annotate</text><text x="237" y="370" text-anchor="middle" class="bs">free, no call</text>
@@ -72,5 +72,5 @@
   <text class="good chip c7"><tspan x="868" y="406">✓ every answer and</tspan><tspan x="868" dy="14">   correction, traceable</tspan></text>
   <text class="good chip c8"><tspan x="1006" y="406">✓ patterns, quality,</tspan><tspan x="1006" dy="14">   security: build on it</tspan></text>
 
-  <text x="600" y="512" text-anchor="middle" class="sub">A System One needs a Knowledge One. That's Sidewise.</text>
+  <text x="600" y="512" text-anchor="middle" class="sub">A System One needs a Knowledge One. That's MM3.</text>
 </svg>

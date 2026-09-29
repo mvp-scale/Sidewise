@@ -1,12 +1,12 @@
 /**
- * `sidewise config`: prints the EFFECTIVE config as valid, copyable YAML (plan 2c B, item 3) — never writes
+ * `mm3 config`: prints the EFFECTIVE config as valid, copyable YAML (plan 2c B, item 3) — never writes
  * anything. Free, like `doctor`: works with or without a project (no project just means every value is a
  * default, since there's nowhere for config.yaml to live). A broken config.yaml is reported here too (the same
- * stops `sidewise doctor` would show), but this command still prints the rest of the effective table
+ * stops `mm3 doctor` would show), but this command still prints the rest of the effective table
  * underneath — one bad key never hides everything else.
  *
  * Unlike every other verb's response, this is NOT built through contract/emit.ts's `m()`/`emit()`: that
- * formatter exists for the compact side:/plan: response shape, and its `scalar()` double-quotes any string
+ * formatter exists for the compact mak:/plan: response shape, and its `scalar()` double-quotes any string
  * containing " #" — exactly what a naive "value  # source" row would need, which used to make every single line
  * here a quoted string literal, not a real YAML comment (a config.yaml pasted from that output was garbage:
  * `budget: {usd: "5  # default", ...}`). This instead hand-builds real YAML text, one field per line, so the
@@ -19,7 +19,7 @@
  *     to show. Either way, uncommenting any single line yields a valid config.yaml fragment.
  */
 import { scalar } from '../contract/emit.ts';
-import type { SidewisePaths } from '../ledger/paths.ts';
+import type { Mm3Paths } from '../ledger/paths.ts';
 import type { VerbResult } from '../verbs/types.ts';
 import type { ConfigSource, PricingRate } from './defaults.ts';
 import { resolveConfig, type ResolvedConfig } from './load.ts';
@@ -60,13 +60,13 @@ function pricingLines(resolved: ResolvedConfig): string[] {
   return lines;
 }
 
-/** wise overrides have no "default" at all (defaults.ts's DEFAULT_CONFIG.wise is always `{}`) — every field
+/** mdl overrides have no "default" at all (defaults.ts's DEFAULT_CONFIG.mdl is always `{}`) — every field
  *  present came from config.yaml, so each is always a live line; with none configured, one commented example
  *  block shows the shape instead of leaving the section out entirely. */
-function wiseLines(resolved: ResolvedConfig): string[] {
-  const entries = Object.entries(resolved.config.wise);
-  if (!entries.length) return ['  # wise:', '  #   risk: {values: [low, medium, high]}  # example override'];
-  const lines: string[] = ['  wise:'];
+function mdlLines(resolved: ResolvedConfig): string[] {
+  const entries = Object.entries(resolved.config.mdl);
+  if (!entries.length) return ['  # mdl:', '  #   risk: {values: [low, medium, high]}  # example override'];
+  const lines: string[] = ['  mdl:'];
   for (const [field, override] of entries) {
     lines.push(`    ${scalar(field, false)}:`);
     for (const [k, v] of Object.entries(override)) {
@@ -110,7 +110,7 @@ export function formatConfig(resolved: ResolvedConfig, projectLine: string): str
     fieldLine('    ', 'maxAgeDays', s['reuse.maxAgeDays'], c.reuse.maxAgeDays, 30),
     fieldLine('    ', 'maxCommits', s['reuse.maxCommits'], c.reuse.maxCommits, 20),
     '',
-    ...wiseLines(resolved),
+    ...mdlLines(resolved),
     '',
     'notes:',
     '  - free: never writes, never spends',
@@ -119,11 +119,11 @@ export function formatConfig(resolved: ResolvedConfig, projectLine: string): str
   return `${lines.join('\n')}\n`;
 }
 
-export function runConfig(env: Record<string, string | undefined>, paths: SidewisePaths | undefined, projectLine: string): VerbResult {
+export function runConfig(env: Record<string, string | undefined>, paths: Mm3Paths | undefined, projectLine: string): VerbResult {
   const resolved = resolveConfig(paths, env);
   if (resolved.stops.length) {
     const stopLines = resolved.stops.map((st) => st.text).join('\n');
-    return { exit: 2, text: `${stopLines}\n\n${formatConfig(resolved, projectLine)}\n→ see: sidewise agent config` };
+    return { exit: 2, text: `${stopLines}\n\n${formatConfig(resolved, projectLine)}\n→ see: mm3 agent config` };
   }
   return { exit: 0, text: formatConfig(resolved, projectLine) };
 }

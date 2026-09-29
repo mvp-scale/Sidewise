@@ -1,7 +1,7 @@
 /**
- * `~/.config/sidewise/env` (or `$XDG_CONFIG_HOME/sidewise/env`): the fallback key store when the OS keychain
+ * `~/.config/mm3/env` (or `$XDG_CONFIG_HOME/mm3/env`): the fallback key store when the OS keychain
  * isn't available, at mode 0600 in a 0700 directory. It's a shell env file a user can `source` themselves, but
- * Sidewise never sources or evals it — only lines of the exact shape `export NAME='value'` (single-quoted; the
+ * MM3 never sources or evals it — only lines of the exact shape `export NAME='value'` (single-quoted; the
  * value must not itself contain a `'`) are read, and only for a name on ALLOWED_NAMES. `#` comments and
  * anything else are left alone: a line this parser doesn't recognize is simply ignored (and, for a non-comment
  * line, counted so doctor can warn "a line was ignored" — the owner's own template on this machine is comments
@@ -14,7 +14,7 @@ import path from 'node:path';
 
 type Env = Record<string, string | undefined>;
 
-export const ALLOWED_NAMES = ['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'SIDEWISE_BASE_URL', 'JEV_MODEL', 'JEV_GATEWAY_MODEL', 'SIDEWISE_PROVIDER'] as const;
+export const ALLOWED_NAMES = ['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'MM3_BASE_URL', 'JEV_MODEL', 'JEV_GATEWAY_MODEL', 'MM3_PROVIDER'] as const;
 export type EnvFileName = (typeof ALLOWED_NAMES)[number];
 const isAllowedName = (s: string): s is EnvFileName => (ALLOWED_NAMES as readonly string[]).includes(s);
 
@@ -22,13 +22,13 @@ const isAllowedName = (s: string): s is EnvFileName => (ALLOWED_NAMES as readonl
 // literal `'` (there is no escape convention here — a value that needs one just doesn't fit this file format).
 const EXPORT_LINE = /^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)='([^']*)'\s*$/u;
 
-export function sidewiseConfigDir(env: Env = process.env): string {
+export function mm3ConfigDir(env: Env = process.env): string {
   const xdg = env.XDG_CONFIG_HOME?.trim();
-  return xdg ? path.join(xdg, 'sidewise') : path.join(os.homedir(), '.config', 'sidewise');
+  return xdg ? path.join(xdg, 'mm3') : path.join(os.homedir(), '.config', 'mm3');
 }
 
 export function envFilePath(env: Env = process.env): string {
-  return path.join(sidewiseConfigDir(env), 'env');
+  return path.join(mm3ConfigDir(env), 'env');
 }
 
 export interface EnvFileRead {
