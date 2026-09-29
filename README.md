@@ -50,7 +50,26 @@ Agents: run `mm3 agent` first. Humans: `mm3 help`.
 
 ## See it run
 
-<!-- demo: Task 3 -->
+![A terminal recording: an agent's one-line ask, the request it wrote, one mm3 class run, and the verdict](docs/assets/demo.gif)
+
+The recording is one real run on this repo's own `src/ledger/paths.ts`: a 32-line request (`docs/demo/review.yaml`) and one call. Its response, **real output · jev-1.13.0 · 2026-09-29 · $0.000040**:
+
+```text
+mak:
+  id: MM3-0001
+  gate: pass
+  goal: {gate: pass, p: 0.70}
+  correctness: {gate: pass, 1: 0.97, 2: 0.96, 3: 0.96}
+  input: {gate: pass, 4: 0.97, 5: 0.98, 6: 0.98}
+  design-risk: {gate: pass, 7: 0.06, 8: 0.06, 9: 0.06}
+  severity: {gate: pass, 10: {top: none, p: 0.50}}
+  route: {gate: pass, 11: {top: ship, p: 0.97}}
+  consensus: STRONG
+  escalate: false
+mdl: {recorded: none}
+next: act on it
+notes: [cost estimated from tokens (no live pricing reported), budget 0% used ($0.00 of $5.00 · 1 of 500 runs)]
+```
 
 An agent was asked, on OWASP NodeGoat: *"Take a first look: is that contribution handler safe to merge as it stands?"* It wrote this request (42 lines, opened below) and got one answer from one call.
 

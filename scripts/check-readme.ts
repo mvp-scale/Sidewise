@@ -123,7 +123,7 @@ function checkSiteProse(html: string, readme: string, story: Story): string[] {
     const rest = readme.slice(start + 1);
     const body = rest.slice(rest.indexOf('\n') + 1).split(/\n## /)[0]!;
     for (const m of body.matchAll(/```[^\n]*\n([\s\S]*?)```/g)) if (!m[1]!.includes('verb=')) want(section, m[1]!);
-    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
+    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
     for (const block of prose.split(/\n\s*\n/)) {
       const lines = block.split('\n').filter((l) => l.trim());
       if (lines[0]?.startsWith('|')) {
