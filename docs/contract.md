@@ -14,8 +14,8 @@ agents all read the same file. [C-003]
 
 | Block | Holds | Required? | Sent to TypeSafe? |
 |---|---|---|---|
-| `mak:` | **solve it now**: one `goal`, then plumbing. `ask:` splits into **concerns** (yes/no, one path per category) and **decisions** (scale/choice) | yes | yes |
-| `mdl:` | **get smarter**: why you're here, the area, and the run this follows | optional | no (ledger only) |
+| `mak:` | **make**: the request itself, one `goal`, then plumbing. `ask:` splits into **concerns** (yes/no, one path per category) and **decisions** (scale/choice) | yes | yes |
+| `mdl:` | **model**: why you're here, the area, and the run this follows, so the ledger learns | optional | no (ledger only) |
 
 `mak:` is required, and its contents are what reaches TypeSafe. [C-004]
 `mdl:` is optional, and never reaches TypeSafe — it's ledger-only context. [C-005]
@@ -36,8 +36,11 @@ Drill goes down from one item, named by `from:`, in a parent run's own arrays. [
 
 | Grid | Know | Judge | Prove |
 |---|---|---|---|
-| **Side**: solve it with what's proven | [view](#view) | [class](#class) | [replay](#replay) |
-| **Wise**: find what's new, and learn it | [scan](#scan) | [drill](#drill) | [loop](#loop) |
+| **MAK³**: use what is proven | [view](#view) | [class](#class) | [replay](#replay) |
+| **MDL³**: learn what is missing | [scan](#scan) | [drill](#drill) | [loop](#loop) |
+
+MAK³ (make) and MDL³ (model) are modes of the six verbs, named in prose only: the request keys are always `mak:`
+and `mdl:`, on every verb, and a key never selects a mode; the verb you run does.
 
 ---
 
@@ -276,6 +279,9 @@ live pricing reported)` so it's never mistaken for a figure TypeSafe itself repo
 published rate keeps its cost unreported, never guessed at; a cost the gateway route did report always wins
 over the estimate. Every verb that calls the classifier (class, scan, drill, loop, replay) does this the same
 way. [C-132]
+Compat note (no new claim): run ids are `MM3-####`; the retired `SW-####` shape is still read wherever an id is
+accepted (`parent:`, `view <id>`, `outcome <id>`), and an old ledger record written with `side:`/`wise:` keys loads
+as `mak`/`mdl`, the same way an old `mdl.nodes` loads as `uses`. Nothing writes the old shapes any more.
 Question text is never repeated in a response; the agent has it by number. [C-048]
 A sweep response lists category gates per item and shows probabilities only for questions that didn't clear
 the bar; the full numbers are in the ledger. [C-049]
@@ -430,7 +436,7 @@ notes: [budget 1% used ($0.02 of $5.00 · 3 of 500 runs)]
 
 `next:` on `pass` is the caller's own text ("act on it"); on `fail`, it drills into the first category whose
 own gate is `fail`, in written order; on `unsure`, the first category whose own gate is `unsure`. [C-058]
-Wise learns the pass/fail record per category, per place and per area; these questions and categories become
+The ledger learns the pass/fail record per category, per place and per area; these questions and categories become
 a candidate pattern for this place. [C-059]
 When any question's answer was reused (whole or in part) from an earlier run, the response names which one:
 `reused: [MM3-####, ...]`, sorted and deduplicated, right after `escalate:`. The field is left out entirely
@@ -731,7 +737,7 @@ consensus and escalate. [C-077]
 drill's own `next:` never points at drilling further: on a one-subject parent it says to fix it, then
 `replay` against the parent; on a sweep parent it says to fix it and run this same drill again, since
 unchanged items are reused, so it is nearly free. [C-078]
-Wise learns which narrower questions separate the real cause from the noise; they become the drill pattern
+The ledger learns which narrower questions separate the real cause from the noise; they become the drill pattern
 for that category. [C-079]
 `mm3 template drill --parent <id> --from <x>` picks the sample matching that id's own shape when the
 ledger has it: a sweep parent's sample keeps `over:`, a one-subject parent's has no `over:` and `from:` names
