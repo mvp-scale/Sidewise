@@ -106,7 +106,7 @@ mdl:
   user-feels: first workflow after a restart is slow             # product
   cost-driver: every pod restart pays the full scan              # business
   pager-risk: none, slow not down                                # on-call
-  tags: ["#perf", "#cold-start", "@platform-team"]               # #themes, @owners: Obsidian- or Jira-style lookups
+  tags: ["#perf", "#cold-start", "@platform-team"]               # common dev tags: #topic, @owner
   refs: [BUG-1042, "test:startup-bench failed"]                  # bugs, test results, anything to link
 ```
 
