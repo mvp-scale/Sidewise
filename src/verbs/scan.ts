@@ -118,6 +118,7 @@ export async function runScan(text: string, ctx: VerbContext): Promise<VerbResul
         [...loaded.notes, ...notes, ...plan.splitNotes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
         ctx.provider.adapter,
+        ctx.paths,
       ),
     );
 

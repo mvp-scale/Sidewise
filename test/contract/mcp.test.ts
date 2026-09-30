@@ -5,6 +5,7 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { runCli, type CliCtx } from '../../src/cli.ts';
+import { BEAT_GUIDANCE } from '../../src/help/guidance.ts';
 import { handleMessage, TOOL_NAME, toolDefinition, type JsonRpcRequest, type JsonRpcResponse, type RunOne } from '../../src/mcp/protocol.ts';
 import { gitInit, tempProject } from '../helpers/project.ts';
 
@@ -77,6 +78,16 @@ describe('mcp protocol: initialize', () => {
       { runOne: runOneFor(fakeCtx()), serverVersion: '0.0.0-test' },
     );
     expect((resp?.result as { protocolVersion?: string })?.protocolVersion).toBe('2025-11-25');
+  });
+
+  it('carries the three-beat guidance as InitializeResult.instructions, for every supported protocol version', async () => {
+    for (const protocolVersion of ['2025-11-25', '2025-06-18', '1.0.0', undefined]) {
+      const resp = await handleMessage(
+        { jsonrpc: '2.0', id: 1, method: 'initialize', params: protocolVersion ? { protocolVersion } : {} },
+        { runOne: runOneFor(fakeCtx()), serverVersion: '0.0.0-test' },
+      );
+      expect((resp?.result as { instructions?: string })?.instructions).toBe(BEAT_GUIDANCE);
+    }
   });
 
   it('falls back to 2025-06-18 for an unsupported/missing requested version', async () => {

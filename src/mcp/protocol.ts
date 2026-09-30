@@ -15,6 +15,8 @@
  * spec" read literally.
  */
 
+import { BEAT_GUIDANCE } from '../help/guidance.ts';
+
 export interface JsonRpcRequest {
   jsonrpc?: unknown;
   id?: string | number | null;
@@ -76,7 +78,7 @@ export async function handleMessage(msg: JsonRpcRequest, deps: { runOne: RunOne;
     const params = (msg.params ?? {}) as { protocolVersion?: unknown };
     const requested = typeof params.protocolVersion === 'string' ? params.protocolVersion : undefined;
     const protocolVersion = requested && (SUPPORTED_VERSIONS as readonly string[]).includes(requested) ? requested : DEFAULT_VERSION;
-    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'mm3', version: deps.serverVersion } });
+    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'mm3', version: deps.serverVersion }, instructions: BEAT_GUIDANCE });
   }
 
   if (method === 'ping') return ok(id, {});

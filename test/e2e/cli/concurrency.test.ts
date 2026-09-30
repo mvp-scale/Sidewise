@@ -13,7 +13,9 @@ const CLASS_YAML = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8
 // actually available (Node >= 22.13); the Node < 22.13 fallback never writes one at all. Plan 2c B1: there's no
 // budget.json any more (caps live in config.yaml, spend is ledger-derived) — a plain `class`/`outcome` flow
 // with no `budget set`/`reset` call never creates config.yaml either.
-const EXPECTED_FILES = ['.gitignore', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
+// agents-note-shown: the one-time `agents:` note's marker [C-234] — these fixture projects have no AGENTS.md, so
+// their first real run shows the note and leaves the marker.
+const EXPECTED_FILES = ['.gitignore', 'agents-note-shown', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
 
 interface Line {
   kind: string;
@@ -144,6 +146,6 @@ describe('separate processes at once', () => {
     // when checkLedger/nextRunNumber first touch the index (design binding #7: no ledger yet, touch nothing on
     // disk), and appendLine only creates log.jsonl moments later, in the same command. So this one command never
     // persists index.db even with node:sqlite available; the next command would. See ledger/index.ts's withIndex.
-    expect(state(root).files).toEqual(['.gitignore', 'log.jsonl']);
+    expect(state(root).files).toEqual(['.gitignore', 'agents-note-shown', 'log.jsonl']);
   }, 30_000);
 });

@@ -443,7 +443,10 @@ next: mm3 template drill --parent MM3-0042 --from injection
 notes: ["budget: $4.98 left of $5.00 · 497 of 500 runs left"]
 ```
 
-`next:` on `pass` is the caller's own text ("act on it"); on `fail`, it drills into the first category whose
+`next:` on `pass` points at Prove, not just at acting: for `class` it reads `act on it · then prove it with mm3
+replay --parent <this run's id> --compare <before>..HEAD`, for `loop` `build it, then class the code · after the
+commit, mm3 replay --parent <this run's id> --compare <before>..HEAD` (`<before>` is left for the caller to fill in;
+the text has no `": "`, so it stays a plain YAML scalar). [C-232] On `fail`, it drills into the first category whose
 own gate is `fail`, in written order; on `unsure`, the first category whose own gate is `unsure`. [C-058]
 The ledger learns the pass/fail record per category, per place and per area; these questions and categories become
 a candidate pattern for this place. [C-059]
@@ -1264,6 +1267,23 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   rules and good/bad patterns) before writing a first real request — rather than inviting one straight off; if
   any step above logged a `✖ problem` line, `next:` never claims the setup is usable, instead pointing back at
   the fix and at re-running `mm3 init`. [C-176]
+- `mm3 init --agents` is an opt-in step that runs on its own (no install, key or plugin step; combined with
+  another init flag it stops at exit 2). It writes the three-beat guidance into the project's `AGENTS.md`
+  between `<!-- mm3:agents -->` and `<!-- /mm3:agents -->` (creating the file when missing, appending the block
+  when there are no markers, replacing only what sits between them when there are; an unmatched marker stops
+  with `✖ agents: ... → fix`), and appends `@AGENTS.md` (`@../AGENTS.md` for `.claude/CLAUDE.md`) to a
+  `CLAUDE.md` that exists and has no line importing AGENTS.md. It first prints exactly the lines it would write
+  and to which file, and writes only on `--yes` or a yes at the prompt; a non-terminal input (the MCP path)
+  is never prompted: it shows the lines, writes nothing and says `re-run with --yes`. A second run changes
+  nothing and says `· agents: already set up`. [C-233]
+- A project whose `AGENTS.md` has no mm3 block (`no-block`), or whose `CLAUDE.md`/`.claude/CLAUDE.md` exists
+  without a line importing AGENTS.md (`claude-md-no-import`), gets ONE extra note on the first real run of
+  `class`, `scan`, `drill`, `loop` or `replay`, just before the budget note: `agents: no MM3 guidance in AGENTS.md
+  → mm3 init --agents adds it (shows the lines first)` or `agents: Claude reads CLAUDE.md, not AGENTS.md → add the
+  line @AGENTS.md to CLAUDE.md (or run mm3 init --agents)`. A marker file in `.mm3/` (`agents-note-shown`) makes it
+  appear once per project; a `--dry-run` neither shows it nor writes the marker; a project already `ok` never sees
+  it. `mm3 doctor` always prints an `agents:` line in a project (`ok`, or the same fix text), independent of the
+  marker, and never writes it. [C-234]
 - `mm3 uninstall` reverses init, by default acting only on the current project: the Claude Code plugin's
   project-scope install, and (asked, default **no** — it's the user's run history) that project's
   `.mm3/`. The per-user parts — the stored key and the CLI itself — are only touched with `--all`, which

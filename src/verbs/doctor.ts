@@ -40,6 +40,7 @@ import { validateConfig } from '../config/validate.ts';
 import { sqliteAvailable } from '../ledger/index.ts';
 import type { Mm3Paths } from '../ledger/paths.ts';
 import { envFilePath, looseFileModeWarning, readEnvFile } from '../setup/env-file.ts';
+import { agentsDoctorValue } from '../setup/agents-status.ts';
 import { readInstallRecord } from '../setup/install-record.ts';
 import { findOnPath } from '../setup/npm-info.ts';
 import { inPluginContext, NO_KEY_PLUGIN_HINT, pluginStatus } from '../setup/plugin.ts';
@@ -290,6 +291,7 @@ export function runDoctor(
         ['index', nodeVersionOk(nodeVersion) ? (sqliteAvailable() ? 'node:sqlite' : 'unavailable (unexpected on Node 22.13+)') : DOCTOR_INDEX_TOO_OLD],
         ['cli', cliLine(env, deps.platform ?? process.platform)],
         ['plugin', pluginLine(deps)],
+        ...(paths ? [['agents', agentsDoctorValue(paths.root)] as [string, Value]] : []),
         ['config', configField(paths, env)],
       ),
     ],

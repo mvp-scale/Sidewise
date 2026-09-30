@@ -80,7 +80,7 @@ const LINES = {
   budget: 'mm3 budget [show | reset | set --usd <n> --runs <n>]',
   doctor: 'mm3 doctor [<file> | -]',
   config: 'mm3 config [--write]',
-  init: 'mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]',
+  init: 'mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]  ·  or: mm3 init --agents [--yes]',
   uninstall: 'mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]',
   mcp: 'mm3 mcp',
 } as const;
@@ -407,11 +407,15 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         'key-stdin': { type: 'boolean', default: false },
         'no-key': { type: 'boolean', default: false },
         yes: { type: 'boolean', default: false },
+        agents: { type: 'boolean', default: false },
       },
     });
     positionalCount('init', positionals, 0, 0);
     if ([values.global, values.user, values.local].filter(Boolean).length > 1) {
       return finish(2, '✖ init: give at most one of --global, --user or --local');
+    }
+    if (values.agents && (values.global || values.user || values.local || values.claude || values['no-claude'] || values['key-stdin'] || values['no-key'] || values.scope !== undefined)) {
+      return finish(2, '✖ init: --agents runs on its own → run "mm3 init --agents [--yes]" alone (and "mm3 init" separately for the install, key and plugin)');
     }
     if (values.claude && values['no-claude']) return finish(2, '✖ init: give at most one of --claude or --no-claude');
     if (values['key-stdin'] && values['no-key']) return finish(2, '✖ init: give at most one of --key-stdin or --no-key');
@@ -424,6 +428,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       scope: values.scope as 'user' | 'project' | undefined,
       key: values['key-stdin'] ? 'stdin' : values['no-key'] ? 'no' : 'ask',
       yes: values.yes,
+      ...(values.agents ? { agents: true } : {}),
     };
     const r = await runInit(flags, {
       env: ctx.env,

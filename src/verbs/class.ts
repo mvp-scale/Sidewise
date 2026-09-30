@@ -119,11 +119,12 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
         ...(reusedRunIds.length ? [['reused', reusedRunIds] as [string, Value]] : []),
       ]),
       mdlRecorded(request.mdl),
-      outcomeNext(id, subject.gate, subject.categories, request.mak.categories, 'act on it'),
+      outcomeNext(id, subject.gate, subject.categories, request.mak.categories, `act on it · then prove it with mm3 replay --parent ${id} --compare <before>..HEAD`),
       commonNotes(
         [...loaded.notes, ...evidence.evidence.notes, ...stale, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         budget,
         ctx.provider.adapter,
+        ctx.paths,
       ),
     );
 
