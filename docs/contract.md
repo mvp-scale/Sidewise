@@ -71,81 +71,94 @@ and `mdl:`, on every verb, and a key never selects a mode; the verb you run does
 | mdl | `blast` | `code` · `component` · `container` · `system` · `person` — the widest level one failure reaches (`person` = users' data or accounts) |
 | mdl | *(any other key)* | a lower-kebab key ≤ 20 characters: one line ≤ 160, or a list of ≤ 5 such lines, recorded as-is |
 
-`goal` is one line, at most 160 characters, and is the question asked of TypeSafe outright. [C-010]
-`depth` is `quick` · `standard` · `thorough` = k = 1 · 2 · 3: one subject's `ask.concerns` holds exactly 3k
-categories, each with exactly 3 yes/no probes (9 · 18 · 27 total); a sweep's finest layer (the last layer in
-`over`'s own order — e.g. scan's `function`, loop's `story`) is held to the same rule, and every layer also
-caps at 10 · 20 · 30 items asked (this cap kept its old 10/20/30 numbers even though the question-count numbers
-above moved — the two used to coincide and no longer do). These section and count rules are stops in `class`,
-`drill`, `scan` and `loop`; in `view` they're notes instead ("class will stop on this") — a partial draft is
-fine there. A sweep's non-finest layers are optional, and when present don't have their counts enforced either
-(a note if thin) — only their shape (well-formed `concerns:`/`decisions:`) has to hold. [C-011]
-`where` is 1–5 project paths, each optionally `:start-end`; the code there is read and redacted. [C-012]
-A `where:` entry over the per-file limit (20,000 chars, after redaction) is a stop, not a silent truncation: a
-whole file (no `:start-end`) names its own line count and asks for a range; a range that's already this big
-asks to be narrowed further. [C-169]
-Several `where:` entries that together cross the 60,000-char total are a stop the same way, naming which entry
-doesn't fit — the same silent-cut problem, just across entries instead of within one. [C-170]
-The one exception is evidence MM3 itself picked, never a user-typed `where:` — today, only `drill`
-continuing flat from one coded sweep item with no further `over:` (its own whole-file/function/call range) —
-which still truncates with a note, since there's no `where:` for anyone to narrow. [C-171]
-`ask` holds `concerns:` (yes/no categories) and `decisions:` (scale/choice categories) for one subject, or
-layer → `{concerns:, decisions:}` for a sweep. Nothing is published on a flat, unsectioned `ask` any more: a
-category with `pass:` straight under `ask:` (no `concerns:`/`decisions:` wrapper) is refused outright,
-`✖ mak.ask: put categories under concerns: (yes/no) and decisions: (scale/choice) → mm3 template <verb>`.
-[C-013]
-`over` is sweeps-only: nested arrays that define the layers; `concerns` and `decisions` are reserved words
-there too, since a layer of either name would collide with `ask`'s own sections. [C-014]
-`from` applies only to drill; `compare` only to replay. `parent` is required by drill and replay (the run to
-build on); every other verb accepts it too now, purely as lineage (the same role `mdl.parent` already played,
-which remains an accepted alias for it). [C-015]
-`mdl.why` is one of `validate`, `find` or `debug`. [C-016]
-`mdl.area` is one of `data`, `api`, `ui`, `auth`, `hosting`, `build` or `tests` — a single value, or a list of
-up to 2 (omit it for a question about the whole system; `mdl.uses` carries the map instead). [C-017]
-`mdl.parent` records the run this one follows, for lineage only. [C-018]
-`mdl.stage` is one of `design`, `build`, `review`, `pre-merge`, `post-fix`, `release` or `operate` (`operate`:
-a live production/incident question). [C-108] [C-209]
-`mdl.change` is one of `feature`, `fix`, `refactor`, `dependency` or `config` — only when a code change is
-actually involved (a pure design/plan question, e.g. `loop`, usually leaves it out). [C-109]
-`mdl.risk` is one of `low`, `medium` or `high`: the stakes if this answer turns out to be wrong. [C-110]
-`mdl.problem`, `mdl.uses`, `mdl.touches` and `mdl.blast` are the knowledge fields: a one-line problem
-statement, up to 5 C4 dependency chains, up to 5 touched entities, and a blast-radius level. All four are
-optional, and none of them reach the classifier — like every other `mdl` field, they only shape what the
-ledger learns. `mdl.uses` (replaces the single-string `mdl.nodes` of the earlier contract — nothing is
-published on `nodes` any more, though an old ledger record that still has one reads back as a 1-item `uses`)
-is a list of up to 5 C4 chains, each a chain of `level:name` pairs (`level` one of `person`, `system`,
-`container`, `component` or `code`; `name` project-identifier-shaped, or `name/name` for containment, or ending
-`?` for something guessed or not built yet), joined by ` -> ` within one chain — e.g.
-`container:api -> component:contributions-dao -> container:db`; a single string is accepted as a 1-item list.
-`mdl.touches` names domain objects/fields the run is actually about, not language built-ins or vague concepts.
-`mdl.blast`'s widest level, `person`, means the failure reaches users' own data or accounts. [C-205]
-Every closed `mdl` field (`why`, `area`, `stage`, `change`, `risk`, `blast`) also accepts the literal value
-`unknown`, when the agent genuinely doesn't know yet. [C-206]
-Any other key under `mdl:` is accepted as a custom field when it's a lower-kebab name ≤ 20 characters: its
-value (one line ≤ 160 characters, or a list of up to 5 such lines) is recorded as-is, with no further checking
-— `mm3 agent mdl` still generates its card from the built-in table plus any project config, so a custom
-key is a genuine escape hatch, not a way to redefine a catalog field. [C-207]
-The whole `mdl:` block is capped at 25 YAML source lines, counted from the request's own text (not the parsed
-value) — the 26th line stops with `✖ mdl: 26 lines → the mdl block is capped at 25 lines`. [C-208]
+Each rule ends with the claim id a test proves. The table above is the quick reference; this is the detail.
 
-A concerns category is a lowercase name (one word or `kebab-case`, ≤ 20 chars), `pass: yes` or `pass: no`, an
-optional `need`, optional `tags` (≤ 3), an optional `family`, and exactly 3 yes/no questions (each ending in
-`?`). [C-019]
-`family` is one of `access`, `injection`, `secrets`, `input`, `output`, `availability`, `correctness`,
-`design`, `design-risk`, `done` or `other` — optional, and meaningful only on a concerns category. Left out, it
-defaults to the category's own name when that name is itself one of the family values, else it stays unset;
-given explicitly, it always wins over the name default. It's ledger-only: never sent to the classifier, and
-never part of an answer key or a pattern fingerprint, so retagging a category's family never changes whether
-its answer is reused.
-A decisions category holds exactly one question, `scale:` + `levels:` (2–10 levels) or `choice:` + `options:`
-(2–8 options), and a `pass:` naming the passing levels/options. [C-022]
-The `decisions:` section as a whole holds 2–5 categories, with at least one `scale:` and at least one
-`choice:` among them — this, not a flat per-request cap, is what replaced the older "at most 5 scale/choice
-questions" rule.
-Questions are numbered 1…N, unique across every category (and, in a sweep, every layer), with no gaps: every
-concerns question is numbered before every decisions question in the same `ask:` block. [C-020]
-A yes/no question is text ending in `?`. [C-021]
-`id`, `ts`, `actor` and `task` are stamped by the engine and never sent to the classifier. [C-023]
+### Field rules: the request (`mak`)
+
+**`goal`**
+
+- One line, at most 160 characters.
+- It is the question asked of TypeSafe outright. [C-010]
+
+**`depth`** sets how many questions a request asks. `quick`, `standard` and `thorough` set k to 1, 2 and 3.
+
+- **One subject:** `ask.concerns` holds exactly 3k categories, each with exactly 3 yes/no probes. That is 9, 18 or 27 questions in total. [C-011]
+- **A sweep:** its finest layer follows the same rule. The finest layer is the last one in `over`'s own order, such as scan's `function` or loop's `story`. [C-011]
+- **Item cap:** every layer of a sweep also caps at 10, 20 or 30 items asked. This cap kept its old numbers when the question counts changed. The two used to match and no longer do. [C-011]
+- **Other sweep layers:** optional. When present, their counts are not enforced (you get a note if thin). Only their shape has to hold: well-formed `concerns:` and `decisions:`. [C-011]
+- **Stop or note:** these section and count rules are stops in `class`, `drill`, `scan` and `loop`. In `view` they are notes ("class will stop on this"), because a partial draft is fine there. [C-011]
+
+**`where`** is the code MM3 reads: 1 to 5 project paths, each with an optional `:start-end`. The code there is read and redacted. [C-012]
+
+- **Per-file limit:** 20,000 characters, after redaction. Over it, the request stops instead of cutting silently. A whole file (no `:start-end`) gets its own line count and a request for a range. A range that is already that big is asked to narrow further. [C-169]
+- **Total limit:** 60,000 characters across all `where:` entries. Cross it and the request stops the same way, naming the entry that doesn't fit. It is the same silent-cut problem, across entries instead of within one. [C-170]
+- **The one exception:** evidence MM3 itself picked, never a `where:` you typed. Today that is only `drill` continuing flat from one coded sweep item with no further `over:` (its own whole-file, function or call range). That still truncates, with a note, because there is no `where:` for anyone to narrow. [C-171]
+
+**`ask`** holds the questions. `concerns:` has the yes/no categories and `decisions:` has the scale or choice categories. A sweep nests them under each layer: layer → `{concerns:, decisions:}`. [C-013]
+
+- **No flat `ask`:** nothing is published on a flat, unsectioned `ask` any more. A category with `pass:` straight under `ask:`, with no `concerns:` or `decisions:` wrapper, is refused outright: `✖ mak.ask: put categories under concerns: (yes/no) and decisions: (scale/choice) → mm3 template <verb>`. [C-013]
+
+**`over`** is for sweeps only: nested arrays that define the layers. `concerns` and `decisions` are reserved words here too, because a layer with either name would collide with `ask`'s own sections. [C-014]
+
+**`from`, `compare` and `parent`**
+
+- `from` applies only to `drill`. `compare` applies only to `replay`. [C-015]
+- `parent` is required by `drill` and `replay`: it is the run to build on. Every other verb accepts it too, purely as lineage, the same role `mdl.parent` already played. `mdl.parent` remains an accepted alias. [C-015]
+
+### Field rules: why you're here (`mdl`)
+
+None of the `mdl` fields reach the classifier. They only shape what the ledger learns.
+
+**`mdl.why`** is one of `validate`, `find` or `debug`. [C-016]
+
+**`mdl.area`** is one of `data`, `api`, `ui`, `auth`, `hosting`, `build` or `tests`: a single value, or a list of up to 2. Leave it out for a question about the whole system; `mdl.uses` carries the map instead. [C-017]
+
+**`mdl.parent`** records the run this one follows, for lineage only. [C-018]
+
+**`mdl.stage`** is one of `design`, `build`, `review`, `pre-merge`, `post-fix`, `release` or `operate`. `operate` means a live production or incident question. [C-108] [C-209]
+
+**`mdl.change`** is one of `feature`, `fix`, `refactor`, `dependency` or `config`. Use it only when a code change is actually involved. A pure design or plan question, such as `loop`, usually leaves it out. [C-109]
+
+**`mdl.risk`** is one of `low`, `medium` or `high`: the stakes if this answer turns out to be wrong. [C-110]
+
+**The knowledge fields** are `mdl.problem`, `mdl.uses`, `mdl.touches` and `mdl.blast`: a one-line problem statement, up to 5 C4 dependency chains, up to 5 touched entities and a blast-radius level. All four are optional. Like every other `mdl` field, they never reach the classifier. [C-205]
+
+- **`mdl.uses`** is a list of up to 5 C4 chains. A single string is accepted as a 1-item list. [C-205]
+  - A chain is `level:name` pairs joined by ` -> `, for example `container:api -> component:contributions-dao -> container:db`.
+  - `level` is one of `person`, `system`, `container`, `component` or `code`.
+  - `name` is project-identifier-shaped, or `name/name` for containment, or ends in `?` for something guessed or not built yet.
+  - It replaces the old single-string `mdl.nodes`. Nothing is published on `nodes` any more, though an old ledger record that still has one reads back as a 1-item `uses`.
+- **`mdl.touches`** names the domain objects or fields the run is actually about, not language built-ins or vague concepts. [C-205]
+- **`mdl.blast`** takes the widest level one failure reaches. `person` is the widest: the failure reaches users' own data or accounts. [C-205]
+
+**`unknown`:** every closed `mdl` field (`why`, `area`, `stage`, `change`, `risk`, `blast`) also accepts the literal value `unknown`, for when the agent genuinely doesn't know yet. [C-206]
+
+**Custom fields:** any other key under `mdl:` is accepted when it is a lower-kebab name of at most 20 characters. [C-207]
+
+- The value is one line of at most 160 characters, or a list of up to 5 such lines. It is recorded as-is, with no further checking. [C-207]
+- `mm3 agent mdl` still builds its card from the built-in table plus any project config. So a custom key is a real escape hatch, not a way to redefine a catalog field. [C-207]
+
+**Size cap:** the whole `mdl:` block is capped at 25 YAML source lines, counted from the request's own text, not the parsed value. The 26th line stops with `✖ mdl: 26 lines → the mdl block is capped at 25 lines`. [C-208]
+
+### Categories and questions
+
+**A concerns category** is a lowercase name (one word or `kebab-case`, at most 20 characters), `pass: yes` or `pass: no`, an optional `need`, optional `tags` (at most 3), an optional `family`, and exactly 3 yes/no questions, each ending in `?`. [C-019]
+
+**`family`** is optional, and only meaningful on a concerns category. It is one of `access`, `injection`, `secrets`, `input`, `output`, `availability`, `correctness`, `design`, `design-risk`, `done` or `other`.
+
+- Left out, it defaults to the category's own name when that name is itself a family value. Otherwise it stays unset.
+- Given explicitly, it always wins over the name default.
+- It is ledger-only. It is never sent to the classifier and never part of an answer key or a pattern fingerprint, so retagging a category's family never changes whether its answer is reused.
+
+**A decisions category** holds exactly one question: `scale:` with `levels:` (2 to 10 levels), or `choice:` with `options:` (2 to 8 options). A `pass:` names the passing levels or options. [C-022]
+
+**The `decisions:` section** as a whole holds 2 to 5 categories, with at least one `scale:` and at least one `choice:`. This, not a flat per-request cap, is what replaced the older "at most 5 scale/choice questions" rule.
+
+**Numbering:** questions are numbered 1…N, unique across every category (and, in a sweep, every layer), with no gaps. Every concerns question is numbered before every decisions question in the same `ask:` block. [C-020]
+
+**A yes/no question** is text ending in `?`. [C-021]
+
+**Stamped by the engine:** `id`, `ts`, `actor` and `task` are added by MM3 and never sent to the classifier. [C-023]
 
 ### Grading: a simple bar, checked per question
 
@@ -1129,18 +1142,16 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
 - `mak.verb` is optional. The tool name wins, and a mismatch is sent back. [C-085]
 - `depth` counts `concerns:` categories only (exactly 3k of them); `decisions:` questions never count toward
   it. [C-086]
-- The ledger stores a category's `section` and `family`/`familySource` alongside its usual fields, the run's
-  git sha (`commit`, or `null` when it can't be resolved) at the time it ran, and `where` for every verb (a
-  sweep derives it from its items' own code paths). `commit` is resolved in the git repo that actually contains
-  the run's own `where` files — not necessarily the MM3 project root — falling back to the root's own repo
-  only when a verb records no `where` at all (a sweep like `loop`). `replay` additionally stores `expect` (the
-  agent's own prediction, array or `"none"`) and `commits: {before, after}`, the before/after refs' own
-  resolved shas — distinct from `commit`, which for `replay` is specifically the `after` ref's sha, since a
-  replay's two compared states don't otherwise reduce to one single "commit this run is at" the way
-  `class`/`scan`/`drill`/`loop` do. None of this changes an answer key or a pattern fingerprint — the same
-  question on the same evidence still reuses for free regardless of which family tag or commit sha it was asked
-  under. [C-213] A `view` request-mode check (the free draft-against-the-ledger lookup shown above) is itself
-  logged too, as a free record that never takes a run number and never counts toward the budget.
+- **What the ledger records on every run.** Each category's `section`, `family` and `familySource`. The git sha the run
+  was at (`commit`, or `null` if it can't be found). And `where`; a sweep takes it from its items' code paths.
+- **Which repo the sha comes from.** The repo that holds the run's own `where` files, which may not be the MM3 project
+  root. If a verb records no `where` (a sweep like `loop`), it falls back to the root's repo.
+- **What `replay` adds.** `expect`, the agent's own prediction (an array, or `"none"`), and `commits: {before, after}`,
+  the resolved shas of the two refs. On a replay, `commit` is the `after` sha, because a replay compares two states, not one.
+- **None of it touches reuse.** These fields don't change an answer key or a pattern fingerprint. The same question on the
+  same evidence still reuses for free, whatever family tag or sha it was asked under. [C-213]
+- **`view` checks are logged too.** A `view` request-mode check (the free draft-against-the-ledger lookup shown above) is a
+  free record. It takes no run number and doesn't count toward the budget.
 - Nested items use `- name: <item>` plus child layers beside it, which is what agents write naturally.
   Different items may have different child layers. [C-087]
 - `mm3 --version` and `mm3 -v` print the installed package's version, one line, exit 0 — free, no

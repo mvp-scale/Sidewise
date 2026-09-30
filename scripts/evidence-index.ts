@@ -15,7 +15,7 @@ export function listEvidenceDocs(dir = 'docs/evidence'): EvidenceDoc[] {
       const text = readFileSync(`${dir}/${file}`, 'utf8');
       const lines = text.split('\n');
       const title = /^#\s+(.+)/u.exec(lines[0] ?? '')?.[1] ?? file;
-      const summary = lines.slice(1).find((l) => l.trim() && !l.startsWith('#'))?.trim().slice(0, 140) ?? '';
+      const summary = lines.slice(1).find((l) => l.trim() && !l.startsWith('#'))?.trim() ?? ''; // the whole line: a cut mid-sentence or mid-`code` reads as broken
       return { file, title, summary };
     });
 }

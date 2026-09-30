@@ -38,10 +38,10 @@ describe('trace', () => {
     expect(report.unknownTags.some((t) => t.id === 'C-999')).toBe(true); // the fixture tree tags a nonexistent claim on purpose
   });
 
-  it('renderTraceDoc lists every claim with its covering tests and a pass/fail summary', () => {
+  it('renderTraceDoc lists every claim whole, grouped by section, with the test that proves it and a count', () => {
     const doc = renderTraceDoc(trace(MD, 'test/fixtures/trace/tests'));
     expect(doc).toContain('C-991');
     expect(doc).toContain('C-993');
-    expect(doc).toMatch(/2\/3 claims traced/);
+    expect(doc).toMatch(/2 of 3 claims have a test/);
   });
 });
