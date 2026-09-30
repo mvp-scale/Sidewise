@@ -82,7 +82,7 @@ MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure v
 
 <p align="center"><img src="docs/assets/journey-map.svg" width="900" alt="The WordPress map in the ledger. The map an agent built in MM3's ledger while working on WordPress 7.1.2, from the C4 chains it tagged on 8 of its runs. System wordpress (MM3-0001) holds three containers. Bootstrap: plugin-hooks (MM3-0001, 0003, 0005, 0006, 0008, 0012) and template-loader (MM3-0001). Data: user-api (MM3-0002, 0005, 0006, 0008, 0012) uses meta-api, which reaches the database (MM3-0002). Render: template-loader (MM3-0003, 0004) feeds post-template (MM3-0003 to 0012), which reaches the theme (MM3-0001, 0003). Plugin-hooks uses user-api and post-template. The change, a persona plugin, touches plugin-hooks, user-api and post-template (MM3-0012). The layers are the agent's own names; every edge cites the runs behind it."></p>
 
-**The ledger remembers.** Same question on unchanged code: answered from the ledger, no call, no cost. What changed since: `replay` compares any two commits. A fresh agent rebuilt this whole story, gaps in the plan included, from the ledger alone.
+**The ledger remembers.** Same question on unchanged code: answered from the ledger, no call, no cost. What changed since: `replay` compares any two commits. Told to use only the ledger, the agent rebuilt this whole story, gaps in the plan included, in about four minutes.
 
 **Where it fell short (it's beta).** It missed WordPress's Block Bindings API. `replay` can't yet compare against a file that didn't exist before. Every verdict came from reading code, not running it. We're on it.
 
