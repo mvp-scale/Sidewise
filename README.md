@@ -26,7 +26,7 @@ npm install -g @mvpscale/mm3
 mm3 init
 ```
 
-**Status: beta.** Early testing has been strong, and more worked examples are coming. The plugin works today; the npm package publishes with the first release.
+**Status: beta.** It works well and we use it ourselves; formal benchmarks are coming. The plugin works today; the npm package publishes with the first release.
 
 ### Try it locally
 
@@ -120,6 +120,8 @@ Every run and its outcome goes into an append-only ledger in `.mm3/` (git-ignore
 
 ## By the numbers
 
+Early numbers from our own runs; formal benchmarks will follow.
+
 - [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
 - [1,181 tests, no network, no key](docs/numbers.md#test-count)
 - [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
@@ -161,7 +163,7 @@ Add `--dry-run` to any request to validate it and count its questions without a 
 - **Not a linter, scanner or test suite.** Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can't put: does this handler check the caller, will this design hold.
 - **Not a substitute for a full-context model review.** A full-context review reads the whole codebase for every question. Use one when the question won't fit a yes/no.
 - **The sample provider is not evidence.** Its answers are canned. Built on TypeSafe's Jev; other classifiers can plug in.
-- **Beta.** Tested end to end on an intentionally vulnerable app (OWASP NodeGoat) (see the numbers above). The npm package publishes with the first release.
+- **Beta.** It works well in our own use, tested end to end on an intentionally vulnerable app (OWASP NodeGoat); formal benchmarks will follow. The npm package publishes with the first release.
 
 ## Docs and contributing
 
