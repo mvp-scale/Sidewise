@@ -19,14 +19,14 @@ In Claude Code, from your project:
 
 Pick **project** scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on "TypeSafe API key", paste, Enter, then "Save configuration". Leave it empty to add one later with `mm3 init`.
 
-In a terminal, or with Codex or Gemini CLI (needs Node 22.13+):
+In a terminal (needs Node 22.13+):
 
 ```bash
 npm install -g @mvpscale/mm3
 mm3 init
 ```
 
-**Status: beta.** It works well and we use it ourselves; formal benchmarks are coming. The plugin works today; the npm package publishes with the first release.
+**Status: beta.** It works well and we use it ourselves; formal benchmarks are coming. The plugin works today; the npm package is out as a nightly, and the first release follows.
 
 ### Try it locally
 
@@ -124,7 +124,7 @@ Early numbers from our own runs; formal benchmarks will follow.
 
 ## Run it
 
-Let your agent drive. `mm3 agent` prints every command and rule in one dense card built for agents, and `mm3 agent <verb>` gives one verb's rules with good and bad examples. Most agents read it and run the commands just fine, Haiku included: it drove [both of our stories](https://mm3lab.dev/#run) end to end.
+Let your agent drive. `mm3 agent` prints every command and rule in one dense card built for agents, and `mm3 agent <verb>` gives one verb's rules with good and bad examples. Claude agents read it and run the commands just fine, down to Haiku: it drove [both of our stories](https://mm3lab.dev/#run) end to end.
 
 For humans, `mm3 help` is the same contract in plain words, and `mm3 template <verb>` prints a filled-in request with its rules as comments. Four jobs to start with:
 
@@ -159,7 +159,7 @@ Add `--dry-run` to any request to validate it and count its questions without a 
 - **Not a linter, scanner or test suite.** Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can't put: does this handler check the caller, will this design hold.
 - **Not a substitute for a full-context model review.** A full-context review reads the whole codebase for every question. Use one when the question won't fit a yes/no.
 - **The sample provider is not evidence.** Its answers are canned. Built on TypeSafe's Jev; other classifiers can plug in.
-- **Beta.** It works well in our own use, tested end to end on an intentionally vulnerable app (OWASP NodeGoat); formal benchmarks will follow. The npm package publishes with the first release.
+- **Beta.** It works well in our own use, tested end to end on an intentionally vulnerable app (OWASP NodeGoat); formal benchmarks will follow. The npm package is a nightly for now; the first release follows.
 
 ## Docs and contributing
 
