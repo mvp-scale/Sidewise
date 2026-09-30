@@ -68,6 +68,10 @@ describe('checkSchema', () => {
     const c = base();
     c.mak.compare = { before: 'main' };
     expect(texts(c)).toEqual(['✖ mak.compare: {"before":"main"} → write compare: {before: main, after: HEAD}']);
+    // an all-digit short hash parses as a YAML number: the stop says to quote it, not to use main/HEAD
+    const n = base();
+    n.mak.compare = { before: 'main', after: 6640985 };
+    expect(texts(n)).toEqual(['✖ mak.compare.after: 6640985 is a number → quote a hash of digits: after: "6640985"']);
     const v = base();
     v.mak.verb = 'judge';
     expect(texts(v)).toEqual(['✖ mak.verb: "judge" → use view, class, replay, scan, drill or loop, or leave it out']);

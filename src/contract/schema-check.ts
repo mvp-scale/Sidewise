@@ -285,7 +285,11 @@ function checkMak(mak: unknown, verb: Verb | undefined, out: Out): void {
   if ('from' in mak && !(typeof mak.from === 'string' && len(mak.from) >= 1 && len(mak.from) <= 200)) out.add('mak.from', show(mak.from), 'name an item id or a category of the parent run');
   if ('compare' in mak) {
     const c = mak.compare;
-    const ok = isObj(c) && typeof c.before === 'string' && typeof c.after === 'string' && Object.keys(c).every((k) => k === 'before' || k === 'after');
+    const sides = isObj(c) && Object.keys(c).every((k) => k === 'before' || k === 'after') ? c : undefined;
+    // An all-digit short hash (`after: 6640985`) parses as a YAML number; the fix is quoting it, not main/HEAD.
+    const numeric = sides ? (['before', 'after'] as const).filter((k) => typeof sides[k] === 'number') : [];
+    for (const k of numeric) out.add(`mak.compare.${k}`, `${sides?.[k]} is a number`, `quote a hash of digits: ${k}: "${sides?.[k]}"`);
+    const ok = sides !== undefined && (['before', 'after'] as const).every((k) => typeof sides[k] === 'string' || numeric.includes(k));
     if (!ok) out.add('mak.compare', show(c), 'write compare: {before: main, after: HEAD}');
   }
   if ('expect' in mak) {
