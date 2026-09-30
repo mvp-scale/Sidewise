@@ -92,19 +92,25 @@ view knows the past, scan the present, loop the future. Any order; every run fee
 
 ```yaml
 mdl:
-  # stock: why you asked, so the ledger learns
-  why: find                  # validate · find · debug
-  area: [build, hosting]     # data · api · ui · auth · hosting · build · tests
-  stage: operate             # design · build · review · pre-merge · post-fix · release · operate
-  risk: low                  # low · medium · high
-  problem: n8n startup scans node_modules with sync FS calls; can this be faster?
-  uses: [component:core/nodes-loader -> component:core/unloadAll]
-  touches: [require.cache, node_modules]
+  # stock
+  why: find                    # validate · find · debug
+  area: [build, hosting]
+  stage: operate
+  problem: n8n startup scans node_modules with sync FS calls
+  uses:                        # C4 chains
+    - person:self-hoster -> system:n8n -> container:n8n-main
+    - container:n8n-main -> component:core/nodes-loader -> code:unloadAll
   blast: container
-  # yours: any lower-kebab key, recorded as-is
-  standard: owasp-asvs
-  owner: platform-team
+  # yours: any key, any lens
+  hypothesis: caching symlink roots cuts cold start by a third   # developer
+  user-feels: first workflow after a restart is slow             # product
+  cost-driver: every pod restart pays the full scan              # business
+  pager-risk: none, slow not down                                # on-call
+  tags: ["#perf", "#cold-start", "@platform-team"]               # quote # and @
+  refs: [BUG-1042, "test:startup-bench failed"]
 ```
+
+Once a field settles over a few runs, `mm3 report fields --accept tags` promotes it: every tag becomes a node in the knowledge graph, tied to the runs that carried it.
 
 <p align="center"><img src="docs/assets/story-ledger.svg" width="900" alt="The MM3 ledger. One append-only JSONL file, filled by runs you were making anyway. The same 10 runs give you a layered heat map of your architecture; 20, a reference architecture with a heat map; 50, a knowledge graph of your whole system. The mdl block is yours: add any field to any request, such as standard or owner, for free. Your agent reads the log or the SQLite index in milliseconds and paints charts, maps and graphs. Where your agents are strong, and where they are not."></p>
 
