@@ -10656,7 +10656,10 @@ function checkMak(mak, verb, out) {
   if ("from" in mak && !(typeof mak.from === "string" && len(mak.from) >= 1 && len(mak.from) <= 200)) out.add("mak.from", show(mak.from), "name an item id or a category of the parent run");
   if ("compare" in mak) {
     const c = mak.compare;
-    const ok2 = isObj3(c) && typeof c.before === "string" && typeof c.after === "string" && Object.keys(c).every((k) => k === "before" || k === "after");
+    const sides = isObj3(c) && Object.keys(c).every((k) => k === "before" || k === "after") ? c : void 0;
+    const numeric = sides ? ["before", "after"].filter((k) => typeof sides[k] === "number") : [];
+    for (const k of numeric) out.add(`mak.compare.${k}`, `${sides?.[k]} is a number`, `quote a hash of digits: ${k}: "${sides?.[k]}"`);
+    const ok2 = sides !== void 0 && ["before", "after"].every((k) => typeof sides[k] === "string" || numeric.includes(k));
     if (!ok2) out.add("mak.compare", show(c), "write compare: {before: main, after: HEAD}");
   }
   if ("expect" in mak) {
