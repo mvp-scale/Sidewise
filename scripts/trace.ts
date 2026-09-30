@@ -138,6 +138,7 @@ export function renderTraceDoc(report: TraceReport): string {
   const proved = (c: DescribedClaim): boolean => report.covered.has(c.id);
   const count = (cs: DescribedClaim[]): string => `${new Set(cs.filter(proved).map((c) => c.id)).size} of ${new Set(cs.map((c) => c.id)).size}`;
   const toc = sections.map((s) => `| ${s.name} | ${count(s.claims)} |`).join('\n');
+  const shown = new Set<string>(); // the test is named once per id: the same id on several bullets is one claim with one proof
   const body = sections.map((s) => {
     let lastSub = '';
     const lines = s.claims.map((c) => {
@@ -145,7 +146,9 @@ export function renderTraceDoc(report: TraceReport): string {
       lastSub = c.sub;
       const tests = report.tests.get(c.id) ?? [];
       const by = tests.length ? `\`${shortTest(tests[0]!)}\`${tests.length > 1 ? ` +${tests.length - 1} more` : ''}` : '✖ no test';
-      return `${head}- **${c.id}** ${c.text.replace(/\|/gu, '\\|')}  \n  proved by ${by}`;
+      const proof = shown.has(c.id) ? '' : ` · ${by}`;
+      shown.add(c.id);
+      return `${head}- **${c.id}** ${c.text.replace(/\|/gu, '\\|')}${proof}`;
     });
     return `## ${s.name}\n\n${count(s.claims)} claims have a test.\n\n${lines.join('\n')}`;
   });
