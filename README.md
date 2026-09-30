@@ -30,7 +30,13 @@ mm3 init
 
 ### Try it locally
 
-Bring a TypeSafe API key. MM3 wraps TypeSafe's API (Jev at `api.typesafe.ai`), and any TypeSafe endpoint works. Your key stays out of your project: Claude Code keeps it in its secure storage, `mm3 init` in your OS keychain (or a 0600 file). Switch endpoints with `baseURL:` in `.mm3/config.yaml`, or per run with `TYPESAFE_BASE_URL=https://api.example.com mm3 class review.yaml`.
+Bring a TypeSafe API key. MM3 wraps TypeSafe's API (Jev at `api.typesafe.ai`), and any TypeSafe endpoint works. Your key stays out of your project: Claude Code keeps it in its secure storage, `mm3 init` in your OS keychain (or a 0600 file). To switch endpoints:
+
+```bash
+mm3 config            # see the settings in effect, the endpoint included
+mm3 config --write    # create .mm3/config.yaml, then uncomment baseURL: and set it
+TYPESAFE_BASE_URL=https://api.example.com mm3 class review.yaml   # or for one run only
+```
 
 Then just ask your agent. The MM3 skill tells it when to reach for MM3, which verb fits and how to write the request; you read the verdict.
 
