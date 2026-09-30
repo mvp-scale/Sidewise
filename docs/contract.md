@@ -1276,6 +1276,14 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   and to which file, and writes only on `--yes` or a yes at the prompt; a non-terminal input (the MCP path)
   is never prompted: it shows the lines, writes nothing and says `re-run with --yes`. A second run changes
   nothing and says `· agents: already set up`. [C-233]
+- A project whose `AGENTS.md` has no mm3 block (`no-block`), or whose `CLAUDE.md`/`.claude/CLAUDE.md` exists
+  without a line importing AGENTS.md (`claude-md-no-import`), gets ONE extra note on the first real run of
+  `class`, `scan`, `drill`, `loop` or `replay`, just before the budget note: `agents: no MM3 guidance in AGENTS.md
+  → mm3 init --agents adds it (shows the lines first)` or `agents: Claude reads CLAUDE.md, not AGENTS.md → add the
+  line @AGENTS.md to CLAUDE.md (or run mm3 init --agents)`. A marker file in `.mm3/` (`agents-note-shown`) makes it
+  appear once per project; a `--dry-run` neither shows it nor writes the marker; a project already `ok` never sees
+  it. `mm3 doctor` always prints an `agents:` line in a project (`ok`, or the same fix text), independent of the
+  marker, and never writes it. [C-234]
 - `mm3 uninstall` reverses init, by default acting only on the current project: the Claude Code plugin's
   project-scope install, and (asked, default **no** — it's the user's run history) that project's
   `.mm3/`. The per-user parts — the stored key and the CLI itself — are only touched with `--all`, which

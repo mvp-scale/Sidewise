@@ -124,6 +124,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
         [...loaded.notes, ...evidence.evidence.notes, ...stale, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         budget,
         ctx.provider.adapter,
+        ctx.paths,
       ),
     );
 
