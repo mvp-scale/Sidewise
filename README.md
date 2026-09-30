@@ -88,7 +88,23 @@ It comes down to three plain words: **know** what you know, **judge** fairly, **
 
 view knows the past, scan the present, loop the future. Any order; every run feeds the next.
 
-**The ledger is our favorite part.** One append-only JSONL file. The runs you'd make anyway become a heat map at 10, a reference architecture at 20, a knowledge graph at 50. Add any field to `mdl:`, free, and your agent paints it back from the log or the SQLite index.
+**The ledger is our favorite part.** One append-only JSONL file. The runs you'd make anyway become a heat map at 10, a reference architecture at 20, a knowledge graph at 50. And `mdl:` is open: keep the stock fields, add your own, free, and your agent paints any of it back from the log or the SQLite index.
+
+```yaml
+mdl:
+  # stock: why you asked, so the ledger learns
+  why: find                  # validate · find · debug
+  area: [build, hosting]     # data · api · ui · auth · hosting · build · tests
+  stage: operate             # design · build · review · pre-merge · post-fix · release · operate
+  risk: low                  # low · medium · high
+  problem: n8n startup scans node_modules with sync FS calls; can this be faster?
+  uses: [component:core/nodes-loader -> component:core/unloadAll]
+  touches: [require.cache, node_modules]
+  blast: container
+  # yours: any lower-kebab key, recorded as-is
+  standard: owasp-asvs
+  owner: platform-team
+```
 
 <p align="center"><img src="docs/assets/story-ledger.svg" width="900" alt="The MM3 ledger. One append-only JSONL file, filled by runs you were making anyway. The same 10 runs give you a layered heat map of your architecture; 20, a reference architecture with a heat map; 50, a knowledge graph of your whole system. The mdl block is yours: add any field to any request, such as standard or owner, for free. Your agent reads the log or the SQLite index in milliseconds and paints charts, maps and graphs. Where your agents are strong, and where they are not."></p>
 
