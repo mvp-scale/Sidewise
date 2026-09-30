@@ -114,6 +114,10 @@ describe('budget', () => {
     expect(budgetLine({ ...base, capRuns: 3, runs: 5 })).toBe('⚠ budget: $5.00 left of $5.00 · 0 of 3 runs left (5 used) → low: ask the owner to run mm3 budget set --runs <n>');
     expect(budgetLine({ ...base, spentUsd: 5.5, runs: 10 })).toBe('⚠ budget: $0.00 left of $5.00 ($5.50 used) · 90 of 100 runs left → low: ask the owner to run mm3 budget set --usd <n>');
     expect(budgetLine({ ...base, capRuns: 3, runs: 3 })).toBe('⚠ budget: $5.00 left of $5.00 · 0 of 3 runs left → low: ask the owner to run mm3 budget set --runs <n>');
+    // sub-cent spend is never hidden: nine real runs at ~$0.0003 each must not read as "$5.00 left of $5.00"
+    expect(budgetLine({ ...base, spentUsd: 0.0024, runs: 9 })).toBe('budget: $4.998 left of $5.00 · 91 of 100 runs left');
+    expect(budgetLine({ ...base, spentUsd: 0.00000123, runs: 1 })).toBe('budget: $4.999999 left of $5.00 · 99 of 100 runs left');
+    expect(budgetLine({ capUsd: 0.12, capRuns: 30, spentUsd: 0.004, runs: 1, resetAt: 'x' })).toBe('budget: $0.116 left of $0.12 · 29 of 30 runs left');
     for (const st of [{ ...base, capRuns: 3, runs: 3 }, { ...base, spentUsd: 5, runs: 10 }, { ...base, spentUsd: 5, capRuns: 10, runs: 10 }]) {
       const stop = checkBudget(st);
       expect(stop.ok ? '' : stop.message).toContain(`"${/mm3 budget set[^\n]*$/.exec(budgetLine(st))![0]}"`);
