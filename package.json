@@ -68,13 +68,13 @@
     "dev:install": "npm run build && tgz=\"$(pwd)/$(npm pack --silent | tail -1)\" && cd \"${INIT_CWD:-.}\" && npx --yes --package \"$tgz\" mm3 init"
   },
   "devDependencies": {
-    "@types/node": "22.19.18",
+    "@types/node": "26.6.3",
     "ajv": "8.20.0",
     "esbuild": "0.28.2",
     "js-tiktoken": "1.0.21",
     "tsx": "4.23.15",
-    "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "typescript": "7.0.2",
+    "vitest": "5.0.2"
   },
   "dependencies": {
     "yaml": "2.9.1"
