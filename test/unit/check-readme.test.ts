@@ -90,9 +90,9 @@ describe('checkReadme', () => {
     const out = checkReadme(good + '\nmvp-scale/Sidewise and sidewise class\nSide: prose\n', story, opts());
     expect(out.filter((l) => l.startsWith('✖ old name'))).toHaveLength(1);
   });
-  it('lets ## Earlier runs show old-name runs as they ran, and flags the old name again after it', () => {
-    const out = checkReadme(good + '\n## Earlier runs, under the old name\n\nside:\n  id: SW-0001\n\n## Next\n\nsidewise class\n', story, opts());
-    expect(out.filter((l) => l.startsWith('✖ old name'))).toHaveLength(1);
+  it('allows the one history line about the old name, and nothing else on that line', () => {
+    expect(checkReadme(good + '\nMM3 stands for make and model. It started as Sidewise; we hope you like the new name.\n', story, opts()).filter((l) => l.startsWith('✖ old name'))).toEqual([]);
+    expect(checkReadme(good + '\nIt started as Sidewise; run sidewise class.\n', story, opts()).filter((l) => l.startsWith('✖ old name'))).toHaveLength(1);
   });
   it('flags the capitalised old name Sidewise, the old repo URL included, but not the new one', () => {
     const out = checkReadme(good + '\nSidewise turns a checklist\nsee mvp-scale/Sidewise\nsee mvp-scale/mm3\n', story, opts());

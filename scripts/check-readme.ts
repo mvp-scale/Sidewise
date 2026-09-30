@@ -72,11 +72,8 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
   for (const m of md.matchAll(/(?:\]\(|src="|srcset=")((?!https?:|#|mailto:)[^)"\s#]+)/g)) {
     if (!existsSync(path.join(opts.root, m[1]!))) out.push(`✖ link: ${m[1]} does not exist → fix the path`);
   }
-  let past = false; // ## Earlier runs shows runs from before the rename, as they ran
-  lines.forEach((l, i) => {
-    if (l.startsWith('## ')) past = l.startsWith('## Earlier runs');
-    if (!past && OLD.test(l)) out.push(`✖ old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`);
-  });
+  const HISTORY = 'It started as Sidewise;'; // the one line that tells the old name's history
+  lines.forEach((l, i) => { if (OLD.test(l.replace(HISTORY, ''))) out.push(`✖ old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
   const badges = md.match(/img\.shields\.io|badge\.svg/g)?.length ?? 0;
   if (badges > 4) out.push(`✖ badge: ${badges} badges → keep 4 or fewer`);
   if (opts.published === false && /shields\.io\/npm\//.test(md)) out.push('✖ badge: npm badge for an unpublished package → remove it until the first publish');

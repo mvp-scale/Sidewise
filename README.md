@@ -60,125 +60,25 @@ The response, **real output · jev-1.13.0 · api.typesafe.ai · 321 ms · ~$0.00
 - **Decisions:** measure first passes (0.89); severity is unsure (low, 0.56).
 - **Next:** the concerns disagree, so consensus is SPLIT, `escalate` is true, and `next:` points at a drill into availability. The `mdl:` line lists what the ledger recorded about why the agent asked, so later runs on this code start from it.
 
-## Two stories, step by step
+## Why MM3
 
-Two real stories, each driven by a Haiku agent on unmodified public source: **MAK³ · make**, “Where do agents plug into WordPress?” (WordPress @ 3ffb1df), and **MDL³ · model**, “I've never worked in n8n and I want it faster” (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run's own ledger row.
+MM3 stands for **make** and **model**, each to the power of three. It started as Sidewise; we hope you like the new name.
 
-<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>
+We ran a lot of recon with it and kept finding useful patterns, but there was no standard way to capture one. So MM3 is a **Knowledge One system**. The point isn't that it can classify. It's that every classification becomes part of a knowledge pool for your codebase, so you understand the whole thing faster.
 
-## Earlier runs, under the old name
+**The power of three.** Every concern is asked from three angles, so no decision rests on one look, the way agents like to decide. And every request leaves three kinds of knowledge: what you asked, the verdict shaped and scored a layer above it, and the problem you were working on.
 
-Before MM3 it was Sidewise: `side:`/`wise:` instead of `mak:`/`mdl:`, and `SW-` run ids. These ran on OWASP NodeGoat, a deliberately vulnerable Node app the agent had never seen. Output is shown as it ran, trimmed.
+It comes down to three plain words: **know** what you know, **judge** fairly, **prove** it. Don't take an answer from an AI without proof.
 
-**The agent calls it before it asks:**
+**MAK³ uses what is proven.** Know what's been done here before you act, judge one claim, prove the change.
 
-> Expected a hard "no" given the visible `eval()` call — this is textbook NodeGoat A1 SSJS injection.
+<p align="center"><img src="docs/assets/story-mak.svg" width="900" alt="MAK3 make. view: your codebase memory, every past check searchable in milliseconds, free. class: turns is this OK into a question set you can measure, reuse and cite. replay: tests for your judgments, rerun any past check on any two commits."></p>
 
-**It asks.** One handler, twelve questions. The injection part:
+**MDL³ learns what is missing.** In code you don't know yet: take a census, follow the flag, prove the design before anyone builds it.
 
-```yaml
-side:
-  goal: The contribution handler in `app/routes/contributions.js` is safe to merge as it stands
-  where: [stage/NodeGoat/app/routes/contributions.js]
-  ask:
-    concerns:
-      injection:
-        pass: no
-        1: Does `handleContributionsUpdate` pass `req.body` values into `eval`?
-        2: Can a request field reach code execution instead of only being parsed as a number?
-        3: Does `handleContributionsUpdate` run `eval` before any validation of the value?
-```
+<p align="center"><img src="docs/assets/story-mdl.svg" width="900" alt="MDL3 model. scan: a census of the present, same questions every file, comparable answers. drill: turns a flag into a fix target and hands it back to class and replay. loop: proves the design before a line of code exists."></p>
 
-**The guess holds:**
-
-```yaml
-side:
-  id: SW-0001
-  gate: fail
-  injection: {gate: fail, 1: 0.99, 2: 0.95, 3: 0.98}
-  severity: {gate: fail, 10: {top: critical, p: 0.94}}
-  route: {gate: fail, 11: {top: fix, p: 0.74}}
-next: sidewise template drill --parent SW-0001 --from injection
-```
-
-**It drills, then fixes.** The drill (SW-0004) confirms all three fields reach `eval`. The fix:
-
-```diff
--        const preTax = eval(req.body.preTax);
--        const afterTax = eval(req.body.afterTax);
--        const roth = eval(req.body.roth);
-+        const preTax = parseInt(req.body.preTax, 10);
-+        const afterTax = parseInt(req.body.afterTax, 10);
-+        const roth = parseInt(req.body.roth, 10);
-```
-
-**It proves the fix.** Same questions, before and after the commit:
-
-```yaml
-side:
-  parent: SW-0004
-  compare: {before: c5cb68a, after: 9292b00}
-  expect: [sink, guard]
-```
-
-```yaml
-side:
-  id: SW-0005
-  sink: {before: fail, after: pass, fixed: [7, 8, 9]}
-  guard: {before: fail, after: fail, fixed: [4], still: [5, 6]}
-  expected: {fixed: [sink], still: [guard]}
-  unexpected: [reach]
-  regressed: []
-  reused: [SW-0001, SW-0004]
-```
-
-The `eval` is gone. `guard` still fails: nothing limits the fields to digits, so `parseInt("5abc")` still reads 5. The "before" answers came straight from the ledger; only the new code cost a call.
-
-This verb started out as `change`. We expected a diff between two answers. It turned out to be a replay, the same questions on the new code, and it worked better than planned.
-
-**Then it went wide.** One run per piece of a C4 map: the web app, its router, each handler and its DAO, MongoDB. Each run records where it sits, so the ledger ends up holding the architecture, and every edge cites the runs behind it:
-
-```text
-$ sidewise report graph container:mongodb
-container:web-app --uses--> container:mongodb (declared) [SW-0016]
-component:web-app/user-dao --uses (×3)--> container:mongodb (declared) [SW-0016, SW-0019, SW-0027]
-component:web-app/allocations-dao --uses (×3)--> container:mongodb (declared) [SW-0017, SW-0022, SW-0026]
-person:employee --uses--> container:web-app (declared) [SW-0016]
-… 35 more not shown
-```
-
-**Replay snaps onto any piece of that map.** From an earlier round, still under the old verb name: a rename refactor in the memos handler, re-checked on just that slice, api → memos handler → memos DAO → db:
-
-```yaml
-side:
-  verb: change
-  parent: SW-0013
-  compare: {before: e84b740, after: 8d6fe24}
-  expect: [output]
-wise:
-  change: refactor
-  nodes: container:api -> component:memos-handler -> component:memos-dao -> container:db
-```
-
-```yaml
-side:
-  id: SW-0014
-  output: {before: fail, after: fail, still: [1, 2, 3]}
-  correctness: {before: pass, after: pass}
-  expected: {fixed: [], still: [output]}
-  regressed: []
-  reused: [SW-0013]
-```
-
-The refactor broke nothing, and the known output issue is still open. That's a code review for one component, from the ledger, for one call.
-
-**What the agent built from it.** Asked to keep notes, it wrote:
-
-- `MENTAL-MODEL.md`: what it believed about the tool before using it, each belief later marked confirmed or "too narrow".
-- `OUTCOMES.md`: it overruled its own runs. "The weakness is in my questions, not the classifier."
-- A ledger atlas: the C4 map, health per layer and ranked findings, each citing its runs. "Passwords are stored and compared as plain text" cites SW-0008 and SW-0027; "Allocations trusts the URL and builds a query from user text" cites SW-0026. The agent was upfront that only the findings and the map came from the ledger; the fix plan was its own read of the code.
-
-**One agent, one codebase it had never seen, one hour:** every route checked, the worst hole fixed and proved fixed, the architecture mapped from evidence, and any piece of it re-checkable with one call. 27 runs, 238 ms per call on average, $0.0027 in total.
+view knows the past, scan the present, loop the future. Use the moves in any order you like; every run leaves a record the next one uses, and the more your agents use MM3, the hotter the map gets.
 
 ## By the numbers
 
@@ -272,6 +172,12 @@ mm3 budget
 Add `--dry-run` to any request to validate it and count its questions without a call. With no key set, MM3 falls back to a built-in sample provider so these lines still run; its answers are canned and labelled, never evidence.
 
 Agents: run `mm3 agent` first. Humans: `mm3 help`.
+
+## Two stories, step by step
+
+Two real stories, each driven by a Haiku agent on unmodified public source: **MAK³ · make**, “Where do agents plug into WordPress?” (WordPress @ 3ffb1df), and **MDL³ · model**, “I've never worked in n8n and I want it faster” (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run's own ledger row.
+
+<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>
 
 ## Limits and alternatives
 
