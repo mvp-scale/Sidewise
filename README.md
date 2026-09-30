@@ -38,7 +38,7 @@ mm3 config --write    # create .mm3/config.yaml, then uncomment baseURL: and set
 TYPESAFE_BASE_URL=https://api.example.com mm3 class review.yaml   # or for one run only
 ```
 
-Then just ask your agent. The MM3 skill tells it when to reach for MM3, which verb fits and how to write the request; you read the verdict.
+Then just ask your agent. The [MM3 skill](skills/mm3/SKILL.md) tells it when to reach for MM3, which verb fits and how to write the request; you read the verdict.
 
 ## See it run
 
@@ -70,13 +70,11 @@ The response, **real output · jev-1.13.0 · api.typesafe.ai · 321 ms · ~$0.00
 
 ## Why MM3
 
-MM3 stands for **make** and **model**, each to the power of three. It started as Sidewise; we hope you like the new name.
+An agent can ask a fast classifier a yes/no about your code, but on its own that answer is untraceable and never reused. MM3 asks the same way every time, scores the answer and keeps it, so every check adds to what you know about your codebase. We call that a **Knowledge One system**.
 
-An agent can ask a fast classifier a yes/no about your code, but on its own each answer is untraceable and never reused. We ran a lot of recon with it and kept finding useful patterns, but there was no standard way to capture one. So MM3 is a **Knowledge One system**. The point isn't that it can classify. It's that every classification becomes part of a knowledge pool for your codebase, so you understand the whole thing faster.
+**Three angles, three kinds of knowledge.** Every concern is asked three ways, so no decision rests on one look. Every request keeps what you asked, the scored verdict and the problem you were working on. Know what you know, judge fairly, prove it.
 
-**The power of three.** Every concern is asked from three angles, so no decision rests on one look, the way agents like to decide. And every request leaves three kinds of knowledge: what you asked, the verdict shaped and scored a layer above it, and the problem you were working on.
-
-It comes down to three plain words: **know** what you know, **judge** fairly, **prove** it. Don't take an answer from an AI without proof.
+The name is **MAK³** (make) plus **MDL³** (model), each across Know, Judge and Prove. It started as Sidewise; we hope you like the new name.
 
 **MAK³ uses what is proven.** Know what's been done here before you act, judge one claim, prove the change.
 
@@ -114,9 +112,7 @@ Once a field settles over a few runs, `mm3 report fields --accept tags` promotes
 
 <p align="center"><img src="docs/assets/story-ledger.svg" width="900" alt="The MM3 ledger. One append-only JSONL file, filled by runs you were making anyway. The same 10 runs give you a layered heat map of your architecture; 20, a reference architecture with a heat map; 50, a knowledge graph of your whole system. The mdl block is yours: add any field to any request, such as standard or owner, for free. Your agent reads the log or the SQLite index in milliseconds and paints charts, maps and graphs. Where your agents are strong, and where they are not."></p>
 
-A request has a `mak:` block (the checklist) and an optional `mdl:` block (why you are asking, so the ledger learns). The verb you run, not the key, decides whether it is a MAK³ or an MDL³ move. `mm3 help <verb>` shows the rules for each; `mm3 template <verb>` prints a filled-in sample.
-
-Every run and its outcome goes into an append-only ledger in `.mm3/` (git-ignored). Ask the same questions of unchanged code and MM3 answers from the ledger: no call, no cost. `mm3 report` reads back where your agents keep going wrong, and a budget cap stops runaway spend; by convention only you raise or reset it, and MM3 tells agents to ask you. `mm3 view` looks a request up in the ledger before you spend anything.
+Same questions on unchanged code come back from the ledger: no call, no cost. `mm3 report` shows where your agents keep going wrong, and a budget cap that only you raise stops runaway spend.
 
 ## By the numbers
 
@@ -128,7 +124,7 @@ Early numbers from our own runs; formal benchmarks will follow.
 
 ## Run it
 
-Let your agent drive. `mm3 agent` prints every command and rule in one dense card built for agents, and `mm3 agent <verb>` gives one verb's rules with good and bad examples. Most agents read it and run the commands just fine, Haiku included: it drove both of our stories end to end.
+Let your agent drive. `mm3 agent` prints every command and rule in one dense card built for agents, and `mm3 agent <verb>` gives one verb's rules with good and bad examples. Most agents read it and run the commands just fine, Haiku included: it drove [both of our stories](https://mm3lab.dev/#run) end to end.
 
 For humans, `mm3 help` is the same contract in plain words, and `mm3 template <verb>` prints a filled-in request with its rules as comments. Four jobs to start with:
 
@@ -158,7 +154,7 @@ Add `--dry-run` to any request to validate it and count its questions without a 
 
 ## Limits and alternatives
 
-- **Evidence, never a command.** You get an agreement strength and a lean; you or your agent decide. Delete, deploy, drop and pay stay human.
+- **Evidence, never a command.** You get odds per question and whether the answers agree (STRONG, SPLIT or WEAK); you or your agent decide. Delete, deploy, drop and pay stay human.
 - **A false pass costs you.** A [calibrated](docs/numbers.md#what-calibrated-means) 0.9 is wrong about one time in ten. `unsure` is a real answer, and `mm3 outcome` grades each verdict so the ledger can show which ones to distrust.
 - **Not a linter, scanner or test suite.** Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can't put: does this handler check the caller, will this design hold.
 - **Not a substitute for a full-context model review.** A full-context review reads the whole codebase for every question. Use one when the question won't fit a yes/no.
