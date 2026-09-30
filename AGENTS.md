@@ -27,7 +27,7 @@
 
 ## Rules
 
-1. **Stay light on shared machines.** Vitest runs with `maxWorkers: 4`. Run the container matrix only when packaging changes. `docker/test.sh` runs one Node version at a time.
+1. **Stay light on shared machines.** Vitest runs with `maxWorkers: 4`. Run the container matrix only when packaging changes. `test/docker/test.sh` runs one Node version at a time.
 2. **No network in default tests.** Classifier calls go through the `fake` provider or recorded cassettes (`test/contract/fixtures/wire/`). Live runs go only in `test/live/`, and only with `MM3_LIVE_TEST=1` plus a key.
 3. **Imports** use `.ts` extensions (`./log.ts`). `tsc` rewrites them to `.js` on build.
 4. **Mock data** comes from `test/gen/synthetic-log.ts` with a fixed seed. Never commit a real log.
@@ -43,13 +43,14 @@
 | Path | Holds |
 |---|---|
 | `src/` | engine: the YAML contract (read, validate, layers, grade, emit), evidence (code/git/units), providers, ledger, verbs, CLI |
-| `docs/` | the public contract (`contract.md`) and generated evidence for its claims (`evidence/`, indexed by `evidence/README.md`) |
+| `docs/` | the public contract (`contract.md`), the numbers (`numbers.md`), generated evidence for its claims (`evidence/`, indexed by `evidence/README.md`) and the README's images (`assets/`) |
 | `skills/mm3/` | the Agent Skill (`SKILL.md` + references) |
 | `.claude-plugin/` | Claude Code plugin + marketplace manifests |
 | `test/{unit,contract,golden,e2e,live,gen}` | test tiers and mock-data generators |
-| `docker/` | clean-room test image + runner |
-| `scripts/` | repo checks |
-| `.github/workflows/` | CI, nightly and release |
+| `test/docker/` | clean-room test image + runner |
+| `scripts/` | build, check and bench tooling |
+| `site/` | the mm3lab.dev page and its demo data (`scenes/`, `story.yaml`) |
+| `.github/` | CI, nightly and release (`workflows/`), and the pre-commit hook (`hooks/`) |
 
 ## Branches and releases
 

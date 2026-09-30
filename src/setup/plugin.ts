@@ -83,7 +83,7 @@ export function removePluginCacheDir(homeDir: string = os.homedir()): boolean {
 }
 
 /** Whether this process is the plugin's own bundled MCP server (`mm3 mcp`, launched by Claude Code from
- *  `.mcp.json`'s `${CLAUDE_PLUGIN_ROOT}/bin/mm3.mjs`) rather than a bare terminal or another MCP client.
+ *  plugin.json's `mcpServers` → `${CLAUDE_PLUGIN_ROOT}/bin/mm3.mjs`) rather than a bare terminal or another MCP client.
  *  Claude Code exports `CLAUDE_PLUGIN_ROOT` into an MCP stdio server's own process environment (Claude Code's
  *  plugins-reference docs, "Environment variables" table) — no other launch path sets it, so its mere presence
  *  is the signal a no-key hint needs: pointing at `/plugin → MM3 → Configure` only makes sense when

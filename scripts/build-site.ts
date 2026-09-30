@@ -1,6 +1,6 @@
 /**
- * Builds the mm3lab.dev landing page: fills site/template.html from docs/story.yaml (so the site and the README
- * repeat the same phrases) and the two-story demo player from docs/demo/scenes/*.json, then copies site/style.css, site/player.js and docs/assets/* (the SVGs; the GIFs are the README's, the page runs the live player) next to it in site/dist/ (gitignored).
+ * Builds the mm3lab.dev landing page: fills site/template.html from site/story.yaml (so the site and the README
+ * repeat the same phrases) and the two-story demo player from site/scenes/*.json, then copies site/style.css, site/player.js and docs/assets/* (the SVGs; the GIFs are the README's, the page runs the live player) next to it in site/dist/ (gitignored).
  * renderSite is pure so a unit test can pin the escaping and the lists; the main block does the file work.
  */
 import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -48,16 +48,16 @@ export function renderSite(story: Story, template: string, extra: Record<string,
   });
 }
 
-/** Demo slot: the interactive player, rendered from the frozen scene JSON in docs/demo/scenes/ (empty when there are none). */
+/** Demo slot: the interactive player, rendered from the frozen scene JSON in site/scenes/ (empty when there are none). */
 export function demoSlot(playerHtml: string): string {
   return playerHtml ? `  ${playerHtml}` : '';
 }
 
-/** Writes site/dist/ (index.html, style.css, docs/assets/*) from docs/story.yaml; returns the note to print. */
+/** Writes site/dist/ (index.html, style.css, docs/assets/*) from site/story.yaml; returns the note to print. */
 export function buildSite(story: Story = loadStory(), dist = 'site/dist'): string {
   rmSync(dist, { recursive: true, force: true });
   mkdirSync(dist, { recursive: true });
-  const stories = existsSync('docs/demo/scenes') ? loadStories() : [];
+  const stories = existsSync('site/scenes') ? loadStories() : [];
   writeFileSync(path.join(dist, 'index.html'), renderSite(story, readFileSync('site/template.html', 'utf8'), { demo: demoSlot(stories.length ? renderPlayer(stories) : '') }));
   copyFileSync('site/style.css', path.join(dist, 'style.css'));
   copyFileSync('site/player.js', path.join(dist, 'player.js'));

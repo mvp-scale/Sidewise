@@ -111,7 +111,7 @@ describe('build-strip', () => {
     expect(wellFormed(svg)).toBeNull();
     expect(svg).not.toMatch(/<script|@import|@font-face|https?:\/\/(?!www\.w3\.org)/);
     expect(svg).not.toMatch(/\/home\/|\/Users\/|[A-Z]:\\|\.superpowers|\/tmp\/|mm3-demo-play|<path>/);
-    expect(readFileSync('docs/demo/scenes/strip-n8n.json', 'utf8')).not.toMatch(/\/home\/|\/Users\/|-play\b|\/tmp\/|<path>/);
+    expect(readFileSync('site/scenes/strip-n8n.json', 'utf8')).not.toMatch(/\/home\/|\/Users\/|-play\b|\/tmp\/|<path>/);
   });
 
   it('animates with SMIL whose keyTimes, values and keySplines agree, and loops once with one fade at the seam', () => {

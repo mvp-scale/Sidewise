@@ -1,5 +1,5 @@
-// The skill's body is the one source of truth; GEMINI.md and AGENTS.md's "Using MM3" section must carry
-// the exact same text, so an edit to one and not the others fails here instead of silently drifting.
+// The skill's body is the one source of truth; AGENTS.md's "Using MM3" section must carry the exact same text
+// (Gemini CLI reads AGENTS.md too, via .gemini/settings.json), so an edit to one and not the other fails here.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
@@ -16,9 +16,8 @@ describe('skill-docs stay in sync', () => {
     expect(raw).toMatch(/^---\nname: mm3\ndescription: .+\n---\n/);
   });
 
-  it('GEMINI.md carries the exact SKILL.md body', () => {
-    const gemini = readFileSync('GEMINI.md', 'utf8');
-    expect(gemini).toContain(skillBody());
+  it('Gemini CLI reads AGENTS.md as its context file', () => {
+    expect(JSON.parse(readFileSync('.gemini/settings.json', 'utf8')).context.fileName).toBe('AGENTS.md');
   });
 
   it("AGENTS.md's 'Using MM3' section carries the exact SKILL.md body", () => {

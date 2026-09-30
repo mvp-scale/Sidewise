@@ -1087,7 +1087,7 @@ by the real cross-validator (drill's trips its NEEDS check; replay's trips its N
 ever replays a parent run's own questions) rather than assumed. [C-192] [C-193]
 
 The Claude Code skill's own "Run this first" guidance (`skills/mm3/SKILL.md`, carried verbatim into
-`AGENTS.md`'s "Using MM3" section and into `GEMINI.md`) sends a cold agent to `mm3 agent` (no verb)
+`AGENTS.md`'s "Using MM3" section, which Gemini CLI reads too via `.gemini/settings.json`) sends a cold agent to `mm3 agent` (no verb)
 first — it names every command, including `report`/`outcome`/`budget`/`template`, in one card — before
 `mm3 agent <command>` on whichever one it's about to use, ahead of writing any request. [C-188]
 
