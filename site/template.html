@@ -46,7 +46,7 @@
       <a class="btn primary" href="#install">Install</a>
       <a class="btn" href="https://github.com/mvp-scale/mm3">View on GitHub</a>
     </p>
-    <p class="fine">Apache-2.0 &middot; Node 22.13 or newer &middot; pre-release</p>
+    <p class="fine">Apache-2.0 &middot; Node 22.13 or newer &middot; beta</p>
   </div>
 </section>
 
@@ -76,11 +76,11 @@
       <p>Pick <strong>project</strong> scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on &ldquo;TypeSafe API key&rdquo;, paste, Enter, then &ldquo;Save configuration&rdquo;. Leave it empty to add one later with <code>mm3 init</code>.</p>
     </div>
     <div>
-      <h3>In a terminal, Codex or Gemini CLI</h3>
+      <h3>In a terminal</h3>
       <p>Needs Node 22.13 or newer:</p>
       <div class="code" data-copy><pre><code>{{installNpm}}
 {{installNpmInit}}</code></pre></div>
-      <p><strong>Status: pre-release.</strong> The package publishes with the first release; until then use the plugin, or build from a clone (see <a href="https://github.com/mvp-scale/mm3/blob/nightly/AGENTS.md">AGENTS.md</a>). Nightly builds will land as <code>@mvpscale/mm3@nightly</code>.</p>
+      <p><strong>Status: beta.</strong> It works well and we use it ourselves; formal benchmarks are coming. The plugin works today; the npm package is out as a nightly, and the first release follows.</p>
     </div>
   </div>
   <h3>Try it locally</h3>
@@ -154,7 +154,7 @@
     <li><strong>Not a linter, scanner or test suite.</strong> Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can&rsquo;t put: does this handler check the caller, will this design hold.</li>
     <li><strong>Not a substitute for a full-context model review.</strong> A full-context review reads the whole codebase for every question. Use one when the question won&rsquo;t fit a yes/no.</li>
     <li><strong>The sample provider is not evidence.</strong> Its answers are canned. Built on TypeSafe&rsquo;s Jev; other classifiers can plug in.</li>
-    <li><strong>Beta.</strong> It works well in our own use, tested end to end on an intentionally vulnerable app (OWASP NodeGoat); formal benchmarks will follow. The npm package publishes with the first release.</li>
+    <li><strong>Beta.</strong> It works well in our own use, tested end to end on an intentionally vulnerable app (OWASP NodeGoat); formal benchmarks will follow. The npm package is a nightly for now; the first release follows.</li>
   </ul>
 </section>
 </main>
