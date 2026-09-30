@@ -23,7 +23,6 @@ const SPLIT = 250; // the one divider; the left column (terminal + value panel) 
 const CODE_X = SPLIT + 26; // room for the fold gutter (▾) between the band's edge and the code
 const FS = 11.5; // code font size: about 11 px at GitHub's ~865 px column
 const CW = FS * 0.6; // one monospace column
-const WRAP = Infinity; // no wrap: long lines run under the right-edge fade, as in an editor with wrap off
 const LH = 16;
 const TAB_Y = 34; // baseline of the tab labels
 const TOP = 78; // baseline of the first code row
@@ -36,27 +35,6 @@ const FOLD = '▸';
 const xe = (s: string): string => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 const n2 = (n: number): string => String(Math.round(n * 100) / 100);
 const plural = (n: number, w: string): string => `${n} ${w}${n === 1 ? '' : 's'}`;
-
-/** Wraps one source line into rows of at most `max` characters: break at the last space (else after the last comma, else after the last slash), continuation rows hang two columns past the line's own indent. */
-export function wrapLine(line: string, max = WRAP): string[] {
-  if (line.length <= max) return [line];
-  const lead = /^\s*/.exec(line)![0];
-  const hang = lead + '  ';
-  const rows: string[] = [];
-  let rest = line;
-  let first = true;
-  while (rest.length > max) {
-    const win = rest.slice(0, max + 1);
-    let cut = win.lastIndexOf(' ');
-    const lone = /^\s*[\w-]+:$/.test(rest.slice(0, Math.max(cut, 0))) && /[,/]/.test(win.slice(cut, max)); // a bare `key:` row: keep the key with the start of its value instead
-    if (cut <= (first ? lead.length : hang.length) || lone) cut = win.slice(0, max).lastIndexOf(',') + 1 || win.slice(0, max).lastIndexOf('/') + 1 || max;
-    rows.push(rest.slice(0, cut).trimEnd());
-    rest = hang + rest.slice(cut).trimStart();
-    first = false;
-  }
-  rows.push(rest);
-  return rows;
-}
 
 // ---------------------------------------------------------------- YAML highlight (colour per character, then cut into rows)
 
@@ -106,28 +84,10 @@ function rowSpans(text: string, cols: (string | undefined)[], from: number, hang
 }
 
 type Doc = { rows: string[]; first: number[]; count: number[] }; // rows as tspans; first row / row count of each source line
-/** Wraps and colours a document; `first[i]`/`count[i]` say where source line i landed in rows. */
+/** Colours a document, one row per source line: long lines never wrap, they run under the viewport's right-edge fade, as in an editor with wrap off. */
 function layout(lines: string[], mode: Mode | ((i: number) => Mode)): Doc {
-  const rows: string[] = [];
-  const first: number[] = [];
-  const count: number[] = [];
-  lines.forEach((line, i) => {
-    const cols = colourize(line, typeof mode === 'function' ? mode(i) : mode);
-    const wrapped = wrapLine(line);
-    first.push(rows.length);
-    count.push(wrapped.length);
-    let at = 0; // index into `line` of the next character the row consumes
-    wrapped.forEach((w, k) => {
-      if (k === 0) { rows.push(rowSpans(w, cols, 0, '')); at = w.length; }
-      else {
-        const hangLen = /^\s*/.exec(w)![0].length; // continuation rows start with the hanging pad
-        while (line[at] === ' ') at++; // wrapLine dropped the break space
-        rows.push(rowSpans(w.slice(hangLen), cols, at, w.slice(0, hangLen)));
-        at += w.length - hangLen;
-      }
-    });
-  });
-  return { rows, first, count };
+  const rows = lines.map((line, i) => rowSpans(line, colourize(line, typeof mode === 'function' ? mode(i) : mode), 0, ''));
+  return { rows, first: lines.map((_, i) => i), count: lines.map(() => 1) };
 }
 
 // ---------------------------------------------------------------- data: read from the scene, never typed

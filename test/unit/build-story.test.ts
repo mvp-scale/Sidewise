@@ -3,7 +3,7 @@
 // and the committed SVGs are the build's output; no ledger, no network, no browser.
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { buildStory, SCREENS, STORY_T } from '../../scripts/build-story.ts';
+import { buildStory, LEDGER_T, SCREENS, STORY_T } from '../../scripts/build-story.ts';
 
 /** A small well-formedness check: every tag closes in order, attributes are quoted, no stray `&` or `<`. */
 function wellFormed(xml: string): string | null {
@@ -49,4 +49,25 @@ describe('build-story', () => {
       expect(readFileSync(`docs/assets/story-${which}.svg`, 'utf8').trimEnd()).toBe(svg);
     });
   }
+
+  describe('ledger', () => {
+    const svg = buildStory('ledger');
+    const still = /<g class="still">([\s\S]*?)<\/g>\n<g class="motion">/.exec(svg)![1]!;
+    const motion = svg.slice(svg.indexOf('<g class="motion">'));
+    it('goes from one JSONL file to 10, 20 and 50 runs, then the open mdl: block, the read-back and the payoff', () => {
+      const at = (s: string): number => still.indexOf(s);
+      const order = ['log.jsonl', 'A layered heat map', 'Reference architecture', 'A knowledge graph', 'The mdl: block is yours.', '+ your field', 'SQLite index', 'Where your agents are strong'].map(at);
+      expect(order.every((i, k, a) => i > 0 && (k === 0 || i > a[k - 1]!))).toBe(true);
+    });
+    it('is well-formed, script-free, loops on one timeline and freezes its finished frame', () => {
+      expect(wellFormed(svg)).toBeNull();
+      expect(svg).not.toMatch(/<script|on\w+=/);
+      expect([...new Set([...motion.matchAll(/dur="([\d.]+)s"/g)].map((m) => m[1]))]).toEqual([String(LEDGER_T)]);
+      expect(still).not.toMatch(/<animate/);
+      expect(still).toContain('50 runs');
+    });
+    it('matches the committed docs/assets/story-ledger.svg', () => {
+      expect(readFileSync('docs/assets/story-ledger.svg', 'utf8').trimEnd()).toBe(svg);
+    });
+  });
 });

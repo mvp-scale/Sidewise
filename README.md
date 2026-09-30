@@ -80,6 +80,10 @@ It comes down to three plain words: **know** what you know, **judge** fairly, **
 
 view knows the past, scan the present, loop the future. Use the moves in any order you like; every run leaves a record the next one uses, and the more your agents use MM3, the hotter the map gets.
 
+**The ledger is our favorite part.** Every request lands in one append-only JSONL file. The 10 runs you were going to make anyway give you a heat map of your architecture; 20 give you a reference architecture; 50, a knowledge graph of your whole system. And the `mdl:` block is open: add any field you want to any request, free, and have your agent paint it back from the log or the SQLite index.
+
+<p align="center"><img src="docs/assets/story-ledger.svg" width="900" alt="The MM3 ledger. One append-only JSONL file, filled by runs you were making anyway. The same 10 runs give you a layered heat map of your architecture; 20, a reference architecture with a heat map; 50, a knowledge graph of your whole system. The mdl block is yours: add any field to any request, such as standard or owner, for free. Your agent reads the log or the SQLite index in milliseconds and paints charts, maps and graphs. Where your agents are strong, and where they are not."></p>
+
 ## By the numbers
 
 - [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)

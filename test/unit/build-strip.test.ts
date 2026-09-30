@@ -3,7 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from '
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { buildStrip, extractStrip, freeCommands, STRIP_W, stillHtml, stripData, stripGeometry, stripScene, stripTimeline, wrapLine } from '../../scripts/build-strip.ts';
+import { buildStrip, extractStrip, freeCommands, stillHtml, stripData, stripGeometry, stripScene, stripTimeline } from '../../scripts/build-strip.ts';
 
 const scene = stripScene();
 const svg = buildStrip(scene);
@@ -87,19 +87,13 @@ describe('build-strip', () => {
     expect(tl.T).toBeGreaterThan(tl.end);
   });
 
-  it('wraps long lines with a hanging indent and never past the viewport width', () => {
-    expect(wrapLine('short')).toEqual(['short']);
-    const rows = wrapLine('        1: Are synchronous realpathSync() calls on line 606 blocking the event loop during unloadAll()?');
-    expect(rows.length).toBe(2);
-    expect(rows[1]!.startsWith('          ')).toBe(true);
-    expect(rows.map((r) => r.trim()).join(' ')).toBe('1: Are synchronous realpathSync() calls on line 606 blocking the event loop during unloadAll()?');
+  it('keeps every line on one row, and fades long lines out at the viewport\'s right edge', () => {
     const d = stripData(scene);
-    const lines = [...d.head, ...d.groups.flatMap((g) => [g.fold, g.open, ...g.body]), ...d.res, ...d.free.flatMap((f) => [`$ ${f.cmd}`, ...f.out.split('\n')])];
-    for (const line of lines) for (const r of wrapLine(line)) expect(r.length).toBeLessThanOrEqual(77);
-    expect(77 * 12.5 * 0.6).toBeLessThan(STRIP_W - 280 - 26 - 12); // 77 columns at the code font fit between the code column and the right edge
-    expect(lines.filter((l) => wrapLine(l).length > 1).length).toBeLessThan(lines.length / 3); // the viewport is wide enough that most lines do not wrap
-    expect(wrapLine('x'.repeat(30) + ',' + 'y'.repeat(60)).length).toBe(2); // no space: break after a comma
-    expect(wrapLine('  where: [' + 'a'.repeat(20) + '/' + 'b'.repeat(70) + ']')[0]).toBe('  where: [' + 'a'.repeat(20) + '/'); // a bare key row is avoided
+    const g = stripGeometry(scene);
+    expect(g.resRows).toBe(d.res.length); // one row per source line: nothing wraps
+    expect(g.headRows).toBe(d.head.length);
+    expect(svg).toMatch(/<mask id="fm"[^>]*><rect[^>]*fill="url\(#fg\)"/); // the fade, on the motion copy
+    expect(svg).toMatch(/<g clip-path="url\(#vp\)" mask="url\(#fm\)">/);
   });
 
   it('sizes the viewport to the tallest document, so every document fits whole and nothing scrolls', () => {
@@ -108,7 +102,7 @@ describe('build-strip', () => {
     expect(g.resRows).toBeLessThanOrEqual(g.viewRows);
     expect(g.knowRows).toBeLessThanOrEqual(g.viewRows);
     expect(g.height).toBeLessThanOrEqual(720);
-    expect(g.height).toBeGreaterThanOrEqual(600);
+    expect(g.height).toBeGreaterThanOrEqual(480);
     expect(Number(/<svg [^>]*height="(\d+)"/.exec(svg)![1])).toBe(g.height);
     expect(svg.startsWith('<svg xmlns="http://www.w3.org/2000/svg" width="900"')).toBe(true);
   });
@@ -144,7 +138,8 @@ describe('build-strip', () => {
   it('draws a complete poster: a frozen copy for reduced motion, and the animated copy\'s own base state is the same frame', () => {
     expect(svg).toContain('@media (prefers-reduced-motion:reduce){.motion{display:none}.still{display:inline}}');
     expect(svg).toContain('.still{display:none}');
-    expect(still).not.toMatch(/<animate|<clipPath|id=/); // frozen: no motion, no ids to clash
+    expect(still).not.toMatch(/<animate/); // frozen: no motion
+    for (const m of still.matchAll(/ id="([^"]+)"/g)) expect(m[1]!.endsWith('p')).toBe(true); // its own fade and clip ids carry a p, so none clash with the motion copy's
     for (const t of ['MM3-0008', '12 questions · 1 call', '321 ms · ~$0.00006', 'next: drill into availability', 'RESPONSE', 'A verdict you can cite', 'Odds, not vibes', 'Finds where it breaks']) expect(still).toContain(t);
     expect(still).toContain('font-weight="700" fill="#9bdcff" opacity="1"'); // the response tab is lit
     expect(still).not.toContain('id="pointer"'); // no pointer in the poster

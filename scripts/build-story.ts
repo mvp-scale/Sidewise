@@ -1,6 +1,7 @@
 /**
  * The README's two story screens: docs/assets/story-mak.svg (MAK³: view, class, replay) and docs/assets/story-mdl.svg
- * (MDL³: scan, drill, loop), one row each of the Know / Judge / Prove grid. Each screen plays its three cards left to right:
+ * (MDL³: scan, drill, loop), one row each of the Know / Judge / Prove grid, plus docs/assets/story-ledger.svg (the ledger:
+ * one JSONL file, then what about 10, 20 and 50 runs of it give you). Each screen plays its three cards left to right:
  * the card lights up, its picture acts out the move, its line lands, and a pulse drops a record into the bar underneath,
  * then the finished frame holds until the loop restarts. Motion is SMIL on one shared loop (the same approach as
  * build-strip.ts); a second, frozen copy of the finished frame sits under it for readers who ask for no motion.
@@ -19,9 +20,8 @@ const A = [1.0, 6.2, 11.4]; // when each card becomes active
 type KF = [t: number, v: string | number];
 const f = (v: number): string => String(Math.round(v * 1000) / 1000);
 
-/** Builds one screen; `motion` false gives the frozen, finished frame. */
-function screen(s: Screen, motion: boolean): string {
-  const T = STORY_T;
+/** Drawing and SMIL helpers for one screen; with `motion` false every helper draws the finished frame and no animation. */
+function kit(motion: boolean, T: number) {
   const kt = (ts: number[]): string => ts.map((x) => f(Math.min(1, Math.max(0, x / T)))).join(';');
   /** Keyframes held flat between, looped over T. */
   const norm = (kfs: KF[]): [number[], string[]] => {
@@ -57,6 +57,13 @@ function screen(s: Screen, motion: boolean): string {
   const grey = (x: number, y: number, r: number): string => circ(x, y, r, C.node, C.line, false, 1);
   const arrow = (x: number, y: number, c: string): string => `<path d="M${f(x)} ${f(y - 4)}l6 4l-6 4z" fill="${c}"/>`;
 
+  return { kt, anim, move, appear, g, tx, circ, ln, chip, known, grey, arrow };
+}
+
+/** Builds one row screen; `motion` false gives the frozen, finished frame. */
+function screen(s: Screen, motion: boolean): string {
+  const T = STORY_T;
+  const { anim, move, appear, g, tx, circ, ln, chip, known, grey, arrow } = kit(motion, T);
   // ------------------------------------------------ pictures: (card centre x, top y, start time)
   const pictures: Record<string, (cx: number, y: number, a: number) => string> = {
     view(cx, y, a) {
@@ -190,6 +197,115 @@ function screen(s: Screen, motion: boolean): string {
   return o.join('\n');
 }
 
+export const LEDGER_T = 29; // the ledger screen's loop, seconds
+const LH = 634; // the ledger screen is taller: its bottom panel explains the open mdl: block
+/** The ledger screen: one append-only JSONL card ("so what?"), then what about 10, 20 and 50 runs give you, then the
+ *  one-line extension and the payoff. Pictures are illustrative shapes, not a real repo's data. */
+function ledgerScreen(motion: boolean): string {
+  const T = LEDGER_T;
+  const { anim, g, tx, circ, ln, known, arrow } = kit(motion, T);
+  const w0 = 184, cw = 214, xs = [18, 214, 440, 666];
+  const a = [0.8, 4.2, 8.8, 13.4], ext = 18.2, read = 20.4, pay = 22.4;
+  const o: string[] = [
+    `<rect width="${W}" height="${LH}" rx="14" fill="${C.bg}"/>`,
+    tx(18, 34, `MM<tspan fill="${C.green}">3</tspan>`, 17, C.white, 700),
+    tx(W - 18, 34, 'the ledger · our favorite part', 13, C.white, 700, 'end'),
+    ln(0, 52, W, 52, C.line, 1),
+    g(tx(18, 84, 'One append-only JSONL file, filled by runs you were making anyway.', 15, C.white, 600), 0.2, 0.5),
+  ];
+  const cardBox = (x: number, w: number, t: number, acc: string): string => {
+    const body = `<rect x="${x}" y="${CY}" width="${w}" height="${CH}" rx="10" fill="${C.card}" stroke="${C.line}"/><rect x="${x + 8}" y="${CY}" width="${w - 16}" height="3" rx="1.5" fill="${acc}"/>`;
+    const glow = motion ? `<rect x="${x}" y="${CY}" width="${w}" height="${CH}" rx="10" fill="none" stroke="${acc}" stroke-width="1.5" opacity="0">${anim('opacity', [[t, 0], [t + 0.3, 0.9], [t + 4.2, 0.9], [t + 4.6, 0]])}</rect>` : '';
+    return (motion ? `<g opacity=".3">${body}${anim('opacity', [[0, 0.3], [t, 0.3], [t + 0.4, 1], [T - 0.6, 1], [T - 0.1, 0.3]])}</g>` : `<g>${body}</g>`) + glow;
+  };
+  // ---- card 0: the file
+  {
+    const x = xs[0]!, t = a[0]!;
+    o.push(cardBox(x, w0, t, C.blue));
+    o.push(tx(x + 16, CY + 28, 'APPEND-ONLY', 11, C.dim, 700, 'start', SANS, 'letter-spacing="1.8"'), tx(x + 16, CY + 60, 'log.jsonl', 20, C.blue, 700, 'start', MONO));
+    const rows = [['0001', 'view'], ['0002', 'class'], ['0003', 'class'], ['0004', 'replay'], ['0005', 'scan'], ['0006', 'drill'], ['0007', 'class'], ['0008', 'loop'], ['0009', 'scan']];
+    const when = [t + 0.3, t + 0.6, t + 0.9, t + 1.2, t + 1.5, a[2]! - 0.2, a[2]!, a[3]! - 0.2, a[3]!];
+    rows.forEach(([id, verb], i) => o.push(g(tx(x + 16, CY + 90 + i * 14, `{"id":"MM3-${id}","verb":"${verb}"}`, 8, i % 2 ? C.dim : C.ink, 400, 'start', MONO), when[i], 0.2)));
+    const counts: [string, number, number][] = [['10 runs', a[1]!, a[2]!], ['20 runs', a[2]!, a[3]!], ['50 runs', a[3]!, T]];
+    if (motion) for (const [label, from, to] of counts) o.push(`<g opacity="0">${tx(x + 16, CY + 240, label, 20, C.white, 700)}${anim('opacity', [[from, 0], [from + 0.2, 1], [Math.min(to, T - 0.6), 1], [Math.min(to, T - 0.6) + 0.2, 0]])}</g>`);
+    else o.push(tx(x + 16, CY + 240, '50 runs', 20, C.white, 700));
+    o.push(g(tx(x + 16, CY + 264, 'One line per run.', 12.5) + tx(x + 16, CY + 282, 'So what?', 12.5, C.dim, 400, 'start', SANS, 'font-style="italic"'), t + 1.8, 0.4));
+  }
+  // ---- cards 1-3: what the lines become
+  const steps: [string, string, string][] = [['10 runs', 'A layered heat map', 'of your architecture'], ['20 runs', 'Reference architecture', 'with a heat map on every box'], ['50 runs', 'A knowledge graph', 'of your whole system']];
+  const box = (x: number, y: number, w: number, h: number, label: string, heat: string | null, dash = false): string =>
+    `<rect x="${f(x)}" y="${f(y)}" width="${w}" height="${h}" rx="5" fill="${heat ?? 'none'}" fill-opacity="${heat ? 0.28 : 0}" stroke="${heat ?? C.dim}" stroke-opacity="${heat ? 0.8 : 1}"${dash ? ' stroke-dasharray="4 3"' : ''}/>` + tx(x + w / 2, y + h / 2 + 3.5, label, 10, C.ink, 600, 'middle');
+  steps.forEach(([count, head, line], k) => {
+    const x = xs[k + 1]!, t = a[k + 1]!, cx = x + cw / 2, y0 = CY + 80;
+    o.push(cardBox(x, cw, t, C.green));
+    o.push(tx(x + 16, CY + 46, count, 22, C.green, 700, 'start', MONO));
+    const p: string[] = [];
+    if (k === 0) {
+      const bands: [string, string[]][] = [['ui', [C.green, C.green, C.amber]], ['api', [C.green, C.red, C.green, C.amber]], ['data', [C.green, C.red]]];
+      bands.forEach(([name, hues], i) => {
+        const by = y0 + 4 + i * 42;
+        p.push(g(`<rect x="${f(cx - 92)}" y="${f(by)}" width="184" height="34" rx="6" fill="none" stroke="${C.dim}" stroke-dasharray="4 3"/>` + tx(cx - 84, by + 21, name, 10, C.dim, 600, 'start', MONO), t + 0.3 + i * 0.25));
+        hues.forEach((h, j) => p.push(g(`<rect x="${f(cx - 50 + j * 34)}" y="${f(by + 8)}" width="28" height="18" rx="3" fill="${h}" fill-opacity=".75"/>`, t + 1.0 + i * 0.35 + j * 0.12, 0.2)));
+      });
+    } else if (k === 1) {
+      const person = `<circle cx="${f(cx - 78)}" cy="${f(y0 + 10)}" r="6" fill="none" stroke="${C.ink}" stroke-width="1.5"/><path d="M${f(cx - 88)} ${f(y0 + 30)}a10 9 0 0 1 20 0" fill="none" stroke="${C.ink}" stroke-width="1.5"/>`;
+      p.push(g(person + tx(cx - 78, y0 + 44, 'user', 10, C.dim, 400, 'middle'), t + 0.3));
+      p.push(g(ln(cx - 64, y0 + 18, cx - 34, y0 + 16, C.dim) + arrow(cx - 34, y0 + 16, C.dim), t + 0.6));
+      p.push(g(box(cx - 30, y0 + 3, 76, 26, 'web app', C.amber), t + 0.8));
+      p.push(g(box(cx + 56, y0 + 3, 44, 26, 'quotes', null, true), t + 1.0));
+      p.push(g(ln(cx + 8, y0 + 29, cx + 8, y0 + 49, C.dim) + ln(cx + 46, y0 + 16, cx + 56, y0 + 16, C.dim), t + 1.2));
+      p.push(g(box(cx - 30, y0 + 49, 76, 26, 'api', C.red), t + 1.4));
+      p.push(g(ln(cx + 46, y0 + 62, cx + 56, y0 + 62, C.dim) + box(cx + 56, y0 + 49, 44, 26, 'queue', C.green), t + 1.7));
+      const db = `<path d="M${f(cx - 30)} ${f(y0 + 101)}v18a38 6 0 0 0 76 0v-18" fill="${C.green}" fill-opacity=".28" stroke="${C.green}" stroke-opacity=".8"/><ellipse cx="${f(cx + 8)}" cy="${f(y0 + 101)}" rx="38" ry="6" fill="${C.card}" stroke="${C.green}" stroke-opacity=".8"/>` + tx(cx + 8, y0 + 120, 'db', 10, C.ink, 600, 'middle');
+      p.push(g(ln(cx + 8, y0 + 75, cx + 8, y0 + 95, C.dim) + db, t + 2.0));
+    } else {
+      const nodes: [number, number, number, string][] = [[-78, 18, 6, C.green], [-40, 6, 4, C.green], [-6, 26, 7, C.red], [30, 8, 5, C.green], [70, 22, 6, C.amber], [-88, 58, 4, C.green], [-52, 46, 5, C.amber], [-18, 66, 5, C.green], [18, 50, 8, C.red], [56, 62, 4, C.green], [86, 52, 5, C.green], [-70, 96, 5, C.red], [-34, 88, 4, C.green], [2, 104, 6, C.green], [40, 92, 5, C.amber], [76, 100, 4, C.green], [-8, 42, 3, C.green], [52, 38, 3, C.green]];
+      const edges = [[0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [5, 6], [6, 2], [2, 16], [16, 8], [8, 3], [8, 17], [17, 4], [4, 10], [8, 9], [9, 10], [6, 7], [7, 8], [5, 11], [11, 12], [12, 7], [12, 13], [13, 14], [14, 8], [14, 15], [15, 10], [7, 13]];
+      edges.forEach(([i, j], e) => { const [ax, ay] = nodes[i!]!, [bx, by] = nodes[j!]!; p.push(g(ln(cx + ax, y0 + ay, cx + bx, y0 + by, C.dim, 1).replace('/>', ' stroke-opacity=".55"/>'), t + 0.3 + e * 0.07, 0.25)); });
+      nodes.forEach(([nx, ny, r, c], i) => p.push(g(known(cx + nx, y0 + ny, r, c), t + 0.4 + i * 0.1, 0.2)));
+    }
+    o.push(p.join(''));
+    o.push(g(tx(x + 16, CY + 262, head, 14, C.white, 700) + tx(x + 16, CY + 282, line, 12), t + 2.6, 0.5));
+  });
+  for (let i = 0; i < 3; i++) {
+    const gx = (i === 0 ? xs[0]! + w0 : xs[i]! + cw) + 6;
+    o.push(g(`<path d="M${gx - 3} ${CY + 140}l6 6l-6 6" fill="none" stroke="${C.dim}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`, a[i + 1]! - 0.4));
+  }
+  // ---- the open mdl: block: add any field, then read it all back as pictures
+  const py = LY, ph = 190;
+  o.push(`<rect x="18" y="${py}" width="${W - 36}" height="${ph}" rx="10" fill="${C.panel}" stroke="${C.line}"/>`);
+  o.push(g(tx(34, py + 28, 'The mdl: block is yours.', 15, C.white, 700) + tx(34, py + 48, 'Add any field to any request. It’s free: you were classifying anyway.', 12.5, C.ink), ext, 0.5));
+  const chipAt = (x: number, y: number, label: string, c: string, dash: boolean): [string, number] => {
+    const w = label.length * 7 + 14;
+    return [`<rect x="${f(x)}" y="${f(y)}" width="${f(w)}" height="20" rx="5" fill="${dash ? 'none' : c}" fill-opacity=".12" stroke="${c}" stroke-opacity="${dash ? 1 : 0.55}"${dash ? ' stroke-dasharray="4 3"' : ''}/>` + tx(x + w / 2, y + 14, label, 11, c, 600, 'middle', MONO), w];
+  };
+  let cx0 = 34;
+  ['why', 'area', 'stage', 'problem', 'uses', 'touches', 'blast'].forEach((k, i) => { const [el, w] = chipAt(cx0, py + 62, k, C.green, false); o.push(g(el, ext + 0.3 + i * 0.08, 0.2)); cx0 += w + 6; });
+  ['+ standard', '+ owner', '+ your field'].forEach((k, i) => { const [el, w] = chipAt(cx0, py + 62, k, C.amber, true); o.push(g(el, ext + 1.2 + i * 0.35, 0.25)); cx0 += w + 6; });
+  // the read-back: ledger or index -> your agent -> pictures
+  const ry = py + 104;
+  const pill = (x: number, label: string, c: string): [string, number] => {
+    const w = label.length * 7 + 18;
+    return [`<rect x="${f(x)}" y="${f(ry)}" width="${f(w)}" height="24" rx="6" fill="${C.card}" stroke="${c}"/>` + tx(x + w / 2, ry + 16, label, 11.5, C.ink, 600, 'middle', MONO), w];
+  };
+  const [lg, lw] = pill(34, 'log.jsonl', C.blue);
+  const [ix, iw] = pill(34 + lw + 30, 'SQLite index', C.blue);
+  const ax = 34 + lw + 30 + iw + 12;
+  const [ag, aw] = pill(ax + 30, 'your agent', C.green);
+  const icons = ax + 30 + aw + 34;
+  const bars = [14, 22, 9, 18].map((h, i) => `<rect x="${f(icons + i * 8)}" y="${f(ry + 24 - h)}" width="6" height="${h}" rx="1" fill="${[C.green, C.red, C.green, C.amber][i]}" fill-opacity=".8"/>`).join('');
+  const heat = [...'grgagggr'].map((c, i) => `<rect x="${f(icons + 52 + (i % 4) * 8)}" y="${f(ry + 4 + Math.floor(i / 4) * 9)}" width="7" height="7" rx="1" fill="${c === 'g' ? C.green : c === 'r' ? C.red : C.amber}" fill-opacity=".8"/>`).join('');
+  const gpts: [number, number, string][] = [[0, 16, C.green], [12, 4, C.red], [24, 18, C.green], [36, 6, C.amber], [30, 26, C.green]];
+  const graph = [[0, 1], [1, 2], [2, 3], [2, 4], [1, 3]].map(([i, j]) => ln(icons + 104 + gpts[i!]![0], ry + gpts[i!]![1], icons + 104 + gpts[j!]![0], ry + gpts[j!]![1], C.dim, 1)).join('') + gpts.map(([x, y, c]) => known(icons + 104 + x, ry + y, 3.5, c)).join('');
+  o.push(g(lg + tx(34 + lw + 15, ry + 16, 'or', 11.5, C.dim, 400, 'middle') + ix + tx(34 + lw + 30 + iw / 2, ry + 40, 'milliseconds', 10, C.dim, 400, 'middle'), read, 0.4));
+  o.push(g(ln(ax, ry + 12, ax + 22, ry + 12, C.dim) + arrow(ax + 22, ry + 12, C.dim) + ag, read + 0.5, 0.4));
+  o.push(g(ln(ax + 30 + aw + 6, ry + 12, ax + 30 + aw + 26, ry + 12, C.dim) + arrow(ax + 30 + aw + 26, ry + 12, C.dim) + bars + heat + graph + tx(icons + 150, ry + 16, 'charts, maps, graphs', 11.5, C.dim), read + 1.0, 0.4));
+  o.push(g(tx(34, py + 172, 'Where your agents are strong, and where they’re not.', 15, C.white, 700), pay, 0.6));
+  if (motion) o.push(`<rect width="${W}" height="${LH}" rx="14" fill="${C.bg}" opacity="0">${anim('opacity', [[0, 1], [0.5, 0], [T - 0.5, 0], [T, 1]])}</rect>`);
+  void circ;
+  return o.join('\n');
+}
+
 type Card = { col: string; verb: string; head: string; lines: [string, string] };
 type Screen = { side: string; sub: string; accent: string; cards: [Card, Card, Card]; record: [string, string][]; title: string; aria: string };
 
@@ -219,18 +335,24 @@ export const SCREENS: Record<'mak' | 'mdl', Screen> = {
 };
 
 /** One story screen as a complete SVG: the frozen finished frame for reduced motion, the animated loop for everyone else. */
-export function buildStory(which: 'mak' | 'mdl'): string {
-  const s = SCREENS[which];
+export const LEDGER_ARIA = 'The MM3 ledger. One append-only JSONL file, filled by runs you were making anyway. The same 10 runs give you a layered heat map of your architecture; 20, a reference architecture with a heat map; 50, a knowledge graph of your whole system. The mdl block is yours: add any field to any request, such as standard or owner, for free. Your agent reads the log or the SQLite index in milliseconds and paints charts, maps and graphs. Where your agents are strong, and where they are not.';
+
+/** One story screen as a complete SVG: the frozen finished frame for reduced motion, the animated loop for everyone else. */
+export function buildStory(which: 'mak' | 'mdl' | 'ledger'): string {
+  const h = which === 'ledger' ? LH : H;
+  const [aria, title, body] = which === 'ledger'
+    ? [LEDGER_ARIA, 'MM3 ledger', (m: boolean): string => ledgerScreen(m)]
+    : [SCREENS[which].aria, SCREENS[which].title, (m: boolean): string => screen(SCREENS[which], m)];
   return [
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${s.aria}"><title>${s.title}</title>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${h}" viewBox="0 0 ${W} ${h}" role="img" aria-label="${aria}"><title>${title}</title>`,
     '<style>.still{display:none}@media (prefers-reduced-motion:reduce){.motion{display:none}.still{display:inline}}</style>',
-    `<g class="still">${screen(s, false)}</g>`,
-    `<g class="motion">${screen(s, true)}</g>`,
-    `<rect x=".5" y=".5" width="${W - 1}" height="${H - 1}" rx="14" fill="none" stroke="${C.line}"/></svg>`,
+    `<g class="still">${body(false)}</g>`,
+    `<g class="motion">${body(true)}</g>`,
+    `<rect x=".5" y=".5" width="${W - 1}" height="${h - 1}" rx="14" fill="none" stroke="${C.line}"/></svg>`,
   ].join('\n');
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  for (const w of ['mak', 'mdl'] as const) writeFileSync(`docs/assets/story-${w}.svg`, buildStory(w) + '\n');
-  console.log(`story: docs/assets/story-mak.svg, docs/assets/story-mdl.svg (loop ${STORY_T} s)`);
+  for (const w of ['mak', 'mdl', 'ledger'] as const) writeFileSync(`docs/assets/story-${w}.svg`, buildStory(w) + '\n');
+  console.log(`story: docs/assets/story-{mak,mdl,ledger}.svg (loops ${STORY_T} s, ${LEDGER_T} s)`);
 }
