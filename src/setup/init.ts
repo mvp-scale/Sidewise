@@ -13,12 +13,13 @@
  * `io`/`keyStdin`, so a test drives the whole flow with no real process ever spawned and no real file outside a
  * temp dir ever touched.
  */
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { hasKey, resolveJevConfig } from '../classifier/typesafe/config.ts';
 import { ensureDir, pathsFor } from '../ledger/paths.ts';
 import { runDoctor } from '../verbs/doctor.ts';
 import type { VerbResult } from '../verbs/types.ts';
+import { planAgents } from './agents-file.ts';
 import { writeInstallRecord, type InstallMode } from './install-record.ts';
 import { resolveStoredKey, storeKey } from './keystore.ts';
 import { detectSelfSpec, findOnPath, isWritableDir, npmGlobalPrefix } from './npm-info.ts';
@@ -32,6 +33,8 @@ export interface InitFlags {
   scope?: 'user' | 'project'; // default: 'project' — using MM3 is scoped per project
   key: 'ask' | 'stdin' | 'no';
   yes: boolean;
+  /** `--agents`: run only the AGENTS.md / CLAUDE.md guidance step (no install, key or plugin). */
+  agents?: boolean;
 }
 
 export interface InitCtx {
@@ -199,9 +202,39 @@ function stepProject(ctx: InitCtx): string[] {
   return [line(already ? 'already' : 'done', 'project', `${already ? 'already has' : 'created'} .mm3/ (self-ignoring: .mm3/.gitignore)`)];
 }
 
+/** `mm3 init --agents`: show exactly what would be written to which file, then write only on --yes or a yes at
+ *  the prompt. A non-terminal input (the MCP path, a pipe) is never prompted — it shows the lines and says
+ *  to re-run with --yes. Idempotent: a project already set up prints one line and changes nothing. */
+async function runAgentsStep(flags: InitFlags, ctx: InitCtx): Promise<string[]> {
+  const root = ctx.env.MM3_HOME?.trim() || ctx.cwd;
+  if (!insideGitProject(root)) return [line('skipped', 'agents', 'not in a git project → cd into one and run "mm3 init --agents" there')];
+  const plan = planAgents(root);
+  if (plan.problem) return [line('problem', 'agents', plan.problem)];
+  if (plan.edits.length === 0) return [line('already', 'agents', 'already set up (AGENTS.md has the mm3 block; CLAUDE.md imports it) — nothing changed')];
+
+  const preview = plan.edits.map((e) => `agents: will ${e.verb} ${e.file}:\n${e.written}`).join('\n\n');
+  const interactive = !flags.yes && ctx.io.input.isTTY === true;
+  let go = flags.yes;
+  if (interactive) {
+    ctx.io.output.write(`${preview}\n\n`);
+    go = await confirm('Write these?', false, ctx.io);
+  }
+  const shown = interactive ? [] : [preview, ''];
+  if (!go) {
+    return [...shown, line('skipped', 'agents', `nothing written${flags.yes || interactive ? '' : ' → re-run with --yes to write these'}`)];
+  }
+  for (const e of plan.edits) {
+    const file = path.join(root, e.file);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, e.content);
+  }
+  return [...shown, ...plan.edits.map((e) => line('done', 'agents', e.done))];
+}
+
 const NOT_A_PROJECT = line('skipped', 'project', 'not in a git project → cd into one and run "mm3 init" there to enable MM3 for it');
 
 export async function runInit(flags: InitFlags, ctx: InitCtx): Promise<VerbResult> {
+  if (flags.agents) return { exit: 0, text: `${(await runAgentsStep(flags, ctx)).join('\n')}\n` };
   const lines: string[] = [];
   lines.push(...(await stepCli(flags, ctx))); // per user
   lines.push(...(await stepKey(flags, ctx))); // per user

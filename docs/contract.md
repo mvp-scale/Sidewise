@@ -1267,6 +1267,15 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   rules and good/bad patterns) before writing a first real request — rather than inviting one straight off; if
   any step above logged a `✖ problem` line, `next:` never claims the setup is usable, instead pointing back at
   the fix and at re-running `mm3 init`. [C-176]
+- `mm3 init --agents` is an opt-in step that runs on its own (no install, key or plugin step; combined with
+  another init flag it stops at exit 2). It writes the three-beat guidance into the project's `AGENTS.md`
+  between `<!-- mm3:agents -->` and `<!-- /mm3:agents -->` (creating the file when missing, appending the block
+  when there are no markers, replacing only what sits between them when there are; an unmatched marker stops
+  with `✖ agents: ... → fix`), and appends `@AGENTS.md` (`@../AGENTS.md` for `.claude/CLAUDE.md`) to a
+  `CLAUDE.md` that exists and has no line importing AGENTS.md. It first prints exactly the lines it would write
+  and to which file, and writes only on `--yes` or a yes at the prompt; a non-terminal input (the MCP path)
+  is never prompted: it shows the lines, writes nothing and says `re-run with --yes`. A second run changes
+  nothing and says `· agents: already set up`. [C-233]
 - `mm3 uninstall` reverses init, by default acting only on the current project: the Claude Code plugin's
   project-scope install, and (asked, default **no** — it's the user's run history) that project's
   `.mm3/`. The per-user parts — the stored key and the CLI itself — are only touched with `--all`, which
