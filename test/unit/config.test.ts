@@ -140,7 +140,7 @@ describe('resolveJevConfig / selectProvider: fileConfig is purely additive', () 
   });
 
   it('env still wins over fileConfig', () => {
-    const r = resolveJevConfig({ JEV_MODEL: 'jev-1.13.0', MM3_BASE_URL: 'https://env.example.com' }, { fileConfig: { model: 'jev-2.0.0', baseURL: 'https://proxy.example.com' } });
+    const r = resolveJevConfig({ JEV_MODEL: 'jev-1.13.0', TYPESAFE_BASE_URL: 'https://env.example.com' }, { fileConfig: { model: 'jev-2.0.0', baseURL: 'https://proxy.example.com' } });
     expect(r.model).toBe('jev-1.13.0');
     expect(r.baseURL).toBe('https://env.example.com');
   });

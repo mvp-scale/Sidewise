@@ -47,7 +47,7 @@ export function providerIdentity(env: Env = process.env, deps: { resolveStored?:
     const config = resolveJevConfig(env, deps);
     if (wanted === 'typesafe' || hasKey(config)) return { adapter: 'typesafe', model: config.model, route: routeLabel(config), baseURL: config.baseURL };
   } catch {
-    // A config error (a floating model, a bad MM3_BASE_URL) leaves the route/base URL unknowable here;
+    // A config error (a floating model, a bad TYPESAFE_BASE_URL) leaves the route/base URL unknowable here;
     // `mm3 doctor` surfaces the real ✖ message instead of this best-effort fallback.
     return { adapter: 'typesafe', model: 'unknown', route: 'custom', baseURL: null };
   }

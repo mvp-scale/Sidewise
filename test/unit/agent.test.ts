@@ -236,8 +236,8 @@ describe('runAgent: the overview\'s no-key hint', () => {
     expect(text).not.toContain('run: no key');
   });
 
-  it('a bad MM3_BASE_URL never crashes the overview — it just skips the hint', () => {
-    expect(() => runAgent(undefined, { MM3_BASE_URL: 'not a url' })).not.toThrow();
+  it('a bad TYPESAFE_BASE_URL never crashes the overview — it just skips the hint', () => {
+    expect(() => runAgent(undefined, { TYPESAFE_BASE_URL: 'not a url' })).not.toThrow();
   });
 });
 

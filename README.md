@@ -30,7 +30,7 @@ mm3 init
 
 ### Try it locally
 
-Bring your key and point MM3 at any compatible endpoint URL. `mm3 init` stores the key; set the URL with `baseURL:` in `.mm3/config.yaml`, or per run with `MM3_BASE_URL=https://api.example.com mm3 class review.yaml`.
+Bring a TypeSafe API key. MM3 isn't a model of its own: it wraps TypeSafe's API and calls Jev at `api.typesafe.ai`. Any TypeSafe endpoint works. The key never goes in your project: in Claude Code it sits masked in Claude Code's secure storage; in a terminal, Codex or Gemini CLI, `mm3 init` puts it in your OS keychain, or a user-only (0600) file where there is none. Point at another TypeSafe URL with `baseURL:` in `.mm3/config.yaml`, or per run with `TYPESAFE_BASE_URL=https://api.example.com mm3 class review.yaml`.
 
 Then just ask your agent. The MM3 skill tells it when to reach for MM3, which verb fits and how to write the request; you read the verdict.
 

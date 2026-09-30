@@ -8,7 +8,7 @@ const story: Story = {
   tagline: 'Checklists in. Calibrated verdicts out.',
   identity: 'MM3 turns a checklist into a verdict.',
   numbers: [{ text: '$0.000065 per check & more', method: 'docs/numbers.md#cost-per-check' }],
-  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', endpoint: 'MM3_BASE_URL=https://x.example mm3 class r.yaml' },
+  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', endpoint: 'TYPESAFE_BASE_URL=https://x.example mm3 class r.yaml' },
   useCases: [{ title: 'Check a change', verb: 'class' }, { title: 'Find <where> it lives', verb: 'scan' }],
 };
 

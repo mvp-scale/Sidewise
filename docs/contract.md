@@ -1181,15 +1181,15 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   cache that a missing or corrupt copy only costs a rebuild, never a wrong answer; the slower, always-correct
   linear scan it rebuilds from is still what a corrupt or mid-write `index.db` falls back to (see C-107) — but,
   as of the Node-version guard, no longer a normal, silent substitute for `node:sqlite` genuinely missing. [C-089]
-- `MM3_BASE_URL` overrides the TypeSafe base URL for either route (a proxy, a self-hosted mirror, tests).
+- `TYPESAFE_BASE_URL` overrides the TypeSafe base URL for either route (a proxy, a self-hosted mirror, tests).
   It must parse as a URL; `https` is required, except `http` for `localhost`, `127.0.0.1` or `[::1]`. Anything
-  else is a stop, `✖ MM3_BASE_URL: ... → ...`, at exit 2. [C-094]
+  else is a stop, `✖ TYPESAFE_BASE_URL: ... → ...`, at exit 2. [C-094]
 - `mm3 doctor` is free: no classifier call, no budget touched, no ledger write. It reports the resolved
   provider, route (`direct`/`gateway`/`custom`, or `fake`/`chaos`) and base URL, whether `TYPESAFE_API_KEY` and
   `AI_GATEWAY_API_KEY` are set (never their value), the pinned model (plus the gateway wire model when
   relevant), whether a project/ledger is found, and the Node version and whether `node:sqlite` is available.
   Exit 0 when the config is usable; exit 2 with the same `✖` message a paid verb would give when it isn't (a
-  floating model, a bad `MM3_BASE_URL`) — including too old a Node, which doctor still runs and reports
+  floating model, a bad `TYPESAFE_BASE_URL`) — including too old a Node, which doctor still runs and reports
   rather than stopping outright (see C-106). [C-095]
 - `mm3 config` is a free, read-only display of the effective config (plain `config` never writes); it is not itself
   a valid file, so its last notes point to `mm3 config --write` (no `.mm3/config.yaml` yet) or name the file path
@@ -1215,7 +1215,7 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
   `security`, Linux `secret-tool`; Windows always falls through), then `~/.config/mm3/env` (or under
   `$XDG_CONFIG_HOME`) — a shell env file `mm3 init` writes at mode 0600 in a 0700 directory, holding only
   lines of the exact shape `export NAME='value'` for an allowlisted name (`TYPESAFE_API_KEY`,
-  `AI_GATEWAY_API_KEY`, `MM3_BASE_URL`, `JEV_MODEL`, `JEV_GATEWAY_MODEL`, `MM3_PROVIDER`) plus `#`
+  `AI_GATEWAY_API_KEY`, `TYPESAFE_BASE_URL`, `JEV_MODEL`, `JEV_GATEWAY_MODEL`, `MM3_PROVIDER`) plus `#`
   comments; MM3 parses this file itself and never sources or evals it, and a line it doesn't recognise is
   left untouched, not an error. The first hit wins, and its source (`env`/`keychain`/`file`) is carried
   alongside it. The resolved value never appears in any output, error, ledger line or note — the redaction list

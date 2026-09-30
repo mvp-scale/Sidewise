@@ -146,10 +146,10 @@ describe('doctor (P5)', () => {
     expect(r.text).toMatch(/^JEV_MODEL="jev-latest" floats/);
   });
 
-  it('a bad MM3_BASE_URL: exit 2, ✖ MM3_BASE_URL [C-095]', () => {
-    const r = runDoctor({ MM3_BASE_URL: 'http://example.com' }, undefined);
+  it('a bad TYPESAFE_BASE_URL: exit 2, ✖ TYPESAFE_BASE_URL [C-095]', () => {
+    const r = runDoctor({ TYPESAFE_BASE_URL: 'http://example.com' }, undefined);
     expect(r.exit).toBe(2);
-    expect(r.text).toMatch(/^✖ MM3_BASE_URL:/);
+    expect(r.text).toMatch(/^✖ TYPESAFE_BASE_URL:/);
   });
 
   it('never leaks a key substring, even alongside an invalid config [C-095]', () => {

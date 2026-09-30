@@ -7808,7 +7808,7 @@ function resolveConfig(paths, env = {}) {
   const stops = [...file.stops, ...validated.stops];
   const sources = {};
   const envProvider = cleanEnv(env.MM3_PROVIDER);
-  const envBaseURL = cleanEnv(env.MM3_BASE_URL);
+  const envBaseURL = cleanEnv(env.TYPESAFE_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
   const envTimeoutRaw = Number(cleanEnv(env.JEV_TIMEOUT_MS));
   const envTimeout = Number.isFinite(envTimeoutRaw) && envTimeoutRaw > 0 ? envTimeoutRaw : void 0;
@@ -9336,7 +9336,7 @@ function createFakeAdapter() {
 // src/classifier/typesafe/config.ts
 var JevConfigError = class extends Error {
   /** 1 (default): a provider problem (no key) — bucketed with other provider errors. 2: a config value the
-   *  caller must fix before anything runs (a bad MM3_BASE_URL) — a usage mistake, not a runtime provider
+   *  caller must fix before anything runs (a bad TYPESAFE_BASE_URL) — a usage mistake, not a runtime provider
    *  failure. */
   exit;
   constructor(message, exit = 1) {
@@ -9387,18 +9387,18 @@ function resolveTimeoutMs(env, fileConfig) {
 }
 var LOCAL_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 function resolveBaseURL(env, baseDefault, fileConfig) {
-  const raw = clean(env.MM3_BASE_URL) ?? fileConfig?.baseURL;
+  const raw = clean(env.TYPESAFE_BASE_URL) ?? fileConfig?.baseURL;
   if (raw === void 0) return baseDefault;
   let url;
   try {
     url = new URL(raw);
   } catch {
-    throw new JevConfigError(`\u2716 MM3_BASE_URL: "${raw}" is not a valid URL \u2192 use an https URL, e.g. https://api.example.com`, 2);
+    throw new JevConfigError(`\u2716 TYPESAFE_BASE_URL: "${raw}" is not a valid URL \u2192 use an https URL, e.g. https://api.example.com`, 2);
   }
   const local = LOCAL_HOSTS.has(url.hostname);
   if (url.protocol === "https:" || url.protocol === "http:" && local) return raw.replace(/\/+$/, "");
   throw new JevConfigError(
-    `\u2716 MM3_BASE_URL: "${raw}" is ${url.protocol.replace(":", "")}, not https \u2192 use https, or http only for localhost/127.0.0.1/[::1]`,
+    `\u2716 TYPESAFE_BASE_URL: "${raw}" is ${url.protocol.replace(":", "")}, not https \u2192 use https, or http only for localhost/127.0.0.1/[::1]`,
     2
   );
 }
@@ -10134,7 +10134,7 @@ function runMcpServer(io, runOne, serverVersion) {
 import { chmodSync, existsSync as existsSync8, mkdirSync as mkdirSync4, readFileSync as readFileSync8, rmSync as rmSync2, statSync as statSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import os from "node:os";
 import path5 from "node:path";
-var ALLOWED_NAMES = ["TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "MM3_BASE_URL", "JEV_MODEL", "JEV_GATEWAY_MODEL", "MM3_PROVIDER"];
+var ALLOWED_NAMES = ["TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "TYPESAFE_BASE_URL", "JEV_MODEL", "JEV_GATEWAY_MODEL", "MM3_PROVIDER"];
 var isAllowedName = (s) => ALLOWED_NAMES.includes(s);
 var EXPORT_LINE = /^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)='([^']*)'\s*$/u;
 function mm3ConfigDir(env = process.env) {

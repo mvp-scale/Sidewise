@@ -75,7 +75,7 @@ export const AGENT_TOOLS = ['report', 'outcome', 'budget', 'template'] as const;
 
 /** One extra `run:` line, appended only when no key is configured: the same plugin-context detection doctor's
  *  `key:` line uses (setup/plugin.ts's `inPluginContext`), so a cold agent reading the overview sees how to add
- *  one without a separate `doctor` call. `resolveJevConfig` can throw on a bad `MM3_BASE_URL` — that's
+ *  one without a separate `doctor` call. `resolveJevConfig` can throw on a bad `TYPESAFE_BASE_URL` — that's
  *  `doctor`'s stop to report, not this free card's, so a bad config here just skips the hint rather than
  *  crashing the overview. */
 function noKeyRunLine(env: Record<string, string | undefined>, deps: { resolveStored?: ResolveStored }): string[] {

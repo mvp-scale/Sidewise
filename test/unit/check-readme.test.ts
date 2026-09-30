@@ -6,14 +6,14 @@ const story: Story = {
   tagline: 'Checklists in. Calibrated verdicts out.',
   identity: 'MM3 turns a checklist into a verdict.',
   numbers: [],
-  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', endpoint: 'MM3_BASE_URL=https://x.example mm3 class r.yaml' },
+  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', endpoint: 'TYPESAFE_BASE_URL=https://x.example mm3 class r.yaml' },
   useCases: [],
 };
 const ok = (): string | null => null;
 const good = [
   '# MM3', '', 'Checklists in. Calibrated verdicts out.', '', 'MM3 turns a checklist into a verdict.', '',
   '<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/a.svg"><img src="docs/assets/a.svg" alt="how"></picture>',
-  '', '## Install', '', '```bash', '/plugin marketplace add x/y', '/plugin install x@y', 'npm install -g @mvpscale/mm3', 'mm3 init', 'MM3_BASE_URL=https://x.example mm3 class r.yaml', '```',
+  '', '## Install', '', '```bash', '/plugin marketplace add x/y', '/plugin install x@y', 'npm install -g @mvpscale/mm3', 'mm3 init', 'TYPESAFE_BASE_URL=https://x.example mm3 class r.yaml', '```',
   '', '## License', '', 'Apache-2.0 · [contract](docs/contract.md)',
 ].join('\n');
 const opts = (dryRun: (verb: string, yaml: string) => string | null = ok) => ({ root: 'test/unit/fixtures/readme', dryRun });

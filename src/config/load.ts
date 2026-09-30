@@ -3,7 +3,7 @@
  * creates it — same free-and-optional spirit as everything else doctor/config touch), validates it
  * (validate.ts), and merges it over the one code defaults table (defaults.ts). Precedence is env > config >
  * default; the small set of settings that already have their own env var (MM3_PROVIDER,
- * MM3_BASE_URL, JEV_MODEL, JEV_TIMEOUT_MS) keep that env var as the actual runtime authority — this
+ * TYPESAFE_BASE_URL, JEV_MODEL, JEV_TIMEOUT_MS) keep that env var as the actual runtime authority — this
  * module's `config.<field>` is the config-or-default LAYER only (never env), because the real routing already
  * has one owner (`src/classifier/typesafe/config.ts`'s `resolveJevConfig`, which re-checks env itself and
  * takes this module's value only as its own middle layer via `deps.fileConfig` — see that file). What this
@@ -86,7 +86,7 @@ export function resolveConfig(paths: Mm3Paths | undefined, env: Record<string, s
   const sources: Record<string, ConfigSource> = {};
 
   const envProvider = cleanEnv(env.MM3_PROVIDER);
-  const envBaseURL = cleanEnv(env.MM3_BASE_URL);
+  const envBaseURL = cleanEnv(env.TYPESAFE_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
   const envTimeoutRaw = Number(cleanEnv(env.JEV_TIMEOUT_MS));
   const envTimeout = Number.isFinite(envTimeoutRaw) && envTimeoutRaw > 0 ? envTimeoutRaw : undefined;

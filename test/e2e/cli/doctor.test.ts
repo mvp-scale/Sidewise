@@ -45,10 +45,10 @@ describe('mm3 doctor', () => {
     expect(r.stdout).not.toContain('keys:');
   });
 
-  it('a bad MM3_BASE_URL: exit 2, ✖ MM3_BASE_URL, nothing on stdout', () => {
+  it('a bad TYPESAFE_BASE_URL: exit 2, ✖ TYPESAFE_BASE_URL, nothing on stdout', () => {
     const { root } = tempProject();
-    const stop = expectCleanStop(mm3(root, ['doctor'], { env: { MM3_PROVIDER: '', MM3_BASE_URL: 'http://example.com' } }), 2);
-    expect(stop).toMatch(/^✖ MM3_BASE_URL:/);
+    const stop = expectCleanStop(mm3(root, ['doctor'], { env: { MM3_PROVIDER: '', TYPESAFE_BASE_URL: 'http://example.com' } }), 2);
+    expect(stop).toMatch(/^✖ TYPESAFE_BASE_URL:/);
   });
 
   // plan 2c B1b: doctor now takes 0 or 1 positional (the file to check, or - for stdin), so a SECOND positional

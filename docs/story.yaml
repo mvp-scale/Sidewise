@@ -13,7 +13,7 @@ install:
   claudeInstall: "/plugin install mm3@mvp-scale"
   npm: "npm install -g @mvpscale/mm3"
   npmInit: "mm3 init"
-  endpoint: "MM3_BASE_URL=https://api.example.com mm3 class review.yaml"
+  endpoint: "TYPESAFE_BASE_URL=https://api.example.com mm3 class review.yaml"
 useCases:
   - { title: "Check a change before you merge it", verb: class }
   - { title: "Prove a fix actually worked", verb: replay }

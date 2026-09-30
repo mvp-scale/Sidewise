@@ -54,7 +54,7 @@ describe('readEnvFile', () => {
   it('ALLOWED_NAMES is exactly the six names this format recognises', () => {
     const key: EnvFileName = 'TYPESAFE_API_KEY';
     expect(ALLOWED_NAMES).toContain(key);
-    expect(ALLOWED_NAMES).toEqual(['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'MM3_BASE_URL', 'JEV_MODEL', 'JEV_GATEWAY_MODEL', 'MM3_PROVIDER']);
+    expect(ALLOWED_NAMES).toEqual(['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'TYPESAFE_BASE_URL', 'JEV_MODEL', 'JEV_GATEWAY_MODEL', 'MM3_PROVIDER']);
   });
 
   it('counts a non-comment line that does not parse, or names something outside the allowlist, as ignored', () => {
@@ -72,7 +72,7 @@ describe('readEnvFile', () => {
     writeFileSync(
       file,
       [
-        "export MM3_BASE_URL='https://proxy.example.com'",
+        "export TYPESAFE_BASE_URL='https://proxy.example.com'",
         "export JEV_MODEL='jev-1.13.0'",
         "export JEV_GATEWAY_MODEL='typesafe-ai/jev'",
         "export MM3_PROVIDER='fake'",
@@ -80,7 +80,7 @@ describe('readEnvFile', () => {
     );
     expect(readEnvFile(file)).toMatchObject({
       values: {
-        MM3_BASE_URL: 'https://proxy.example.com',
+        TYPESAFE_BASE_URL: 'https://proxy.example.com',
         JEV_MODEL: 'jev-1.13.0',
         JEV_GATEWAY_MODEL: 'typesafe-ai/jev',
         MM3_PROVIDER: 'fake',
