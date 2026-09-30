@@ -120,14 +120,6 @@ That's all of it: one engine on your machine, one folder in your project, one ca
 
 <p align="center"><img src="docs/assets/architecture.svg" width="900" alt="MM3 architecture. Any coding agent calls MM3 through its MCP tool or the mm3 CLI. MM3 runs on your machine: it reuses answers it already has and pays only for new questions, sent to a TypeSafe-compatible classifier endpoint (typesafe.ai or self-hosted), its only outside call. In your project it reads code and git as evidence, appends every run to log.jsonl, the append-only ledger and the only source of truth, and keeps index.db, a read-only hot cache of the ledger that rebuilds itself and answers lookups in under a millisecond, tested to 100,000 runs. No server, no MM3 account, no telemetry. config.yaml sets the budget cap, endpoint and model, reuse rules and your own mdl fields, and is the one file in .mm3/ that git keeps. MM3's whole footprint in your project is the .mm3/ folder."></p>
 
-## By the numbers
-
-Early numbers from our own runs; formal benchmarks will follow.
-
-- [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
-- [1,181 tests, no network, no key](docs/numbers.md#test-count)
-- [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
-
 ## Journeys
 
 Each journey asks one question: **can a smaller model, with MM3, learn more about a real codebase for less?** One agent, a $1 cap that covers everything, the same three beats (Know, Judge, Prove). Every run is on file in [mm3-journeys](https://github.com/mvp-scale/mm3-journeys), so you can rerun it and compare.
