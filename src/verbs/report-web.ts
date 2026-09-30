@@ -673,7 +673,7 @@ const BODY = `
     </div>
   </aside>
 </div>
-<footer class="viewer-footer">A System One needs a Knowledge One. · MM3</footer>
+<footer class="viewer-footer">Make and model · MM3</footer>
 `;
 
 // Vanilla JS, no dependencies: reads #viewer-data with JSON.parse (never eval), and writes every piece of

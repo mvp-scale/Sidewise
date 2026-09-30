@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="812" viewBox="0 0 900 812" role="img" aria-label="The request the agent wrote for MM3-0008: one goal on one file, three concerns of three yes/no questions each, two decisions, and an mdl block saying why it asked.">
 <style>svg{font-family:ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace}text{white-space:pre}</style>
 <rect width="900" height="812" rx="14" fill="#050914"/>
-<text x="18" y="34" font-size="17" font-weight="700" font-family="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#f5f8ff">MM<tspan fill="#b7ff83">3</tspan></text>
+<text x="18" y="34" font-size="17" font-weight="700" font-family="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#f5f8ff"><tspan fill="#9bdcff">M</tspan><tspan fill="#b7ff83">M</tspan>3</text>
 <text x="882" y="34" text-anchor="end" font-size="12.5" font-family="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#7f93b0">request · 45 lines</text>
 <line x1="0" y1="52" x2="900" y2="52" stroke="#24344f"/>
 <text x="26" y="82" font-size="12" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>

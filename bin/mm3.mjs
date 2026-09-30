@@ -7379,7 +7379,7 @@ import { parseArgs } from "node:util";
 var package_default = {
   name: "@mvpscale/mm3",
   version: "0.0.0",
-  description: "MM3, a Knowledge One system for coding agents: MAK\xB3 uses what is proven, MDL\xB3 learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
+  description: "MM3, make and model for coding agents: MAK\xB3 uses what is proven, MDL\xB3 learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
   license: "Apache-2.0",
   type: "module",
   repository: {
@@ -15218,7 +15218,7 @@ var BODY = `
     </div>
   </aside>
 </div>
-<footer class="viewer-footer">A System One needs a Knowledge One. \xB7 MM3</footer>
+<footer class="viewer-footer">Make and model \xB7 MM3</footer>
 `;
 var CLIENT_JS = `
 (function () {

@@ -485,7 +485,7 @@ export function buildStrip(s: StripScene): string {
   out.push(`<title>MM3 on n8n</title><desc>${xe(`A real run (${s.id}): ${stripData(s).receipt.join(' · ')}, then ${stripData(s).next}. The request unfolds group by group (concerns, decisions, mdl), then the response and the knowledge the ledger now holds.`)}</desc>`);
   out.push(`<style>svg{font-family:${MONO}}text{white-space:pre}.still{display:none}@media (prefers-reduced-motion:reduce){.motion{display:none}.still{display:inline}}</style>`);
   out.push(`<rect width="${STRIP_W}" height="${H}" rx="14" fill="${C.bg}"/>`);
-  const frame = `<text x="${LEFT_X}" y="${TAB_Y}" font-size="17" font-weight="700" font-family="${SANS}" fill="${C.white}">MM<tspan fill="${C.green}">3</tspan></text><line x1="${SPLIT}" y1="14" x2="${SPLIT}" y2="${H - 20}" stroke="${C.line}"/>`;
+  const frame = `<text x="${LEFT_X}" y="${TAB_Y}" font-size="17" font-weight="700" font-family="${SANS}" fill="${C.white}"><tspan fill="${C.blue}">M</tspan><tspan fill="${C.green}">M</tspan>3</text><line x1="${SPLIT}" y1="14" x2="${SPLIT}" y2="${H - 20}" stroke="${C.line}"/>`;
   out.push(`<g class="still">${frame}\n${build(false)}</g>`);
   out.push(`<g class="motion">${frame}\n${build(true)}`);
   // the loop seam: everything fades to the ground and back, once
@@ -512,7 +512,7 @@ export function codeCard(yaml: string, label: string, aria: string): string {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${STRIP_W}" height="${h}" viewBox="0 0 ${STRIP_W} ${h}" role="img" aria-label="${xe(aria)}">`,
     `<style>svg{font-family:${MONO}}text{white-space:pre}</style>`,
     `<rect width="${STRIP_W}" height="${h}" rx="14" fill="${C.bg}"/>`,
-    `<text x="18" y="${TAB_Y}" font-size="17" font-weight="700" font-family="${SANS}" fill="${C.white}">MM<tspan fill="${C.green}">3</tspan></text>`,
+    `<text x="18" y="${TAB_Y}" font-size="17" font-weight="700" font-family="${SANS}" fill="${C.white}"><tspan fill="${C.blue}">M</tspan><tspan fill="${C.green}">M</tspan>3</text>`,
     `<text x="${STRIP_W - 18}" y="${TAB_Y}" text-anchor="end" font-size="12.5" font-family="${SANS}" fill="${C.dim}">${xe(label)}</text>`,
     `<line x1="0" y1="52" x2="${STRIP_W}" y2="52" stroke="${C.line}"/>`,
     rows,

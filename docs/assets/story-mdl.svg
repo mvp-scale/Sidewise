@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="500" viewBox="0 0 900 500" role="img" aria-label="MDL3 model. scan: a census of the present, same questions every file, comparable answers. drill: turns a flag into a fix target and hands it back to class and replay. loop: proves the design before a line of code exists."><title>MM3 model: scan, drill, loop</title>
 <style>.still{display:none}@media (prefers-reduced-motion:reduce){.motion{display:none}.still{display:inline}}</style>
 <g class="still"><rect width="900" height="500" rx="14" fill="#050914"/>
-<text x="18" y="34" font-size="17" font-weight="700" fill="#f5f8ff" text-anchor="start" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" >MM<tspan fill="#b7ff83">3</tspan></text>
+<text x="18" y="34" font-size="17" font-weight="700" fill="#f5f8ff" text-anchor="start" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" ><tspan fill="#9bdcff">M</tspan><tspan fill="#b7ff83">M</tspan>3</text>
 <text x="882" y="34" font-size="13" font-weight="700" fill="#b7ff83" text-anchor="end" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" >MDL³ · model · learn what is missing</text>
 <line x1="0" y1="52" x2="900" y2="52" stroke="#24344f" stroke-width="1"/>
 <g><text x="18" y="84" font-size="15" font-weight="600" fill="#f5f8ff" text-anchor="start" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" >Learn what is missing.</text></g>
@@ -24,7 +24,7 @@
 <line x1="748" y1="404" x2="748" y2="424" stroke="#b7ff83" stroke-width="1.5" stroke-dasharray="3 3"/><circle cx="748" cy="424" r="3.5" fill="#b7ff83" fill-opacity="1"></circle>
 <g><text x="748" y="446" font-size="12" font-weight="600" fill="#f5f8ff" text-anchor="middle" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" >proves the future</text><text x="748" y="463" font-size="11.5" font-weight="400" fill="#7f93b0" text-anchor="middle" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" >before the code</text></g></g>
 <g class="motion"><rect width="900" height="500" rx="14" fill="#050914"/>
-<text x="18" y="34" font-size="17" font-weight="700" fill="#f5f8ff" text-anchor="start" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" >MM<tspan fill="#b7ff83">3</tspan></text>
+<text x="18" y="34" font-size="17" font-weight="700" fill="#f5f8ff" text-anchor="start" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" ><tspan fill="#9bdcff">M</tspan><tspan fill="#b7ff83">M</tspan>3</text>
 <text x="882" y="34" font-size="13" font-weight="700" fill="#b7ff83" text-anchor="end" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" >MDL³ · model · learn what is missing</text>
 <line x1="0" y1="52" x2="900" y2="52" stroke="#24344f" stroke-width="1"/>
 <g opacity="0"><text x="18" y="84" font-size="15" font-weight="600" fill="#f5f8ff" text-anchor="start" font-family="Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif" >Learn what is missing.</text><animate attributeName="opacity" dur="19s" repeatCount="indefinite" calcMode="linear" values="0;0;1;1;0;0" keyTimes="0;0.011;0.037;0.968;0.995;1"/></g>

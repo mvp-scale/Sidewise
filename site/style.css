@@ -51,7 +51,8 @@ section.wrap { padding-block: clamp(2.5rem, 7vw, 4.5rem); }
 .top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 .top-in { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding-block: .7rem; }
 .brand { font-weight: 900; font-size: 1.5rem; letter-spacing: -.04em; color: var(--ink); text-decoration: none; line-height: 1; }
-.brand span { color: var(--green); }
+.brand .m-make { color: var(--blue); }
+.brand .m-model { color: var(--green); }
 .top nav { display: flex; align-items: center; gap: 1.1rem; font-size: .95rem; font-weight: 600; }
 .top nav a { color: var(--muted); text-decoration: none; }
 .top nav a:hover { color: var(--ink); }

@@ -167,7 +167,7 @@ function screen(s: Screen, motion: boolean): string {
   const acc = s.accent;
   const o: string[] = [
     `<rect width="${W}" height="${H}" rx="14" fill="${C.bg}"/>`,
-    tx(18, 34, `MM<tspan fill="${C.green}">3</tspan>`, 17, C.white, 700),
+    tx(18, 34, `<tspan fill="${C.blue}">M</tspan><tspan fill="${C.green}">M</tspan>3`, 17, C.white, 700),
     tx(W - 18, 34, s.side, 13, acc, 700, 'end'),
     ln(0, 52, W, 52, C.line, 1),
     g(tx(18, 84, s.sub, 15, C.white, 600), 0.2, 0.5),
@@ -208,7 +208,7 @@ function ledgerScreen(motion: boolean): string {
   const a = [0.8, 4.2, 8.8, 13.4], ext = 18.2, read = 20.4, pay = 22.4;
   const o: string[] = [
     `<rect width="${W}" height="${LH}" rx="14" fill="${C.bg}"/>`,
-    tx(18, 34, `MM<tspan fill="${C.green}">3</tspan>`, 17, C.white, 700),
+    tx(18, 34, `<tspan fill="${C.blue}">M</tspan><tspan fill="${C.green}">M</tspan>3`, 17, C.white, 700),
     tx(W - 18, 34, 'the ledger · our favorite part', 13, C.white, 700, 'end'),
     ln(0, 52, W, 52, C.line, 1),
     g(tx(18, 84, 'One append-only JSONL file, filled by runs you were making anyway.', 15, C.white, 600), 0.2, 0.5),

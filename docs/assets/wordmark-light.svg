@@ -4,6 +4,6 @@
   <desc id="d">MM3, with MAK³ and MDL³ underneath: use what is proven, learn what is missing.</desc>
   <defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#4f9f1c"/><stop offset="1" stop-color="#2f7a10"/></linearGradient></defs>
   <style>text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif}</style>
-  <text x="180" y="88" text-anchor="middle" font-size="98" font-weight="900" letter-spacing="-3" fill="#0f1b2d">MM<tspan fill="url(#g)">3</tspan></text>
+  <text x="180" y="88" text-anchor="middle" font-size="98" font-weight="900" letter-spacing="-3" fill="#0f1b2d"><tspan fill="#0a6aa1">M</tspan><tspan fill="url(#g)">M</tspan>3</text>
   <text x="180" y="125" text-anchor="middle" font-size="26" font-weight="800" letter-spacing="1.5"><tspan fill="#0a6aa1">MAK³</tspan><tspan fill="#465872"> · </tspan><tspan fill="#3a8213">MDL³</tspan></text>
 </svg>

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520" role="img" aria-labelledby="t d">
 <!-- How MM3 works, in the demo strip's style (same 900-unit width, ground, rule and MM3 heading): two bands, MAK³ (make, use what is proven: view, class, replay) and MDL³ (model, learn what is missing: scan, drill, loop), across the columns Know, Judge, Prove, over one ledger bar. Every element is visible by default (as in an <img>, on GitHub, in headless renders); the bands ease in once, from a visible state, only when the reader has not asked for reduced motion. -->
   <title id="t">How MM3 works</title>
-  <desc id="d">MM3, a Knowledge One system. Six verbs in two bands and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns.</desc>
+  <desc id="d">MM3: make and model. Six verbs in two bands and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns.</desc>
   <style>
     text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif}
     .col{fill:#7f93b0;font-size:12px;font-weight:700;letter-spacing:.16em}
@@ -17,8 +17,8 @@
     }
   </style>
   <rect width="900" height="520" rx="14" fill="#050914"/>
-  <text x="18" y="34" font-size="17" font-weight="700" fill="#f5f8ff">MM<tspan fill="#b7ff83">3</tspan></text>
-  <text x="882" y="34" text-anchor="end" font-size="13" font-style="italic" fill="#7f93b0">A Knowledge One system</text>
+  <text x="18" y="34" font-size="17" font-weight="700" fill="#f5f8ff"><tspan fill="#9bdcff">M</tspan><tspan fill="#b7ff83">M</tspan>3</text>
+  <text x="882" y="34" text-anchor="end" font-size="13" font-weight="700"><tspan fill="#9bdcff">MAK³ make</tspan><tspan fill="#7f93b0"> · </tspan><tspan fill="#b7ff83">MDL³ model</tspan></text>
   <line x1="0" y1="52" x2="900" y2="52" stroke="#24344f"/>
 
   <text x="166" y="90" text-anchor="middle" class="col">KNOW</text>
