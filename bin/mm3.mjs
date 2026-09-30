@@ -10055,11 +10055,12 @@ import readline from "node:readline";
 
 // src/help/guidance.ts
 var BEAT_GUIDANCE = [
-  "MM3 works in three beats; use it in every one.",
-  "- Know: `view` first (free, reuses what is known), then `scan` to find where the goal touches the code.",
-  "- Judge: `loop` the plan before code, `class` a specific decision, `drill` into anything unsure or failing (follow `next:`).",
+  "MM3 works in three beats; use it in every one. The ledger is the record of what you learned and proved.",
+  "- Know: map the codebase before the goal. `view` first (free), then `scan` or `class` its layers, tagging each request with its C4 chain (`mdl.uses`).",
+  "- Know ends with `mm3 report graph`: the map, and where the goal touches it.",
+  "- Judge: check the plan and a yes/no definition of done with MM3 before code: `loop` the plan, `class` the checks, `drill` anything unsure or failing (follow `next:`), fix, recheck.",
   "- Prove: after the change is committed, `replay --parent <id> --compare <before>..HEAD` shows what flipped to pass and what regressed; `class` alone is not proof of a change.",
-  "- Run `mm3 agent <verb>` before writing a request."
+  "- Cite the run ids behind each claim. Run `mm3 agent <verb>` before writing a request."
 ].join("\n");
 
 // src/mcp/protocol.ts

@@ -21,6 +21,17 @@ describe('BEAT_GUIDANCE', () => {
     expect(BEAT_GUIDANCE).toMatch(/`class` alone is not proof/u);
     expect(BEAT_GUIDANCE).toMatch(/mm3 agent <verb>/u);
   });
+
+  // The WordPress journey (run 3 vs runs 1-2): agents mapped the codebase and judged the plan only when told
+  // to; the guidance now says it. Know maps first, tagging C4 chains, and ends with the map; Judge checks the
+  // plan and its definition of done with MM3 and rechecks before code; every claim cites its run ids.
+  it('says to map the codebase before the goal, judge the definition of done, and cite run ids', () => {
+    expect(BEAT_GUIDANCE).toMatch(/Know:.*before the goal/u);
+    expect(BEAT_GUIDANCE).toMatch(/`mdl\.uses`/u);
+    expect(BEAT_GUIDANCE).toMatch(/`mm3 report graph`/u);
+    expect(BEAT_GUIDANCE).toMatch(/Judge:.*definition of done.*recheck/u);
+    expect(BEAT_GUIDANCE).toMatch(/[Cc]ite the run ids/u);
+  });
 });
 
 // SKILL.md drift guard: BEAT_GUIDANCE is written to be markdown-safe (a lead line plus "- " bullets, no
