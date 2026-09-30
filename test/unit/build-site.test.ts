@@ -68,16 +68,16 @@ describe('checkSite', () => {
       expect(checkSite(page, real, undefined, drifted).join('\n')).toMatch(/Limits and alternatives/);
     });
     it('fails when See it run prose or a Why paragraph drifts', () => {
-      const a = readme.replace('Each concern gets its own verdict and odds.', 'Each concern gets a verdict.');
+      const a = readme.replace('Yes, this cleanup could be faster.', 'Yes, this cleanup is slow.');
       expect(checkSite(page, real, undefined, a).join('\n')).toMatch(/See it run/);
       const b = readme.replace('each answer is untraceable and never reused', 'each answer is anonymous and never reused');
       expect(checkSite(page, real, undefined, b).join('\n')).toMatch(/Why we built it/);
     });
-    it('treats the README-only link to the site as not prose the site must carry', () => {
-      expect(readme).toContain('<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>');
-      expect(checkSite(page, real, undefined, readme)).toEqual([]);
-      const other = readme.replace('<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>', '<p align="center">Step through both stories somewhere else.</p>');
-      expect(checkSite(page, real, undefined, other).join('\n')).toMatch(/See it run/);
+    it('treats a README-only link to the site as not prose the site must carry', () => {
+      const link = '<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>';
+      const at = (line: string): string => readme.replace('\n## Two stories, step by step', `\n${line}\n\n## Two stories, step by step`); // the end of ## See it run
+      expect(checkSite(page, real, undefined, at(link))).toEqual([]);
+      expect(checkSite(page, real, undefined, at('<p align="center">Step through both stories somewhere else.</p>')).join('\n')).toMatch(/See it run/);
     });
     it('fails when a table cell or a use-case blurb drifts', () => {
       const a = readme.replace('recheck after a fix', 'recheck after any fix');

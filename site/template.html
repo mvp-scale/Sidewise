@@ -94,60 +94,20 @@
   <h2 id="run-h">See it run</h2>
 {{demo}}
   <p>Two real stories, each driven by a Haiku agent on unmodified public source: <strong>MAK³ &middot; make</strong>, &ldquo;Where do agents plug into WordPress?&rdquo; (WordPress @ 3ffb1df), and <strong>MDL³ &middot; model</strong>, &ldquo;I&rsquo;ve never worked in n8n and I want it faster&rdquo; (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run&rsquo;s own ledger row.</p>
-  <p>One step in full, from the WordPress story: the agent asked whether the Abilities API is the place to plug in. It wrote this request (34 lines, opened below) and got one answer from one call.</p>
-  <details>
-    <summary>The request the agent wrote</summary>
-    <div class="code" data-copy><pre><code>mak:
-  goal: Abilities API is the integration point for agent-driven UI components
-  depth: quick
-  where:
-    - src/wp-includes/abilities-api.php:1-150
-    - src/wp-includes/abilities.php:1-100
-  ask:
-    concerns:
-      design:
-        pass: "yes"
-        1: Does Abilities API register capabilities with input/output schemas?
-        2: Are abilities required to define permission callbacks before execution?
-        3: Can third-party code register abilities without modifying WordPress core?
-      access:
-        pass: "yes"
-        4: Is the permission_callback required for every registered ability?
-        5: Are ability schemas validated against the permission callback result?
-        6: Can an unprivileged user bypass ability permission checks via API?
-      correctness:
-        pass: "yes"
-        7: Are input parameters validated against the input_schema?
-        8: Are output values validated against the output_schema?
-        9: Does the system reject invalid inputs before executing the callback?
-    decisions:
-      aui-foundation:
-        pass: [yes]
-        10:
-          choice: Is Abilities API suitable as the foundation for AUI?
-          options: [yes, partial, no]
-      design-maturity:
-        pass: [mature]
-        11:
-          scale: How mature is the Abilities API design for agents?
-          levels: [prototype, developing, mature, stable]</code></pre></div>
-  </details>
-  <p>The response, <strong>real output &middot; jev-1.13.0 &middot; api.typesafe.ai &middot; 293 ms &middot; ~$0.00012</strong>:</p>
-  <div class="code" data-copy><pre><code>mak:
-  id: MM3-0004
-  gate: fail
-  goal: {gate: unsure, p: 0.38}
-  design: {gate: unsure, 1: 0.97, 2: 0.50, 3: 0.96}
-  access: {gate: fail, 4: 0.38, 5: 0.08, 6: 0.10}
-  correctness: {gate: pass, 7: 0.80, 8: 0.72, 9: 0.80}
-  aui-foundation: {gate: unsure, 10: {top: "yes", p: 0.45}}
-  design-maturity: {gate: unsure, 11: {top: developing, p: 0.56}}
-  consensus: SPLIT
-  escalate: true
-mdl: {recorded: none}
-next: mm3 template drill --parent MM3-0004 --from access
-notes: [cost estimated from tokens (no live pricing reported), "budget: $0.10 left of $0.10 · 26 of 30 runs left"]</code></pre></div>
-  <p>Each concern gets its own verdict and odds. Design is unsure only because question 2, whether every ability must define a permission callback, sits at 0.50, and correctness passes. Access fails: two answers are clear misses (0.08, 0.10). The goal, asked as its own question, is unsure at 0.38. One honest note: the agent wrote question 6 with its polarity backwards (it asks whether an unprivileged user <em>can</em> bypass ability permission checks, with <code>pass: "yes"</code>), so its 0.10 is actually the reassuring answer; MM3 grades what it is asked. The concerns disagree, so consensus is SPLIT, MM3 sets <code>escalate: true</code>, and <code>next:</code> names the drill into access. The agent ran that drill (MM3-0005), the last step of the story.</p>
+  <p><strong>The challenge:</strong> you host n8n yourself and want it to run faster. You ask your agent where to start. It narrows the question to one place, the node loader's cleanup in <code>directory-loader.ts</code>, and asks MM3 twelve questions about it in one call: nine yes/no, two decisions and the goal itself.</p>
+  <p>The request the agent wrote (45 lines):</p>
+  <figure class="big"><img src="example-request.svg" width="900" alt="The request the agent wrote for MM3-0008: one goal on one file, three concerns of three yes/no questions each, two decisions, and an mdl block saying why it asked."></figure>
+  <p>The response, <strong>real output · jev-1.13.0 · api.typesafe.ai · 321 ms · ~$0.000063</strong>:</p>
+  <figure class="big"><img src="example-response.svg" width="900" alt="The response to MM3-0008: the gate fails; a gate and odds per concern and decision, consensus SPLIT, escalate true, what the mdl block recorded, and the next command."></figure>
+  <ul>
+    <li>Every concern is written so that &quot;no&quot; is healthy: a <code>pass: no</code> answer clears the bar at 0.30 or below.</li>
+    <li><strong>Goal: pass</strong> (0.79). Yes, this cleanup could be faster.</li>
+    <li><strong>Availability: fail.</strong> At 0.88, the <code>realpathSync()</code> calls on line 606 block the event loop.</li>
+    <li><strong>Design: fail</strong> on all three: a rescan on every <code>unloadAll()</code> call (0.78), a try-catch that silently skips errors (0.90), and caching would help (0.84).</li>
+    <li><strong>Design-risk: unsure.</strong> None of 0.40, 0.46, 0.64 lands clearly either way.</li>
+    <li><strong>Decisions:</strong> measure first passes (0.89); severity is unsure (low, 0.56).</li>
+    <li><strong>Next:</strong> the concerns disagree, so consensus is SPLIT, <code>escalate</code> is true, and <code>next:</code> points at a drill into availability. The <code>mdl:</code> line lists what the ledger recorded about why the agent asked, so later runs on this code start from it.</li>
+  </ul>
 </section>
 
 <section class="wrap get" id="get" aria-labelledby="get-h">

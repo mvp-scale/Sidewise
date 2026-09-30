@@ -26,7 +26,7 @@ npm install -g @mvpscale/mm3
 mm3 init
 ```
 
-The npm package publishes with the first release; the plugin works today.
+**Status: beta.** Early testing has been strong, and more worked examples are coming. The plugin works today; the npm package publishes with the first release.
 
 ### Try it locally
 
@@ -36,30 +36,149 @@ Then just ask your agent. The MM3 skill tells it when to reach for MM3, which ve
 
 ## See it run
 
+**The challenge:** you host n8n yourself and want it to run faster. You ask your agent where to start. It narrows the question to one place, the node loader's cleanup in `directory-loader.ts`, and asks MM3 twelve questions about it in one call: nine yes/no, two decisions and the goal itself.
+
 <br>
 
 <p align="center"><img src="docs/assets/demo-strip-n8n.svg" width="900" alt="A real MM3 quick class run on n8n (MM3-0008). On the left, a coding agent is asked where n8n could be faster and runs one mm3 class request: 12 yes/no and decision questions, one call, 321 ms, about $0.00006, and a next move. On the right, the run's real YAML: the request opens folded (one claim, with concerns, decisions and an mdl block collapsed to fit) and a pointer unfolds each in turn; then the whole response (verdict, gates and odds per concern, consensus and the next command) and what the ledger now holds, where looking the same request up again is free."></p>
 
-<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>
-
 <br>
+
+The request the agent wrote (45 lines):
+
+<p align="center"><img src="docs/assets/example-request.svg" width="900" alt="The request the agent wrote for MM3-0008: one goal on one file, three concerns of three yes/no questions each, two decisions, and an mdl block saying why it asked."></p>
+
+The response, **real output · jev-1.13.0 · api.typesafe.ai · 321 ms · ~$0.000063**:
+
+<p align="center"><img src="docs/assets/example-response.svg" width="900" alt="The response to MM3-0008: the gate fails; a gate and odds per concern and decision, consensus SPLIT, escalate true, what the mdl block recorded, and the next command."></p>
+
+- Every concern is written so that "no" is healthy: a `pass: no` answer clears the bar at 0.30 or below.
+- **Goal: pass** (0.79). Yes, this cleanup could be faster.
+- **Availability: fail.** At 0.88, the `realpathSync()` calls on line 606 block the event loop.
+- **Design: fail** on all three: a rescan on every `unloadAll()` call (0.78), a try-catch that silently skips errors (0.90), and caching would help (0.84).
+- **Design-risk: unsure.** None of 0.40, 0.46, 0.64 lands clearly either way.
+- **Decisions:** measure first passes (0.89); severity is unsure (low, 0.56).
+- **Next:** the concerns disagree, so consensus is SPLIT, `escalate` is true, and `next:` points at a drill into availability. The `mdl:` line lists what the ledger recorded about why the agent asked, so later runs on this code start from it.
+
+## Two stories, step by step
 
 Two real stories, each driven by a Haiku agent on unmodified public source: **MAK³ · make**, “Where do agents plug into WordPress?” (WordPress @ 3ffb1df), and **MDL³ · model**, “I've never worked in n8n and I want it faster” (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run's own ledger row.
 
-One step in full, from the WordPress story: the agent asked whether the Abilities API is the place to plug in. It wrote this request (34 lines, opened below) and got one answer from one call.
+<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>
 
-<details>
-<summary>The request the agent wrote</summary>
+## Earlier runs, under the old name
 
-<p align="center"><img src="docs/assets/example-request.svg" width="900" alt="The request the agent wrote for MM3-0004: one goal, three concerns of three yes/no questions each, and two decisions."></p>
+Before MM3 it was Sidewise: `side:`/`wise:` instead of `mak:`/`mdl:`, and `SW-` run ids. These ran on OWASP NodeGoat, a deliberately vulnerable Node app the agent had never seen. Output is shown as it ran, trimmed.
 
-</details>
+**The agent calls it before it asks:**
 
-The response, **real output · jev-1.13.0 · api.typesafe.ai · 293 ms · ~$0.00012**:
+> Expected a hard "no" given the visible `eval()` call — this is textbook NodeGoat A1 SSJS injection.
 
-<p align="center"><img src="docs/assets/example-response.svg" width="900" alt="The response to MM3-0004: an overall gate, a gate and odds per concern, consensus, escalate and the next command."></p>
+**It asks.** One handler, twelve questions. The injection part:
 
-Each concern gets its own verdict and odds. Design is unsure only because question 2, whether every ability must define a permission callback, sits at 0.50, and correctness passes. Access fails: two answers are clear misses (0.08, 0.10). The goal, asked as its own question, is unsure at 0.38. One honest note: the agent wrote question 6 with its polarity backwards (it asks whether an unprivileged user *can* bypass ability permission checks, with `pass: "yes"`), so its 0.10 is actually the reassuring answer; MM3 grades what it is asked. The concerns disagree, so consensus is SPLIT, MM3 sets `escalate: true`, and `next:` names the drill into access. The agent ran that drill (MM3-0005), the last step of the story.
+```yaml
+side:
+  goal: The contribution handler in `app/routes/contributions.js` is safe to merge as it stands
+  where: [stage/NodeGoat/app/routes/contributions.js]
+  ask:
+    concerns:
+      injection:
+        pass: no
+        1: Does `handleContributionsUpdate` pass `req.body` values into `eval`?
+        2: Can a request field reach code execution instead of only being parsed as a number?
+        3: Does `handleContributionsUpdate` run `eval` before any validation of the value?
+```
+
+**The guess holds:**
+
+```yaml
+side:
+  id: SW-0001
+  gate: fail
+  injection: {gate: fail, 1: 0.99, 2: 0.95, 3: 0.98}
+  severity: {gate: fail, 10: {top: critical, p: 0.94}}
+  route: {gate: fail, 11: {top: fix, p: 0.74}}
+next: sidewise template drill --parent SW-0001 --from injection
+```
+
+**It drills, then fixes.** The drill (SW-0004) confirms all three fields reach `eval`. The fix:
+
+```diff
+-        const preTax = eval(req.body.preTax);
+-        const afterTax = eval(req.body.afterTax);
+-        const roth = eval(req.body.roth);
++        const preTax = parseInt(req.body.preTax, 10);
++        const afterTax = parseInt(req.body.afterTax, 10);
++        const roth = parseInt(req.body.roth, 10);
+```
+
+**It proves the fix.** Same questions, before and after the commit:
+
+```yaml
+side:
+  parent: SW-0004
+  compare: {before: c5cb68a, after: 9292b00}
+  expect: [sink, guard]
+```
+
+```yaml
+side:
+  id: SW-0005
+  sink: {before: fail, after: pass, fixed: [7, 8, 9]}
+  guard: {before: fail, after: fail, fixed: [4], still: [5, 6]}
+  expected: {fixed: [sink], still: [guard]}
+  unexpected: [reach]
+  regressed: []
+  reused: [SW-0001, SW-0004]
+```
+
+The `eval` is gone. `guard` still fails: nothing limits the fields to digits, so `parseInt("5abc")` still reads 5. The "before" answers came straight from the ledger; only the new code cost a call.
+
+This verb started out as `change`. We expected a diff between two answers. It turned out to be a replay, the same questions on the new code, and it worked better than planned.
+
+**Then it went wide.** One run per piece of a C4 map: the web app, its router, each handler and its DAO, MongoDB. Each run records where it sits, so the ledger ends up holding the architecture, and every edge cites the runs behind it:
+
+```text
+$ sidewise report graph container:mongodb
+container:web-app --uses--> container:mongodb (declared) [SW-0016]
+component:web-app/user-dao --uses (×3)--> container:mongodb (declared) [SW-0016, SW-0019, SW-0027]
+component:web-app/allocations-dao --uses (×3)--> container:mongodb (declared) [SW-0017, SW-0022, SW-0026]
+person:employee --uses--> container:web-app (declared) [SW-0016]
+… 35 more not shown
+```
+
+**Replay snaps onto any piece of that map.** From an earlier round, still under the old verb name: a rename refactor in the memos handler, re-checked on just that slice, api → memos handler → memos DAO → db:
+
+```yaml
+side:
+  verb: change
+  parent: SW-0013
+  compare: {before: e84b740, after: 8d6fe24}
+  expect: [output]
+wise:
+  change: refactor
+  nodes: container:api -> component:memos-handler -> component:memos-dao -> container:db
+```
+
+```yaml
+side:
+  id: SW-0014
+  output: {before: fail, after: fail, still: [1, 2, 3]}
+  correctness: {before: pass, after: pass}
+  expected: {fixed: [], still: [output]}
+  regressed: []
+  reused: [SW-0013]
+```
+
+The refactor broke nothing, and the known output issue is still open. That's a code review for one component, from the ledger, for one call.
+
+**What the agent built from it.** Asked to keep notes, it wrote:
+
+- `MENTAL-MODEL.md`: what it believed about the tool before using it, each belief later marked confirmed or "too narrow".
+- `OUTCOMES.md`: it overruled its own runs. "The weakness is in my questions, not the classifier."
+- A ledger atlas: the C4 map, health per layer and ranked findings, each citing its runs. "Passwords are stored and compared as plain text" cites SW-0008 and SW-0027; "Allocations trusts the URL and builds a query from user text" cites SW-0026. The agent was upfront that only the findings and the map came from the ledger; the fix plan was its own read of the code.
+
+**One agent, one codebase it had never seen, one hour:** every route checked, the worst hole fixed and proved fixed, the architecture mapped from evidence, and any piece of it re-checkable with one call. 27 runs, 238 ms per call on average, $0.0027 in total.
 
 ## By the numbers
 

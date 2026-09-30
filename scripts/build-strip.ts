@@ -16,7 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parse } from 'yaml';
-import { askTexts, extractScene, fmtCost, loadScenes, sceneLabel, scrubPaths, type AskRow, type Scene } from './build-demo.ts';
+import { askTexts, extractScene, fmtCost, sceneLabel, scrubPaths, type AskRow, type Scene } from './build-demo.ts';
 
 export const STRIP_W = 900;
 const SPLIT = 250; // the one divider; the left column (terminal + value panel) is 250 px
@@ -561,14 +561,12 @@ export function codeCard(yaml: string, label: string, aria: string): string {
   ].join('\n');
 }
 
-/** The README's worked example (the WordPress story's MM3-0004): its request and response as code cards, from the committed scenes. */
-export const EXAMPLE_ID = 'MM3-0004';
-export function exampleCards(scenes: Scene[] = loadScenes()): { request: string; response: string } {
-  const s = scenes.find((x) => x.id === EXAMPLE_ID && x.story === 'mak');
-  if (!s) throw new Error(`✖ cards: no ${EXAMPLE_ID} in the mak story → rerun tsx scripts/build-demo.ts extract`);
+/** The README's worked example: the strip's own run, its request and response as code cards, from the committed strip scene. */
+export function exampleCards(s: Scene = stripScene()): { request: string; response: string } {
+  const n = s.request.trimEnd().split('\n').length;
   return {
-    request: codeCard(s.request, `request · ${s.request.trimEnd().split('\n').length} lines`, `The request the agent wrote for ${s.id}: one goal, three concerns of three yes/no questions each, and two decisions.`),
-    response: codeCard(s.response, sceneLabel(s), `The response to ${s.id}: an overall gate, a gate and odds per concern, consensus, escalate and the next command.`),
+    request: codeCard(s.request, `request · ${n} lines`, `The request the agent wrote for ${s.id}: one goal on one file, three concerns of three yes/no questions each, two decisions, and an mdl block saying why it asked.`),
+    response: codeCard(s.response, sceneLabel(s), `The response to ${s.id}: the gate fails; a gate and odds per concern and decision, consensus SPLIT, escalate true, what the mdl block recorded, and the next command.`),
   };
 }
 
@@ -648,6 +646,6 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const cards = exampleCards();
     writeFileSync('docs/assets/example-request.svg', cards.request + '\n');
     writeFileSync('docs/assets/example-response.svg', cards.response + '\n');
-    console.log(`cards: docs/assets/example-request.svg, docs/assets/example-response.svg (${EXAMPLE_ID}, from docs/demo/scenes)`);
+    console.log(`cards: docs/assets/example-request.svg, docs/assets/example-response.svg (from ${STRIP_SCENE})`);
   }
 }

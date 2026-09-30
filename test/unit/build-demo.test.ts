@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { extractScene, fmtCost, goalChip, highlightYaml, inferDecision, loadScenes, loadStories, renderDecision, renderKnowledge, renderPlayer, renderScene, renderVerdict, sceneFooter, sceneLabel, scrubKickoff, scrubPaths, stagePage, type Scene } from '../../scripts/build-demo.ts';
 import { buildSite } from '../../scripts/build-site.ts';
 import { checkDemo } from '../../scripts/check-readme.ts';
+import { stripScene } from '../../scripts/build-strip.ts';
 
 const response = `mak:
   id: MM3-0009
@@ -312,12 +313,13 @@ describe('checkDemo', () => {
   });
   it('fails when the README drops a card, or the label drifts from its scene', () => {
     const a = readme.replace('src="docs/assets/example-request.svg"', 'src="docs/assets/other.svg"');
-    expect(checkDemo(page(), a, scenes).join('\n')).toMatch(/README request MM3-0004: no docs\/assets\/example-request\.svg/);
-    const b = readme.replace('293 ms', '999 ms');
+    expect(checkDemo(page(), a, scenes).join('\n')).toMatch(/README request MM3-0008: no docs\/assets\/example-request\.svg/);
+    const b = readme.replace('321 ms · ~$0.000063', '999 ms · ~$0.000063');
     expect(checkDemo(page(), b, scenes).join('\n')).toMatch(/label/);
   });
   it('fails when a committed card differs from what its scene builds', () => {
-    const drifted = scenes.map((s) => (s.id === 'MM3-0004' && s.story === 'mak' ? { ...s, response: s.response.replace('escalate: true', 'escalate: false') } : s));
-    expect(checkDemo(page(), readme, drifted).join('\n')).toMatch(/README response MM3-0004: docs\/assets\/example-response\.svg differs/);
+    const ex = stripScene();
+    const drifted = { ...ex, response: ex.response.replace('escalate: true', 'escalate: false') };
+    expect(checkDemo(page(), readme, scenes, drifted).join('\n')).toMatch(/README response MM3-0008: docs\/assets\/example-response\.svg differs/);
   });
 });

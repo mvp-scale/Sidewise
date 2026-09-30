@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { loadScenes, sceneFooter, sceneLabel, type Scene } from './build-demo.ts';
 import { buildSite, esc, methodUrl, VERB_BLURBS } from './build-site.ts';
-import { EXAMPLE_ID, exampleCards } from './build-strip.ts';
+import { exampleCards, stripScene } from './build-strip.ts';
 import { loadStory, type Story } from './story.ts';
 
 export { loadStory };
@@ -72,7 +72,11 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
   for (const m of md.matchAll(/(?:\]\(|src="|srcset=")((?!https?:|#|mailto:)[^)"\s#]+)/g)) {
     if (!existsSync(path.join(opts.root, m[1]!))) out.push(`✖ link: ${m[1]} does not exist → fix the path`);
   }
-  lines.forEach((l, i) => { if (OLD.test(l)) out.push(`✖ old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
+  let past = false; // ## Earlier runs shows runs from before the rename, as they ran
+  lines.forEach((l, i) => {
+    if (l.startsWith('## ')) past = l.startsWith('## Earlier runs');
+    if (!past && OLD.test(l)) out.push(`✖ old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`);
+  });
   const badges = md.match(/img\.shields\.io|badge\.svg/g)?.length ?? 0;
   if (badges > 4) out.push(`✖ badge: ${badges} badges → keep 4 or fewer`);
   if (opts.published === false && /shields\.io\/npm\//.test(md)) out.push('✖ badge: npm badge for an unpublished package → remove it until the first publish');
@@ -110,8 +114,8 @@ function siteText(html: string): string {
   return squash(bare.replace(/&#(\d+);/g, (_m, n: string) => String.fromCharCode(+n)).replace(/&(\w+);/g, (m, k: string) => ENTITIES[k] ?? m));
 }
 const plain = (md: string): string => squash(md.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/`/g, ''));
-/** The demo player's drift check: each scene's footer is on the site; the README shows the worked example's request and response cards, each committed card is what the scene builds today, and the response's label (model, endpoint, latency, cost) is in the text. */
-export function checkDemo(html: string, readme: string | undefined, scenes: Scene[]): string[] {
+/** The demo player's drift check: each scene's footer is on the site; the README shows the strip run's request and response cards, each committed card is what the strip scene builds today, and the response's label (model, endpoint, latency, cost) is in the text. */
+export function checkDemo(html: string, readme: string | undefined, scenes: Scene[], example: Scene = stripScene()): string[] {
   const out: string[] = [];
   if (!scenes.length) return ['✖ demo: no scenes in docs/demo/scenes/ → run tsx scripts/build-demo.ts extract'];
   const text = siteText(html);
@@ -120,13 +124,12 @@ export function checkDemo(html: string, readme: string | undefined, scenes: Scen
     if (!text.includes(squash(footer))) out.push(`✖ site demo ${s.id}: footer "${footer}" is not in site/dist/index.html → rebuild the site from docs/demo/scenes (npm run build:site)`);
   }
   if (readme === undefined) return out;
-  const s = scenes.find((x) => x.id === EXAMPLE_ID && x.story === 'mak');
-  if (!s) return [...out, `✖ README example: no ${EXAMPLE_ID} in the mak story → rerun tsx scripts/build-demo.ts extract`];
-  const cards = exampleCards(scenes);
+  const s = example;
+  const cards = exampleCards(s);
   for (const k of ['request', 'response'] as const) {
     const file = `docs/assets/example-${k}.svg`;
     if (!readme.includes(`src="${file}"`)) out.push(`✖ README ${k} ${s.id}: no ${file} in ## See it run → show the ${k} card`);
-    if (!existsSync(file) || readFileSync(file, 'utf8').trimEnd() !== cards[k]) out.push(`✖ README ${k} ${s.id}: ${file} differs from docs/demo/scenes → run tsx scripts/build-strip.ts`);
+    if (!existsSync(file) || readFileSync(file, 'utf8').trimEnd() !== cards[k]) out.push(`✖ README ${k} ${s.id}: ${file} differs from docs/demo/scenes/strip-n8n.json → run tsx scripts/build-strip.ts`);
   }
   if (!plain(readme).includes(sceneLabel(s))) out.push(`✖ README response ${s.id}: label "${sceneLabel(s)}" is not in the README → copy it from the scene footer`);
   return out;

@@ -1,42 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="900" height="636" viewBox="0 0 900 636" role="img" aria-label="The request the agent wrote for MM3-0004: one goal, three concerns of three yes/no questions each, and two decisions.">
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="812" viewBox="0 0 900 812" role="img" aria-label="The request the agent wrote for MM3-0008: one goal on one file, three concerns of three yes/no questions each, two decisions, and an mdl block saying why it asked.">
 <style>svg{font-family:ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace}text{white-space:pre}</style>
-<rect width="900" height="636" rx="14" fill="#050914"/>
+<rect width="900" height="812" rx="14" fill="#050914"/>
 <text x="18" y="34" font-size="17" font-weight="700" font-family="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#f5f8ff">MM<tspan fill="#b7ff83">3</tspan></text>
-<text x="882" y="34" text-anchor="end" font-size="12.5" font-family="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#7f93b0">request · 34 lines</text>
+<text x="882" y="34" text-anchor="end" font-size="12.5" font-family="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#7f93b0">request · 45 lines</text>
 <line x1="0" y1="52" x2="900" y2="52" stroke="#24344f"/>
 <text x="26" y="82" font-size="12" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
-<text x="26" y="98" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: Abilities API is the integration point for agent-driven UI components</text>
+<text x="26" y="98" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: Could symlink resolution and require-cache cleanup during unloadAll() be faster?</text>
 <text x="26" y="114" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">depth</tspan>: quick</text>
 <text x="26" y="130" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">where</tspan>:</text>
-<text x="26" y="146" font-size="12" fill="#e6edf7" xml:space="preserve">    - src/wp-includes/abilities-api.php:1-150</text>
-<text x="26" y="162" font-size="12" fill="#e6edf7" xml:space="preserve">    - src/wp-includes/abilities.php:1-100</text>
-<text x="26" y="178" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">ask</tspan>:</text>
-<text x="26" y="194" font-size="12" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">concerns</tspan>:</text>
-<text x="26" y="210" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">design</tspan>:</text>
-<text x="26" y="226" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: &quot;yes&quot;</text>
-<text x="26" y="242" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">1</tspan>: Does Abilities API register capabilities with input/output schemas?</text>
-<text x="26" y="258" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">2</tspan>: Are abilities required to define permission callbacks before execution?</text>
-<text x="26" y="274" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">3</tspan>: Can third-party code register abilities without modifying WordPress core?</text>
-<text x="26" y="290" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">access</tspan>:</text>
-<text x="26" y="306" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: &quot;yes&quot;</text>
-<text x="26" y="322" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">4</tspan>: Is the permission_callback required for every registered ability?</text>
-<text x="26" y="338" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">5</tspan>: Are ability schemas validated against the permission callback result?</text>
-<text x="26" y="354" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">6</tspan>: Can an unprivileged user bypass ability permission checks via API?</text>
-<text x="26" y="370" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">correctness</tspan>:</text>
-<text x="26" y="386" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: &quot;yes&quot;</text>
-<text x="26" y="402" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">7</tspan>: Are input parameters validated against the input_schema?</text>
-<text x="26" y="418" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">8</tspan>: Are output values validated against the output_schema?</text>
-<text x="26" y="434" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">9</tspan>: Does the system reject invalid inputs before executing the callback?</text>
-<text x="26" y="450" font-size="12" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">decisions</tspan>:</text>
-<text x="26" y="466" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">aui-foundation</tspan>:</text>
-<text x="26" y="482" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: [yes]</text>
-<text x="26" y="498" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">10</tspan>:</text>
-<text x="26" y="514" font-size="12" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">choice</tspan>: Is Abilities API suitable as the foundation for AUI?</text>
-<text x="26" y="530" font-size="12" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">options</tspan>: [yes, partial, no]</text>
-<text x="26" y="546" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">design-maturity</tspan>:</text>
-<text x="26" y="562" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: [mature]</text>
-<text x="26" y="578" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">11</tspan>:</text>
-<text x="26" y="594" font-size="12" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">scale</tspan>: How mature is the Abilities API design for agents?</text>
-<text x="26" y="610" font-size="12" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">levels</tspan>: [prototype, developing, mature, stable]</text>
-<rect x=".5" y=".5" width="899" height="635" rx="14" fill="none" stroke="#24344f"/>
+<text x="26" y="146" font-size="12" fill="#e6edf7" xml:space="preserve">    - packages/core/src/nodes-loader/directory-loader.ts:533-611</text>
+<text x="26" y="162" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">ask</tspan>:</text>
+<text x="26" y="178" font-size="12" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">concerns</tspan>:</text>
+<text x="26" y="194" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">availability</tspan>:</text>
+<text x="26" y="210" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: no</text>
+<text x="26" y="226" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">need</tspan>: most</text>
+<text x="26" y="242" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">1</tspan>: Are synchronous realpathSync() calls on line 606 blocking the event loop during unloadAll()?</text>
+<text x="26" y="258" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">2</tspan>: Does the require.cache filter on line 539 iterate all keys for each root, creating O(n*m) complexity?</text>
+<text x="26" y="274" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">3</tspan>: Could scoped packages in resolveSymlinkedRoots() be scanned more efficiently on line 582-601?</text>
+<text x="26" y="290" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">design</tspan>:</text>
+<text x="26" y="306" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: no</text>
+<text x="26" y="322" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">need</tspan>: most</text>
+<text x="26" y="338" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">4</tspan>: Are readdirSync() results ephemeral, requiring re-scanning for each unloadAll() call?</text>
+<text x="26" y="354" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">5</tspan>: Does the try-catch on line 554 silently skip errors that indicate broken symlinks or access issues?</text>
+<text x="26" y="370" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">6</tspan>: Could caching symlink results reduce filesystem pressure between dev rebuilds?</text>
+<text x="26" y="386" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">design-risk</tspan>:</text>
+<text x="26" y="402" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: no</text>
+<text x="26" y="418" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">7</tspan>: When require.cache has thousands of entries, does the filter operation cause measurable startup lag?</text>
+<text x="26" y="434" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">8</tspan>: Would batching readdirSync() calls reduce filesystem syscalls during node reload cycles?</text>
+<text x="26" y="450" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">9</tspan>: During community node development, are repeated unloadAll() scans causing cumulative slowdown?</text>
+<text x="26" y="466" font-size="12" fill="#e6edf7" xml:space="preserve">    <tspan fill="#9bdcff">decisions</tspan>:</text>
+<text x="26" y="482" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">severity</tspan>:</text>
+<text x="26" y="498" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: [none, low]</text>
+<text x="26" y="514" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">10</tspan>:</text>
+<text x="26" y="530" font-size="12" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">scale</tspan>: How severe would a 10-100ms improvement in node loading be for your use case?</text>
+<text x="26" y="546" font-size="12" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">levels</tspan>: [none, low, medium, high, critical]</text>
+<text x="26" y="562" font-size="12" fill="#e6edf7" xml:space="preserve">      <tspan fill="#9bdcff">action</tspan>:</text>
+<text x="26" y="578" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#9bdcff">pass</tspan>: [measure]</text>
+<text x="26" y="594" font-size="12" fill="#e6edf7" xml:space="preserve">        <tspan fill="#ffcd57">11</tspan>:</text>
+<text x="26" y="610" font-size="12" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">choice</tspan>: What should come next?</text>
+<text x="26" y="626" font-size="12" fill="#e6edf7" xml:space="preserve">          <tspan fill="#9bdcff">options</tspan>: [measure, optimize, defer]</text>
+<text x="26" y="642" font-size="12" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>:</text>
+<text x="26" y="658" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">why</tspan>: find</text>
+<text x="26" y="674" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">area</tspan>: [build, hosting]</text>
+<text x="26" y="690" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">stage</tspan>: operate</text>
+<text x="26" y="706" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">problem</tspan>: n8n startup scans node_modules and require.cache with sync FS calls; can this be faster?</text>
+<text x="26" y="722" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">uses</tspan>:</text>
+<text x="26" y="738" font-size="12" fill="#e6edf7" xml:space="preserve">    - component:core/nodes-loader -&gt; component:core/unloadAll</text>
+<text x="26" y="754" font-size="12" fill="#e6edf7" xml:space="preserve">    - code:getSymlinkedPackageRoots -&gt; code:readdirSync</text>
+<text x="26" y="770" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">blast</tspan>: container</text>
+<text x="26" y="786" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">touches</tspan>: [require.cache, node_modules, symlinked packages]</text>
+<rect x=".5" y=".5" width="899" height="811" rx="14" fill="none" stroke="#24344f"/>
 </svg>
