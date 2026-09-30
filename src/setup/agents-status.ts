@@ -11,7 +11,7 @@ import path from 'node:path';
 import type { Mm3Paths } from '../ledger/paths.ts';
 import { AGENTS_FILE, CLAUDE_FILES, findBlock, importsAgents } from './agents-file.ts';
 
-export type AgentsState = 'ok' | 'claude-md-no-import' | 'no-block';
+type AgentsState = 'ok' | 'claude-md-no-import' | 'no-block';
 export const AGENTS_NOTE_MARKER = 'agents-note-shown';
 
 const read = (file: string): string | undefined => (existsSync(file) ? readFileSync(file, 'utf8') : undefined);
@@ -27,7 +27,7 @@ export function agentsState(root: string): AgentsState {
 }
 
 /** The fix text for a state that is not ok (no "agents: " prefix: doctor's field and the note each add their own). */
-export const AGENTS_FIX: Record<Exclude<AgentsState, 'ok'>, string> = {
+const AGENTS_FIX: Record<Exclude<AgentsState, 'ok'>, string> = {
   'claude-md-no-import': 'Claude reads CLAUDE.md, not AGENTS.md → add the line @AGENTS.md to CLAUDE.md (or run mm3 init --agents)',
   'no-block': 'no MM3 guidance in AGENTS.md → mm3 init --agents adds it (shows the lines first)',
 };

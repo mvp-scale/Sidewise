@@ -9,8 +9,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { BEAT_GUIDANCE } from '../help/guidance.ts';
 
-export const AGENTS_OPEN = '<!-- mm3:agents -->';
-export const AGENTS_CLOSE = '<!-- /mm3:agents -->';
+const AGENTS_OPEN = '<!-- mm3:agents -->';
+const AGENTS_CLOSE = '<!-- /mm3:agents -->';
 export const AGENTS_FILE = 'AGENTS.md';
 /** The Claude Code memory files that may need to import AGENTS.md, with the import line each one takes. */
 export const CLAUDE_FILES = [
@@ -23,7 +23,7 @@ export const agentsBlock = (): string => `${AGENTS_OPEN}\n${BEAT_GUIDANCE}\n${AG
 /** A line that is exactly `@AGENTS.md` or `@../AGENTS.md` once trimmed. */
 export const importsAgents = (text: string): boolean => text.split('\n').some((l) => l.trim() === '@AGENTS.md' || l.trim() === '@../AGENTS.md');
 
-export type BlockSpan = { start: number; end: number } | 'none' | 'broken';
+type BlockSpan = { start: number; end: number } | 'none' | 'broken';
 
 /** Where the first marked block sits (end is just past the closing marker), none, or a marker without its pair. */
 export function findBlock(text: string): BlockSpan {
@@ -34,7 +34,7 @@ export function findBlock(text: string): BlockSpan {
   return { start: open, end: close + AGENTS_CLOSE.length };
 }
 
-export interface AgentsEdit {
+interface AgentsEdit {
   file: string; // relative to the project root
   verb: 'create' | 'update the mm3 block in' | 'append to';
   /** The exact lines this edit adds or replaces (shown to the user before anything is written). */
@@ -45,7 +45,7 @@ export interface AgentsEdit {
   done: string;
 }
 
-export interface AgentsPlan {
+interface AgentsPlan {
   edits: AgentsEdit[];
   /** A file that can't be edited safely, with the fix; when set, nothing is written. */
   problem?: string;
