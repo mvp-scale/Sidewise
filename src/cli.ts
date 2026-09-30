@@ -49,6 +49,7 @@ import { HELP_EXTRAS, HELP_TOPICS, runHelp } from './help/index.ts';
 import { VERBS } from './contract/types.ts';
 import { resolveMcpActor } from './mcp/actor.ts';
 import { nodeVersionStop } from './util/node-version.ts';
+import { pluginCommit } from './util/plugin-build.ts';
 import { clip, hasControlChars } from './util/text.ts';
 
 // This package's own root directory (one level above dist/cli.js, or src/cli.ts in dev): init passes it to
@@ -246,7 +247,10 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   const [command = '', ...rest] = argv;
   if (command === '') return finish(2, USAGE);
   if (command === '--help' || command === '-h') return finish(0, USAGE);
-  if (command === '--version' || command === '-v') return finish(0, ctx.pkg.version);
+  if (command === '--version' || command === '-v') {
+    const commit = pluginCommit(ctx.packageDir, ctx.homeDir, ctx.env);
+    return finish(0, commit ? `${ctx.pkg.version} (plugin ${commit})` : ctx.pkg.version);
+  }
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith('-') && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);

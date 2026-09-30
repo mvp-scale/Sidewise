@@ -114,17 +114,17 @@ var require_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    function visit_(key2, node, visitor, path22) {
-      const ctrl = callVisitor(key2, node, visitor, path22);
+    function visit_(key2, node, visitor, path23) {
+      const ctrl = callVisitor(key2, node, visitor, path23);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key2, path22, ctrl);
-        return visit_(key2, ctrl, visitor, path22);
+        replaceNode(key2, path23, ctrl);
+        return visit_(key2, ctrl, visitor, path23);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path22 = Object.freeze(path22.concat(node));
+          path23 = Object.freeze(path23.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = visit_(i, node.items[i], visitor, path22);
+            const ci = visit_(i, node.items[i], visitor, path23);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -135,13 +135,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path22 = Object.freeze(path22.concat(node));
-          const ck = visit_("key", node.key, visitor, path22);
+          path23 = Object.freeze(path23.concat(node));
+          const ck = visit_("key", node.key, visitor, path23);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = visit_("value", node.value, visitor, path22);
+          const cv = visit_("value", node.value, visitor, path23);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -162,17 +162,17 @@ var require_visit = __commonJS({
     visitAsync.BREAK = BREAK;
     visitAsync.SKIP = SKIP;
     visitAsync.REMOVE = REMOVE;
-    async function visitAsync_(key2, node, visitor, path22) {
-      const ctrl = await callVisitor(key2, node, visitor, path22);
+    async function visitAsync_(key2, node, visitor, path23) {
+      const ctrl = await callVisitor(key2, node, visitor, path23);
       if (identity.isNode(ctrl) || identity.isPair(ctrl)) {
-        replaceNode(key2, path22, ctrl);
-        return visitAsync_(key2, ctrl, visitor, path22);
+        replaceNode(key2, path23, ctrl);
+        return visitAsync_(key2, ctrl, visitor, path23);
       }
       if (typeof ctrl !== "symbol") {
         if (identity.isCollection(node)) {
-          path22 = Object.freeze(path22.concat(node));
+          path23 = Object.freeze(path23.concat(node));
           for (let i = 0; i < node.items.length; ++i) {
-            const ci = await visitAsync_(i, node.items[i], visitor, path22);
+            const ci = await visitAsync_(i, node.items[i], visitor, path23);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -183,13 +183,13 @@ var require_visit = __commonJS({
             }
           }
         } else if (identity.isPair(node)) {
-          path22 = Object.freeze(path22.concat(node));
-          const ck = await visitAsync_("key", node.key, visitor, path22);
+          path23 = Object.freeze(path23.concat(node));
+          const ck = await visitAsync_("key", node.key, visitor, path23);
           if (ck === BREAK)
             return BREAK;
           else if (ck === REMOVE)
             node.key = null;
-          const cv = await visitAsync_("value", node.value, visitor, path22);
+          const cv = await visitAsync_("value", node.value, visitor, path23);
           if (cv === BREAK)
             return BREAK;
           else if (cv === REMOVE)
@@ -216,23 +216,23 @@ var require_visit = __commonJS({
       }
       return visitor;
     }
-    function callVisitor(key2, node, visitor, path22) {
+    function callVisitor(key2, node, visitor, path23) {
       if (typeof visitor === "function")
-        return visitor(key2, node, path22);
+        return visitor(key2, node, path23);
       if (identity.isMap(node))
-        return visitor.Map?.(key2, node, path22);
+        return visitor.Map?.(key2, node, path23);
       if (identity.isSeq(node))
-        return visitor.Seq?.(key2, node, path22);
+        return visitor.Seq?.(key2, node, path23);
       if (identity.isPair(node))
-        return visitor.Pair?.(key2, node, path22);
+        return visitor.Pair?.(key2, node, path23);
       if (identity.isScalar(node))
-        return visitor.Scalar?.(key2, node, path22);
+        return visitor.Scalar?.(key2, node, path23);
       if (identity.isAlias(node))
-        return visitor.Alias?.(key2, node, path22);
+        return visitor.Alias?.(key2, node, path23);
       return void 0;
     }
-    function replaceNode(key2, path22, node) {
-      const parent = path22[path22.length - 1];
+    function replaceNode(key2, path23, node) {
+      const parent = path23[path23.length - 1];
       if (identity.isCollection(parent)) {
         parent.items[key2] = node;
       } else if (identity.isPair(parent)) {
@@ -844,10 +844,10 @@ var require_Collection = __commonJS({
     var createNode = require_createNode();
     var identity = require_identity();
     var Node = require_Node();
-    function collectionFromPath(schema, path22, value) {
+    function collectionFromPath(schema, path23, value) {
       let v = value;
-      for (let i = path22.length - 1; i >= 0; --i) {
-        const k = path22[i];
+      for (let i = path23.length - 1; i >= 0; --i) {
+        const k = path23[i];
         if (typeof k === "number" && Number.isInteger(k) && k >= 0) {
           const a = [];
           a[k] = v;
@@ -866,7 +866,7 @@ var require_Collection = __commonJS({
         sourceObjects: /* @__PURE__ */ new Map()
       });
     }
-    var isEmptyPath = (path22) => path22 == null || typeof path22 === "object" && !!path22[Symbol.iterator]().next().done;
+    var isEmptyPath = (path23) => path23 == null || typeof path23 === "object" && !!path23[Symbol.iterator]().next().done;
     var Collection = class extends Node.NodeBase {
       constructor(type, schema) {
         super(type);
@@ -896,11 +896,11 @@ var require_Collection = __commonJS({
        * be a Pair instance or a `{ key, value }` object, which may not have a key
        * that already exists in the map.
        */
-      addIn(path22, value) {
-        if (isEmptyPath(path22))
+      addIn(path23, value) {
+        if (isEmptyPath(path23))
           this.add(value);
         else {
-          const [key2, ...rest] = path22;
+          const [key2, ...rest] = path23;
           const node = this.get(key2, true);
           if (identity.isCollection(node))
             node.addIn(rest, value);
@@ -914,8 +914,8 @@ var require_Collection = __commonJS({
        * Removes a value from the collection.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path22) {
-        const [key2, ...rest] = path22;
+      deleteIn(path23) {
+        const [key2, ...rest] = path23;
         if (rest.length === 0)
           return this.delete(key2);
         const node = this.get(key2, true);
@@ -929,8 +929,8 @@ var require_Collection = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path22, keepScalar) {
-        const [key2, ...rest] = path22;
+      getIn(path23, keepScalar) {
+        const [key2, ...rest] = path23;
         const node = this.get(key2, true);
         if (rest.length === 0)
           return !keepScalar && identity.isScalar(node) ? node.value : node;
@@ -948,8 +948,8 @@ var require_Collection = __commonJS({
       /**
        * Checks if the collection includes a value with the key `key`.
        */
-      hasIn(path22) {
-        const [key2, ...rest] = path22;
+      hasIn(path23) {
+        const [key2, ...rest] = path23;
         if (rest.length === 0)
           return this.has(key2);
         const node = this.get(key2, true);
@@ -959,8 +959,8 @@ var require_Collection = __commonJS({
        * Sets a value in this collection. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path22, value) {
-        const [key2, ...rest] = path22;
+      setIn(path23, value) {
+        const [key2, ...rest] = path23;
         if (rest.length === 0) {
           this.set(key2, value);
         } else {
@@ -3475,9 +3475,9 @@ var require_Document = __commonJS({
           this.contents.add(value);
       }
       /** Adds a value to the document. */
-      addIn(path22, value) {
+      addIn(path23, value) {
         if (assertCollection(this.contents))
-          this.contents.addIn(path22, value);
+          this.contents.addIn(path23, value);
       }
       /**
        * Create a new `Alias` node, ensuring that the target `node` has the required anchor.
@@ -3552,14 +3552,14 @@ var require_Document = __commonJS({
        * Removes a value from the document.
        * @returns `true` if the item was found and removed.
        */
-      deleteIn(path22) {
-        if (Collection.isEmptyPath(path22)) {
+      deleteIn(path23) {
+        if (Collection.isEmptyPath(path23)) {
           if (this.contents == null)
             return false;
           this.contents = null;
           return true;
         }
-        return assertCollection(this.contents) ? this.contents.deleteIn(path22) : false;
+        return assertCollection(this.contents) ? this.contents.deleteIn(path23) : false;
       }
       /**
        * Returns item at `key`, or `undefined` if not found. By default unwraps
@@ -3574,10 +3574,10 @@ var require_Document = __commonJS({
        * scalar values from their surrounding node; to disable set `keepScalar` to
        * `true` (collections are always returned intact).
        */
-      getIn(path22, keepScalar) {
-        if (Collection.isEmptyPath(path22))
+      getIn(path23, keepScalar) {
+        if (Collection.isEmptyPath(path23))
           return !keepScalar && identity.isScalar(this.contents) ? this.contents.value : this.contents;
-        return identity.isCollection(this.contents) ? this.contents.getIn(path22, keepScalar) : void 0;
+        return identity.isCollection(this.contents) ? this.contents.getIn(path23, keepScalar) : void 0;
       }
       /**
        * Checks if the document includes a value with the key `key`.
@@ -3588,10 +3588,10 @@ var require_Document = __commonJS({
       /**
        * Checks if the document includes a value at `path`.
        */
-      hasIn(path22) {
-        if (Collection.isEmptyPath(path22))
+      hasIn(path23) {
+        if (Collection.isEmptyPath(path23))
           return this.contents !== void 0;
-        return identity.isCollection(this.contents) ? this.contents.hasIn(path22) : false;
+        return identity.isCollection(this.contents) ? this.contents.hasIn(path23) : false;
       }
       /**
        * Sets a value in this document. For `!!set`, `value` needs to be a
@@ -3608,13 +3608,13 @@ var require_Document = __commonJS({
        * Sets a value in this document. For `!!set`, `value` needs to be a
        * boolean to add/remove the item from the set.
        */
-      setIn(path22, value) {
-        if (Collection.isEmptyPath(path22)) {
+      setIn(path23, value) {
+        if (Collection.isEmptyPath(path23)) {
           this.contents = value;
         } else if (this.contents == null) {
-          this.contents = Collection.collectionFromPath(this.schema, Array.from(path22), value);
+          this.contents = Collection.collectionFromPath(this.schema, Array.from(path23), value);
         } else if (assertCollection(this.contents)) {
-          this.contents.setIn(path22, value);
+          this.contents.setIn(path23, value);
         }
       }
       /**
@@ -5575,9 +5575,9 @@ var require_cst_visit = __commonJS({
     visit.BREAK = BREAK;
     visit.SKIP = SKIP;
     visit.REMOVE = REMOVE;
-    visit.itemAtPath = (cst, path22) => {
+    visit.itemAtPath = (cst, path23) => {
       let item = cst;
-      for (const [field, index] of path22) {
+      for (const [field, index] of path23) {
         const tok = item?.[field];
         if (tok && "items" in tok) {
           item = tok.items[index];
@@ -5586,23 +5586,23 @@ var require_cst_visit = __commonJS({
       }
       return item;
     };
-    visit.parentCollection = (cst, path22) => {
-      const parent = visit.itemAtPath(cst, path22.slice(0, -1));
-      const field = path22[path22.length - 1][0];
+    visit.parentCollection = (cst, path23) => {
+      const parent = visit.itemAtPath(cst, path23.slice(0, -1));
+      const field = path23[path23.length - 1][0];
       const coll = parent?.[field];
       if (coll && "items" in coll)
         return coll;
       throw new Error("Parent collection not found");
     };
-    function _visit(path22, item, visitor) {
-      let ctrl = visitor(item, path22);
+    function _visit(path23, item, visitor) {
+      let ctrl = visitor(item, path23);
       if (typeof ctrl === "symbol")
         return ctrl;
       for (const field of ["key", "value"]) {
         const token = item[field];
         if (token && "items" in token) {
           for (let i = 0; i < token.items.length; ++i) {
-            const ci = _visit(Object.freeze(path22.concat([[field, i]])), token.items[i], visitor);
+            const ci = _visit(Object.freeze(path23.concat([[field, i]])), token.items[i], visitor);
             if (typeof ci === "number")
               i = ci - 1;
             else if (ci === BREAK)
@@ -5613,10 +5613,10 @@ var require_cst_visit = __commonJS({
             }
           }
           if (typeof ctrl === "function" && field === "key")
-            ctrl = ctrl(item, path22);
+            ctrl = ctrl(item, path23);
         }
       }
-      return typeof ctrl === "function" ? ctrl(item, path22) : ctrl;
+      return typeof ctrl === "function" ? ctrl(item, path23) : ctrl;
     }
     exports.visit = visit;
   }
@@ -7369,9 +7369,9 @@ var require_dist = __commonJS({
 
 // src/cli.ts
 var import_yaml6 = __toESM(require_dist(), 1);
-import { readFileSync as readFileSync17, realpathSync as realpathSync6, statSync as statSync9 } from "node:fs";
+import { readFileSync as readFileSync18, realpathSync as realpathSync7, statSync as statSync9 } from "node:fs";
 import os3 from "node:os";
-import path21 from "node:path";
+import path22 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -7553,37 +7553,37 @@ function didYouMean(given, known) {
   }
   return best?.name;
 }
-function stop(path22, problem, fix) {
-  return { path: path22, text: `\u2716 config.${path22}: ${problem} \u2192 ${fix}` };
+function stop(path23, problem, fix) {
+  return { path: path23, text: `\u2716 config.${path23}: ${problem} \u2192 ${fix}` };
 }
-function checkSecretLike(key2, path22, out) {
+function checkSecretLike(key2, path23, out) {
   if (SECRET_LIKE_KEYS.includes(key2.toLowerCase())) {
-    out.push(stop(path22, "looks like it holds a secret", "keys go in env or the keychain, never in config.yaml"));
+    out.push(stop(path23, "looks like it holds a secret", "keys go in env or the keychain, never in config.yaml"));
     return true;
   }
   return false;
 }
-function checkEnum(path22, v, allowed, out) {
+function checkEnum(path23, v, allowed, out) {
   if (typeof v === "string" && allowed.includes(v)) return true;
-  out.push(stop(path22, `${JSON.stringify(v)} is not valid`, `use one of ${allowed.join(", ")}`));
+  out.push(stop(path23, `${JSON.stringify(v)} is not valid`, `use one of ${allowed.join(", ")}`));
   return false;
 }
-function checkPositiveNumber(path22, v, out) {
+function checkPositiveNumber(path23, v, out) {
   if (typeof v === "number" && Number.isFinite(v) && v > 0) return true;
-  out.push(stop(path22, `${JSON.stringify(v)} is not a positive number`, "give a number greater than 0"));
+  out.push(stop(path23, `${JSON.stringify(v)} is not a positive number`, "give a number greater than 0"));
   return false;
 }
-function checkSecretValue(path22, v, out) {
+function checkSecretValue(path23, v, out) {
   if (!looksLikeSecret(v)) return false;
-  out.push(stop(path22, "looks like a key", "keys go in env (TYPESAFE_API_KEY) or the keychain, never in config"));
+  out.push(stop(path23, "looks like a key", "keys go in env (TYPESAFE_API_KEY) or the keychain, never in config"));
   return true;
 }
-function checkNonEmptyString(path22, v, out) {
+function checkNonEmptyString(path23, v, out) {
   if (typeof v !== "string" || !v.trim()) {
-    out.push(stop(path22, `${JSON.stringify(v)} is not text`, "give a non-empty string"));
+    out.push(stop(path23, `${JSON.stringify(v)} is not text`, "give a non-empty string"));
     return false;
   }
-  if (checkSecretValue(path22, v, out)) return false;
+  if (checkSecretValue(path23, v, out)) return false;
   return true;
 }
 var isEmptySection = (v) => v === null || v === void 0;
@@ -7595,17 +7595,17 @@ function checkBudget(v, out) {
   }
   const result = {};
   for (const k of Object.keys(v)) {
-    const path22 = `budget.${k}`;
-    if (checkSecretLike(k, path22, out)) continue;
+    const path23 = `budget.${k}`;
+    if (checkSecretLike(k, path23, out)) continue;
     if (k === "usd" || k === "runs") {
-      if (checkPositiveNumber(path22, v[k], out)) result[k] = v[k];
+      if (checkPositiveNumber(path23, v[k], out)) result[k] = v[k];
     } else if (k === "per") {
-      if (checkEnum(path22, v[k], ["total", "day", "hour"], out)) result.per = v[k];
+      if (checkEnum(path23, v[k], ["total", "day", "hour"], out)) result.per = v[k];
     } else if (k === "since") {
-      if (checkNonEmptyString(path22, v[k], out)) result.since = v[k];
+      if (checkNonEmptyString(path23, v[k], out)) result.since = v[k];
     } else {
       const hint = didYouMean(k, ["usd", "runs", "per", "since"]);
-      out.push(stop(path22, `"${k}" is not a budget field`, hint ? `did you mean ${hint}?` : "use usd, runs, per or since"));
+      out.push(stop(path23, `"${k}" is not a budget field`, hint ? `did you mean ${hint}?` : "use usd, runs, per or since"));
     }
   }
   return result;
@@ -7619,21 +7619,21 @@ function checkPricing(v, out) {
   const result = {};
   for (const model of Object.keys(v)) {
     const rate = v[model];
-    const path22 = `pricing.${model}`;
+    const path23 = `pricing.${model}`;
     if (isEmptySection(rate)) continue;
     if (!isObj(rate)) {
-      out.push(stop(path22, "is not a mapping", "write {inputPerMTok, outputPerMTok, perSecond, perCall}"));
+      out.push(stop(path23, "is not a mapping", "write {inputPerMTok, outputPerMTok, perSecond, perCall}"));
       continue;
     }
     const entry = {};
     for (const k of ["inputPerMTok", "outputPerMTok", "perSecond", "perCall"]) {
       if (k in rate) {
-        if (checkPositiveNumber(`${path22}.${k}`, rate[k], out)) entry[k] = rate[k];
+        if (checkPositiveNumber(`${path23}.${k}`, rate[k], out)) entry[k] = rate[k];
       }
     }
     for (const k of Object.keys(rate)) {
       if (!["inputPerMTok", "outputPerMTok", "perSecond", "perCall"].includes(k)) {
-        checkSecretLike(k, `${path22}.${k}`, out) || out.push(stop(`${path22}.${k}`, `"${k}" is not a pricing field`, "use inputPerMTok, outputPerMTok, perSecond or perCall"));
+        checkSecretLike(k, `${path23}.${k}`, out) || out.push(stop(`${path23}.${k}`, `"${k}" is not a pricing field`, "use inputPerMTok, outputPerMTok, perSecond or perCall"));
       }
     }
     result[model] = entry;
@@ -7648,12 +7648,12 @@ function checkSweep(v, out) {
   }
   const result = {};
   for (const k of Object.keys(v)) {
-    const path22 = `sweep.${k}`;
+    const path23 = `sweep.${k}`;
     if (k === "maxItems" || k === "maxQuestionsPerCall") {
-      if (checkPositiveNumber(path22, v[k], out)) result[k] = v[k];
+      if (checkPositiveNumber(path23, v[k], out)) result[k] = v[k];
     } else {
       const hint = didYouMean(k, ["maxItems", "maxQuestionsPerCall"]);
-      out.push(stop(path22, `"${k}" is not a sweep field`, hint ? `did you mean ${hint}?` : "use maxItems or maxQuestionsPerCall"));
+      out.push(stop(path23, `"${k}" is not a sweep field`, hint ? `did you mean ${hint}?` : "use maxItems or maxQuestionsPerCall"));
     }
   }
   return result;
@@ -7666,12 +7666,12 @@ function checkReuse(v, out) {
   }
   const result = {};
   for (const k of Object.keys(v)) {
-    const path22 = `reuse.${k}`;
+    const path23 = `reuse.${k}`;
     if (k === "maxAgeDays" || k === "maxCommits") {
-      if (checkPositiveNumber(path22, v[k], out)) result[k] = v[k];
+      if (checkPositiveNumber(path23, v[k], out)) result[k] = v[k];
     } else {
       const hint = didYouMean(k, ["maxAgeDays", "maxCommits"]);
-      out.push(stop(path22, `"${k}" is not a reuse field`, hint ? `did you mean ${hint}?` : "use maxAgeDays or maxCommits"));
+      out.push(stop(path23, `"${k}" is not a reuse field`, hint ? `did you mean ${hint}?` : "use maxAgeDays or maxCommits"));
     }
   }
   return result;
@@ -7686,23 +7686,23 @@ function checkMdl(v, out) {
   const result = {};
   for (const field of Object.keys(v)) {
     const override = v[field];
-    const path22 = `mdl.${field}`;
+    const path23 = `mdl.${field}`;
     if (isEmptySection(override)) continue;
     if (!isObj(override)) {
-      out.push(stop(path22, "is not a mapping", "write {values?, note?, as?, pattern?, link?, literal?}"));
+      out.push(stop(path23, "is not a mapping", "write {values?, note?, as?, pattern?, link?, literal?}"));
       continue;
     }
     const entry = {};
     for (const k of Object.keys(override)) {
       if (!MDL_OVERRIDE_FIELDS.includes(k)) {
         const hint = didYouMean(k, MDL_OVERRIDE_FIELDS);
-        out.push(stop(`${path22}.${k}`, `"${k}" is not an mdl override field`, hint ? `did you mean ${hint}?` : `use ${MDL_OVERRIDE_FIELDS.join(", ")}`));
+        out.push(stop(`${path23}.${k}`, `"${k}" is not an mdl override field`, hint ? `did you mean ${hint}?` : `use ${MDL_OVERRIDE_FIELDS.join(", ")}`));
         continue;
       }
       const val = override[k];
-      if (typeof val === "string" && checkSecretValue(`${path22}.${k}`, val, out)) continue;
+      if (typeof val === "string" && checkSecretValue(`${path23}.${k}`, val, out)) continue;
       if (Array.isArray(val) && val.some((x) => typeof x === "string" && looksLikeSecret(x))) {
-        out.push(stop(`${path22}.${k}`, "looks like a key", "keys go in env (TYPESAFE_API_KEY) or the keychain, never in config"));
+        out.push(stop(`${path23}.${k}`, "looks like a key", "keys go in env (TYPESAFE_API_KEY) or the keychain, never in config"));
         continue;
       }
       entry[k] = val;
@@ -7811,8 +7811,8 @@ function resolveConfig(paths, env = {}) {
   const envModel = cleanEnv(env.JEV_MODEL);
   const envTimeoutRaw = Number(cleanEnv(env.JEV_TIMEOUT_MS));
   const envTimeout = Number.isFinite(envTimeoutRaw) && envTimeoutRaw > 0 ? envTimeoutRaw : void 0;
-  function layer(path22, envSet, configVal, defaultVal) {
-    sources[path22] = envSet ? "env" : configVal !== void 0 ? "config" : "default";
+  function layer(path23, envSet, configVal, defaultVal) {
+    sources[path23] = envSet ? "env" : configVal !== void 0 ? "config" : "default";
     return configVal !== void 0 ? configVal : defaultVal;
   }
   const config = {
@@ -11073,22 +11073,22 @@ function never(field, verb) {
   return `\u2716 mak.${field}: ${verb} doesn't take it \u2192 remove it`;
 }
 var cross = (text) => ({ cls: "cross", text });
-function findBlanks(v, path22, out) {
+function findBlanks(v, path23, out) {
   const label = (p) => {
     const q = /^mak\.ask\..*\.(\d+)$/u.exec(p);
     return q ? `question ${q[1]}` : p;
   };
   if (typeof v === "string") {
-    if (v.includes("____")) out.push(cross(`\u2716 ${label(path22)}: still a ____ blank \u2192 fill it in`));
+    if (v.includes("____")) out.push(cross(`\u2716 ${label(path23)}: still a ____ blank \u2192 fill it in`));
     return;
   }
   if (Array.isArray(v)) {
-    v.forEach((x, i) => findBlanks(x, `${path22}[${i}]`, out));
+    v.forEach((x, i) => findBlanks(x, `${path23}[${i}]`, out));
     return;
   }
   if (isObj3(v)) {
     for (const [k, x] of Object.entries(v)) {
-      const p = path22 ? `${path22}.${k}` : k;
+      const p = path23 ? `${path23}.${k}` : k;
       if (k.includes("____")) out.push(cross(`\u2716 ${label(p)}: still a ____ blank \u2192 fill it in`));
       else findBlanks(x, p, out);
     }
@@ -11706,13 +11706,13 @@ async function ask(promptText, defaultAnswer, flags, io) {
 function detectInstallMode(ctx) {
   const onPath = findOnPath("mm3", ctx.env, ctx.platform);
   if (!onPath) return void 0;
-  let real;
+  let real2;
   try {
-    real = realpathSync2(onPath);
+    real2 = realpathSync2(onPath);
   } catch {
-    real = onPath;
+    real2 = onPath;
   }
-  const under = (dir) => real === dir || real.startsWith(dir.endsWith(path11.sep) ? dir : `${dir}${path11.sep}`);
+  const under = (dir) => real2 === dir || real2.startsWith(dir.endsWith(path11.sep) ? dir : `${dir}${path11.sep}`);
   if (under(path11.join(ctx.cwd, "node_modules"))) return { mode: "local", projectDir: ctx.cwd };
   const globalPrefix = npmGlobalPrefix(ctx.runner);
   if (globalPrefix && under(globalPrefix)) return { mode: "global", npmPrefix: globalPrefix };
@@ -17034,8 +17034,38 @@ function resolveMcpActor() {
   return "claude";
 }
 
+// src/util/plugin-build.ts
+import { readFileSync as readFileSync17, realpathSync as realpathSync6 } from "node:fs";
+import path21 from "node:path";
+var real = (p) => {
+  try {
+    return realpathSync6(p);
+  } catch {
+    return path21.resolve(p);
+  }
+};
+function pluginCommit(packageDir, homeDir, env) {
+  const claudeDir = env.CLAUDE_CONFIG_DIR || path21.join(homeDir, ".claude");
+  let record2;
+  try {
+    record2 = JSON.parse(readFileSync17(path21.join(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
+  } catch {
+    return void 0;
+  }
+  const plugins = record2?.plugins;
+  if (!plugins || typeof plugins !== "object") return void 0;
+  const here = real(packageDir);
+  for (const [name, installs] of Object.entries(plugins)) {
+    if (!name.startsWith("mm3@") || !Array.isArray(installs)) continue;
+    for (const i of installs) {
+      if (typeof i?.installPath === "string" && typeof i.gitCommitSha === "string" && real(i.installPath) === here) return i.gitCommitSha.slice(0, 12);
+    }
+  }
+  return void 0;
+}
+
 // src/cli.ts
-var PACKAGE_DIR = path21.join(path21.dirname(fileURLToPath2(import.meta.url)), "..");
+var PACKAGE_DIR = path22.join(path22.dirname(fileURLToPath2(import.meta.url)), "..");
 var LINES3 = {
   view: "mm3 view <folder | tag | MM3-#### | request-file | -> [--level 1|2|3] [--summary]",
   class: "mm3 class <request-file | -> [--dry-run]",
@@ -17106,7 +17136,7 @@ function readRequest(file, stdinSource, maxBytes = DEFAULT_REQUEST_MAX_BYTES) {
       if (st.isDirectory()) return { stop: `\u2716 request: ${shown2} is a folder \u2192 pass a request file, or - to read stdin` };
       if (st.size > maxBytes) return { stop: tooBig(maxBytes) };
     }
-    bytes = file === "-" ? stdinSource() : readFileSync17(file);
+    bytes = file === "-" ? stdinSource() : readFileSync18(file);
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT") return { stop: `\u2716 request: ${shown2} not found \u2192 check the path, or pass - to read stdin` };
@@ -17134,7 +17164,7 @@ async function runSweptVerb(command, rest, paths, ctx) {
   if ("stop" in read) return finish(2, withAgentPointer(read.stop, command));
   let provider;
   try {
-    provider = selectProvider(ctx.env, { chaosState: path21.join(paths.dir, "chaos.json"), resolveStored: resolveStoredFor(ctx), fileConfig: classifierFileConfig(fileConfig.config) });
+    provider = selectProvider(ctx.env, { chaosState: path22.join(paths.dir, "chaos.json"), resolveStored: resolveStoredFor(ctx), fileConfig: classifierFileConfig(fileConfig.config) });
   } catch (e) {
     return finish(providerExit(e), e.message);
   }
@@ -17145,7 +17175,10 @@ async function dispatch(argv, ctx) {
   const [command = "", ...rest] = argv;
   if (command === "") return finish(2, USAGE);
   if (command === "--help" || command === "-h") return finish(0, USAGE);
-  if (command === "--version" || command === "-v") return finish(0, ctx.pkg.version);
+  if (command === "--version" || command === "-v") {
+    const commit = pluginCommit(ctx.packageDir, ctx.homeDir, ctx.env);
+    return finish(0, commit ? `${ctx.pkg.version} (plugin ${commit})` : ctx.pkg.version);
+  }
   if (!isCommand(command)) {
     const later = argv.find(isCommand);
     if (command.startsWith("-") && later) throw new UsageStop(later, `"${clip(command, 40)}" comes before the command`);
@@ -17209,7 +17242,7 @@ async function dispatch(argv, ctx) {
     const { positionals, values } = args("config", { args: rest, allowPositionals: true, options: { write: { type: "boolean" } } });
     positionalCount("config", positionals, 0, 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
-    const projectLine2 = configPaths ? path21.relative(ctx.cwd, configPaths.root) || "." : "none";
+    const projectLine2 = configPaths ? path22.relative(ctx.cwd, configPaths.root) || "." : "none";
     const r = values.write ? runConfigWrite(configPaths, projectLine2) : runConfig(ctx.env, configPaths, projectLine2);
     return finish(r.exit, r.text);
   }
@@ -17322,7 +17355,7 @@ async function dispatch(argv, ctx) {
         content = ctx.stdin().toString("utf8");
       } else {
         try {
-          if (statSync9(arg).isFile()) content = readFileSync17(arg, "utf8");
+          if (statSync9(arg).isFile()) content = readFileSync18(arg, "utf8");
         } catch {
         }
       }
@@ -17382,7 +17415,7 @@ async function dispatch(argv, ctx) {
       let provider;
       try {
         provider = selectProvider(ctx.env, {
-          chaosState: path21.join(paths.dir, "chaos.json"),
+          chaosState: path22.join(paths.dir, "chaos.json"),
           resolveStored: resolveStoredFor(ctx),
           fileConfig: classifierFileConfig(resolveConfig(paths, ctx.env).config)
         });
@@ -17457,7 +17490,7 @@ function realCtx() {
     pkg: { name: package_default.name, version: package_default.version },
     homeDir: os3.homedir(),
     nodeVersion: process.version,
-    stdin: () => readFileSync17(0),
+    stdin: () => readFileSync18(0),
     get io() {
       return { input: process.stdin, output: process.stdout };
     }
@@ -17467,7 +17500,7 @@ function isEntrypoint() {
   const invoked = process.argv[1];
   if (!invoked) return false;
   try {
-    return realpathSync6(invoked) === realpathSync6(fileURLToPath2(import.meta.url));
+    return realpathSync7(invoked) === realpathSync7(fileURLToPath2(import.meta.url));
   } catch {
     return false;
   }
