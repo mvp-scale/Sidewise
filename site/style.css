@@ -2,7 +2,7 @@
    system stack); light is the base, dark redefines the same tokens. No web fonts, no framework, no external assets. */
 :root {
   --bg: #f6f8fc; --surface: #ffffff; --card: #eef3fa; --line: #cbd6e6;
-  --ink: #0f1b2d; --muted: #465872; --blue: #0a6aa1; --green: #3a8213;
+  --ink: #0f1b2d; --muted: #465872; --blue: #0a6aa1; --green: #3a8213; --amber: #b07a00;
   --btn-bg: #2f7a10; --btn-ink: #ffffff; --btn-hover: #266509;
   --code-bg: #0f1b2d; --code-ink: #e6edf7; --code-line: #24344f;
   --glow1: rgba(10, 106, 161, .16); --glow2: rgba(79, 159, 28, .16);
@@ -15,7 +15,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #050914; --surface: #0b1424; --card: #101b2e; --line: #24344f;
-    --ink: #f5f8ff; --muted: #93a7bd; --blue: #9bdcff; --green: #b7ff83;
+    --ink: #f5f8ff; --muted: #93a7bd; --blue: #9bdcff; --green: #b7ff83; --amber: #ffcd57;
     --btn-bg: #b7ff83; --btn-ink: #050914; --btn-hover: #d0ffae;
     --code-bg: #0b1424; --code-ink: #e6edf7; --code-line: #24344f;
     --pass: #b7ff83; --fail: #ff8d85; --unsure: #ffcd57; --pass-bg: #17300d; --fail-bg: #3a1614; --unsure-bg: #33260a; --track: #1c2b44;
@@ -53,6 +53,7 @@ section.wrap { padding-block: clamp(2.5rem, 7vw, 4.5rem); }
 .brand { font-weight: 900; font-size: 1.5rem; letter-spacing: -.04em; color: var(--ink); text-decoration: none; line-height: 1; }
 .brand .m-make { color: var(--blue); }
 .brand .m-model { color: var(--green); }
+.brand .beta { display: inline-block; margin-left: .4em; padding: .15em .55em; border: 1.5px solid var(--amber); border-radius: 999px; color: var(--amber); font-size: .45em; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; vertical-align: super; }
 .top nav { display: flex; align-items: center; gap: 1.1rem; font-size: .95rem; font-weight: 600; }
 .top nav a { color: var(--muted); text-decoration: none; }
 .top nav a:hover { color: var(--ink); }
