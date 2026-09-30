@@ -73,7 +73,8 @@ describe('checkSite', () => {
     });
     it('treats a README-only link to the site as not prose the site must carry', () => {
       const link = '<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>';
-      const at = (line: string): string => readme.replace('\n## Why MM3', `\n${line}\n\n## Why MM3`); // the end of ## See it run
+      const end = readme.indexOf('\n## ', readme.indexOf('\n## See it run') + 1); // the end of ## See it run
+      const at = (line: string): string => `${readme.slice(0, end)}\n${line}\n${readme.slice(end)}`;
       expect(checkSite(page, real, undefined, at(link))).toEqual([]);
       expect(checkSite(page, real, undefined, at('<p align="center">Step through both stories somewhere else.</p>')).join('\n')).toMatch(/See it run/);
     });
