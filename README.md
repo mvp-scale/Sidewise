@@ -94,20 +94,20 @@ view knows the past, scan the present, loop the future. Any order; every run fee
 mdl:
   # stock
   why: find                    # validate · find · debug
-  area: [build, hosting]
-  stage: operate
-  problem: n8n startup scans node_modules with sync FS calls
+  area: [build, hosting]       # where in the stack
+  stage: operate               # design … operate
+  problem: n8n startup scans node_modules with sync FS calls     # one line, your words
   uses:                        # C4 chains
     - person:self-hoster -> system:n8n -> container:n8n-main
     - container:n8n-main -> component:core/nodes-loader -> code:unloadAll
-  blast: container
+  blast: container             # how far a failure reaches
   # yours: any key, any lens
   hypothesis: caching symlink roots cuts cold start by a third   # developer
   user-feels: first workflow after a restart is slow             # product
   cost-driver: every pod restart pays the full scan              # business
   pager-risk: none, slow not down                                # on-call
-  tags: ["#perf", "#cold-start", "@platform-team"]               # quote # and @
-  refs: [BUG-1042, "test:startup-bench failed"]
+  tags: ["#perf", "#cold-start", "@platform-team"]               # #themes, @owners: Obsidian- or Jira-style lookups
+  refs: [BUG-1042, "test:startup-bench failed"]                  # bugs, test results, anything to link
 ```
 
 Once a field settles over a few runs, `mm3 report fields --accept tags` promotes it: every tag becomes a node in the knowledge graph, tied to the runs that carried it.
