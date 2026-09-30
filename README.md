@@ -68,6 +68,29 @@ The response, **real output · jev-1.13.0 · api.typesafe.ai · 321 ms · ~$0.00
 
 <p align="center"><a href="https://mm3lab.dev/#run">Step through two full stories, WordPress and n8n, on mm3lab.dev →</a></p>
 
+## A whole change, start to finish
+
+**The challenge:** make a WordPress page change with the reader, as a plugin, without touching core. One agent, MM3 installed, a $1 cap.
+
+MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict your coding agents can cite. Here is one change, verdict by verdict.
+
+<p align="center"><img src="docs/assets/journey-beats.svg" width="900" alt="A whole change on WordPress, in three beats. One agent adds a persona plugin to WordPress 7.1.2 using MM3, in 14 runs and 15 calls for about a tenth of a cent. Know: four runs map WordPress before the goal: boot layers unsure (MM3-0001), user meta unsure (MM3-0002), render chain fail because the range cut off the filter call (MM3-0003), render chain again pass (MM3-0004). Judge: plan v1 fail (MM3-0006), definition of done v1 fail (MM3-0007), a drill finds four missing checks, fail (MM3-0010), definition of done v3: the four new checks pass, overall unsure (MM3-0011). Prove: the committed plugin passes its nine behaviour checks but fails on risk (MM3-0012), a drill into risk flags a header sent after output and feeds (MM3-0013), after the fixes a replay shows nothing regressed, overall unsure (MM3-0014)."></p>
+
+- **Know.** Before the goal, the agent mapped WordPress: four checks, each tagged with the layer it covers.
+- **Judge.** The plan failed. The definition of done failed. A drill found four missing checks; added and rechecked, they pass.
+- **Prove.** The plugin passed its nine behaviour checks and failed on risk. A drill found two issues, the agent fixed them, and a replay showed nothing regressed.
+
+<p align="center"><img src="docs/assets/journey-map.svg" width="900" alt="The WordPress map in the ledger. The map an agent built in MM3's ledger while working on WordPress 7.1.2, from the C4 chains it tagged on 8 of its runs. System wordpress (MM3-0001) holds three containers. Bootstrap: plugin-hooks (MM3-0001, 0003, 0005, 0006, 0008, 0012) and template-loader (MM3-0001). Data: user-api (MM3-0002, 0005, 0006, 0008, 0012) uses meta-api, which reaches the database (MM3-0002). Render: template-loader (MM3-0003, 0004) feeds post-template (MM3-0003 to 0012), which reaches the theme (MM3-0001, 0003). Plugin-hooks uses user-api and post-template. The change, a persona plugin, touches plugin-hooks, user-api and post-template (MM3-0012). The layers are the agent's own names; every edge cites the runs behind it."></p>
+
+**The ledger remembers.** Same question on unchanged code: answered from the ledger, no call, no cost. What changed since: `replay` compares any two commits. Told to use only the ledger, the agent rebuilt this whole story, gaps in the plan included, in about four minutes.
+
+**Where it fell short (it's beta).** It missed WordPress's Block Bindings API. `replay` can't yet compare against a file that didn't exist before. Every verdict came from reading code, not running it. We're on it.
+
+> [!IMPORTANT]
+> **Lessons learned.** The prompt decides whether your agent uses MM3 as a map or as a spot check: 2 runs on a bare brief, 14 when each beat was spelled out. And in all three runs, MM3's guidance was never in the project's `AGENTS.md`: we never ran `mm3 init --agents`.
+>
+> **Corrective action.** Make sure your agent loads MM3's three beats. Run `mm3 init --agents` once: it writes them to `AGENTS.md` and points `CLAUDE.md` at it. Until then, MM3 flags the project on its first run, and `mm3 doctor` shows it. We're rerunning the bare brief with it to confirm.
+
 ## Why MM3
 
 An agent can ask a fast classifier a yes/no about your code, but on its own that answer is untraceable and never reused. MM3 asks the same way every time, scores the answer and keeps it, so every check adds to what you know about your codebase.
@@ -113,6 +136,12 @@ Once a field settles over a few runs, `mm3 report fields --accept tags` promotes
 <p align="center"><img src="docs/assets/story-ledger.svg" width="900" alt="The MM3 ledger. One append-only JSONL file, filled by runs you were making anyway. The same 10 runs give you a layered heat map of your architecture; 20, a reference architecture with a heat map; 50, a knowledge graph of your whole system. The mdl block is yours: add any field to any request, such as standard or owner, for free. Your agent reads the log or the SQLite index in milliseconds and paints charts, maps and graphs. Where your agents are strong, and where they are not."></p>
 
 Same questions on unchanged code come back from the ledger: no call, no cost. `mm3 report` shows where your agents keep going wrong, and a budget cap that only you raise stops runaway spend.
+
+## Architecture
+
+That's all of it: one engine on your machine, one folder in your project, one call out. Simple on purpose, built to grow.
+
+<p align="center"><img src="docs/assets/architecture.svg" width="900" alt="MM3 architecture. Any coding agent calls MM3 through its MCP tool or the mm3 CLI. MM3 runs on your machine: it reuses answers it already has and pays only for new questions, sent to a TypeSafe-compatible classifier endpoint (typesafe.ai or self-hosted), its only outside call. In your project it reads code and git as evidence, appends every run to log.jsonl, the append-only ledger and the only source of truth, and keeps index.db, a read-only hot cache of the ledger that rebuilds itself and answers lookups in under a millisecond, tested to 100,000 runs. No server, no MM3 account, no telemetry. config.yaml sets the budget cap, endpoint and model, reuse rules and your own mdl fields, and is the one file in .mm3/ that git keeps. MM3's whole footprint in your project is the .mm3/ folder."></p>
 
 ## By the numbers
 
