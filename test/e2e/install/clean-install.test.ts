@@ -43,5 +43,10 @@ describe('a real npm pack tarball, installed like a consumer would', () => {
       const r = spawnSync('sh', ['-c', line.replace(/^mm3\b/u, bin)], { cwd: projectDir, env, encoding: 'utf8' });
       expect(r.status, `"${line}" failed:\n${r.stderr}`).toBe(0);
     }
+    // exit 0 alone proves nothing: a CLI that never started also exits 0. The installed bin is a symlink,
+    // so it must actually print.
+    const help = spawnSync(bin, ['help'], { cwd: projectDir, env, encoding: 'utf8' });
+    expect(help.status, help.stderr).toBe(0);
+    expect(help.stdout).toContain('MM3 turns a short numbered yes/no checklist');
   });
 });
