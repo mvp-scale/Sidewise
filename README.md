@@ -86,7 +86,10 @@ MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure v
 
 **Where it fell short (it's beta).** It missed WordPress's Block Bindings API. `replay` can't yet compare against a file that didn't exist before. Every verdict came from reading code, not running it. We're on it.
 
-**The lesson:** the prompt decides whether your agent uses MM3 as a map or as a spot check. Same tool, same goal: 2 runs with a bare brief, 14 when each beat said what MM3 is for.
+> [!IMPORTANT]
+> **Lessons learned.** The prompt decides whether your agent uses MM3 as a map or as a spot check: 2 runs on a bare brief, 14 when each beat was spelled out. And in all three runs, MM3's guidance was never in the project's `AGENTS.md`: we never ran `mm3 init --agents`.
+>
+> **Corrective action.** Make sure your agent loads MM3's three beats. Run `mm3 init --agents` once: it writes them to `AGENTS.md` and points `CLAUDE.md` at it. Until then, MM3 flags the project on its first run, and `mm3 doctor` shows it. We're rerunning the bare brief with it to confirm.
 
 ## Why MM3
 
