@@ -4,24 +4,20 @@
 
 <p align="center">MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict your coding agent can cite.</p>
 
-<p align="center"><a href="https://github.com/mvp-scale/Sidewise/actions/workflows/ci.yml"><img src="https://github.com/mvp-scale/Sidewise/actions/workflows/ci.yml/badge.svg" alt="CI"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0 license"></a> <a href="#install"><img src="https://img.shields.io/badge/node-%E2%89%A5%2022.13-3c873a" alt="Node 22.13 or newer"></a></p>
+<p align="center"><a href="https://github.com/mvp-scale/mm3/actions/workflows/ci.yml"><img src="https://github.com/mvp-scale/mm3/actions/workflows/ci.yml/badge.svg" alt="CI"></a> <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="Apache-2.0 license"></a> <a href="#install"><img src="https://img.shields.io/badge/node-%E2%89%A5%2022.13-3c873a" alt="Node 22.13 or newer"></a></p>
 
-<p align="center"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/how-it-works-dark.svg"><img src="docs/assets/how-it-works-light.svg" width="640" alt="How MM3 works. Six verbs in two rows and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns."></picture></p>
-
-- [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
-- [1,155 tests, no network, no key](docs/numbers.md#test-count)
-- [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
+<p align="center"><img src="docs/assets/how-it-works.svg" width="900" alt="How MM3 works. MM3, a Knowledge One system. Six verbs in two bands and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns."></p>
 
 ## Install
 
 In Claude Code, from your project:
 
 ```text
-/plugin marketplace add mvp-scale/Sidewise
+/plugin marketplace add mvp-scale/mm3
 /plugin install mm3@mvp-scale
 ```
 
-Pick **project** scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on "TypeSafe API key", paste, Enter, then "Save configuration". Leave it empty to use the free sample provider.
+Pick **project** scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on "TypeSafe API key", paste, Enter, then "Save configuration". Leave it empty to add one later with `mm3 init`.
 
 In a terminal, or with Codex or Gemini CLI (needs Node 22.13+):
 
@@ -30,29 +26,23 @@ npm install -g @mvpscale/mm3
 mm3 init
 ```
 
-**Status: pre-release.** The package publishes with the first release; until then use the plugin above, or build from a clone (see [AGENTS.md](AGENTS.md)). Nightly builds will land as `@mvpscale/mm3@nightly`.
+The npm package publishes with the first release; the plugin works today.
 
-### Try it with no key
+### Try it locally
 
-With no key set, MM3 runs on a built-in sample provider: free, offline, and its answers are canned and labelled, never evidence. To force it even when a key is set, run `MM3_PROVIDER=fake mm3 class review.yaml`. Every line below runs in order in a fresh project:
+Bring your key and point MM3 at any compatible endpoint URL. `mm3 init` stores the key; set the URL with `baseURL:` in `.mm3/config.yaml`, or per run with `MM3_BASE_URL=https://api.example.com mm3 class review.yaml`.
 
-```bash
-# mm3-quickstart
-mm3 template class > review.yaml
-mm3 class review.yaml
-mm3 view src
-mm3 report
-mm3 outcome MM3-0001 held --by you
-mm3 budget
-```
-
-Agents: run `mm3 agent` first. Humans: `mm3 help`.
+Then just ask your agent. The MM3 skill tells it when to reach for MM3, which verb fits and how to write the request; you read the verdict.
 
 ## See it run
 
-![A real MM3 quick class run on n8n (MM3-0008). On the left, a coding agent is asked where n8n could be faster and runs one mm3 class request: 12 yes/no and decision questions, one call, 321 ms, about $0.00006, and a next move. On the right, the run's real YAML: the request opens folded (one claim, with concerns, decisions and an mdl block collapsed to fit) and a pointer unfolds each in turn; then the whole response (verdict, gates and odds per concern, consensus and the next command) and what the ledger now holds, where looking the same request up again is free.](docs/assets/demo-strip-n8n.svg)
+<br>
 
-[Step through both stories on mm3lab.dev →](https://mm3lab.dev/#run)
+<p align="center"><img src="docs/assets/demo-strip-n8n.svg" width="900" alt="A real MM3 quick class run on n8n (MM3-0008). On the left, a coding agent is asked where n8n could be faster and runs one mm3 class request: 12 yes/no and decision questions, one call, 321 ms, about $0.00006, and a next move. On the right, the run's real YAML: the request opens folded (one claim, with concerns, decisions and an mdl block collapsed to fit) and a pointer unfolds each in turn; then the whole response (verdict, gates and odds per concern, consensus and the next command) and what the ledger now holds, where looking the same request up again is free."></p>
+
+<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>
+
+<br>
 
 Two real stories, each driven by a Haiku agent on unmodified public source: **MAK³ · make**, “Where do agents plug into WordPress?” (WordPress @ 3ffb1df), and **MDL³ · model**, “I've never worked in n8n and I want it faster” (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run's own ledger row.
 
@@ -61,65 +51,21 @@ One step in full, from the WordPress story: the agent asked whether the Abilitie
 <details>
 <summary>The request the agent wrote</summary>
 
-```text
-mak:
-  goal: Abilities API is the integration point for agent-driven UI components
-  depth: quick
-  where:
-    - src/wp-includes/abilities-api.php:1-150
-    - src/wp-includes/abilities.php:1-100
-  ask:
-    concerns:
-      design:
-        pass: "yes"
-        1: Does Abilities API register capabilities with input/output schemas?
-        2: Are abilities required to define permission callbacks before execution?
-        3: Can third-party code register abilities without modifying WordPress core?
-      access:
-        pass: "yes"
-        4: Is the permission_callback required for every registered ability?
-        5: Are ability schemas validated against the permission callback result?
-        6: Can an unprivileged user bypass ability permission checks via API?
-      correctness:
-        pass: "yes"
-        7: Are input parameters validated against the input_schema?
-        8: Are output values validated against the output_schema?
-        9: Does the system reject invalid inputs before executing the callback?
-    decisions:
-      aui-foundation:
-        pass: [yes]
-        10:
-          choice: Is Abilities API suitable as the foundation for AUI?
-          options: [yes, partial, no]
-      design-maturity:
-        pass: [mature]
-        11:
-          scale: How mature is the Abilities API design for agents?
-          levels: [prototype, developing, mature, stable]
-```
+<p align="center"><img src="docs/assets/example-request.svg" width="900" alt="The request the agent wrote for MM3-0004: one goal, three concerns of three yes/no questions each, and two decisions."></p>
 
 </details>
 
 The response, **real output · jev-1.13.0 · api.typesafe.ai · 293 ms · ~$0.00012**:
 
-```text
-mak:
-  id: MM3-0004
-  gate: fail
-  goal: {gate: unsure, p: 0.38}
-  design: {gate: unsure, 1: 0.97, 2: 0.50, 3: 0.96}
-  access: {gate: fail, 4: 0.38, 5: 0.08, 6: 0.10}
-  correctness: {gate: pass, 7: 0.80, 8: 0.72, 9: 0.80}
-  aui-foundation: {gate: unsure, 10: {top: "yes", p: 0.45}}
-  design-maturity: {gate: unsure, 11: {top: developing, p: 0.56}}
-  consensus: SPLIT
-  escalate: true
-mdl: {recorded: none}
-next: mm3 template drill --parent MM3-0004 --from access
-notes: [cost estimated from tokens (no live pricing reported), "budget: $0.10 left of $0.10 · 26 of 30 runs left"]
-```
+<p align="center"><img src="docs/assets/example-response.svg" width="900" alt="The response to MM3-0004: an overall gate, a gate and odds per concern, consensus, escalate and the next command."></p>
 
 Each concern gets its own verdict and odds. Design is unsure only because question 2, whether every ability must define a permission callback, sits at 0.50, and correctness passes. Access fails: two answers are clear misses (0.08, 0.10). The goal, asked as its own question, is unsure at 0.38. One honest note: the agent wrote question 6 with its polarity backwards (it asks whether an unprivileged user *can* bypass ability permission checks, with `pass: "yes"`), so its 0.10 is actually the reassuring answer; MM3 grades what it is asked. The concerns disagree, so consensus is SPLIT, MM3 sets `escalate: true`, and `next:` names the drill into access. The agent ran that drill (MM3-0005), the last step of the story.
+
+## By the numbers
+
+- [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
+- [1,155 tests, no network, no key](docs/numbers.md#test-count)
+- [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
 
 ## What you get
 
@@ -190,6 +136,24 @@ mdl:
 
 </details>
 
+### Run it by hand
+
+Every line below runs in order in a fresh project:
+
+```bash
+# mm3-quickstart
+mm3 template class > review.yaml
+mm3 class review.yaml
+mm3 view src
+mm3 report
+mm3 outcome MM3-0001 held --by you
+mm3 budget
+```
+
+Add `--dry-run` to any request to validate it and count its questions without a call. With no key set, MM3 falls back to a built-in sample provider so these lines still run; its answers are canned and labelled, never evidence.
+
+Agents: run `mm3 agent` first. Humans: `mm3 help`.
+
 ## Limits and alternatives
 
 - **Evidence, never a command.** You get an agreement strength and a lean; you or your agent decide. Delete, deploy, drop and pay stay human.
@@ -208,4 +172,4 @@ mdl:
 
 ## License
 
-[Apache-2.0](LICENSE) · [Contributing](AGENTS.md) · [Issues](https://github.com/mvp-scale/Sidewise/issues)
+[Apache-2.0](LICENSE) · [Contributing](AGENTS.md) · [Issues](https://github.com/mvp-scale/mm3/issues)

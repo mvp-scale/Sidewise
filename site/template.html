@@ -31,7 +31,7 @@
       <a href="#how">How it works</a>
       <a href="#install">Install</a>
       <a href="#run">See it run</a>
-      <a class="gh" href="https://github.com/mvp-scale/Sidewise">GitHub</a>
+      <a class="gh" href="https://github.com/mvp-scale/mm3">GitHub</a>
     </nav>
   </div>
 </header>
@@ -44,7 +44,7 @@
     <p class="lede">{{identity}}</p>
     <p class="cta">
       <a class="btn primary" href="#install">Install</a>
-      <a class="btn" href="https://github.com/mvp-scale/Sidewise">View on GitHub</a>
+      <a class="btn" href="https://github.com/mvp-scale/mm3">View on GitHub</a>
     </p>
     <p class="fine">Apache-2.0 &middot; Node 22.13 or newer &middot; pre-release</p>
   </div>
@@ -54,7 +54,7 @@
   <h2 id="how-h">How it works</h2>
   <p class="sub">Six verbs, one ledger. Pick the move you need; every answer is kept and reused.</p>
   <figure class="big">
-    <picture><source media="(prefers-color-scheme: dark)" srcset="how-it-works-dark.svg"><img src="how-it-works-light.svg" width="720" height="520" alt="How MM3 works. Six verbs in two rows and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns."></picture>
+    <img src="how-it-works.svg" width="900" height="520" alt="How MM3 works. MM3, a Knowledge One system. Six verbs in two bands and three columns. MAK³, make, use what is proven: view is a free lookup of the ledger, class gives one verdict for one subject, replay rechecks after a fix. MDL³, model, learn what is missing: scan sweeps to find where to look, drill digs into one weak spot, loop vets a design before code. The columns are Know, Judge and Prove. One ledger sits under all six and learns.">
   </figure>
 </section>
 
@@ -73,19 +73,20 @@
       <p>From your project:</p>
       <div class="code" data-copy><pre><code>{{installClaude}}
 {{installClaudeInstall}}</code></pre></div>
-      <p>Pick <strong>project</strong> scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on &ldquo;TypeSafe API key&rdquo;, paste, Enter, then &ldquo;Save configuration&rdquo;. Leave it empty to use the free sample provider.</p>
+      <p>Pick <strong>project</strong> scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on &ldquo;TypeSafe API key&rdquo;, paste, Enter, then &ldquo;Save configuration&rdquo;. Leave it empty to add one later with <code>mm3 init</code>.</p>
     </div>
     <div>
       <h3>In a terminal, Codex or Gemini CLI</h3>
       <p>Needs Node 22.13 or newer:</p>
       <div class="code" data-copy><pre><code>{{installNpm}}
 {{installNpmInit}}</code></pre></div>
-      <p><strong>Status: pre-release.</strong> The package publishes with the first release; until then use the plugin, or build from a clone (see <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/AGENTS.md">AGENTS.md</a>). Nightly builds will land as <code>@mvpscale/mm3@nightly</code>.</p>
+      <p><strong>Status: pre-release.</strong> The package publishes with the first release; until then use the plugin, or build from a clone (see <a href="https://github.com/mvp-scale/mm3/blob/nightly/AGENTS.md">AGENTS.md</a>). Nightly builds will land as <code>@mvpscale/mm3@nightly</code>.</p>
     </div>
   </div>
-  <h3>Try it with no key</h3>
-  <p>With no key set, MM3 runs on a built-in sample provider: free, offline, and its answers are canned and labelled, never evidence. To force it even when a key is set, run:</p>
-  <div class="code" data-copy><pre><code>{{installNokey}}</code></pre></div>
+  <h3>Try it locally</h3>
+  <p>Bring your key and point MM3 at any compatible endpoint URL. <code>mm3 init</code> stores the key; set the URL with <code>baseURL:</code> in <code>.mm3/config.yaml</code>, or per run with:</p>
+  <div class="code" data-copy><pre><code>{{installEndpoint}}</code></pre></div>
+  <p>Add <code>--dry-run</code> to any request to validate it and count its questions without a call. With no key set, MM3 falls back to a built-in sample provider; its answers are canned and labelled, never evidence.</p>
   <p>Agents: run <code>mm3 agent</code> first. Humans: <code>mm3 help</code>.</p>
 </section>
 
@@ -189,7 +190,7 @@ notes: [cost estimated from tokens (no live pricing reported), "budget: $0.10 le
   <h2 id="limits-h">Limits and alternatives</h2>
   <ul class="plain">
     <li><strong>Evidence, never a command.</strong> You get an agreement strength and a lean; you or your agent decide. Delete, deploy, drop and pay stay human.</li>
-    <li><strong>A false pass costs you.</strong> A <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/docs/numbers.md#what-calibrated-means">calibrated</a> 0.9 is wrong about one time in ten. <code>unsure</code> is a real answer, and <code>mm3 outcome</code> grades each verdict so the ledger can show which ones to distrust.</li>
+    <li><strong>A false pass costs you.</strong> A <a href="https://github.com/mvp-scale/mm3/blob/nightly/docs/numbers.md#what-calibrated-means">calibrated</a> 0.9 is wrong about one time in ten. <code>unsure</code> is a real answer, and <code>mm3 outcome</code> grades each verdict so the ledger can show which ones to distrust.</li>
     <li><strong>Not a linter, scanner or test suite.</strong> Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can&rsquo;t put: does this handler check the caller, will this design hold.</li>
     <li><strong>Not a substitute for a full-context model review.</strong> A full-context review reads the whole codebase for every question. Use one when the question won&rsquo;t fit a yes/no.</li>
     <li><strong>The sample provider is not evidence.</strong> Its answers are canned. Built on TypeSafe&rsquo;s Jev; other classifiers can plug in.</li>
@@ -201,8 +202,8 @@ notes: [cost estimated from tokens (no live pricing reported), "budget: $0.10 le
 <footer class="foot">
   <div class="wrap foot-in">
     <p class="brand small">MM<span>3</span></p>
-    <p><a href="https://github.com/mvp-scale/Sidewise/blob/nightly/docs/contract.md">The contract</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/docs/evidence/README.md">Evidence for each claim</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/docs/numbers.md">Where the numbers come from</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/skills/mm3/SKILL.md">The agent skill</a></p>
-    <p><a href="https://github.com/mvp-scale/Sidewise/blob/nightly/LICENSE">Apache-2.0</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/blob/nightly/AGENTS.md">Contributing</a> &middot; <a href="https://github.com/mvp-scale/Sidewise/issues">Issues</a> &middot; <a href="https://github.com/mvp-scale/Sidewise">GitHub</a></p>
+    <p><a href="https://github.com/mvp-scale/mm3/blob/nightly/docs/contract.md">The contract</a> &middot; <a href="https://github.com/mvp-scale/mm3/blob/nightly/docs/evidence/README.md">Evidence for each claim</a> &middot; <a href="https://github.com/mvp-scale/mm3/blob/nightly/docs/numbers.md">Where the numbers come from</a> &middot; <a href="https://github.com/mvp-scale/mm3/blob/nightly/skills/mm3/SKILL.md">The agent skill</a></p>
+    <p><a href="https://github.com/mvp-scale/mm3/blob/nightly/LICENSE">Apache-2.0</a> &middot; <a href="https://github.com/mvp-scale/mm3/blob/nightly/AGENTS.md">Contributing</a> &middot; <a href="https://github.com/mvp-scale/mm3/issues">Issues</a> &middot; <a href="https://github.com/mvp-scale/mm3">GitHub</a></p>
   </div>
 </footer>
 

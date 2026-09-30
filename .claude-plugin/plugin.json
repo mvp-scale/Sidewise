@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "description": "MM3, a Knowledge One system for coding agents: MAK³ uses what is proven, MDL³ learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
   "author": { "name": "mvp-scale" },
-  "homepage": "https://github.com/mvp-scale/Sidewise",
-  "repository": "https://github.com/mvp-scale/Sidewise",
+  "homepage": "https://github.com/mvp-scale/mm3",
+  "repository": "https://github.com/mvp-scale/mm3",
   "license": "Apache-2.0",
   "keywords": ["decision-support", "checklist", "consensus", "knowledge", "knowledge-one"],
   "userConfig": {

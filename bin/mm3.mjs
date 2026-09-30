@@ -7384,9 +7384,9 @@ var package_default = {
   type: "module",
   repository: {
     type: "git",
-    url: "git+https://github.com/mvp-scale/Sidewise.git"
+    url: "git+https://github.com/mvp-scale/mm3.git"
   },
-  homepage: "https://github.com/mvp-scale/Sidewise#readme",
+  homepage: "https://github.com/mvp-scale/mm3#readme",
   keywords: [
     "agents",
     "claude-code",

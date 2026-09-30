@@ -9,11 +9,11 @@ numbers:
   - text: "The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat"
     method: docs/numbers.md#agent-smoke-score
 install:
-  claude: "/plugin marketplace add mvp-scale/Sidewise"
+  claude: "/plugin marketplace add mvp-scale/mm3"
   claudeInstall: "/plugin install mm3@mvp-scale"
   npm: "npm install -g @mvpscale/mm3"
   npmInit: "mm3 init"
-  nokey: "MM3_PROVIDER=fake mm3 class review.yaml"
+  endpoint: "MM3_BASE_URL=https://api.example.com mm3 class review.yaml"
 useCases:
   - { title: "Check a change before you merge it", verb: class }
   - { title: "Prove a fix actually worked", verb: replay }

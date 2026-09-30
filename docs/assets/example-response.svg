@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="316" viewBox="0 0 900 316" role="img" aria-label="The response to MM3-0004: an overall gate, a gate and odds per concern, consensus, escalate and the next command.">
+<style>svg{font-family:ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace}text{white-space:pre}</style>
+<rect width="900" height="316" rx="14" fill="#050914"/>
+<text x="18" y="34" font-size="17" font-weight="700" font-family="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#f5f8ff">MM<tspan fill="#b7ff83">3</tspan></text>
+<text x="882" y="34" text-anchor="end" font-size="12.5" font-family="Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" fill="#7f93b0">real output · jev-1.13.0 · api.typesafe.ai · 293 ms · ~$0.00012</text>
+<line x1="0" y1="52" x2="900" y2="52" stroke="#24344f"/>
+<text x="26" y="82" font-size="12" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mak</tspan>:</text>
+<text x="26" y="98" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">id</tspan>: MM3-0004</text>
+<text x="26" y="114" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">gate</tspan>: <tspan fill="#ff8d85">fail</tspan></text>
+<text x="26" y="130" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">goal</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, p: <tspan fill="#ffcd57">0.38</tspan>}</text>
+<text x="26" y="146" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">design</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">1</tspan>: <tspan fill="#ffcd57">0.97</tspan>, <tspan fill="#ffcd57">2</tspan>: <tspan fill="#ffcd57">0.50</tspan>, <tspan fill="#ffcd57">3</tspan>: <tspan fill="#ffcd57">0.96</tspan>}</text>
+<text x="26" y="162" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">access</tspan>: {gate: <tspan fill="#ff8d85">fail</tspan>, <tspan fill="#ffcd57">4</tspan>: <tspan fill="#ffcd57">0.38</tspan>, <tspan fill="#ffcd57">5</tspan>: <tspan fill="#ffcd57">0.08</tspan>, <tspan fill="#ffcd57">6</tspan>: <tspan fill="#ffcd57">0.10</tspan>}</text>
+<text x="26" y="178" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">correctness</tspan>: {gate: <tspan fill="#b7ff83">pass</tspan>, <tspan fill="#ffcd57">7</tspan>: <tspan fill="#ffcd57">0.80</tspan>, <tspan fill="#ffcd57">8</tspan>: <tspan fill="#ffcd57">0.72</tspan>, <tspan fill="#ffcd57">9</tspan>: <tspan fill="#ffcd57">0.80</tspan>}</text>
+<text x="26" y="194" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">aui-foundation</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">10</tspan>: {top: &quot;yes&quot;, p: <tspan fill="#ffcd57">0.45</tspan>}}</text>
+<text x="26" y="210" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">design-maturity</tspan>: {gate: <tspan fill="#ffcd57">unsure</tspan>, <tspan fill="#ffcd57">11</tspan>: {top: developing, p: <tspan fill="#ffcd57">0.56</tspan>}}</text>
+<text x="26" y="226" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">consensus</tspan>: <tspan fill="#ffcd57">SPLIT</tspan></text>
+<text x="26" y="242" font-size="12" fill="#e6edf7" xml:space="preserve">  <tspan fill="#9bdcff">escalate</tspan>: <tspan fill="#ffcd57">true</tspan></text>
+<text x="26" y="258" font-size="12" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">mdl</tspan>: {recorded: none}</text>
+<text x="26" y="274" font-size="12" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">next</tspan>: <tspan fill="#b7ff83">mm3 template drill --parent MM3-0004 --from access</tspan></text>
+<text x="26" y="290" font-size="12" fill="#e6edf7" xml:space="preserve"><tspan fill="#9bdcff">notes</tspan>: [cost estimated from tokens (no live pricing reported), &quot;budget: $0.10 left of $0.10 · 26 of 30 runs left&quot;]</text>
+<rect x=".5" y=".5" width="899" height="315" rx="14" fill="none" stroke="#24344f"/>
+</svg>

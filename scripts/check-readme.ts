@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { loadScenes, sceneFooter, sceneLabel, type Scene } from './build-demo.ts';
 import { buildSite, esc, methodUrl, VERB_BLURBS } from './build-site.ts';
+import { EXAMPLE_ID, exampleCards } from './build-strip.ts';
 import { loadStory, type Story } from './story.ts';
 
 export { loadStory };
@@ -26,7 +27,7 @@ export function checkStory(raw: unknown): string[] {
   const str = (v: unknown) => typeof v === 'string' && v.trim() !== '';
   for (const k of ['tagline', 'identity']) if (!str(o[k])) out.push(`✖ story.yaml: ${k} must be a non-empty string → fix docs/story.yaml`);
   const inst = (o.install ?? {}) as Record<string, unknown>;
-  for (const k of ['claude', 'claudeInstall', 'npm', 'npmInit', 'nokey']) if (!str(inst[k])) out.push(`✖ story.yaml: install.${k} must be a non-empty string → fix docs/story.yaml`);
+  for (const k of ['claude', 'claudeInstall', 'npm', 'npmInit', 'endpoint']) if (!str(inst[k])) out.push(`✖ story.yaml: install.${k} must be a non-empty string → fix docs/story.yaml`);
   if (!Array.isArray(o.numbers)) out.push('✖ story.yaml: numbers must be a list → use numbers: [] for none');
   else o.numbers.forEach((n: unknown, i) => { if (!str((n as { text?: unknown } | null)?.text)) out.push(`✖ story.yaml: numbers[${i}].text must be a non-empty string → fix docs/story.yaml`); });
   if (!Array.isArray(o.useCases)) out.push('✖ story.yaml: useCases must be a list → use useCases: [] for none');
@@ -45,12 +46,12 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
   const lines = md.split('\n');
   const firstH2 = lines.findIndex((l) => l.startsWith('## '));
   const head = lines.slice(0, firstH2 < 0 ? lines.length : firstH2).join('\n');
-  if (!/<picture>|!\[[^\]]*\]\([^)]+\.(?:svg|gif|png)\)/.test(head)) out.push('✖ visual: no image before the first ## heading → put the how-it-works picture above it');
+  if (!/<picture>|<img [^>]*src="[^"]+\.(?:svg|gif|png)"|!\[[^\]]*\]\([^)]+\.(?:svg|gif|png)\)/.test(head)) out.push('✖ visual: no image before the first ## heading → put the how-it-works picture above it');
   const firstCmd = lines.findIndex((_l, i) => i > 0 && lines[i - 1]!.startsWith('```bash'));
   if (firstCmd < 0 || firstCmd + 1 > 30) out.push(`✖ first command: line ${firstCmd + 1} → move install up to within 30 lines`);
   const phrases: [string, string][] = [
     ['story.tagline', story.tagline], ['story.identity', story.identity],
-    ['story.install.claude', story.install.claude], ['story.install.claudeInstall', story.install.claudeInstall], ['story.install.npm', story.install.npm], ['story.install.npmInit', story.install.npmInit], ['story.install.nokey', story.install.nokey],
+    ['story.install.claude', story.install.claude], ['story.install.claudeInstall', story.install.claudeInstall], ['story.install.npm', story.install.npm], ['story.install.npmInit', story.install.npmInit], ['story.install.endpoint', story.install.endpoint],
     ...story.numbers.map((n, i): [string, string] => [`story.numbers[${i}]`, n.text]),
     ...story.useCases.map((u, i): [string, string] => [`story.useCases[${i}]`, u.title]),
   ];
@@ -71,7 +72,7 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
   for (const m of md.matchAll(/(?:\]\(|src="|srcset=")((?!https?:|#|mailto:)[^)"\s#]+)/g)) {
     if (!existsSync(path.join(opts.root, m[1]!))) out.push(`✖ link: ${m[1]} does not exist → fix the path`);
   }
-  lines.forEach((l, i) => { if (OLD.test(l.replaceAll('mvp-scale/Sidewise', ''))) out.push(`✖ old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
+  lines.forEach((l, i) => { if (OLD.test(l)) out.push(`✖ old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
   const badges = md.match(/img\.shields\.io|badge\.svg/g)?.length ?? 0;
   if (badges > 4) out.push(`✖ badge: ${badges} badges → keep 4 or fewer`);
   if (opts.published === false && /shields\.io\/npm\//.test(md)) out.push('✖ badge: npm badge for an unpublished package → remove it until the first publish');
@@ -84,14 +85,14 @@ export function checkSite(html: string, story: Story, dist?: string, readme?: st
   const out: string[] = [];
   const phrases: [string, string][] = [
     ['story.tagline', story.tagline], ['story.identity', story.identity],
-    ['story.install.claude', story.install.claude], ['story.install.claudeInstall', story.install.claudeInstall], ['story.install.npm', story.install.npm], ['story.install.npmInit', story.install.npmInit], ['story.install.nokey', story.install.nokey],
+    ['story.install.claude', story.install.claude], ['story.install.claudeInstall', story.install.claudeInstall], ['story.install.npm', story.install.npm], ['story.install.npmInit', story.install.npmInit], ['story.install.endpoint', story.install.endpoint],
     ...story.numbers.map((n, i): [string, string] => [`story.numbers[${i}]`, n.text]),
     ...story.useCases.map((u, i): [string, string] => [`story.useCases[${i}]`, u.title]),
   ];
   for (const [key, text] of phrases) if (!html.includes(text) && !html.includes(esc(text))) out.push(`✖ site ${key}: "${text}" is not in site/dist/index.html → build the site from docs/story.yaml (npm run build:site)`);
   story.numbers.forEach((n, i) => { if (!html.includes(`href="${methodUrl(n.method)}"`)) out.push(`✖ site story.numbers[${i}]: no link to ${methodUrl(n.method)} → check site/template.html`); });
   if (!/<title>[^<]+<\/title>/.test(html)) out.push('✖ site: no <title> → add one to site/template.html');
-  html.split('\n').forEach((l, i) => { if (OLD.test(l.replaceAll('mvp-scale/Sidewise', ''))) out.push(`✖ site old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
+  html.split('\n').forEach((l, i) => { if (OLD.test(l)) out.push(`✖ site old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
   if (dist) for (const m of html.matchAll(/(?:href|src|srcset)="((?!https?:|data:|#|mailto:)[^"\s#]+)/g)) {
     if (!existsSync(path.join(dist, m[1]!))) out.push(`✖ site link: ${m[1]} is not in ${dist} → fix the path or copy the asset`);
   }
@@ -109,7 +110,7 @@ function siteText(html: string): string {
   return squash(bare.replace(/&#(\d+);/g, (_m, n: string) => String.fromCharCode(+n)).replace(/&(\w+);/g, (m, k: string) => ENTITIES[k] ?? m));
 }
 const plain = (md: string): string => squash(md.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*([^*]+)\*/g, '$1').replace(/`/g, ''));
-/** The demo player's drift check: each scene's footer is on the site, and the README's one frozen response is that scene's text with its label (model, endpoint, latency, cost), and its frozen request is that scene's request; run ids repeat across the two stories, so a scene is matched by id and then by text. */
+/** The demo player's drift check: each scene's footer is on the site; the README shows the worked example's request and response cards, each committed card is what the scene builds today, and the response's label (model, endpoint, latency, cost) is in the text. */
 export function checkDemo(html: string, readme: string | undefined, scenes: Scene[]): string[] {
   const out: string[] = [];
   if (!scenes.length) return ['✖ demo: no scenes in docs/demo/scenes/ → run tsx scripts/build-demo.ts extract'];
@@ -119,24 +120,21 @@ export function checkDemo(html: string, readme: string | undefined, scenes: Scen
     if (!text.includes(squash(footer))) out.push(`✖ site demo ${s.id}: footer "${footer}" is not in site/dist/index.html → rebuild the site from docs/demo/scenes (npm run build:site)`);
   }
   if (readme === undefined) return out;
-  const blocks = [...readme.matchAll(/```text\n([\s\S]*?)```/g)].map((m) => m[1]!.trim());
-  const idOf = (b: string): string | undefined => /^ {2}id: (MM3-\d+)$/m.exec(b)?.[1];
-  const hit = blocks.map((b) => ({ b, cands: scenes.filter((s) => s.id === idOf(b)) })).find((x) => x.cands.length);
-  if (!hit) out.push('✖ README response: no frozen response in ## See it run matches a demo scene → paste one scene\'s response text under the player');
-  else {
-    const s = hit.cands.find((c) => c.response.trim() === hit.b) ?? hit.cands[0]!; // two stories can share a run id: prefer the scene whose text matches
-    if (hit.b !== s.response.trim()) out.push(`✖ README response ${s.id}: differs from docs/demo/scenes → copy the scene's response text verbatim`);
-    if (!plain(readme).includes(sceneLabel(s))) out.push(`✖ README response ${s.id}: label "${sceneLabel(s)}" is not in the README → copy it from the scene footer`);
-    const req = blocks.find((b) => /^ {2}goal:/m.test(b) && !idOf(b)); // the frozen request: the block with a goal: line and no run id (the response has both)
-    if (req === undefined) out.push(`✖ README request ${s.id}: no frozen request in ## See it run → paste the scene's request text under "The request the agent wrote"`);
-    else if (req !== s.request.trim()) out.push(`✖ README request ${s.id}: differs from docs/demo/scenes → copy the scene's request text verbatim`);
+  const s = scenes.find((x) => x.id === EXAMPLE_ID && x.story === 'mak');
+  if (!s) return [...out, `✖ README example: no ${EXAMPLE_ID} in the mak story → rerun tsx scripts/build-demo.ts extract`];
+  const cards = exampleCards(scenes);
+  for (const k of ['request', 'response'] as const) {
+    const file = `docs/assets/example-${k}.svg`;
+    if (!readme.includes(`src="${file}"`)) out.push(`✖ README ${k} ${s.id}: no ${file} in ## See it run → show the ${k} card`);
+    if (!existsSync(file) || readFileSync(file, 'utf8').trimEnd() !== cards[k]) out.push(`✖ README ${k} ${s.id}: ${file} differs from docs/demo/scenes → run tsx scripts/build-strip.ts`);
   }
+  if (!plain(readme).includes(sceneLabel(s))) out.push(`✖ README response ${s.id}: label "${sceneLabel(s)}" is not in the README → copy it from the scene footer`);
   return out;
 }
 
 const PROSE_SECTIONS = ['See it run', 'What you get', 'Why we built it', 'Limits and alternatives'];
 
-/** Prose the README and the site both carry (hand-copied, not in story.yaml): each block of these README sections must appear in the page's text, so a README edit that the site missed fails. A line that is only a link to the site itself ("Step through both stories on mm3lab.dev") is README-only: the site has no use for a link to itself. */
+/** Prose the README and the site both carry (hand-copied, not in story.yaml): each block of these README sections must appear in the page's text, so a README edit that the site missed fails. A line that is only a link to the site itself ("Step through both stories on mm3lab.dev"), a centered image or a `<br>` spacer is README-only: the site has no use for a link to itself, and layout is not prose. */
 function checkSiteProse(html: string, readme: string, story: Story): string[] {
   const out: string[] = [];
   const text = siteText(html);
@@ -150,7 +148,7 @@ function checkSiteProse(html: string, readme: string, story: Story): string[] {
     const rest = readme.slice(start + 1);
     const body = rest.slice(rest.indexOf('\n') + 1).split(/\n## /)[0]!;
     for (const m of body.matchAll(/```[^\n]*\n([\s\S]*?)```/g)) if (!m[1]!.includes('verb=')) want(section, m[1]!);
-    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<picture>[\s\S]*?<\/picture>/g, '').replace(/^\[[^\]]*\]\(https:\/\/mm3lab\.dev[^)]*\)\s*$/gm, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
+    const prose = body.replace(/```[\s\S]*?```/g, '').replace(/<!--[\s\S]*?-->/g, '').replace(/<picture>[\s\S]*?<\/picture>/g, '').replace(/^\[[^\]]*\]\(https:\/\/mm3lab\.dev[^)]*\)\s*$/gm, '').replace(/!\[[^\]]*\]\([^)]*\)/g, '').replace(/^<p align="center"><img [^>]*><\/p>\s*$/gm, '').replace(/^<p align="center"><a href="https:\/\/mm3lab\.dev[^"]*">[^<]*<\/a><\/p>\s*$/gm, '').replace(/^<br>\s*$/gm, '').replace(/<\/?details>|<summary>[\s\S]*?<\/summary>/g, '');
     for (const block of prose.split(/\n\s*\n/)) {
       const lines = block.split('\n').filter((l) => l.trim());
       if (lines[0]?.startsWith('|')) {

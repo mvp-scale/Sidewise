@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/mvp-scale/Sidewise/skills/mm3/references/request.schema.json",
+  "$id": "https://github.com/mvp-scale/mm3/skills/mm3/references/request.schema.json",
   "title": "MM3 request",
   "description": "Two blocks. mak: one goal plus plumbing to the TypeSafe classifier. mdl: optional context so the ledger learns. ask has two sections: concerns (yes/no) and decisions (scale/choice). Checks JSON Schema can't express (exact counts per depth, per-section kind restrictions, numbers unique and 1..N with no gaps, a category holds one kind of question, paths inside the project) are done by the MM3 validator, which answers '✖ field: problem → fix'.",
   "type": "object",

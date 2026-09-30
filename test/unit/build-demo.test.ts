@@ -310,19 +310,14 @@ describe('checkDemo', () => {
     const drifted = page().replace('293 ms · ~$0.00012 · 12 questions', '293 ms · ~$0.00099 · 12 questions');
     expect(checkDemo(drifted, readme, scenes).join('\n')).toMatch(/site demo MM3-0004: footer/);
   });
-  it('fails when the README request drifts from its scene, or is missing', () => {
-    const a = readme.replace('  depth: quick\n', '  depth: thorough\n');
-    expect(a).not.toBe(readme);
-    expect(checkDemo(page(), a, scenes).join('\n')).toMatch(/README request MM3-0004: differs/);
-    const b = readme.replace('  goal: Abilities API is the integration point', '  aim: Abilities API is the integration point');
-    expect(checkDemo(page(), b, scenes).join('\n')).toMatch(/README request MM3-0004: no frozen request/);
-  });
-  it('fails when the README response text or label drifts from its scene', () => {
-    const a = readme.replace('escalate: true\nmdl:', 'escalate: false\nmdl:');
-    expect(checkDemo(page(), a, scenes).join('\n')).toMatch(/README response MM3-0004: differs/);
+  it('fails when the README drops a card, or the label drifts from its scene', () => {
+    const a = readme.replace('src="docs/assets/example-request.svg"', 'src="docs/assets/other.svg"');
+    expect(checkDemo(page(), a, scenes).join('\n')).toMatch(/README request MM3-0004: no docs\/assets\/example-request\.svg/);
     const b = readme.replace('293 ms', '999 ms');
     expect(checkDemo(page(), b, scenes).join('\n')).toMatch(/label/);
-    const c = readme.replaceAll('  id: MM3-0004', '  id: MM3-9999');
-    expect(checkDemo(page(), c, scenes).join('\n')).toMatch(/no frozen response/);
+  });
+  it('fails when a committed card differs from what its scene builds', () => {
+    const drifted = scenes.map((s) => (s.id === 'MM3-0004' && s.story === 'mak' ? { ...s, response: s.response.replace('escalate: true', 'escalate: false') } : s));
+    expect(checkDemo(page(), readme, drifted).join('\n')).toMatch(/README response MM3-0004: docs\/assets\/example-response\.svg differs/);
   });
 });

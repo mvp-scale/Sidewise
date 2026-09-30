@@ -9,7 +9,7 @@ export type Story = {
   tagline: string;
   identity: string;
   numbers: { text: string; method: string }[];
-  install: { claude: string; claudeInstall: string; npm: string; npmInit: string; nokey: string };
+  install: { claude: string; claudeInstall: string; npm: string; npmInit: string; endpoint: string };
   useCases: { title: string; verb: string }[];
 };
 

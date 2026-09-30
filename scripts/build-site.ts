@@ -9,7 +9,7 @@ import { loadStories, renderPlayer } from './build-demo.ts';
 import { loadStory, type Story } from './story.ts';
 
 /** The site is served apart from the repo, so a number's method links to the GitHub copy of the doc. */
-const BLOB = 'https://github.com/mvp-scale/Sidewise/blob/nightly/';
+const BLOB = 'https://github.com/mvp-scale/mm3/blob/nightly/';
 export const methodUrl = (method: string): string => BLOB + method;
 
 export const VERB_BLURBS: Record<string, string> = {
@@ -32,7 +32,7 @@ export function renderSite(story: Story, template: string, extra: Record<string,
     installClaudeInstall: esc(story.install.claudeInstall),
     installNpm: esc(story.install.npm),
     installNpmInit: esc(story.install.npmInit),
-    installNokey: esc(story.install.nokey),
+    installEndpoint: esc(story.install.endpoint),
     numbers: story.numbers
       .map((n) => `    <li><a href="${esc(methodUrl(n.method))}"><span class="stat">${esc(n.text)}</span><span class="meth">How it was measured</span></a></li>`)
       .join('\n'),

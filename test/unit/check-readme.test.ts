@@ -6,14 +6,14 @@ const story: Story = {
   tagline: 'Checklists in. Calibrated verdicts out.',
   identity: 'MM3 turns a checklist into a verdict.',
   numbers: [],
-  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', nokey: 'MM3_PROVIDER=fake mm3 class r.yaml' },
+  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', endpoint: 'MM3_BASE_URL=https://x.example mm3 class r.yaml' },
   useCases: [],
 };
 const ok = (): string | null => null;
 const good = [
   '# MM3', '', 'Checklists in. Calibrated verdicts out.', '', 'MM3 turns a checklist into a verdict.', '',
   '<picture><source media="(prefers-color-scheme: dark)" srcset="docs/assets/a.svg"><img src="docs/assets/a.svg" alt="how"></picture>',
-  '', '## Install', '', '```bash', '/plugin marketplace add x/y', '/plugin install x@y', 'npm install -g @mvpscale/mm3', 'mm3 init', 'MM3_PROVIDER=fake mm3 class r.yaml', '```',
+  '', '## Install', '', '```bash', '/plugin marketplace add x/y', '/plugin install x@y', 'npm install -g @mvpscale/mm3', 'mm3 init', 'MM3_BASE_URL=https://x.example mm3 class r.yaml', '```',
   '', '## License', '', 'Apache-2.0 · [contract](docs/contract.md)',
 ].join('\n');
 const opts = (dryRun: (verb: string, yaml: string) => string | null = ok) => ({ root: 'test/unit/fixtures/readme', dryRun });
@@ -86,13 +86,13 @@ describe('checkReadme', () => {
     expect(out).toContainEqual(expect.stringMatching(/^✖ story\.numbers\[0\]: /));
     expect(out).toContainEqual(expect.stringMatching(/^✖ story\.useCases\[0\]: /));
   });
-  it('still flags another old name on the same line as the repo URL, but not prose Side:', () => {
+  it('flags an old name once per line, but not prose Side:', () => {
     const out = checkReadme(good + '\nmvp-scale/Sidewise and sidewise class\nSide: prose\n', story, opts());
     expect(out.filter((l) => l.startsWith('✖ old name'))).toHaveLength(1);
   });
-  it('flags the capitalised old name Sidewise, but not the repo URL', () => {
-    const out = checkReadme(good + '\nSidewise turns a checklist\nsee mvp-scale/Sidewise\n', story, opts());
-    expect(out.filter((l) => l.startsWith('✖ old name'))).toHaveLength(1);
+  it('flags the capitalised old name Sidewise, the old repo URL included, but not the new one', () => {
+    const out = checkReadme(good + '\nSidewise turns a checklist\nsee mvp-scale/Sidewise\nsee mvp-scale/mm3\n', story, opts());
+    expect(out.filter((l) => l.startsWith('✖ old name'))).toHaveLength(2);
   });
 });
 

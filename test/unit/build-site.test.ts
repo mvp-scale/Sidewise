@@ -8,7 +8,7 @@ const story: Story = {
   tagline: 'Checklists in. Calibrated verdicts out.',
   identity: 'MM3 turns a checklist into a verdict.',
   numbers: [{ text: '$0.000065 per check & more', method: 'docs/numbers.md#cost-per-check' }],
-  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', nokey: 'MM3_PROVIDER=fake mm3 class r.yaml' },
+  install: { claude: '/plugin marketplace add x/y', claudeInstall: '/plugin install x@y', npm: 'npm install -g @mvpscale/mm3', npmInit: 'mm3 init', endpoint: 'MM3_BASE_URL=https://x.example mm3 class r.yaml' },
   useCases: [{ title: 'Check a change', verb: 'class' }, { title: 'Find <where> it lives', verb: 'scan' }],
 };
 
@@ -26,7 +26,7 @@ describe('renderSite', () => {
   it('keeps a "$" in story text literal and links each number to the GitHub copy of its method', () => {
     const html = renderSite(story, '{{numbers}}');
     expect(html).toContain('$0.000065 per check &amp; more');
-    expect(html).toContain('href="https://github.com/mvp-scale/Sidewise/blob/nightly/docs/numbers.md#cost-per-check"');
+    expect(html).toContain('href="https://github.com/mvp-scale/mm3/blob/nightly/docs/numbers.md#cost-per-check"');
   });
   it('throws on an unknown placeholder, and fills the demo slot only when given', () => {
     expect(() => renderSite(story, '{{nope}}')).toThrow(/unknown placeholder/);
@@ -37,7 +37,7 @@ describe('renderSite', () => {
 });
 
 describe('checkSite', () => {
-  const html = renderSite(story, '<title>MM3</title>{{tagline}}{{identity}}{{installClaude}}{{installClaudeInstall}}{{installNpm}}{{installNpmInit}}{{installNokey}}{{numbers}}{{useCases}}');
+  const html = renderSite(story, '<title>MM3</title>{{tagline}}{{identity}}{{installClaude}}{{installClaudeInstall}}{{installNpm}}{{installNpmInit}}{{installEndpoint}}{{numbers}}{{useCases}}');
   it('passes a page that carries every story phrase and a linked method', () => {
     expect(checkSite(html, story)).toEqual([]);
   });
@@ -53,7 +53,7 @@ describe('checkSite', () => {
     const page = renderSite(real, readFileSync('site/template.html', 'utf8'), { demo: demoSlot('') });
     expect(checkSite(page, real)).toEqual([]);
     expect(page).toContain('<title>MM3: ');
-    expect(page).not.toMatch(/https?:\/\/(?!github\.com|mm3lab\.dev|www\.w3\.org)/);
+    expect(page).not.toMatch(/https?:\/\/(?!github\.com|mm3lab\.dev|www\.w3\.org|api\.example\.com)/);
   });
   describe('prose drift against the README', () => {
     const real = loadStory();
@@ -67,16 +67,16 @@ describe('checkSite', () => {
       expect(drifted).not.toBe(readme);
       expect(checkSite(page, real, undefined, drifted).join('\n')).toMatch(/Limits and alternatives/);
     });
-    it('fails when the response block or a Why paragraph drifts', () => {
-      const a = readme.replace('cost estimated from tokens', 'cost guessed from tokens');
+    it('fails when See it run prose or a Why paragraph drifts', () => {
+      const a = readme.replace('Each concern gets its own verdict and odds.', 'Each concern gets a verdict.');
       expect(checkSite(page, real, undefined, a).join('\n')).toMatch(/See it run/);
       const b = readme.replace('each answer is untraceable and never reused', 'each answer is anonymous and never reused');
       expect(checkSite(page, real, undefined, b).join('\n')).toMatch(/Why we built it/);
     });
     it('treats the README-only link to the site as not prose the site must carry', () => {
-      expect(readme).toContain('[Step through both stories on mm3lab.dev →](https://mm3lab.dev/#run)');
+      expect(readme).toContain('<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>');
       expect(checkSite(page, real, undefined, readme)).toEqual([]);
-      const other = readme.replace('[Step through both stories on mm3lab.dev →](https://mm3lab.dev/#run)', 'Step through both stories somewhere else.');
+      const other = readme.replace('<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>', '<p align="center">Step through both stories somewhere else.</p>');
       expect(checkSite(page, real, undefined, other).join('\n')).toMatch(/See it run/);
     });
     it('fails when a table cell or a use-case blurb drifts', () => {

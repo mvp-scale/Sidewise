@@ -16,14 +16,14 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parse } from 'yaml';
-import { askTexts, extractScene, fmtCost, scrubPaths, type AskRow, type Scene } from './build-demo.ts';
+import { askTexts, extractScene, fmtCost, loadScenes, sceneLabel, scrubPaths, type AskRow, type Scene } from './build-demo.ts';
 
 export const STRIP_W = 900;
-const SPLIT = 280; // the one divider; the left column (terminal + value panel) is 280 px
+const SPLIT = 250; // the one divider; the left column (terminal + value panel) is 250 px
 const CODE_X = SPLIT + 26; // room for the fold gutter (▾) between the band's edge and the code
-const FS = 12.5; // code font size: about 12.0 px at GitHub's ~865 px column
+const FS = 11.5; // code font size: about 11 px at GitHub's ~865 px column
 const CW = FS * 0.6; // one monospace column
-const WRAP = 77; // 77 * 7.5 = 577 px of the 580 px between the code column and the right padding
+const WRAP = Infinity; // no wrap: long lines run under the right-edge fade, as in an editor with wrap off
 const LH = 16;
 const TAB_Y = 34; // baseline of the tab labels
 const TOP = 78; // baseline of the first code row
@@ -311,7 +311,7 @@ function typing(n: number, t0: number, seed: number, text: string): number[] {
 // ---------------------------------------------------------------- the SVG
 
 const LEFT_X = 18;
-const TERM_FS = 12;
+const TERM_FS = 11;
 const TERM_CW = TERM_FS * 0.6;
 const ROW = { shell: 92, box: 116, ask: 135, tool: 194, res0: 220, res1: 240, next: 264 };
 
@@ -393,8 +393,11 @@ export function buildStrip(s: StripScene): string {
 
     // ------------- viewport documents (clipped to the viewport)
     const vp = `vp${id}`;
-    if (motion) o.push(`<clipPath id="${vp}"><rect x="${SPLIT + 1}" y="${CLIP_TOP}" width="${STRIP_W - SPLIT - 2}" height="${g.viewRows * LH + 6}"/></clipPath>`);
-    o.push(`<g${motion ? ` clip-path="url(#${vp})"` : ''}>`);
+    const FADE = 56; // long lines fade out over this many px before the right edge
+    o.push(`<clipPath id="${vp}"><rect x="${SPLIT + 1}" y="${CLIP_TOP}" width="${STRIP_W - SPLIT - 2}" height="${g.viewRows * LH + 6}"/></clipPath>`);
+    o.push(`<linearGradient id="fg${id}" gradientUnits="userSpaceOnUse" x1="${STRIP_W - 18 - FADE}" x2="${STRIP_W - 18}" y1="0" y2="0"><stop offset="0" stop-color="#fff"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>`);
+    o.push(`<mask id="fm${id}" maskUnits="userSpaceOnUse" x="0" y="0" width="${STRIP_W}" height="${H}"><rect width="${STRIP_W}" height="${H}" fill="url(#fg${id})"/></mask>`);
+    o.push(`<g clip-path="url(#${vp})" mask="url(#fm${id})">`);
     const text = (k: number, spans: string, x = CODE_X): string => `<text x="${x}" y="${k * LH}" font-size="${FS}" fill="${C.ink}" xml:space="preserve">${spans}</text>`;
     const glyphX = (line: string): number => Math.max(CODE_X - 12, CODE_X + (/^\s*/.exec(line)![0].length - 2) * CW);
     if (motion) {
@@ -477,7 +480,7 @@ export function buildStrip(s: StripScene): string {
       const on = pi === POSTER_PANEL;
       const pw = p.b === Infinity ? win(p.a, Infinity, 0.4) : win(p.a, p.b, 0.4, 0.35);
       const bullets = p.v.bullets.map((b, k) => el('g', { opacity: 1 }, an('opacity', win(p.at[k]!, Infinity, 0.5)),
-        `<circle cx="34" cy="${PY + 60 + k * 30 - 4.5}" r="3" fill="${C.green}"/><text x="46" y="${PY + 60 + k * 30}" font-size="13.5" font-weight="600" font-family="${SANS}" fill="${C.white}">${xe(b)}</text>`));
+        `<circle cx="34" cy="${PY + 60 + k * 30 - 4.5}" r="3" fill="${C.green}"/><text x="46" y="${PY + 60 + k * 30}" font-size="13" font-weight="600" font-family="${SANS}" fill="${C.white}">${xe(b)}</text>`));
       if (!motion && !on) return;
       o.push(el('g', { opacity: on ? 1 : 0 }, an('opacity', pw),
         `<text x="30" y="${PY + 32}" font-size="10.5" font-weight="700" letter-spacing="1.6" font-family="${SANS}" fill="${C.blue}">${xe(p.v.title)}</text>` + bullets.join('')));
@@ -535,6 +538,39 @@ export function buildStrip(s: StripScene): string {
 
 /** The strip's timeline (seconds): the loop length `T` and when each beat lands; for tests and the stills. */
 export const stripTimeline = (): Timeline => timeline();
+
+// ---------------------------------------------------------------- code cards: one frozen request or response in the strip's style
+
+const CARD_FS = 12; // 114 columns (the longest response line) fit the 900-unit card at this size
+/** A static card for one YAML document: the strip's ground, MM3 heading and rule, a label on the right, the text coloured by the same highlighter, no wrap. */
+export function codeCard(yaml: string, label: string, aria: string): string {
+  const doc = layout(yaml.trimEnd().split('\n'), 'yaml');
+  const top = 82;
+  const h = top + (doc.rows.length - 1) * LH + 26;
+  const rows = doc.rows.map((sp, k) => `<text x="26" y="${top + k * LH}" font-size="${CARD_FS}" fill="${C.ink}" xml:space="preserve">${sp}</text>`).join('\n');
+  return [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${STRIP_W}" height="${h}" viewBox="0 0 ${STRIP_W} ${h}" role="img" aria-label="${xe(aria)}">`,
+    `<style>svg{font-family:${MONO}}text{white-space:pre}</style>`,
+    `<rect width="${STRIP_W}" height="${h}" rx="14" fill="${C.bg}"/>`,
+    `<text x="18" y="${TAB_Y}" font-size="17" font-weight="700" font-family="${SANS}" fill="${C.white}">MM<tspan fill="${C.green}">3</tspan></text>`,
+    `<text x="${STRIP_W - 18}" y="${TAB_Y}" text-anchor="end" font-size="12.5" font-family="${SANS}" fill="${C.dim}">${xe(label)}</text>`,
+    `<line x1="0" y1="52" x2="${STRIP_W}" y2="52" stroke="${C.line}"/>`,
+    rows,
+    `<rect x=".5" y=".5" width="${STRIP_W - 1}" height="${h - 1}" rx="14" fill="none" stroke="${C.line}"/>`,
+    '</svg>',
+  ].join('\n');
+}
+
+/** The README's worked example (the WordPress story's MM3-0004): its request and response as code cards, from the committed scenes. */
+export const EXAMPLE_ID = 'MM3-0004';
+export function exampleCards(scenes: Scene[] = loadScenes()): { request: string; response: string } {
+  const s = scenes.find((x) => x.id === EXAMPLE_ID && x.story === 'mak');
+  if (!s) throw new Error(`✖ cards: no ${EXAMPLE_ID} in the mak story → rerun tsx scripts/build-demo.ts extract`);
+  return {
+    request: codeCard(s.request, `request · ${s.request.trimEnd().split('\n').length} lines`, `The request the agent wrote for ${s.id}: one goal, three concerns of three yes/no questions each, and two decisions.`),
+    response: codeCard(s.response, sceneLabel(s), `The response to ${s.id}: an overall gate, a gate and odds per concern, consensus, escalate and the next command.`),
+  };
+}
 
 // ---------------------------------------------------------------- committed data in, one-time extract out
 
@@ -609,5 +645,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     writeFileSync(outFile, svg + '\n');
     const tl = timeline();
     console.log(`strip: ${outFile} ${Buffer.byteLength(svg)} bytes, loop ${tl.T} s (from ${STRIP_SCENE}, no ledger read)`);
+    const cards = exampleCards();
+    writeFileSync('docs/assets/example-request.svg', cards.request + '\n');
+    writeFileSync('docs/assets/example-response.svg', cards.response + '\n');
+    console.log(`cards: docs/assets/example-request.svg, docs/assets/example-response.svg (${EXAMPLE_ID}, from docs/demo/scenes)`);
   }
 }
