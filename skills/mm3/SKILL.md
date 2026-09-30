@@ -3,6 +3,16 @@ name: mm3
 description: Use before merging or shipping a risky change, after a fix to prove it actually worked, when scanning a codebase for a pattern before you know where it lives, or when checking a design or plan before writing code. Turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict, reuses answers for unchanged code, and logs every run so weak spots surface over time.
 ---
 
+## Use MM3 in every beat
+
+MM3 works in three beats; use it in every one.
+- Know: `view` first (free, reuses what is known), then `scan` to find where the goal touches the code.
+- Judge: `loop` the plan before code, `class` a specific decision, `drill` into anything unsure or failing (follow `next:`).
+- Prove: after the change is committed, `replay --parent <id> --compare <before>..HEAD` shows what flipped to pass and what regressed; `class` alone is not proof of a change.
+- Run `mm3 agent <verb>` before writing a request.
+
+## What MM3 is
+
 MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence, never a command. Every request has a `mak:` block (**make**: the request itself, one goal, then plumbing) and an optional `mdl:` block (**model**: why you're here, so the ledger learns). The six verbs split into MAK³ (use what is proven: `view`, `class`, `replay`) and MDL³ (learn what is missing: `scan`, `drill`, `loop`), each across Know, Judge and Prove.
 
 ## Run this first
