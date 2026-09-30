@@ -60,11 +60,13 @@ The response, **real output · jev-1.13.0 · api.typesafe.ai · 321 ms · ~$0.00
 - **Decisions:** measure first passes (0.89); severity is unsure (low, 0.56).
 - **Next:** the concerns disagree, so consensus is SPLIT, `escalate` is true, and `next:` points at a drill into availability. The `mdl:` line lists what the ledger recorded about why the agent asked, so later runs on this code start from it.
 
+<p align="center"><a href="https://mm3lab.dev/#run">Step through two full stories, WordPress and n8n, on mm3lab.dev →</a></p>
+
 ## Why MM3
 
 MM3 stands for **make** and **model**, each to the power of three. It started as Sidewise; we hope you like the new name.
 
-We ran a lot of recon with it and kept finding useful patterns, but there was no standard way to capture one. So MM3 is a **Knowledge One system**. The point isn't that it can classify. It's that every classification becomes part of a knowledge pool for your codebase, so you understand the whole thing faster.
+An agent can ask a fast classifier a yes/no about your code, but on its own each answer is untraceable and never reused. We ran a lot of recon with it and kept finding useful patterns, but there was no standard way to capture one. So MM3 is a **Knowledge One system**. The point isn't that it can classify. It's that every classification becomes part of a knowledge pool for your codebase, so you understand the whole thing faster.
 
 **The power of three.** Every concern is asked from three angles, so no decision rests on one look, the way agents like to decide. And every request leaves three kinds of knowledge: what you asked, the verdict shaped and scored a layer above it, and the problem you were working on.
 
@@ -84,82 +86,29 @@ view knows the past, scan the present, loop the future. Use the moves in any ord
 
 <p align="center"><img src="docs/assets/story-ledger.svg" width="900" alt="The MM3 ledger. One append-only JSONL file, filled by runs you were making anyway. The same 10 runs give you a layered heat map of your architecture; 20, a reference architecture with a heat map; 50, a knowledge graph of your whole system. The mdl block is yours: add any field to any request, such as standard or owner, for free. Your agent reads the log or the SQLite index in milliseconds and paints charts, maps and graphs. Where your agents are strong, and where they are not."></p>
 
-## By the numbers
-
-- [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
-- [1,155 tests, no network, no key](docs/numbers.md#test-count)
-- [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
-
-## What you get
-
-|  | **Know** | **Judge** | **Prove** |
-|---|---|---|---|
-| **MAK³** · use what is proven | `view`: a free lookup of what is on record | `class`: one subject, one verdict | `replay`: recheck after a fix |
-| **MDL³** · learn what is missing | `scan`: sweep to find where to look | `drill`: dig into one weak spot | `loop`: vet a design before code |
-
 A request has a `mak:` block (the checklist) and an optional `mdl:` block (why you are asking, so the ledger learns). The verb you run, not the key, decides whether it is a MAK³ or an MDL³ move. `mm3 help <verb>` shows the rules for each; `mm3 template <verb>` prints a filled-in sample.
 
 Every run and its outcome goes into an append-only ledger in `.mm3/` (git-ignored). Ask the same questions of unchanged code and MM3 answers from the ledger: no call, no cost. `mm3 report` reads back where your agents keep going wrong, and a budget cap stops runaway spend; by convention only you raise or reset it, and MM3 tells agents to ask you. `mm3 view` looks a request up in the ledger before you spend anything.
 
-## Why we built it
+## By the numbers
 
-Agents can now ask a fast classifier a yes/no about your code, but each answer is untraceable and never reused. MM3 turns that into one standard checklist in, one calibrated verdict per concern out, and every answer kept and reused.
+- [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
+- [1,181 tests, no network, no key](docs/numbers.md#test-count)
+- [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
 
-## What you can do
+## Run it
+
+Let your agent drive. `mm3 agent` prints every command and rule in one dense card built for agents, and `mm3 agent <verb>` gives one verb's rules with good and bad examples. Most agents read it and run the commands just fine, Haiku included: it drove both of our stories end to end.
+
+For humans, `mm3 help` is the same contract in plain words, and `mm3 template <verb>` prints a filled-in request with its rules as comments. Four jobs to start with:
 
 - **Check a change before you merge it.** One `class` call, three angles per concern, a verdict for each. Start with `mm3 template class`.
 - **Prove a fix actually worked.** `replay` re-asks a past run's own questions across two commits, so you check the fix without re-checking everything. Start with `mm3 template replay`.
 - **Find where a problem lives.** `scan` sweeps a folder and ranks the files that most need a look. Start with `mm3 template scan`.
 - **Check a design before any code exists.** `loop` puts a plan through the same checklist before anyone writes it. Start with `mm3 template loop`.
 
-Each template is a filled-in request with its rules as comments.
-
 <details>
-<summary>A request you can dry-run in this repo</summary>
-
-`mm3 class review.yaml --dry-run` validates it and counts its questions without spending anything.
-
-```yaml verb=class
-mak:
-  goal: An answer is reused only while the code it was given on is unchanged
-  depth: quick
-  where: [src/ledger/reuse.ts:193-260, src/ledger/stale.ts]
-  ask:
-    concerns:
-      freshness:
-        pass: yes
-        1: Does the check compare the code's current state with the state the answer was given on?
-        2: Is an answer dropped once the code it was given on has changed?
-        3: Is that comparison made before any call is sent?
-      lookup:
-        pass: yes
-        4: Is a stored answer looked up by the exact question set?
-        5: Is the lookup keyed on the question text and the code state together?
-        6: Is a lookup miss treated as "ask", not as an error?
-      spend:
-        pass: yes
-        7: Does a reused answer cost nothing?
-        8: Is each reuse recorded in the ledger?
-        9: Is a reused answer labelled as reused?
-    decisions:
-      severity:
-        pass: [none, low]
-        10:
-          scale: How severe is the worst issue found?
-          levels: [none, low, medium, high, critical]
-      route:
-        pass: [ship]
-        11:
-          choice: Where should this go?
-          options: [ship, fix, block]
-mdl:
-  why: validate
-  area: data
-```
-
-</details>
-
-### Run it by hand
+<summary>Run it by hand</summary>
 
 Every line below runs in order in a fresh project:
 
@@ -175,13 +124,7 @@ mm3 budget
 
 Add `--dry-run` to any request to validate it and count its questions without a call. With no key set, MM3 falls back to a built-in sample provider so these lines still run; its answers are canned and labelled, never evidence.
 
-Agents: run `mm3 agent` first. Humans: `mm3 help`.
-
-## Two stories, step by step
-
-Two real stories, each driven by a Haiku agent on unmodified public source: **MAK³ · make**, “Where do agents plug into WordPress?” (WordPress @ 3ffb1df), and **MDL³ · model**, “I've never worked in n8n and I want it faster” (n8n@2.40.7, then n8n@2.41.3). Every step is one run: the task the agent was given, the request it fired, the response MM3 returned, a quick read of it, the decision it implies and what the ledger now holds. Every footer comes from that run's own ledger row.
-
-<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>
+</details>
 
 ## Limits and alternatives
 
@@ -190,7 +133,7 @@ Two real stories, each driven by a Haiku agent on unmodified public source: **MA
 - **Not a linter, scanner or test suite.** Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can't put: does this handler check the caller, will this design hold.
 - **Not a substitute for a full-context model review.** A full-context review reads the whole codebase for every question. Use one when the question won't fit a yes/no.
 - **The sample provider is not evidence.** Its answers are canned. Built on TypeSafe's Jev; other classifiers can plug in.
-- **Pre-release.** Tested end to end on an intentionally vulnerable app (OWASP NodeGoat) (see the numbers above). Not yet on npm.
+- **Beta.** Tested end to end on an intentionally vulnerable app (OWASP NodeGoat) (see the numbers above). The npm package publishes with the first release.
 
 ## Docs and contributing
 

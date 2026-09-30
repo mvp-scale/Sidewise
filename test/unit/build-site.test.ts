@@ -67,11 +67,9 @@ describe('checkSite', () => {
       expect(drifted).not.toBe(readme);
       expect(checkSite(page, real, undefined, drifted).join('\n')).toMatch(/Limits and alternatives/);
     });
-    it('fails when See it run prose or a Why paragraph drifts', () => {
+    it('fails when See it run prose drifts', () => {
       const a = readme.replace('Yes, this cleanup could be faster.', 'Yes, this cleanup is slow.');
       expect(checkSite(page, real, undefined, a).join('\n')).toMatch(/See it run/);
-      const b = readme.replace('each answer is untraceable and never reused', 'each answer is anonymous and never reused');
-      expect(checkSite(page, real, undefined, b).join('\n')).toMatch(/Why we built it/);
     });
     it('treats a README-only link to the site as not prose the site must carry', () => {
       const link = '<p align="center"><a href="https://mm3lab.dev/#run">Step through both stories on mm3lab.dev →</a></p>';
@@ -79,9 +77,7 @@ describe('checkSite', () => {
       expect(checkSite(page, real, undefined, at(link))).toEqual([]);
       expect(checkSite(page, real, undefined, at('<p align="center">Step through both stories somewhere else.</p>')).join('\n')).toMatch(/See it run/);
     });
-    it('fails when a table cell or a use-case blurb drifts', () => {
-      const a = readme.replace('recheck after a fix', 'recheck after any fix');
-      expect(checkSite(page, real, undefined, a).join('\n')).toMatch(/What you get/);
+    it('fails when a use-case blurb drifts', () => {
       const b = readme.replace('ranks the files that most need a look', 'ranks the files');
       expect(checkSite(page, real, undefined, b).join('\n')).toMatch(/blurb for scan/);
     });

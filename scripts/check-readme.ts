@@ -132,7 +132,7 @@ export function checkDemo(html: string, readme: string | undefined, scenes: Scen
   return out;
 }
 
-const PROSE_SECTIONS = ['See it run', 'What you get', 'Why we built it', 'Limits and alternatives'];
+const PROSE_SECTIONS = ['See it run', 'Limits and alternatives'];
 
 /** Prose the README and the site both carry (hand-copied, not in story.yaml): each block of these README sections must appear in the page's text, so a README edit that the site missed fails. A line that is only a link to the site itself ("Step through both stories on mm3lab.dev"), a centered image or a `<br>` spacer is README-only: the site has no use for a link to itself, and layout is not prose. */
 function checkSiteProse(html: string, readme: string, story: Story): string[] {
