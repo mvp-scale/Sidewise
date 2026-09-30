@@ -1141,7 +1141,9 @@ is unsure`) — the same simplification for both `help` and `agent`, since it's 
 - Nested items use `- name: <item>` plus child layers beside it, which is what agents write naturally.
   Different items may have different child layers. [C-087]
 - `mm3 --version` and `mm3 -v` print the installed package's version, one line, exit 0 — free, no
-  project needed, no Node-version gate (same free standing as the bare `--help`/`-h`). [C-178]
+  project needed, no Node-version gate (same free standing as the bare `--help`/`-h`). The Claude Code plugin
+  pins no version (Claude versions it by commit), so the plugin copy adds the commit it was installed from:
+  `0.1.0 (plugin 2fbbc04a9a65)`. [C-178]
 - `mm3 <command> --help` and `mm3 <command> -h` work for every command, exit 0, never reaching that
   command's own flag parser (previously an unknown-flag stop for every command but the bare top level — e.g.
   `mm3 doctor --help` used to fail). For the six verbs it prints that verb's usage line plus `→ see:
