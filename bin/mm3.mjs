@@ -17355,7 +17355,7 @@ async function dispatch(argv, ctx) {
         content = ctx.stdin().toString("utf8");
       } else {
         try {
-          if (statSync9(arg).isFile()) content = readFileSync18(arg, "utf8");
+          content = readFileSync18(arg, "utf8");
         } catch {
         }
       }

@@ -488,7 +488,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         content = ctx.stdin().toString('utf8');
       } else {
         try {
-          if (statSync(arg).isFile()) content = readFileSync(arg, 'utf8');
+          content = readFileSync(arg, 'utf8'); // a directory (EISDIR) or missing path throws: no stat-then-read race
         } catch {
           // not a file: treat arg itself as the place/id
         }
