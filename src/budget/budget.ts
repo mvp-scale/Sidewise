@@ -130,14 +130,17 @@ export function usedFraction(s: BudgetState): number {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
 }
 
-/** When only the RUN cap tripped (the dollar cap has room left), raising it fits better than resetting
- *  the spend already counted — "reset" stays the hint whenever the dollar cap is involved (alone, or with runs). */
+/** The one fix for a cap that is low or reached: the owner raises the cap that ran out (only that cap's flag is
+ *  named). `reset` restarts the counted window but raises no cap, so it is not what either message recommends. */
+function raiseCommand(usd: boolean, runs: boolean): string {
+  return `mm3 budget set ${[usd ? '--usd <n>' : '', runs ? '--runs <n>' : ''].filter(Boolean).join(' ')}`;
+}
+
 export function checkBudget(s: BudgetState): { ok: true } | { ok: false; message: string } {
   const runsCapped = s.runs >= s.capRuns;
   const usdCapped = s.spentUsd >= s.capUsd;
   if (runsCapped || usdCapped) {
-    const hint = runsCapped && !usdCapped ? 'the owner runs "mm3 budget set --runs <n>"' : 'the owner runs "mm3 budget reset"';
-    return { ok: false, message: `✖ budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs) → ${hint}${AGENT_POINTER}` };
+    return { ok: false, message: `✖ budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs) → the owner runs "${raiseCommand(usdCapped, runsCapped)}"${AGENT_POINTER}` };
   }
   return { ok: true };
 }
@@ -184,7 +187,22 @@ export function setBudget(paths: Mm3Paths, caps: { capUsd?: number; capRuns?: nu
   });
 }
 
+/** Share of a cap spent at which the line turns into a warning (and says what to do) — below it the line is
+ *  plain headroom, so an agent reading "10% used" no longer mistakes a nearly-empty meter for a constraint. [C-229] */
+export const BUDGET_LOW_FRACTION = 0.8;
+
+/** The one budget-line formatter: run notes, `budget`, `budget set/reset` all print exactly this. It states
+ *  what is LEFT, not a percentage — `budget: $0.11 left of $0.12 · 27 of 30 runs left`. A `⚠` appears only at
+ *  >= 80% used, followed by the fix for whichever cap is running low. [C-229] */
 export function budgetLine(s: BudgetState): string {
-  const pct = Math.round(usedFraction(s) * 100);
-  return `${pct >= 50 ? '⚠ ' : ''}budget ${pct}% used (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs)`;
+  const usdLeft = Math.max(0, s.capUsd - s.spentUsd);
+  const runsLeft = Math.max(0, s.capRuns - s.runs);
+  // An overshot cap (concurrent runs can pass it) says so, instead of reading as exactly at the cap.
+  const usdUsed = s.spentUsd > s.capUsd ? ` (${money(s.spentUsd)} used)` : '';
+  const runsUsed = s.runs > s.capRuns ? ` (${s.runs} used)` : '';
+  const line = `budget: ${money(usdLeft)} left of ${money(s.capUsd)}${usdUsed} · ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
+  if (usedFraction(s) < BUDGET_LOW_FRACTION) return line;
+  const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= BUDGET_LOW_FRACTION : true;
+  const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= BUDGET_LOW_FRACTION : true;
+  return `⚠ ${line} → low: ask the owner to run ${raiseCommand(lowUsd, lowRuns)}`;
 }

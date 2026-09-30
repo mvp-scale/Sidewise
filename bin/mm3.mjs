@@ -7379,14 +7379,14 @@ import { parseArgs } from "node:util";
 var package_default = {
   name: "@mvpscale/mm3",
   version: "0.0.0",
-  description: "MM3, a Knowledge One system for coding agents: MAK\xB3 uses what is proven, MDL\xB3 learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
+  description: "MM3, make and model for coding agents: MAK\xB3 uses what is proven, MDL\xB3 learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
   license: "Apache-2.0",
   type: "module",
   repository: {
     type: "git",
-    url: "git+https://github.com/mvp-scale/Sidewise.git"
+    url: "git+https://github.com/mvp-scale/mm3.git"
   },
-  homepage: "https://github.com/mvp-scale/Sidewise#readme",
+  homepage: "https://github.com/mvp-scale/mm3#readme",
   keywords: [
     "agents",
     "claude-code",
@@ -7424,6 +7424,7 @@ var package_default = {
   scripts: {
     build: "tsc -p tsconfig.build.json",
     "build:plugin": "tsx scripts/build-plugin.ts",
+    "build:site": "tsx scripts/build-site.ts",
     typecheck: "tsc -p tsconfig.json --noEmit",
     test: "vitest run --project unit --project contract --project golden",
     "test:cli": "npm run build && vitest run --project cli",
@@ -7439,6 +7440,8 @@ var package_default = {
     "check:pack": "tsx scripts/check-pack.ts",
     "check:plugin": "tsx scripts/check-plugin.ts",
     "check:hygiene": "tsx scripts/check-hygiene.ts",
+    "check:readme": "npm run build && tsx scripts/check-readme.ts",
+    "judge:readme": "node bin/mm3.mjs class scripts/readme-judgment.yaml",
     "gen:evidence-index": "tsx scripts/evidence-index.ts",
     prepare: "git config core.hooksPath .githooks 2>/dev/null || true",
     "dev:install": 'npm run build && tgz="$(pwd)/$(npm pack --silent | tail -1)" && cd "${INIT_CWD:-.}" && npx --yes --package "$tgz" mm3 init'
@@ -7805,7 +7808,7 @@ function resolveConfig(paths, env = {}) {
   const stops = [...file.stops, ...validated.stops];
   const sources = {};
   const envProvider = cleanEnv(env.MM3_PROVIDER);
-  const envBaseURL = cleanEnv(env.MM3_BASE_URL);
+  const envBaseURL = cleanEnv(env.TYPESAFE_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
   const envTimeoutRaw = Number(cleanEnv(env.JEV_TIMEOUT_MS));
   const envTimeout = Number.isFinite(envTimeoutRaw) && envTimeoutRaw > 0 ? envTimeoutRaw : void 0;
@@ -9213,12 +9216,14 @@ function loadBudget(paths, now = Date.now(), env = process.env) {
 function usedFraction(s) {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
 }
+function raiseCommand(usd, runs) {
+  return `mm3 budget set ${[usd ? "--usd <n>" : "", runs ? "--runs <n>" : ""].filter(Boolean).join(" ")}`;
+}
 function checkBudget2(s) {
   const runsCapped = s.runs >= s.capRuns;
   const usdCapped = s.spentUsd >= s.capUsd;
   if (runsCapped || usdCapped) {
-    const hint = runsCapped && !usdCapped ? 'the owner runs "mm3 budget set --runs <n>"' : 'the owner runs "mm3 budget reset"';
-    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 ${hint}${AGENT_POINTER}` };
+    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 the owner runs "${raiseCommand(usdCapped, runsCapped)}"${AGENT_POINTER}` };
   }
   return { ok: true };
 }
@@ -9242,9 +9247,17 @@ function setBudget(paths, caps, now = Date.now(), env = process.env) {
     return budgetStateNow(paths, now, env);
   });
 }
+var BUDGET_LOW_FRACTION = 0.8;
 function budgetLine(s) {
-  const pct = Math.round(usedFraction(s) * 100);
-  return `${pct >= 50 ? "\u26A0 " : ""}budget ${pct}% used (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs)`;
+  const usdLeft = Math.max(0, s.capUsd - s.spentUsd);
+  const runsLeft = Math.max(0, s.capRuns - s.runs);
+  const usdUsed = s.spentUsd > s.capUsd ? ` (${money(s.spentUsd)} used)` : "";
+  const runsUsed = s.runs > s.capRuns ? ` (${s.runs} used)` : "";
+  const line3 = `budget: ${money(usdLeft)} left of ${money(s.capUsd)}${usdUsed} \xB7 ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
+  if (usedFraction(s) < BUDGET_LOW_FRACTION) return line3;
+  const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= BUDGET_LOW_FRACTION : true;
+  const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= BUDGET_LOW_FRACTION : true;
+  return `\u26A0 ${line3} \u2192 low: ask the owner to run ${raiseCommand(lowUsd, lowRuns)}`;
 }
 
 // src/classifier/chaos.ts
@@ -9323,7 +9336,7 @@ function createFakeAdapter() {
 // src/classifier/typesafe/config.ts
 var JevConfigError = class extends Error {
   /** 1 (default): a provider problem (no key) — bucketed with other provider errors. 2: a config value the
-   *  caller must fix before anything runs (a bad MM3_BASE_URL) — a usage mistake, not a runtime provider
+   *  caller must fix before anything runs (a bad TYPESAFE_BASE_URL) — a usage mistake, not a runtime provider
    *  failure. */
   exit;
   constructor(message, exit = 1) {
@@ -9374,18 +9387,18 @@ function resolveTimeoutMs(env, fileConfig) {
 }
 var LOCAL_HOSTS = /* @__PURE__ */ new Set(["localhost", "127.0.0.1", "[::1]", "::1"]);
 function resolveBaseURL(env, baseDefault, fileConfig) {
-  const raw = clean(env.MM3_BASE_URL) ?? fileConfig?.baseURL;
+  const raw = clean(env.TYPESAFE_BASE_URL) ?? fileConfig?.baseURL;
   if (raw === void 0) return baseDefault;
   let url;
   try {
     url = new URL(raw);
   } catch {
-    throw new JevConfigError(`\u2716 MM3_BASE_URL: "${raw}" is not a valid URL \u2192 use an https URL, e.g. https://api.example.com`, 2);
+    throw new JevConfigError(`\u2716 TYPESAFE_BASE_URL: "${raw}" is not a valid URL \u2192 use an https URL, e.g. https://api.example.com`, 2);
   }
   const local = LOCAL_HOSTS.has(url.hostname);
   if (url.protocol === "https:" || url.protocol === "http:" && local) return raw.replace(/\/+$/, "");
   throw new JevConfigError(
-    `\u2716 MM3_BASE_URL: "${raw}" is ${url.protocol.replace(":", "")}, not https \u2192 use https, or http only for localhost/127.0.0.1/[::1]`,
+    `\u2716 TYPESAFE_BASE_URL: "${raw}" is ${url.protocol.replace(":", "")}, not https \u2192 use https, or http only for localhost/127.0.0.1/[::1]`,
     2
   );
 }
@@ -10121,7 +10134,7 @@ function runMcpServer(io, runOne, serverVersion) {
 import { chmodSync, existsSync as existsSync8, mkdirSync as mkdirSync4, readFileSync as readFileSync8, rmSync as rmSync2, statSync as statSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import os from "node:os";
 import path5 from "node:path";
-var ALLOWED_NAMES = ["TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "MM3_BASE_URL", "JEV_MODEL", "JEV_GATEWAY_MODEL", "MM3_PROVIDER"];
+var ALLOWED_NAMES = ["TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "TYPESAFE_BASE_URL", "JEV_MODEL", "JEV_GATEWAY_MODEL", "MM3_PROVIDER"];
 var isAllowedName = (s) => ALLOWED_NAMES.includes(s);
 var EXPORT_LINE = /^\s*export\s+([A-Za-z_][A-Za-z0-9_]*)='([^']*)'\s*$/u;
 function mm3ConfigDir(env = process.env) {
@@ -15205,7 +15218,7 @@ var BODY = `
     </div>
   </aside>
 </div>
-<footer class="viewer-footer">A System One needs a Knowledge One. \xB7 MM3</footer>
+<footer class="viewer-footer">Make and model \xB7 MM3</footer>
 `;
 var CLIENT_JS = `
 (function () {
@@ -16575,7 +16588,7 @@ var WHEN = {
 var VERB_LINE = {
   view: "free; what's already known, before any paid call",
   class: "one decision on one thing (merge, choose, triage, check a fix)",
-  replay: "re-check a run's questions after a fix, across two git refs",
+  replay: "re-check a run's questions across two git refs: after a fix, or what changed between releases or commits",
   scan: "sweep many files when the problem's location is unknown",
   drill: "go down from one flagged item of an earlier run",
   loop: "check a design or plan before code exists"
@@ -16615,6 +16628,15 @@ function noKeyRunLine(env, deps) {
 }
 var PROJECT_SCOPE_RULE = "- where: resolves against the MCP `project` argument or `MM3_HOME` (CLI), never your session cwd \u2014 pass `project` (or set `MM3_HOME`) when you started elsewhere.";
 var PROBE_SKILL_RULE = "- before writing or editing any request, read the mm3-probe skill (or run `mm3 agent probe`): what makes a probe worth asking.";
+var CHAIN_RULES = [
+  "- open goal, in order: view (free reuse) \u2192 scan (find where) \u2192 drill (go deeper on a flagged item; follow next:) \u2192 loop (check the design) \u2192 replay (after a change).",
+  "- what changed or drifted between releases or commits: replay a prior run with compare: {before: <ref>, after: <ref>} (no prior run: class or scan once at one ref first); git diff is not an mm3 check."
+];
+var EVIDENCE_RULES = [
+  "- every number or claim you report comes from an mm3 answer (cite its id, e.g. MM3-0042) or is labelled your own estimate.",
+  "- a check done without mm3 (git diff, reading code to answer a question) is a workaround: say so; never claim none.",
+  "- notes: budget: \u2026 left is headroom, not a limit: stop only at \u26A0 or exit 3, then tell the owner."
+];
 function overview(env, deps) {
   return renderCard(
     [
@@ -16623,7 +16645,7 @@ function overview(env, deps) {
       "tools:",
       ...AGENT_TOOLS.map((t) => `- ${t}: ${TOOL_LINE[t]}`)
     ],
-    [PROBE_SKILL_RULE, ...ruleLines("card"), PROJECT_SCOPE_RULE],
+    [PROBE_SKILL_RULE, ...ruleLines("card"), PROJECT_SCOPE_RULE, ...CHAIN_RULES, ...EVIDENCE_RULES],
     [],
     [
       "run: mm3 agent <verb|tool> \u2014 before writing that request",

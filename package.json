@@ -1,14 +1,14 @@
 {
   "name": "@mvpscale/mm3",
   "version": "0.0.0",
-  "description": "MM3, a Knowledge One system for coding agents: MAK³ uses what is proven, MDL³ learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
+  "description": "MM3, make and model for coding agents: MAK³ uses what is proven, MDL³ learns what is missing, with compact yes/no checklists, a calibrated consensus, and a log that learns where agents go wrong.",
   "license": "Apache-2.0",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mvp-scale/Sidewise.git"
+    "url": "git+https://github.com/mvp-scale/mm3.git"
   },
-  "homepage": "https://github.com/mvp-scale/Sidewise#readme",
+  "homepage": "https://github.com/mvp-scale/mm3#readme",
   "keywords": [
     "agents",
     "claude-code",
@@ -46,6 +46,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "build:plugin": "tsx scripts/build-plugin.ts",
+    "build:site": "tsx scripts/build-site.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --project unit --project contract --project golden",
     "test:cli": "npm run build && vitest run --project cli",
@@ -61,6 +62,8 @@
     "check:pack": "tsx scripts/check-pack.ts",
     "check:plugin": "tsx scripts/check-plugin.ts",
     "check:hygiene": "tsx scripts/check-hygiene.ts",
+    "check:readme": "npm run build && tsx scripts/check-readme.ts",
+    "judge:readme": "node bin/mm3.mjs class scripts/readme-judgment.yaml",
     "gen:evidence-index": "tsx scripts/evidence-index.ts",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true",
     "dev:install": "npm run build && tgz=\"$(pwd)/$(npm pack --silent | tail -1)\" && cd \"${INIT_CWD:-.}\" && npx --yes --package \"$tgz\" mm3 init"

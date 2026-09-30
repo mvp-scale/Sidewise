@@ -282,12 +282,12 @@ describe('environment', () => {
     expect(expectCleanStop(unchanged(root, ['class', 'req.yaml'], { env: { MM3_PROVIDER: 'bogus' } }), 1)).toBe('✖ provider: "bogus" is not a provider → use fake, chaos or typesafe');
   });
 
-  it('a MM3_BASE_URL that is not https (and not localhost): exit 2, ✖ MM3_BASE_URL (P3)', () => {
+  it('a TYPESAFE_BASE_URL that is not https (and not localhost): exit 2, ✖ TYPESAFE_BASE_URL (P3)', () => {
     const root = projectWithRun();
     // The helper defaults every e2e run to MM3_PROVIDER=fake (no network); that alone never resolves
-    // typesafe config at all, so a bad MM3_BASE_URL would never surface — force the typesafe path so the
+    // typesafe config at all, so a bad TYPESAFE_BASE_URL would never surface — force the typesafe path so the
     // config validation actually runs (unchanged, since it still never reaches HTTP: it stops on the config).
-    const stop = expectCleanStop(unchanged(root, ['class', 'req.yaml'], { env: { MM3_PROVIDER: 'typesafe', MM3_BASE_URL: 'http://example.com' } }), 2);
-    expect(stop).toMatch(/^✖ MM3_BASE_URL: "http:\/\/example\.com" is http, not https/);
+    const stop = expectCleanStop(unchanged(root, ['class', 'req.yaml'], { env: { MM3_PROVIDER: 'typesafe', TYPESAFE_BASE_URL: 'http://example.com' } }), 2);
+    expect(stop).toMatch(/^✖ TYPESAFE_BASE_URL: "http:\/\/example\.com" is http, not https/);
   });
 });

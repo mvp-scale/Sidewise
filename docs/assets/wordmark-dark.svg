@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="136" viewBox="0 0 360 136" role="img" aria-labelledby="t d" style="text-rendering:geometricPrecision">
+<!-- MM3 wordmark (dark theme): the name in large type with the two halves of the system, MAK³ and MDL³, beneath it. Shown at 280 px wide in the README, so the small line is about 20 px effective (12 px minimum rule at a 400 px viewport). Palette and type follow the how-it-works picture. -->
+  <title id="t">MM3</title>
+  <desc id="d">MM3, with MAK³ and MDL³ underneath: use what is proven, learn what is missing.</desc>
+  <defs><linearGradient id="g" x2="1" y2="1"><stop stop-color="#b7ff83"/><stop offset="1" stop-color="#78df41"/></linearGradient></defs>
+  <style>text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif}</style>
+  <text x="180" y="88" text-anchor="middle" font-size="98" font-weight="900" letter-spacing="-3" fill="#f5f8ff"><tspan fill="#9bdcff">M</tspan><tspan fill="url(#g)">M</tspan>3</text>
+  <text x="180" y="125" text-anchor="middle" font-size="26" font-weight="800" letter-spacing="1.5"><tspan fill="#9bdcff">MAK³</tspan><tspan fill="#93a7bd"> · </tspan><tspan fill="#b7ff83">MDL³</tspan></text>
+</svg>

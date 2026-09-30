@@ -14,7 +14,7 @@ import path from 'node:path';
 
 type Env = Record<string, string | undefined>;
 
-export const ALLOWED_NAMES = ['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'MM3_BASE_URL', 'JEV_MODEL', 'JEV_GATEWAY_MODEL', 'MM3_PROVIDER'] as const;
+export const ALLOWED_NAMES = ['TYPESAFE_API_KEY', 'AI_GATEWAY_API_KEY', 'TYPESAFE_BASE_URL', 'JEV_MODEL', 'JEV_GATEWAY_MODEL', 'MM3_PROVIDER'] as const;
 export type EnvFileName = (typeof ALLOWED_NAMES)[number];
 const isAllowedName = (s: string): s is EnvFileName => (ALLOWED_NAMES as readonly string[]).includes(s);
 

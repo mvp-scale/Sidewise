@@ -34,7 +34,7 @@ describe('mm3 CLI (built): the six verbs, template, outcome, budget', () => {
     expect(cls.status).toBe(0);
     expect(cls.stdout).toMatch(/^mak:\n {2}id: MM3-0001\n {2}gate: (pass|fail|unsure)\n/);
     expect(cls.stdout).toContain('mdl: {recorded: [why, area]}');
-    expect(cls.stdout).toMatch(/\nnotes: \[.*budget .*\]\n$/);
+    expect(cls.stdout).toMatch(/\nnotes: \[.*budget: .*\]\n$/);
 
     const fromStdin = mm3(root, ['class', '-'], { input: CLASS_YAML_2 });
     expect(fromStdin.status).toBe(0);
@@ -43,7 +43,7 @@ describe('mm3 CLI (built): the six verbs, template, outcome, budget', () => {
     expect(mm3(root, ['view', 'src']).stdout).toContain('MM3-0001');
     expect(mm3(root, ['outcome', 'MM3-0001', 'held', '--by', 'e2e-agent']).status).toBe(1);
     expect(mm3(root, ['outcome', 'MM3-0001', 'held', '--by', 'owner']).stdout).toBe('mm3 outcome MM3-0001 held · by owner\n');
-    expect(mm3(root, ['budget']).stdout).toBe('budget 0% used ($0.00 of $5.00 · 2 of 500 runs)\n');
+    expect(mm3(root, ['budget']).stdout).toBe('budget: $5.00 left of $5.00 · 498 of 500 runs left\n'); // [C-229]
   });
 
   it('loop, scan and drill run end to end (drill off the loop parent, sweep shape)', () => {
@@ -72,7 +72,7 @@ describe('mm3 CLI (built): the six verbs, template, outcome, budget', () => {
     const dry = mm3(root, ['replay', '--parent', 'MM3-0001', '--compare', 'worktree..worktree', '--expect', 'injection', '--dry-run']);
     expect(dry.status).toBe(0);
     expect(dry.stdout).toMatch(/^plan:\n {2}calls: \d+\n {2}questions: \d+\n {2}reused: \d+\n {2}route: \w+\nnotes: \["dry run: no call, no spend"\]\n$/);
-    expect(mm3(root, ['budget']).stdout).toContain('1 of 500 runs'); // only the class run counted; the dry run spent nothing
+    expect(mm3(root, ['budget']).stdout).toContain('499 of 500 runs left'); // only the class run counted; the dry run spent nothing
     const real = mm3(root, ['replay', '--parent', 'MM3-0001', '--compare', 'worktree..worktree', '--expect', 'injection']);
     expect(real.status).toBe(0);
     expect(real.stdout).toContain('mdl: {recorded: [parent]}');

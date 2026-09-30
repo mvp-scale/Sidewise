@@ -198,7 +198,7 @@ const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop
 const resolveStoredFor = (c: CliCtx) => () => resolveStoredKey(c.runner, c.platform, c.env);
 
 /** Most provider-selection failures (no key) are bucketed as provider errors (exit 1); a JevConfigError can
- *  instead carry exit 2 — a bad MM3_BASE_URL is a config mistake to fix, not a runtime provider failure. */
+ *  instead carry exit 2 — a bad TYPESAFE_BASE_URL is a config mistake to fix, not a runtime provider failure. */
 const providerExit = (e: unknown): 1 | 2 => (e instanceof JevConfigError ? e.exit : 1);
 
 /** Everything a dispatch needs instead of reaching for `process.*` directly, so the same dispatch runs for real

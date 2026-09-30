@@ -243,7 +243,7 @@ describe('report-web: runReportWeb', () => {
     const html = readFileSync(viewerPath, 'utf8');
     expect(html).toContain('<!doctype html');
     expect(html).toContain('MM3 ledger viewer');
-    expect(html).toContain('A System One needs a Knowledge One. · MM3');
+    expect(html).toContain('Make and model · MM3');
     const match = /<script type="application\/json" id="viewer-data">([\s\S]*?)<\/script>/u.exec(html);
     expect(match).toBeTruthy();
     const data = JSON.parse(match![1]!) as ViewerData;

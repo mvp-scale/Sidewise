@@ -69,9 +69,9 @@ describe('selectProvider and providerIdentity', () => {
     expect(providerIdentity({ MM3_PROVIDER: 'typesafe' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'direct', baseURL: 'https://api.typesafe.ai' });
   });
 
-  it('names the gateway route, and a custom route when MM3_BASE_URL overrides the default (P2)', () => {
+  it('names the gateway route, and a custom route when TYPESAFE_BASE_URL overrides the default (P2)', () => {
     expect(providerIdentity({ AI_GATEWAY_API_KEY: 'g' })).toEqual({ adapter: 'typesafe', model: 'jev-1.13.0', route: 'gateway', baseURL: 'https://ai-gateway.vercel.sh/typesafe' });
-    expect(providerIdentity({ TYPESAFE_API_KEY: 'k', MM3_BASE_URL: 'http://localhost:8080' })).toEqual({
+    expect(providerIdentity({ TYPESAFE_API_KEY: 'k', TYPESAFE_BASE_URL: 'http://localhost:8080' })).toEqual({
       adapter: 'typesafe',
       model: 'jev-1.13.0',
       route: 'custom',

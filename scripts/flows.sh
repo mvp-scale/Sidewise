@@ -409,12 +409,12 @@ need_exit "13-chaos" "chaos default schedule (ok)" 0
 pass "13-chaos" "an empty MM3_CHAOS schedule always answers ok"
 flow_done "13-chaos"
 
-# ---- 14. MM3_BASE_URL ----------------------------------------------------------------------------------
+# ---- 14. TYPESAFE_BASE_URL ----------------------------------------------------------------------------------
 flow_start
-runenv "MM3_PROVIDER= TYPESAFE_API_KEY=dummy MM3_BASE_URL=http://example.com" doctor
+runenv "MM3_PROVIDER= TYPESAFE_API_KEY=dummy TYPESAFE_BASE_URL=http://example.com" doctor
 need_exit "14-base-url" "bad base URL -> doctor exit 2" 2
-need_has "14-base-url" "bad base URL -> doctor exit 2" "MM3_BASE_URL"
-pass "14-base-url" "a non-https MM3_BASE_URL stops doctor at exit 2"
+need_has "14-base-url" "bad base URL -> doctor exit 2" "TYPESAFE_BASE_URL"
+pass "14-base-url" "a non-https TYPESAFE_BASE_URL stops doctor at exit 2"
 
 runenv "MM3_PROVIDER= TYPESAFE_API_KEY=dummy" class req-class.yaml --dry-run
 need_exit "14-base-url" "dummy key, class --dry-run -> route direct, no network" 0

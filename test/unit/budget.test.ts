@@ -22,20 +22,20 @@ describe('budget', () => {
     recordSpend(paths, 0, T + 1000);
     recordSpend(paths, 0, T + 2000);
     const gate = checkBudget(loadBudget(paths, T + 3000).state);
-    // fix #5c: the run cap alone tripped (the $ cap has room), so raising it fits better than resetting spend.
+    // the run cap alone tripped (the $ cap has room), so the hint names only --runs.
     expect(gate).toEqual({
       ok: false,
       message: '✖ budget: cap reached ($0.00 of $5.00 · 2 of 2 runs) → the owner runs "mm3 budget set --runs <n>"\n→ see: mm3 agent budget',
     });
   });
 
-  it('blocks on spend, hints "reset", and reset starts a fresh window with the same caps [C-133]', () => {
+  it('blocks on spend, hints "set --usd <n>", and reset starts a fresh window with the same caps [C-133]', () => {
     const { paths } = tempProject({});
     setBudget(paths, { capUsd: 1 }, T);
     recordSpend(paths, 1.2, T + 1000);
     expect(checkBudget(loadBudget(paths, T + 2000).state)).toEqual({
       ok: false,
-      message: '✖ budget: cap reached ($1.20 of $1.00 · 1 of 500 runs) → the owner runs "mm3 budget reset"\n→ see: mm3 agent budget',
+      message: '✖ budget: cap reached ($1.20 of $1.00 · 1 of 500 runs) → the owner runs "mm3 budget set --usd <n>"\n→ see: mm3 agent budget',
     });
     // reset moves `since` well past the spend above — the ledger line itself is untouched (never erased), only
     // excluded from the window going forward.
@@ -46,13 +46,13 @@ describe('budget', () => {
     expect(resolveConfig(paths).config.budget.since).toBe('2026-09-25T00:01:00Z');
   });
 
-  it('both caps reached: still hints "reset", not "set --runs" [C-133]', () => {
+  it('both caps reached: hints "set --usd <n> --runs <n>", the same command the low-budget warning gives [C-133]', () => {
     const { paths } = tempProject({});
     setBudget(paths, { capUsd: 1, capRuns: 1 }, T);
     recordSpend(paths, 1.2, T + 1000);
     expect(checkBudget(loadBudget(paths, T + 2000).state)).toEqual({
       ok: false,
-      message: '✖ budget: cap reached ($1.20 of $1.00 · 1 of 1 runs) → the owner runs "mm3 budget reset"\n→ see: mm3 agent budget',
+      message: '✖ budget: cap reached ($1.20 of $1.00 · 1 of 1 runs) → the owner runs "mm3 budget set --usd <n> --runs <n>"\n→ see: mm3 agent budget',
     });
   });
 
@@ -101,9 +101,22 @@ describe('budget', () => {
     expect(state).toMatchObject({ spentUsd: 2, runs: 1 });
   });
 
-  it('the budget line warns from 50% on', () => {
+  // [C-229] The line states headroom (what is left), and warns only at >= 80% used, naming the cap that is low.
+  it('[C-229] the budget line states what is left, and warns only from 80% used', () => {
     const base = { capUsd: 5, capRuns: 100, spentUsd: 0, resetAt: 'x' };
-    expect(budgetLine({ ...base, runs: 12 })).toBe('budget 12% used ($0.00 of $5.00 · 12 of 100 runs)');
-    expect(budgetLine({ ...base, runs: 76 })).toBe('⚠ budget 76% used ($0.00 of $5.00 · 76 of 100 runs)');
+    expect(budgetLine({ ...base, runs: 12 })).toBe('budget: $5.00 left of $5.00 · 88 of 100 runs left');
+    expect(budgetLine({ ...base, runs: 76 })).toBe('budget: $5.00 left of $5.00 · 24 of 100 runs left');
+    expect(budgetLine({ capUsd: 0.12, capRuns: 30, spentUsd: 0.01, runs: 3, resetAt: 'x' })).toBe('budget: $0.11 left of $0.12 · 27 of 30 runs left');
+    expect(budgetLine({ ...base, runs: 80 })).toBe('⚠ budget: $5.00 left of $5.00 · 20 of 100 runs left → low: ask the owner to run mm3 budget set --runs <n>');
+    expect(budgetLine({ ...base, spentUsd: 4.5, runs: 10 })).toBe('⚠ budget: $0.50 left of $5.00 · 90 of 100 runs left → low: ask the owner to run mm3 budget set --usd <n>');
+    expect(budgetLine({ ...base, spentUsd: 5, runs: 100 })).toBe('⚠ budget: $0.00 left of $5.00 · 0 of 100 runs left → low: ask the owner to run mm3 budget set --usd <n> --runs <n>');
+    // an overshot cap says how much was used, never a bare "0 left"; the warning and the stop give the same command
+    expect(budgetLine({ ...base, capRuns: 3, runs: 5 })).toBe('⚠ budget: $5.00 left of $5.00 · 0 of 3 runs left (5 used) → low: ask the owner to run mm3 budget set --runs <n>');
+    expect(budgetLine({ ...base, spentUsd: 5.5, runs: 10 })).toBe('⚠ budget: $0.00 left of $5.00 ($5.50 used) · 90 of 100 runs left → low: ask the owner to run mm3 budget set --usd <n>');
+    expect(budgetLine({ ...base, capRuns: 3, runs: 3 })).toBe('⚠ budget: $5.00 left of $5.00 · 0 of 3 runs left → low: ask the owner to run mm3 budget set --runs <n>');
+    for (const st of [{ ...base, capRuns: 3, runs: 3 }, { ...base, spentUsd: 5, runs: 10 }, { ...base, spentUsd: 5, capRuns: 10, runs: 10 }]) {
+      const stop = checkBudget(st);
+      expect(stop.ok ? '' : stop.message).toContain(`"${/mm3 budget set[^\n]*$/.exec(budgetLine(st))![0]}"`);
+    }
   });
 });

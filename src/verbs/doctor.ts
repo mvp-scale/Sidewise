@@ -4,7 +4,7 @@
  * anything: which provider/route/base URL would answer, whether a key is set and where it came from (never its
  * value), the pinned model, whether a project/ledger is reachable from here, the Node/node:sqlite runtime, how
  * the CLI itself was installed, and whether the Claude Code plugin is set up. A bad config (a floating
- * JEV_MODEL, a bad MM3_BASE_URL) stops here at exit 2 with the exact same ✖ message a paid verb would
+ * JEV_MODEL, a bad TYPESAFE_BASE_URL) stops here at exit 2 with the exact same ✖ message a paid verb would
  * give, just without ever risking a spend to find it out.
  *
  * doctor is the one command cli.ts's own Node-version guard (util/node-version.ts) still runs on too old a

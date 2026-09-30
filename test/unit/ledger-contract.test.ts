@@ -53,7 +53,7 @@ describe('contract runs', () => {
     const { paths } = tempProject({});
     const { budget, record } = recordCall(paths, 0.02, { contract: sampleContractRun() }, T);
     expect(record.id).toBe('MM3-0001');
-    expect(record.response).toContain('notes: [budget 0% used ($0.02 of $5.00 · 1 of 500 runs)]');
+    expect(record.response).toContain('notes: [budget: $4.98 left of $5.00 · 499 of 500 runs left]');
     expect(budget.runs).toBe(1);
     rmSync(paths.log);
     mkdirSync(paths.log);
