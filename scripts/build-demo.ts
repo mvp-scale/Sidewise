@@ -1,10 +1,9 @@
 /**
- * The demo player's data and markup: two stories of real MM3 runs (frozen as scene JSON in docs/demo/scenes/), each step
+ * The demo player's data and markup: two stories of real MM3 runs (frozen as scene JSON in site/scenes/), each step
  * following one agent session from the task it was given to the request it fired, the response MM3 returned, a quick
  * read of it, the decision it implies and what the ledger now holds. Every footer (model, endpoint, latency, cost, id)
  * and every number is read from the run's own ledger row by `extract`, never typed; the decision text is derived from the
  * response itself. The default mode and the site build read only the committed JSON, so a re-render never spends.
- * The README's animated GIFs are rendered by scripts/demo-gif.ts from the same markup (stagePage).
  */
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -344,9 +343,9 @@ ${body}
 
 // ---------------------------------------------------------------- scenes on disk
 
-const SCENE_DIR = 'docs/demo/scenes';
+const SCENE_DIR = 'site/scenes';
 export function loadStories(dir = SCENE_DIR): DemoStory[] {
-  // a scene file that is not a story (docs/demo/scenes/strip-n8n.json, the README strip's one run) has no `scenes` list and is skipped
+  // a scene file that is not a story (site/scenes/strip-n8n.json, the README strip's one run) has no `scenes` list and is skipped
   return readdirSync(dir).filter((f) => f.endsWith('.json')).sort().map((f) => JSON.parse(readFileSync(path.join(dir, f), 'utf8')) as DemoStory).filter((st) => Array.isArray(st.scenes));
 }
 /** Every step of every story, in story order. */
@@ -400,36 +399,6 @@ export function extractStory(def: StoryDef, play: string, kickoff: string, outDi
 // ---------------------------------------------------------------- the README frame (the GIF renders one of these per moment)
 
 export const STAGE = { w: 1600, h: 900 };
-
-/** One README frame as a full page at the stage size: the story bar, the task, and the step at a reveal phase and tab (scripts/demo-gif.ts scrolls the pane and captures). */
-export function stagePage(stories: DemoStory[], story: DemoStory, s: Scene, css: string): string {
-  const tabs = stories.map((st) => `<span class="sst fam-${esc(st.id)}${st.id === story.id ? ' on' : ''}">${esc(st.label)}</span>`).join('');
-  const steps = story.scenes.map((x) => `<span class="ssn${x.id === s.id ? ' on' : ''}"><i>${x.n}</i> ${esc(x.verb)}</span>`).join('');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="color-scheme" content="light dark"><style>${css}
-html,body{margin:0;background:var(--bg)} body{padding:0;overflow:hidden;font-size:15px;line-height:1.4}
-.stage{--bar:var(--blue);width:${STAGE.w}px;height:${STAGE.h}px;padding:12px 16px 12px;box-sizing:border-box;display:flex;flex-direction:column;gap:8px;overflow:hidden}
-.stage.fam-mdl{--bar:var(--green)}
-.sbar{display:flex;align-items:center;gap:.7rem;height:34px;flex:none}
-.sbar b.brand{font:900 1.5rem/1 var(--sans);letter-spacing:-.04em;margin-right:.5rem} .sbar b.brand i{font-style:normal;color:var(--green)}
-.sst{font:800 .95rem var(--sans);padding:.25rem .8rem;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
-.sst.on.fam-mak{background:var(--blue);border-color:var(--blue);color:var(--bg)} .sst.on.fam-mdl{background:var(--green);border-color:var(--green);color:var(--bg)}
-.ssteps{margin-left:auto;display:flex;gap:.4rem} .ssn{font:700 .85rem var(--mono);padding:.2rem .7rem;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface)} .ssn i{font-style:normal;font-weight:900}
-.ssn.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.stage .task{flex:none;margin:0;padding:.5rem .8rem} .stage .tq{font-size:1rem;line-height:1.35;margin:.1rem 0 0} .stage .tfull{display:none}
-.stage .pscene{flex:1;min-height:0;display:flex;flex-direction:column;margin:0;padding:.6rem .8rem .5rem;border-radius:14px}
-.stage .phead{margin:0 0 .5rem} .stage .phead h3{font-size:1.15rem}
-.stage .pmain{flex:1;min-height:0;grid-template-columns:minmax(0,1.32fr) minmax(0,1fr);align-items:stretch}
-.stage .codecard{display:flex;flex-direction:column;min-height:0} .stage .code{flex:1;min-height:0;display:none;flex-direction:column} .stage .pscene[data-show=request] .code[data-pane=request],.stage .pscene[data-show=response] .code[data-pane=response]{display:flex}
-.stage .cbody{flex:1;min-height:0;max-height:none;overflow:hidden;font-size:14.5px;line-height:20px;padding:0}
-.stage .verdict{display:flex;flex-direction:column;min-height:0} .stage .verdict-body{flex:1;min-height:0;max-height:none;overflow:hidden;padding:.5rem .65rem;gap:.3rem}
-.stage .big-gate{font-size:1.45rem;padding:.2rem .7rem .25rem} .stage .vstat.burst{flex-basis:auto;margin-left:auto;padding:.2rem .6rem} .stage .vstat.burst b{font-size:1.3rem}
-.stage .vrow{padding:.2rem .5rem;grid-template-columns:8.4rem auto minmax(0,1fr);gap:.3rem .5rem} .stage .cat{font-size:.82rem} .stage .q .pb{width:2.7rem} .stage .qs{gap:.2rem .35rem} .stage .urow{padding:.25rem .5rem} .stage .vhead{gap:.35rem .6rem}
-.stage .pbottom{flex:none;grid-template-columns:1.25fr 1fr;margin-top:.5rem;height:214px;align-items:stretch}
-.stage .decision,.stage .knowledge{min-height:0;overflow:hidden}
-.stage .pfoot{margin:.45rem 0 0;font-size:.82rem} .stage details.raw{display:none}
-</style></head><body><div class="stage tabbed fam-${esc(story.id)}"><div class="sbar"><b class="brand">MM<i>3</i></b>${tabs}<span class="ssteps">${steps}</span></div>${renderTask(story)}${renderScene(s, { phase: 0, show: 'request' })}</div>
-<script>window.mm3Frame=function(phase,show,page){var sc=document.querySelector('.pscene');sc.dataset.phase=String(phase);sc.dataset.show=show;[].forEach.call(sc.querySelectorAll('[data-tab]'),function(t){t.setAttribute('aria-selected',t.dataset.tab===show?'true':'false')});var b=sc.querySelector('.code[data-pane="'+show+'"] .cbody');var lh=parseFloat(getComputedStyle(b).lineHeight)||20;b.style.flex='1';b.style.height='';var h=Math.floor(b.clientHeight/lh)*lh;b.style.flex='none';b.style.height=h+'px';var step=Math.max(lh,h-3*lh);var pages=b.scrollHeight>h+2?Math.ceil((b.scrollHeight-h)/step)+1:1;b.scrollTop=Math.min(page*step,b.scrollHeight-h);var pg=sc.querySelector('.cpage');pg.hidden=pages<2;pg.textContent='page '+(page+1)+' of '+pages;var v=sc.querySelector('.verdict-body');return {pages:pages,vOver:v.scrollHeight>v.clientHeight+2,dOver:[].some.call(sc.querySelectorAll('.pbottom > *'),function(e){return e.scrollHeight>e.clientHeight+2})};};var m=/^#f(\\d),(\\w+),(\\d+)$/.exec(location.hash);if(m)window.mm3Frame(+m[1],m[2],+m[3]);</script></body></html>`;
-}
 
 if (import.meta.url === `file://${process.argv[1]}`) {
   const [mode, ...rest] = process.argv.slice(2);

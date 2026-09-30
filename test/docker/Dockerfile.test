@@ -1,4 +1,4 @@
-# Clean-room test image. Network only at build (npm ci); tests run with --network none (docker/test.sh).
+# Clean-room test image. Network only at build (npm ci); tests run with --network none (test/docker/test.sh).
 ARG NODE_VERSION=22
 FROM node:${NODE_VERSION}-slim
 RUN mkdir -p /app && chown node:node /app

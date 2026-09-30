@@ -7394,8 +7394,7 @@ var package_default = {
     "gemini-cli",
     "mcp",
     "agent-skills",
-    "decision-support",
-    "knowledge-one"
+    "decision-support"
   ],
   engines: {
     node: ">=22.13"
@@ -7430,7 +7429,7 @@ var package_default = {
     "test:cli": "npm run build && vitest run --project cli",
     "test:install": "npm run build && vitest run --project install",
     "test:chaos": "npm run build && tsx test/chaos/run.ts",
-    "test:container": "sh docker/test.sh",
+    "test:container": "sh test/docker/test.sh",
     "test:flows": "sh scripts/flows.sh",
     "bench:ledger": "tsx scripts/bench-ledger.ts",
     "bench:tokens": "tsx scripts/bench-tokens.ts",
@@ -7443,7 +7442,7 @@ var package_default = {
     "check:readme": "npm run build && tsx scripts/check-readme.ts",
     "judge:readme": "node bin/mm3.mjs class scripts/readme-judgment.yaml",
     "gen:evidence-index": "tsx scripts/evidence-index.ts",
-    prepare: "git config core.hooksPath .githooks 2>/dev/null || true",
+    prepare: "git config core.hooksPath .github/hooks 2>/dev/null || true",
     "dev:install": 'npm run build && tgz="$(pwd)/$(npm pack --silent | tail -1)" && cd "${INIT_CWD:-.}" && npx --yes --package "$tgz" mm3 init'
   },
   devDependencies: {

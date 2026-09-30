@@ -3,7 +3,7 @@
  * session (a typed prompt, the `Bash(mm3 class ...)` call, its result) with a value panel underneath; RIGHT is a tabbed
  * viewport (request, response, knowledge). When the call fires the request tab pulses and the request opens folded; a
  * simulated pointer clicks concerns, decisions and mdl open one after the other, then the response and knowledge tabs. Every
- * YAML byte, number and output line is read from the frozen scene docs/demo/scenes/strip-n8n.json (ledger row MM3-0008, its
+ * YAML byte, number and output line is read from the frozen scene site/scenes/strip-n8n.json (ledger row MM3-0008, its
  * request file, and the free `view` / `report` output captured beside it, see `extract`); the terminal's numbers come from the
  * scene footer, fold summaries are counted from the request. Free: no ledger, no network, no browser.
  * Motion is SMIL (`<animate>` with keyTimes and keySplines): it renders in an <img> in Chrome, Firefox and Safari, GitHub's
@@ -532,7 +532,7 @@ export function exampleCards(s: Scene = stripScene()): { request: string; respon
 
 // ---------------------------------------------------------------- committed data in, one-time extract out
 
-const STRIP_SCENE = 'docs/demo/scenes/strip-n8n.json';
+const STRIP_SCENE = 'site/scenes/strip-n8n.json';
 
 export function stripScene(file = STRIP_SCENE): StripScene {
   return JSON.parse(readFileSync(file, 'utf8')) as StripScene;

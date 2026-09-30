@@ -20,18 +20,18 @@ type Opts = { root: string; dryRun: (verb: string, yaml: string) => string | nul
 const OLD = /\b(?:side|wise):|\bsidewise\b|\bSidewise\b|\bSW-\d{4}\b/;
 const VERBS = 'view|class|replay|scan|drill|loop';
 
-/** Shape check for docs/story.yaml: a bad file becomes problem lines, not a TypeError. */
+/** Shape check for site/story.yaml: a bad file becomes problem lines, not a TypeError. */
 export function checkStory(raw: unknown): string[] {
   const out: string[] = [];
   const o = (raw ?? {}) as Record<string, unknown>;
   const str = (v: unknown) => typeof v === 'string' && v.trim() !== '';
-  for (const k of ['tagline', 'identity']) if (!str(o[k])) out.push(`✖ story.yaml: ${k} must be a non-empty string → fix docs/story.yaml`);
+  for (const k of ['tagline', 'identity']) if (!str(o[k])) out.push(`✖ story.yaml: ${k} must be a non-empty string → fix site/story.yaml`);
   const inst = (o.install ?? {}) as Record<string, unknown>;
-  for (const k of ['claude', 'claudeInstall', 'npm', 'npmInit', 'endpoint']) if (!str(inst[k])) out.push(`✖ story.yaml: install.${k} must be a non-empty string → fix docs/story.yaml`);
+  for (const k of ['claude', 'claudeInstall', 'npm', 'npmInit', 'endpoint']) if (!str(inst[k])) out.push(`✖ story.yaml: install.${k} must be a non-empty string → fix site/story.yaml`);
   if (!Array.isArray(o.numbers)) out.push('✖ story.yaml: numbers must be a list → use numbers: [] for none');
-  else o.numbers.forEach((n: unknown, i) => { if (!str((n as { text?: unknown } | null)?.text)) out.push(`✖ story.yaml: numbers[${i}].text must be a non-empty string → fix docs/story.yaml`); });
+  else o.numbers.forEach((n: unknown, i) => { if (!str((n as { text?: unknown } | null)?.text)) out.push(`✖ story.yaml: numbers[${i}].text must be a non-empty string → fix site/story.yaml`); });
   if (!Array.isArray(o.useCases)) out.push('✖ story.yaml: useCases must be a list → use useCases: [] for none');
-  else o.useCases.forEach((u: unknown, i) => { if (!str((u as { title?: unknown } | null)?.title)) out.push(`✖ story.yaml: useCases[${i}].title must be a non-empty string → fix docs/story.yaml`); });
+  else o.useCases.forEach((u: unknown, i) => { if (!str((u as { title?: unknown } | null)?.title)) out.push(`✖ story.yaml: useCases[${i}].title must be a non-empty string → fix site/story.yaml`); });
   return out;
 }
 
@@ -55,7 +55,7 @@ export function checkReadme(md: string, story: Story, opts: Opts): string[] {
     ...story.numbers.map((n, i): [string, string] => [`story.numbers[${i}]`, n.text]),
     ...story.useCases.map((u, i): [string, string] => [`story.useCases[${i}]`, u.title]),
   ];
-  for (const [key, text] of phrases) if (!md.includes(text)) out.push(`✖ ${key}: "${text}" is not in the README → copy it verbatim from docs/story.yaml`);
+  for (const [key, text] of phrases) if (!md.includes(text)) out.push(`✖ ${key}: "${text}" is not in the README → copy it verbatim from site/story.yaml`);
   let n = 0;
   for (const m of md.matchAll(/```yaml([^\n]*)\n([\s\S]*?)```/g)) {
     const body = m[2]!;
@@ -90,7 +90,7 @@ export function checkSite(html: string, story: Story, dist?: string, readme?: st
     ...story.numbers.map((n, i): [string, string] => [`story.numbers[${i}]`, n.text]),
     ...story.useCases.map((u, i): [string, string] => [`story.useCases[${i}]`, u.title]),
   ];
-  for (const [key, text] of phrases) if (!html.includes(text) && !html.includes(esc(text))) out.push(`✖ site ${key}: "${text}" is not in site/dist/index.html → build the site from docs/story.yaml (npm run build:site)`);
+  for (const [key, text] of phrases) if (!html.includes(text) && !html.includes(esc(text))) out.push(`✖ site ${key}: "${text}" is not in site/dist/index.html → build the site from site/story.yaml (npm run build:site)`);
   story.numbers.forEach((n, i) => { if (!html.includes(`href="${methodUrl(n.method)}"`)) out.push(`✖ site story.numbers[${i}]: no link to ${methodUrl(n.method)} → check site/template.html`); });
   if (!/<title>[^<]+<\/title>/.test(html)) out.push('✖ site: no <title> → add one to site/template.html');
   html.split('\n').forEach((l, i) => { if (OLD.test(l)) out.push(`✖ site old name: line ${i + 1} → use mak:/mdl:/mm3/MM3-`); });
@@ -114,11 +114,11 @@ const plain = (md: string): string => squash(md.replace(/\[([^\]]+)\]\([^)]*\)/g
 /** The demo player's drift check: each scene's footer is on the site; the README shows the strip run's request and response cards, each committed card is what the strip scene builds today, and the response's label (model, endpoint, latency, cost) is in the text. */
 export function checkDemo(html: string, readme: string | undefined, scenes: Scene[], example: Scene = stripScene()): string[] {
   const out: string[] = [];
-  if (!scenes.length) return ['✖ demo: no scenes in docs/demo/scenes/ → run tsx scripts/build-demo.ts extract'];
+  if (!scenes.length) return ['✖ demo: no scenes in site/scenes/ → run tsx scripts/build-demo.ts extract'];
   const text = siteText(html);
   for (const s of scenes) {
     const footer = sceneFooter(s);
-    if (!text.includes(squash(footer))) out.push(`✖ site demo ${s.id}: footer "${footer}" is not in site/dist/index.html → rebuild the site from docs/demo/scenes (npm run build:site)`);
+    if (!text.includes(squash(footer))) out.push(`✖ site demo ${s.id}: footer "${footer}" is not in site/dist/index.html → rebuild the site from site/scenes (npm run build:site)`);
   }
   if (readme === undefined) return out;
   const s = example;
@@ -126,7 +126,7 @@ export function checkDemo(html: string, readme: string | undefined, scenes: Scen
   for (const k of ['request', 'response'] as const) {
     const file = `docs/assets/example-${k}.svg`;
     if (!readme.includes(`src="${file}"`)) out.push(`✖ README ${k} ${s.id}: no ${file} in ## See it run → show the ${k} card`);
-    if (!existsSync(file) || readFileSync(file, 'utf8').trimEnd() !== cards[k]) out.push(`✖ README ${k} ${s.id}: ${file} differs from docs/demo/scenes/strip-n8n.json → run tsx scripts/build-strip.ts`);
+    if (!existsSync(file) || readFileSync(file, 'utf8').trimEnd() !== cards[k]) out.push(`✖ README ${k} ${s.id}: ${file} differs from site/scenes/strip-n8n.json → run tsx scripts/build-strip.ts`);
   }
   if (!plain(readme).includes(sceneLabel(s))) out.push(`✖ README response ${s.id}: label "${sceneLabel(s)}" is not in the README → copy it from the scene footer`);
   return out;
@@ -184,7 +184,7 @@ export function cliDryRun(verb: string, yaml: string): string | null {
 if (import.meta.url === `file://${process.argv[1]}`) {
   let story: Story | undefined;
   let problems: string[];
-  try { story = loadStory(); problems = checkStory(story); } catch (e) { problems = [`✖ story.yaml: ${(e as Error).message.split('\n')[0]} → fix docs/story.yaml`]; }
+  try { story = loadStory(); problems = checkStory(story); } catch (e) { problems = [`✖ story.yaml: ${(e as Error).message.split('\n')[0]} → fix site/story.yaml`]; }
   if (!problems.length) {
     const md = readFileSync('README.md', 'utf8');
     problems = checkReadme(md, story!, { root: '.', dryRun: cliDryRun, published: false });

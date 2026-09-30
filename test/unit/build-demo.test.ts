@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { extractScene, fmtCost, goalChip, highlightYaml, inferDecision, loadScenes, loadStories, renderDecision, renderKnowledge, renderPlayer, renderScene, renderVerdict, sceneFooter, sceneLabel, scrubKickoff, scrubPaths, stagePage, type Scene } from '../../scripts/build-demo.ts';
+import { extractScene, fmtCost, goalChip, highlightYaml, inferDecision, loadScenes, loadStories, renderDecision, renderKnowledge, renderPlayer, renderScene, renderVerdict, sceneFooter, sceneLabel, scrubKickoff, scrubPaths, type Scene } from '../../scripts/build-demo.ts';
 import { buildSite } from '../../scripts/build-site.ts';
 import { checkDemo } from '../../scripts/check-readme.ts';
 import { stripScene } from '../../scripts/build-strip.ts';
@@ -220,14 +220,6 @@ describe('renderPlayer', () => {
   it('falls back to plain text for a response that is not YAML', () => {
     expect(renderVerdict(scene({ response: 'just text' }))).toContain('plainresp');
   });
-  it('renders a README frame at the stage size with its phase, tab and the story bar', () => {
-    const page = stagePage(stories, stories[1]!, stories[1]!.scenes[1]!, '/* css */');
-    expect(page).toContain('data-phase="0"');
-    expect(page).toContain('class="sst fam-mdl on"');
-    expect(page).toContain('task given to a Haiku agent');
-    expect(page).toContain('window.mm3Frame');
-    expect(page).toContain('width:1600px;height:900px');
-  });
 });
 
 describe('the committed stories', () => {
@@ -278,8 +270,8 @@ describe('the committed stories', () => {
     }
   });
   it('carry no machine path, play-area path or old name', () => {
-    for (const f of readdirSync('docs/demo/scenes')) {
-      const raw = readFileSync(`docs/demo/scenes/${f}`, 'utf8');
+    for (const f of readdirSync('site/scenes')) {
+      const raw = readFileSync(`site/scenes/${f}`, 'utf8');
       expect(raw, f).not.toMatch(/\/home\/|\/Users\/|-play\b|\/tmp\/|<path>/);
       expect(raw, f).not.toMatch(/\bSidewise\b|\bsidewise\b|\bSW-\d{4}\b|\bside:|\bwise:/);
     }

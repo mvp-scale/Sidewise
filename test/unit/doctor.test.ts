@@ -34,8 +34,8 @@ describe('doctor (P5)', () => {
   // resolved value (MM3_ACTOR, set for real MCP calls by cli.ts's mcp wiring — see src/mcp/actor.ts) is
   // visible without a paid run. [C-143]
   it('actor: shows a set MM3_ACTOR verbatim', () => {
-    const r = runDoctor({ MM3_ACTOR: 'corey' }, undefined, 'v22.13.0');
-    expect(r.text).toContain('actor: corey');
+    const r = runDoctor({ MM3_ACTOR: 'dev' }, undefined, 'v22.13.0');
+    expect(r.text).toContain('actor: dev');
   });
 
   it('actor: blank/whitespace-only MM3_ACTOR reads as unset, same as pay.ts\'s own actorOf', () => {

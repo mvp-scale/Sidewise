@@ -1,5 +1,5 @@
 /**
- * The shape and loader of docs/story.yaml, in its own module so the README checker and the site builder
+ * The shape and loader of site/story.yaml, in its own module so the README checker and the site builder
  * can both use it without importing each other.
  */
 import { readFileSync } from 'node:fs';
@@ -13,6 +13,6 @@ export type Story = {
   useCases: { title: string; verb: string }[];
 };
 
-export function loadStory(file = 'docs/story.yaml'): Story {
+export function loadStory(file = 'site/story.yaml'): Story {
   return parse(readFileSync(file, 'utf8')) as Story;
 }

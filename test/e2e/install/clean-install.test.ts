@@ -1,7 +1,7 @@
 // A real `npm pack` tarball, installed into a throwaway project exactly the way a consumer would
 // (`npm install <tarball>`), then every command in README's Quickstart run against the installed bin.
 // --prefer-offline is what makes this pass from the npm cache alone in the clean-room container
-// (docker/test.sh runs with --network none); on a normal dev machine it just prefers the cache too.
+// (test/docker/test.sh runs with --network none); on a normal dev machine it just prefers the cache too.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
