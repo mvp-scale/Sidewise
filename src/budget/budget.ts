@@ -37,6 +37,13 @@ export class BudgetError extends Error {
 
 const iso = (now: number): string => new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z');
 const money = (n: number): string => `$${n.toFixed(2)}`;
+/** Dollars left, with just enough extra decimals (up to 6) that real spend never reads as the untouched cap:
+ *  a run costs fractions of a cent, so `$4.998 left of $5.00`, never `$5.00 left of $5.00` after nine runs. */
+function moneyLeft(left: number, cap: number, spent: number): string {
+  if (spent <= 0) return money(left);
+  for (let d = 2; d < 6; d++) if (left.toFixed(d) !== cap.toFixed(d)) return `$${left.toFixed(d)}`;
+  return `$${left.toFixed(6)}`;
+}
 const EPOCH = iso(0);
 // Every stop below carries its own fix already; the trailing line just points at the deeper card, the same
 // pointer every other stop in the codebase ends with (`mm3 agent <verb|tool>`, C-153) — `budget` isn't a
@@ -200,7 +207,7 @@ export function budgetLine(s: BudgetState): string {
   // An overshot cap (concurrent runs can pass it) says so, instead of reading as exactly at the cap.
   const usdUsed = s.spentUsd > s.capUsd ? ` (${money(s.spentUsd)} used)` : '';
   const runsUsed = s.runs > s.capRuns ? ` (${s.runs} used)` : '';
-  const line = `budget: ${money(usdLeft)} left of ${money(s.capUsd)}${usdUsed} · ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
+  const line = `budget: ${moneyLeft(usdLeft, s.capUsd, s.spentUsd)} left of ${money(s.capUsd)}${usdUsed} · ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
   if (usedFraction(s) < BUDGET_LOW_FRACTION) return line;
   const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= BUDGET_LOW_FRACTION : true;
   const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= BUDGET_LOW_FRACTION : true;

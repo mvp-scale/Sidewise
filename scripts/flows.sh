@@ -147,16 +147,19 @@ FIRST_NEXT=$(printf '%s\n' "$OUT" | command -p grep '^next:' | sed 's/^next: //'
 pass "03-class" "first paid call: MM3-0001, budget file created, fake labeled not evidence"
 flow_done "03-class"
 
+# The budget line says runs LEFT ("485 of 493 runs left"); runs used is the cap minus that.
+runs_used() { node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of ([0-9]+) runs.*/\2 \1/' | awk '{print $1 - $2}'; }
+
 # ---- 4. class again, identical -> exact reuse ---------------------------------------------------------------
 flow_start
-RUNS_BEFORE=$(node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of [0-9]+ runs.*/\1/')
+RUNS_BEFORE=$(runs_used)
 run class req-class.yaml
 need_exit "04-reuse" "identical class again" 0
 need_has "04-reuse" "identical class again" "id: MM3-0002"
 case "$OUT" in
   *"budget file created"*) fail "04-reuse" "identical class again" "$OUT (budget file created again — should only happen once)" ;;
 esac
-RUNS_AFTER=$(node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of [0-9]+ runs.*/\1/')
+RUNS_AFTER=$(runs_used)
 [ "$RUNS_BEFORE" = "$RUNS_AFTER" ] || fail "04-reuse" "budget run count unchanged" "before=$RUNS_BEFORE after=$RUNS_AFTER"
 pass "04-reuse" "new id MM3-0002, budget run count unchanged ($RUNS_AFTER)"
 flow_done "04-reuse"
@@ -349,7 +352,7 @@ flow_done "10-outcome"
 
 # ---- 11. budget: set tiny -> a reused run ignores it -> next PAID verb exits 3 -> reset -> paid verb works again
 flow_start
-RUNS_NOW=$(node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of [0-9]+ runs.*/\1/')
+RUNS_NOW=$(runs_used)
 run budget set --usd 0.01 --runs "$RUNS_NOW"
 need_exit "11-budget" "budget set --usd 0.01 --runs $RUNS_NOW" 0
 pass "11-budget" "cap set at the current run count ($RUNS_NOW)"
@@ -378,7 +381,7 @@ pass "11-budget" "budget reset"
 # The same fresh goal, now askable for real (the blocked attempt above was never logged) — proves spend resumes.
 run class req-class-budget.yaml
 need_exit "11-budget" "paid verb works again" 0
-RUNS_AFTER_RESET=$(node "$CLI" budget | sed -E 's/.*\· ([0-9]+) of [0-9]+ runs.*/\1/')
+RUNS_AFTER_RESET=$(runs_used)
 [ "$RUNS_AFTER_RESET" = "1" ] || fail "11-budget" "paid verb works again" "expected run count 1 after reset, got $RUNS_AFTER_RESET"
 pass "11-budget" "a fresh paid call works again after reset"
 

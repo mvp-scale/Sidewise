@@ -269,7 +269,8 @@ left of the dollar cap, runs left of the run cap; never below zero). One formatt
 (of either cap), and then says what to do and which cap is low: `⚠ budget: $0.02 left of $0.12 · 3 of 30 runs
 left → low: ask the owner to run mm3 budget set --usd <n> --runs <n>` (only the low cap's flag is named). A cap
 that concurrent runs overshot says how much was used instead of reading as exactly at the cap: `0 of 3 runs left
-(5 used)`, `$0.00 left of $5.00 ($5.50 used)`. Below 80% there is no warning, so an agent reads a nearly-full
+(5 used)`, `$0.00 left of $5.00 ($5.50 used)`. Spend under a cent is never hidden: dollars left gain just enough
+decimals to differ from the cap (`$4.998 left of $5.00`). Below 80% there is no warning, so an agent reads a nearly-full
 budget as room to keep working. [C-229]
 A run made with a rehearsal adapter (`fake`, `chaos` — free, deterministic, offline, canned) adds `adapter
 <name> · not evidence` to `notes:`, right before the budget line, on every verb that calls the classifier

@@ -9157,6 +9157,11 @@ var BudgetError = class extends Error {
 };
 var iso2 = (now) => new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z");
 var money = (n) => `$${n.toFixed(2)}`;
+function moneyLeft(left, cap2, spent) {
+  if (spent <= 0) return money(left);
+  for (let d = 2; d < 6; d++) if (left.toFixed(d) !== cap2.toFixed(d)) return `$${left.toFixed(d)}`;
+  return `$${left.toFixed(6)}`;
+}
 var EPOCH = iso2(0);
 var AGENT_POINTER = "\n\u2192 see: mm3 agent budget";
 function readLegacyBudgetJson(paths) {
@@ -9252,7 +9257,7 @@ function budgetLine(s) {
   const runsLeft = Math.max(0, s.capRuns - s.runs);
   const usdUsed = s.spentUsd > s.capUsd ? ` (${money(s.spentUsd)} used)` : "";
   const runsUsed = s.runs > s.capRuns ? ` (${s.runs} used)` : "";
-  const line3 = `budget: ${money(usdLeft)} left of ${money(s.capUsd)}${usdUsed} \xB7 ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
+  const line3 = `budget: ${moneyLeft(usdLeft, s.capUsd, s.spentUsd)} left of ${money(s.capUsd)}${usdUsed} \xB7 ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
   if (usedFraction(s) < BUDGET_LOW_FRACTION) return line3;
   const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= BUDGET_LOW_FRACTION : true;
   const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= BUDGET_LOW_FRACTION : true;
