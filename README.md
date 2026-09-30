@@ -68,29 +68,6 @@ The response, **real output · jev-1.13.0 · api.typesafe.ai · 321 ms · ~$0.00
 
 <p align="center"><a href="https://mm3lab.dev/#run">Step through two full stories, WordPress and n8n, on mm3lab.dev →</a></p>
 
-## A whole change, start to finish
-
-**The challenge:** make a WordPress page change with the reader, as a plugin, without touching core. One agent, MM3 installed, a $1 cap.
-
-MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict your coding agents can cite. Here is one change, verdict by verdict.
-
-<p align="center"><img src="docs/assets/journey-beats.svg" width="900" alt="A whole change on WordPress, in three beats. One agent adds a persona plugin to WordPress 7.1.2 using MM3, in 14 runs and 15 calls for about a tenth of a cent. Know: four runs map WordPress before the goal: boot layers unsure (MM3-0001), user meta unsure (MM3-0002), render chain fail because the range cut off the filter call (MM3-0003), render chain again pass (MM3-0004). Judge: plan v1 fail (MM3-0006), definition of done v1 fail (MM3-0007), a drill finds four missing checks, fail (MM3-0010), definition of done v3: the four new checks pass, overall unsure (MM3-0011). Prove: the committed plugin passes its nine behaviour checks but fails on risk (MM3-0012), a drill into risk flags a header sent after output and feeds (MM3-0013), after the fixes a replay shows nothing regressed, overall unsure (MM3-0014)."></p>
-
-- **Know.** Before the goal, the agent mapped WordPress: four checks, each tagged with the layer it covers.
-- **Judge.** The plan failed. The definition of done failed. A drill found four missing checks; added and rechecked, they pass.
-- **Prove.** The plugin passed its nine behaviour checks and failed on risk. A drill found two issues, the agent fixed them, and a replay showed nothing regressed.
-
-<p align="center"><img src="docs/assets/journey-map.svg" width="900" alt="The WordPress map in the ledger. The map an agent built in MM3's ledger while working on WordPress 7.1.2, from the C4 chains it tagged on 8 of its runs. System wordpress (MM3-0001) holds three containers. Bootstrap: plugin-hooks (MM3-0001, 0003, 0005, 0006, 0008, 0012) and template-loader (MM3-0001). Data: user-api (MM3-0002, 0005, 0006, 0008, 0012) uses meta-api, which reaches the database (MM3-0002). Render: template-loader (MM3-0003, 0004) feeds post-template (MM3-0003 to 0012), which reaches the theme (MM3-0001, 0003). Plugin-hooks uses user-api and post-template. The change, a persona plugin, touches plugin-hooks, user-api and post-template (MM3-0012). The layers are the agent's own names; every edge cites the runs behind it."></p>
-
-**The ledger remembers.** Same question on unchanged code: answered from the ledger, no call, no cost. What changed since: `replay` compares any two commits. Told to use only the ledger, the agent rebuilt this whole story, gaps in the plan included, in about four minutes.
-
-**Where it fell short (it's beta).** It missed WordPress's Block Bindings API. `replay` can't yet compare against a file that didn't exist before. Every verdict came from reading code, not running it. We're on it.
-
-> [!IMPORTANT]
-> **Lessons learned.** The prompt decides whether your agent uses MM3 as a map or as a spot check: 2 runs on a bare brief, 14 when each beat was spelled out. And in all three runs, MM3's guidance was never in the project's `AGENTS.md`: we never ran `mm3 init --agents`.
->
-> **Corrective action.** Make sure your agent loads MM3's three beats. Run `mm3 init --agents` once: it writes them to `AGENTS.md` and points `CLAUDE.md` at it. Until then, MM3 flags the project on its first run, and `mm3 doctor` shows it. We're rerunning the bare brief with it to confirm.
-
 ## Why MM3
 
 An agent can ask a fast classifier a yes/no about your code, but on its own that answer is untraceable and never reused. MM3 asks the same way every time, scores the answer and keeps it, so every check adds to what you know about your codebase.
@@ -150,6 +127,36 @@ Early numbers from our own runs; formal benchmarks will follow.
 - [$0.000065 per check (median of five paid class runs)](docs/numbers.md#cost-per-check)
 - [1,181 tests, no network, no key](docs/numbers.md#test-count)
 - [The expected verb and depth chosen on 12/12 tasks of an agent smoke test on OWASP NodeGoat](docs/numbers.md#agent-smoke-score)
+
+## Journeys
+
+Each journey asks one question: **can a smaller model, with MM3, learn more about a real codebase for less?** One agent, a $1 cap that covers everything, the same three beats (Know, Judge, Prove). Every run is on file in [mm3-journeys](https://github.com/mvp-scale/mm3-journeys), so you can rerun it and compare.
+
+| | The hook | Status |
+|---|---|---|
+| 1 | [WordPress](#journey-1-wordpress): make every page render per reader, core untouched | done: 8 of 12 right, 28k tokens written, under $1 |
+| 2 | Turn one dial: what do 3x, 5x and 10x the questions per call change? | [planned](https://github.com/mvp-scale/mm3-journeys/tree/main/questions-dial/PLAN.md) |
+
+### Journey 1: WordPress
+
+**The hook:** take WordPress 7.1.2 as it ships and teach it to render a page differently for each reader, as a plugin, core untouched.
+
+<p align="center"><img src="docs/assets/journey-card.svg" width="900" alt="Journey 1, WordPress 7.1.2: make every page render per reader, as a plugin, core untouched. Agent Claude Sonnet 5.5; 28k tokens written and 2.6M read from cache; MM3 14 runs, 15 calls, about a tenth of a cent; about 15 minutes; 8 of 12 right against our answer key. Know: four runs map the boot layers, user meta and render chain (MM3-0001 to 0004). Judge: the plan and the definition of done each had gaps, a drill found four missing checks, and the fixed version passes them (MM3-0006 to 0011). Prove: nine behaviour checks met, a header-after-output risk found and fixed, a replay shows zero regressions (MM3-0012 to 0014). A gap is a requirement MM3 found: gap is fail, open is unsure, met is pass."></p>
+
+**The recap:** one agent mapped WordPress, checked its plan before writing code, then committed a small plugin and proved what held. MM3 cost about a tenth of a cent. The agent cost about $0.98 at today's list prices, so the whole journey came in under the $1 cap.
+
+**How to read it.** A gap is a requirement MM3 found, not a failure: gap is fail, open is unsure, met is pass. The agent's figures are counted from its session's token usage and priced at list; the score is against our own answer key. Every verdict came from reading code, not running WordPress. It missed WordPress's Block Bindings API, and `replay` can't yet compare against a file that didn't exist before (it's beta).
+
+**What we prompted** (the goal, verbatim; the beats and budget follow in the [full brief](https://github.com/mvp-scale/mm3-journeys/tree/main/wordpress/run-3-each-beat/brief.md)):
+
+> **Goal:** a page in WordPress renders differently depending on a simple persona of the current user, built from what WordPress can already see about them (what they read, what they like, what they adjusted). It only has to prove the page can change by persona; how accurate the persona is doesn't matter. Build it as a plugin under `src/wp-content/plugins/`; don't edit WordPress core or the bundled themes.
+
+**All of it is public:** the brief, the notes for each beat, the diff, the score against our answer key and the full ledger for each of the three runs: [run 1, bare brief](https://github.com/mvp-scale/mm3-journeys/tree/main/wordpress/run-1-bare-brief), [run 2, plugin guidance](https://github.com/mvp-scale/mm3-journeys/tree/main/wordpress/run-2-plugin-guidance), [run 3, each beat spelled out](https://github.com/mvp-scale/mm3-journeys/tree/main/wordpress/run-3-each-beat).
+
+> [!IMPORTANT]
+> **Lessons learned.** The prompt decides whether your agent uses MM3 as a map or as a spot check: 2 runs on a bare brief, 14 when each beat was spelled out. And in all three runs, MM3's guidance was never in the project's `AGENTS.md`: we never ran `mm3 init --agents`.
+>
+> **Corrective action.** Make sure your agent loads MM3's three beats. Run `mm3 init --agents` once: it writes them to `AGENTS.md` and points `CLAUDE.md` at it. Until then, MM3 flags the project on its first run, and `mm3 doctor` shows it. We're rerunning the bare brief with it to confirm.
 
 ## Run it
 

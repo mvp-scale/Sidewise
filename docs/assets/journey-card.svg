@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="492" viewBox="0 0 900 492" role="img" aria-labelledby="t d">
+<!-- A journey card: one layout for any journey. Top: the hook and a fixed strip (agent, spend, speed, knowledge). Middle: Know,
+     Judge, Prove, free-form per journey, every line a run id an agent can cite. The verdicts are worded as requirements:
+     gap = MM3 fail, open = unsure, met = pass. Data: Journey 1, WordPress 7.1.2, run 3 (MM3-0001..0014). -->
+  <title id="t">Journey 1: WordPress, as a card</title>
+  <desc id="d">Journey 1 takes WordPress 7.1.2 and makes every page render per reader, as a plugin with core untouched. Agent: Claude Sonnet 5.5. Spend: 28k tokens written and 2.6M read from cache; MM3 14 runs, 15 calls, about a tenth of a cent. Speed: about 15 minutes, 3.3 minutes of it in MM3's ledger. Knowledge: 8 of 12 right against our answer key, 14 cited runs. Know, four runs: boot layers open (MM3-0001), user meta open (MM3-0002), render chain gap because the range was cut short (MM3-0003), render chain met with the right range (MM3-0004). Judge, four gaps found before code: plan v1 gap (MM3-0006), definition of done v1 gap (MM3-0007), a drill finds four missing checks (MM3-0010), v3 with the four new checks passing, overall open (MM3-0011). Prove: nine behaviour checks met but a risk gap (MM3-0012), a drill finds a header sent after output (MM3-0013), a replay shows zero regressions and the risk improved, overall open (MM3-0014). Gap means MM3 said fail, open means unsure, met means pass.</desc>
+  <style>
+    text{font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif}
+    .mono{font-family:ui-monospace,SFMono-Regular,'JetBrains Mono',Menlo,Consolas,monospace}
+    .col{fill:#7f93b0;font-size:12px;font-weight:700;letter-spacing:.16em}
+    .card{fill:#101b2e;stroke:#24344f}
+    .id{fill:#7f93b0;font-size:11.5px}.q{fill:#e6edf7;font-size:13px}.cap{fill:#7f93b0;font-size:12.5px}
+    .g{font-size:11px;font-weight:700}
+    .lab{fill:#7f93b0;font-size:10.5px;font-weight:700;letter-spacing:.16em}
+    .val{fill:#f5f8ff;font-size:15px;font-weight:700}
+    .sub{fill:#7f93b0;font-size:11.5px}
+  </style>
+  <rect width="900" height="492" rx="14" fill="#050914"/>
+  <text x="18" y="34" font-size="17" font-weight="700" fill="#f5f8ff"><tspan fill="#9bdcff">M</tspan><tspan fill="#b7ff83">M</tspan>3</text>
+  <text x="882" y="34" text-anchor="end" font-size="13" font-weight="700" fill="#7f93b0">JOURNEY 1 · WordPress 7.1.2</text>
+  <line x1="0" y1="52" x2="900" y2="52" stroke="#24344f"/>
+  <text x="18" y="80" font-size="17" font-weight="700" fill="#e6edf7">Make every page render per reader, as a plugin, core untouched.</text>
+
+  <!-- the fixed strip: same four slots on every journey -->
+  <rect x="18" y="98" width="210" height="62" rx="10" class="card"/>
+  <text x="32" y="118" class="lab">AGENT</text><text x="32" y="139" class="val">Sonnet 5.5</text><text x="32" y="153" class="sub">1 agent, MM3 plugin</text>
+  <rect x="236" y="98" width="210" height="62" rx="10" class="card"/>
+  <text x="250" y="118" class="lab">SPEND</text><text x="250" y="139" class="val">28k out · 2.6M cached</text><text x="250" y="153" class="sub">MM3: 14 runs, 15 calls, ~0.1¢</text>
+  <rect x="454" y="98" width="210" height="62" rx="10" class="card"/>
+  <text x="468" y="118" class="lab">SPEED</text><text x="468" y="139" class="val">~15 min</text><text x="468" y="153" class="sub">3.3 min in MM3's ledger</text>
+  <rect x="672" y="98" width="210" height="62" rx="10" class="card"/>
+  <text x="686" y="118" class="lab">KNOWLEDGE</text><text x="686" y="139" class="val">8 of 12 right</text><text x="686" y="153" class="sub">vs our key · 14 cited runs</text>
+
+  <text x="160" y="190" text-anchor="middle" class="col">KNOW</text>
+  <text x="450" y="190" text-anchor="middle" class="col">JUDGE</text>
+  <text x="740" y="190" text-anchor="middle" class="col">PROVE</text>
+
+  <!-- KNOW -->
+  <rect x="18" y="200" width="284" height="244" rx="10" class="card"/><rect x="24" y="200" width="272" height="3" rx="1.5" fill="#9bdcff"/>
+  <text x="34" y="226" class="cap">mapped WordPress before the goal</text>
+  <text x="34" y="258" class="id mono">MM3-0001</text><text x="34" y="276" class="q">boot layers</text><text x="286" y="276" text-anchor="end" class="g" fill="#9bdcff">OPEN</text>
+  <text x="34" y="304" class="id mono">MM3-0002</text><text x="34" y="322" class="q">user meta</text><text x="286" y="322" text-anchor="end" class="g" fill="#9bdcff">OPEN</text>
+  <text x="34" y="350" class="id mono">MM3-0003</text><text x="34" y="368" class="q">render chain (range cut short)</text><text x="286" y="368" text-anchor="end" class="g" fill="#ffcd57">GAP</text>
+  <text x="34" y="396" class="id mono">MM3-0004</text><text x="34" y="414" class="q">render chain, right range</text><text x="286" y="414" text-anchor="end" class="g" fill="#b7ff83">MET</text>
+
+  <!-- JUDGE -->
+  <rect x="308" y="200" width="284" height="244" rx="10" class="card"/><rect x="314" y="200" width="272" height="3" rx="1.5" fill="#b7ff83"/>
+  <text x="324" y="226" class="cap">checked the plan before any code</text>
+  <text x="324" y="258" class="id mono">MM3-0006</text><text x="324" y="276" class="q">plan v1</text><text x="576" y="276" text-anchor="end" class="g" fill="#ffcd57">GAP</text>
+  <text x="324" y="304" class="id mono">MM3-0007</text><text x="324" y="322" class="q">definition of done v1</text><text x="576" y="322" text-anchor="end" class="g" fill="#ffcd57">GAP</text>
+  <text x="324" y="350" class="id mono">MM3-0010 · drill</text><text x="324" y="368" class="q">4 checks missing</text><text x="576" y="368" text-anchor="end" class="g" fill="#ffcd57">GAP</text>
+  <text x="324" y="396" class="id mono">MM3-0011</text><text x="324" y="414" class="q">v3: the 4 new checks pass</text><text x="576" y="414" text-anchor="end" class="g" fill="#9bdcff">OPEN</text>
+
+  <!-- PROVE -->
+  <rect x="598" y="200" width="284" height="244" rx="10" class="card"/><rect x="604" y="200" width="272" height="3" rx="1.5" fill="#9bdcff"/>
+  <text x="614" y="226" class="cap">fixed what it found, nothing broke</text>
+  <text x="614" y="258" class="id mono">MM3-0012</text><text x="614" y="276" class="q">9 behaviour checks met · risk</text><text x="866" y="276" text-anchor="end" class="g" fill="#ffcd57">GAP</text>
+  <text x="614" y="304" class="id mono">MM3-0013 · drill</text><text x="614" y="322" class="q">header after output, feeds</text><text x="866" y="322" text-anchor="end" class="g" fill="#ffcd57">GAP</text>
+  <text x="614" y="350" class="cap">two fixes committed</text>
+  <line x1="614" y1="360" x2="866" y2="360" stroke="#24344f"/>
+  <text x="614" y="396" class="id mono">MM3-0014 · replay</text><text x="614" y="414" class="q">0 regressions · risk improved</text><text x="866" y="414" text-anchor="end" class="g" fill="#9bdcff">OPEN</text>
+
+  <text x="450" y="470" text-anchor="middle" class="cap" font-size="12.5">A gap is a requirement MM3 found, not a failure. gap = fail · open = unsure · met = pass · every line has a run id your agent can cite.</text>
+</svg>
