@@ -9,7 +9,7 @@
  * This is what lets `mm3 mcp` (src/mcp/*) run the exact same dispatch in-process, with the MCP tool call's
  * own `stdin` string standing in for fd 0, with no second contract and no subprocess spawned per call.
  */
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync, realpathSync, statSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -654,10 +654,22 @@ function realCtx(): CliCtx {
   };
 }
 
-// Only run for real when this file is the process's own entrypoint (`node dist/cli.js ...` / `node
-// bin/mm3.mjs ...`) — not when something (a test, src/mcp/*) imports `runCli` from it as a module, which
-// must never also kick off a real run against real process.argv/stdin/stdout as a side effect of the import.
-if (import.meta.url === `file://${process.argv[1]}`) {
+/** The real file behind `process.argv[1]`: npm installs `mm3` as a symlink (global bin, node_modules/.bin), so
+ *  argv[1] is the link, not this file. Unresolvable (no argv[1], a vanished path) reads as "not us". */
+function isEntrypoint(): boolean {
+  const invoked = process.argv[1];
+  if (!invoked) return false;
+  try {
+    return realpathSync(invoked) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+
+// Only run for real when this file is the process's own entrypoint (`node dist/cli.js ...`, `node
+// bin/mm3.mjs ...`, or either through npm's `mm3` symlink) — not when something (a test, src/mcp/*) imports
+// `runCli` from it as a module, which must never also kick off a real run as a side effect of the import.
+if (isEntrypoint()) {
   runCli(process.argv.slice(2), realCtx())
     .then((r) => {
       if (r.text) (r.exit === 0 ? process.stdout : process.stderr).write(r.text);

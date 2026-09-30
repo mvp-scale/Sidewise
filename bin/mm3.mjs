@@ -7369,7 +7369,7 @@ var require_dist = __commonJS({
 
 // src/cli.ts
 var import_yaml6 = __toESM(require_dist(), 1);
-import { readFileSync as readFileSync17, statSync as statSync9 } from "node:fs";
+import { readFileSync as readFileSync17, realpathSync as realpathSync6, statSync as statSync9 } from "node:fs";
 import os3 from "node:os";
 import path21 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
@@ -17455,7 +17455,16 @@ function realCtx() {
     }
   };
 }
-if (import.meta.url === `file://${process.argv[1]}`) {
+function isEntrypoint() {
+  const invoked = process.argv[1];
+  if (!invoked) return false;
+  try {
+    return realpathSync6(invoked) === realpathSync6(fileURLToPath2(import.meta.url));
+  } catch {
+    return false;
+  }
+}
+if (isEntrypoint()) {
   runCli(process.argv.slice(2), realCtx()).then((r) => {
     if (r.text) (r.exit === 0 ? process.stdout : process.stderr).write(r.text);
     process.exitCode = r.exit;
