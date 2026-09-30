@@ -77,7 +77,7 @@ jobs:
         if: needs.plan.outputs.channel == 'nightly'
         run: |
           base=$(node -p "require('./package.json').version")
-          npm version --no-git-tag-version "$base-nightly.$(date -u +%Y%m%d).g$(git rev-parse --short HEAD)"
+          npm version --no-git-tag-version "$base-nightly.$(date -u +%Y%m%d.%H%M).g$(git rev-parse --short HEAD)"  # the time keeps a re-run on the same commit from reusing a version
       - name: Publish nightly
         if: needs.plan.outputs.channel == 'nightly'
         run: npm publish --tag nightly
