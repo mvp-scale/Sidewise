@@ -304,6 +304,17 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
+  it("a pass next: that points at Prove stays a plain scalar (· and <before>..HEAD need no quotes) [C-232]", () => {
+    for (const next of [
+      'act on it · then prove it with mm3 replay --parent MM3-0081 --compare <before>..HEAD',
+      'build it, then class the code · after the commit, mm3 replay --parent MM3-0081 --compare <before>..HEAD',
+    ]) {
+      const doc = m(['mak', m(['id', 'MM3-0081'], ['gate', 'pass'])], ['mdl', m(['recorded', 'none'])], ['next', next], ['notes', ['free']]);
+      expect(emit(doc)).toBe(lines('mak:', '  id: MM3-0081', '  gate: pass', 'mdl: {recorded: none}', `next: ${next}`, 'notes: [free]'));
+      roundTrip(doc);
+    }
+  });
+
   it('view: categories is a map of maps; mdl records none', () => {
     const doc = m(
       [

@@ -45,6 +45,15 @@ describe('class', () => {
     expect(loadBudget(paths).state.runs).toBe(1);
   });
 
+  it('a passing class points next: at Prove, with the real run id and a literal <before> placeholder [C-232]', async () => {
+    const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query("SELECT * FROM users WHERE id = ?", [id]); }\n' });
+    const provider = stubProvider({ yes: (q) => (q.id === 'goal' ? 0.95 : 0.05), pick: { '10': 'low', '11': 'ship' } });
+    // injection/access/leaks all pass: no, so a low P(yes) everywhere is a full pass
+    const r = await runClass(CLASS_YAML, { paths, provider, env });
+    expect(r.text).toContain('gate: pass');
+    expect(r.text).toContain('next: act on it · then prove it with mm3 replay --parent MM3-0001 --compare <before>..HEAD\n');
+  });
+
   it('an identical second run makes no call and is free, and says which run it reused [C-130]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
     const provider = stubProvider({ yes: (q) => P[q.id] ?? 0.5, pick: PICK });

@@ -49,14 +49,14 @@ describe('loop', () => {
     expect(readLedger(paths)).toEqual([]);
   });
 
-  it('a goal that clears the bar on a fully-passing sweep: gate pass, next is "act on it"', async () => {
+  it('a goal that clears the bar on a fully-passing sweep: gate pass, next says build it and then prove it with replay [C-232]', async () => {
     const { paths } = tempProject({});
     const ALL_PASS =
       'mak:\n  goal: The checkout redesign is sound\n  depth: quick\n  over:\n    part:\n      - gateway\n      - payments\n  ask:\n    part:\n      concerns:\n        boundaries:\n          pass: yes\n          1: Does {part} own one clear responsibility?\n          2: Can {part} be deployed without the others?\n          3: Does {part} have a single clear owner?\n        clarity:\n          pass: yes\n          4: Is {part}\'s purpose documented?\n          5: Is {part}\'s interface stable?\n          6: Is {part} easy to test in isolation?\n        fit:\n          pass: yes\n          7: Does {part} fit the overall design?\n          8: Is {part} loosely coupled to its neighbors?\n          9: Would {part} survive a neighbor being replaced?\n      decisions:\n        severity:\n          pass: [none, low]\n          10:\n            scale: How risky is {part}?\n            levels: [none, low, medium, high, critical]\n        route:\n          pass: [ship]\n          11:\n            choice: What should happen to {part}?\n            options: [ship, fix, block]\nmdl:\n  why: validate\n  area: api\n';
     const r = await runLoop(ALL_PASS, { paths, provider: stubProvider({ yes: () => 0.95 }), env: {} });
     expect(r.exit).toBe(0);
     expect(r.text).toContain('gate: pass');
-    expect(r.text).toContain('next: act on it');
+    expect(r.text).toContain('next: build it, then class the code · after the commit, mm3 replay --parent MM3-0001 --compare <before>..HEAD\n');
     expect(r.text).toContain('passing: [gateway, payments]');
   });
 

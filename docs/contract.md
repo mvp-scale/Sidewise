@@ -443,7 +443,10 @@ next: mm3 template drill --parent MM3-0042 --from injection
 notes: ["budget: $4.98 left of $5.00 · 497 of 500 runs left"]
 ```
 
-`next:` on `pass` is the caller's own text ("act on it"); on `fail`, it drills into the first category whose
+`next:` on `pass` points at Prove, not just at acting: for `class` it reads `act on it · then prove it with mm3
+replay --parent <this run's id> --compare <before>..HEAD`, for `loop` `build it, then class the code · after the
+commit, mm3 replay --parent <this run's id> --compare <before>..HEAD` (`<before>` is left for the caller to fill in;
+the text has no `": "`, so it stays a plain YAML scalar). [C-232] On `fail`, it drills into the first category whose
 own gate is `fail`, in written order; on `unsure`, the first category whose own gate is `unsure`. [C-058]
 The ledger learns the pass/fail record per category, per place and per area; these questions and categories become
 a candidate pattern for this place. [C-059]

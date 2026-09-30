@@ -68,7 +68,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
     respondText(
       m(['id', id], ['gate', gate], ['goal', m(['gate', goal], ['p', goalAnswer?.p ?? 0])], ['failing', failing], ['passing', passing]),
       mdlRecorded(request.mdl),
-      sweepNext(id, gate, worst, graded, 'act on it'),
+      sweepNext(id, gate, worst, graded, `build it, then class the code · after the commit, mm3 replay --parent ${id} --compare <before>..HEAD`),
       commonNotes(
         [...loaded.notes, ...plan.splitNotes, ...reusedAges, ...(pre.value.created ? [createdNote(pre.value.state)] : []), ...(costEstimated ? [COST_ESTIMATED_NOTE] : [])],
         `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
