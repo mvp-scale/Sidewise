@@ -65,16 +65,18 @@
     "judge:readme": "node bin/mm3.mjs class scripts/readme-judgment.yaml",
     "gen:evidence-index": "tsx scripts/evidence-index.ts",
     "prepare": "git config core.hooksPath .github/hooks 2>/dev/null || true",
-    "dev:install": "npm run build && tgz=\"$(pwd)/$(npm pack --silent | tail -1)\" && cd \"${INIT_CWD:-.}\" && npx --yes --package \"$tgz\" mm3 init"
+    "dev:install": "npm run build && tgz=\"$(pwd)/$(npm pack --silent | tail -1)\" && cd \"${INIT_CWD:-.}\" && npx --yes --package \"$tgz\" mm3 init",
+    "check:node-floor": "tsc -p tsconfig.node-floor.json"
   },
   "devDependencies": {
-    "@types/node": "22.19.18",
+    "@types-floor/node": "npm:@types/node@22.19.18",
+    "@types/node": "26.6.3",
     "ajv": "8.20.0",
     "esbuild": "0.28.2",
     "js-tiktoken": "1.0.21",
     "tsx": "4.23.15",
-    "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "typescript": "7.0.2",
+    "vitest": "5.0.3"
   },
   "dependencies": {
     "yaml": "2.9.1"

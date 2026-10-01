@@ -32,6 +32,7 @@ jobs:
       - run: npm audit --audit-level=high   # a known high or critical vulnerability in any dependency fails CI
       - run: sh scripts/check-clean.sh --all
       - run: npm run typecheck
+      - run: npm run check:node-floor   # src compiles against the Node 22 types, the oldest we support
       - run: npm test
       - run: npm run build
       - run: npx tsx scripts/check-readme.ts

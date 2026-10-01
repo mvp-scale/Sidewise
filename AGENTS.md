@@ -6,6 +6,8 @@
 |---|---|
 | Install | `npm install` |
 | Typecheck | `npm run typecheck` |
+| Node floor: `src/` compiles against the oldest supported Node types (22) | `npm run check:node-floor` |
+| Node floor: src compiles against the oldest supported Node types (22) | `npm run check:node-floor` |
 | Default tests (unit, contract, golden; no network, no build) | `npm test` |
 | CLI end-to-end (builds first) | `npm run test:cli` |
 | Offline tour of every verb, template, outcome, budget and doctor (builds first) | `npm run test:flows` |
