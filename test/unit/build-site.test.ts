@@ -63,7 +63,7 @@ describe('checkSite', () => {
       expect(checkSite(page, real, undefined, readme)).toEqual([]);
     });
     it('fails when a Limits bullet in the README is edited', () => {
-      const drifted = readme.replace('0.9 is wrong about one time in ten.', '0.9 is wrong about one time in twenty.');
+      const drifted = readme.replace('0.9 is wrong one time in ten.', '0.9 is wrong one time in twenty.');
       expect(drifted).not.toBe(readme);
       expect(checkSite(page, real, undefined, drifted).join('\n')).toMatch(/Limits and alternatives/);
     });

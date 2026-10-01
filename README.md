@@ -125,7 +125,7 @@ Each journey asks one question: **can a smaller model, with MM3, learn more abou
 | | The hook | Status |
 |---|---|---|
 | 1 | [WordPress](#journey-1-wordpress): make every page render per reader, core untouched | done: 8 of 12 right, 28k tokens written, under $1 |
-| 2 | Turn one dial: what do 3x, 5x and 10x the questions per call change? | [planned](https://github.com/mvp-scale/mm3-journeys/tree/main/questions-dial/PLAN.md) |
+| 2 | Turn one dial: what changes when a decision gets more questions? | planned |
 
 ### Journey 1: WordPress
 
@@ -180,12 +180,12 @@ Add `--dry-run` to any request to validate it and count its questions without a 
 
 ## Limits and alternatives
 
-- **Evidence, never a command.** You get odds per question and whether the answers agree (STRONG, SPLIT or WEAK); you or your agent decide. Delete, deploy, drop and pay stay human.
-- **A false pass costs you.** A [calibrated](docs/numbers.md#what-calibrated-means) 0.9 is wrong about one time in ten. `unsure` is a real answer, and `mm3 outcome` grades each verdict so the ledger can show which ones to distrust.
-- **Not a linter, scanner or test suite.** Those find known patterns, deterministically, for free. Run them first. MM3 answers the questions they can't put: does this handler check the caller, will this design hold.
-- **Not a substitute for a full-context model review.** A full-context review reads the whole codebase for every question. Use one when the question won't fit a yes/no.
-- **The sample provider is not evidence.** Its answers are canned. Built on TypeSafe's Jev; other classifiers can plug in.
-- **Beta.** It works well in our own use, tested end to end on an intentionally vulnerable app (OWASP NodeGoat); formal benchmarks will follow. The npm package is a nightly for now; the first release follows.
+- **Advice, not action: it gives the odds, you make the call.** Delete, deploy, drop and pay stay human.
+- **A pass is a probability: a [calibrated](docs/numbers.md#what-calibrated-means) 0.9 is wrong one time in ten.** `unsure` is a real answer, and `mm3 outcome` shows which verdicts held.
+- **Run linters, scanners and tests first: they're free and exact.** MM3 takes the questions they can't ask, like "does this handler check the caller?"
+- **First principles still apply: map your architecture first.** A few cheap checks name the layers (tag requests with `mdl.uses`) and `mm3 report graph` draws them. Every later question then lands in a known place, and reading it back is free.
+- **Use a full review for open questions.** A model that reads the whole codebase answers anything. MM3 answers yes/no.
+- **Beta: works well in our own use and on an intentionally vulnerable app (OWASP NodeGoat).** Formal benchmarks are coming.
 
 ## Docs and contributing
 

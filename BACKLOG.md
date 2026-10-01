@@ -5,11 +5,9 @@ What's next and what's parked. It lives on `nightly`. When something ships, dele
 ## Next: small and ready
 
 - **Default branch to `main`.** The plugin install and the README links resolve against the default branch, which is still `nightly`. Repo settings, maintainer only.
-- **Push `mm3-journeys`** so the README's link to the journey 2 plan stops being a 404. Fix the plan's dial arms first: one `class` call tops out at 27 yes/no questions (`depth: thorough`), so the arms are 9, 18 and 27, with more calls beyond that.
-- **Open PRs:** merge or close the guidance fix and the Dependabot bump.
+- **Push `mm3-journeys`, then put the journey 2 plan link back in the README's journeys table** (it was taken out so the release had no dead link). One `class` call tops out at 27 yes/no questions, so arms above that mean several calls on one decision.
+- **Open PR #8** (Dependabot): it is superseded, since typescript 7, vitest 5 and @types/node 26 are already on nightly. Close it, or let Dependabot.
 - **Delete merged feature branches**, remote and local. Their commits are all in `nightly`.
-- **Raise the timeout** on the ledger-scale doc test. It timed out once on Node 22 and passed on rerun.
-- **Scripted link check** in `npm run check:readme`: fail on any 404 in the README's links, so a dead link can't ship.
 - **Run `mm3 init --agents` in this repo**, so a contributor's agent gets the pointer to MM3's command cards.
 
 ## Journeys
