@@ -280,7 +280,7 @@ function configCard(): string {
     [
       '- syntax: mm3 config [--write]',
       '- free: plain config never writes, never spends, works with or without a project',
-      '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, mdl) and which of default/config/env it came from',
+      '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from',
       '- reads .mm3/config.yaml if present — sparse overrides only, precedence env > config > default',
       '- a bad config.yaml shows its ✖ problems here too, then the rest of the effective table underneath',
       '- the display is not a file: to customize run mm3 config --write → writes .mm3/config.yaml (commented guide) only if missing, never overwrites',

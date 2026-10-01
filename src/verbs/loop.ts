@@ -14,7 +14,7 @@ import { currentCommitSha } from '../evidence/git.ts';
 import type { NewContractRun } from '../ledger/log.ts';
 import { cacheTelemetry, reusedAgeNotes } from '../ledger/reuse.ts';
 import { actorOf, createdNote, preflight } from './pay.ts';
-import { loadRequest } from './request.ts';
+import { contractLimits, loadRequest } from './request.ts';
 import { commonNotes, COST_ESTIMATED_NOTE, probeWarnings, respondText, reusedIds, sweepEntry, sweepNext, mdlRecorded } from './respond.ts';
 import { itemRecords, planNeedsBudget, plannedCallCount, planSweep, recordSweep, runSweep, sweepDryRun } from './sweep.ts';
 import type { VerbContext, VerbResult } from './types.ts';
@@ -23,13 +23,13 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
   // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
-  const loaded = loadRequest(text, 'loop', mdlFields);
+  const loaded = loadRequest(text, 'loop', mdlFields, contractLimits(cfg, 'loop'));
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, {}, { sweep: cfg.sweep, reuse: cfg.reuse });
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, {}, { sweep: cfg.sweep, reuse: cfg.reuse, evidence: cfg.evidence });
 
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.mak));
 

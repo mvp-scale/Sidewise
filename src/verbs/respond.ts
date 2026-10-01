@@ -47,11 +47,12 @@ export function consensusAndEscalate(
   answers: Record<string, Answer>,
   depth: Depth | null | undefined,
   notes: readonly string[],
+  lens?: Parameters<typeof computeConsensus>[1],
 ): { consensus: Consensus; escalate: boolean } {
   const slots: SlotAnswer[] = categories
     .filter((c) => c.questions[0]?.kind === 'yesno')
     .flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === 'yes', p: (answers[String(q.n)] as { kind: 'yesno'; p: number }).p })));
-  const consensus = computeConsensus(slots).consensus;
+  const consensus = computeConsensus(slots, lens).consensus;
   const escalate = consensus !== 'STRONG' || depth === 'thorough' || notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
   return { consensus, escalate };
 }

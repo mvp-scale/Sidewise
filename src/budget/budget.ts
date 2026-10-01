@@ -26,6 +26,8 @@ export interface BudgetState {
   spentUsd: number;
   runs: number;
   resetAt: string;
+  /** Share of a cap at which the line turns into a warning (budget.warnAt). Omitted: BUDGET_LOW_FRACTION. */
+  warnAt?: number;
 }
 
 export class BudgetError extends Error {
@@ -89,7 +91,7 @@ function stateFromConfig(paths: Mm3Paths, config: Mm3Config, now: number, opts: 
   // error (log.jsonl replaced by a directory, permissions) must surface as the usual clean StoreError, never an
   // unwrapped errno escaping just because this read happens to go through budgetRollup instead of readLedger.
   const { spentUsd, runs } = onStore(paths.log, 'read', () => budgetRollup(paths, iso(sinceMs), opts));
-  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: config.budget.since ?? EPOCH };
+  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: config.budget.since ?? EPOCH, warnAt: config.budget.warnAt };
 }
 
 /** Ledger-derived state with no side effects at all (no migration attempt, no locking of its own) — safe to
@@ -200,7 +202,8 @@ export function setBudget(paths: Mm3Paths, caps: { capUsd?: number; capRuns?: nu
 }
 
 /** Share of a cap spent at which the line turns into a warning (and says what to do) — below it the line is
- *  plain headroom, so an agent reading "10% used" no longer mistakes a nearly-empty meter for a constraint. [C-229] */
+ *  plain headroom, so an agent reading "10% used" no longer mistakes a nearly-empty meter for a constraint. The default;
+ *  a project moves it with `budget.warnAt`. [C-229] */
 export const BUDGET_LOW_FRACTION = DEFAULT_CONFIG.budget.warnAt;
 
 /** The one budget-line formatter: run notes, `budget`, `budget set/reset` all print exactly this. It states
@@ -213,8 +216,9 @@ export function budgetLine(s: BudgetState): string {
   const usdUsed = s.spentUsd > s.capUsd ? ` (${money(s.spentUsd)} used)` : '';
   const runsUsed = s.runs > s.capRuns ? ` (${s.runs} used)` : '';
   const line = `budget: ${moneyLeft(usdLeft, s.capUsd, s.spentUsd)} left of ${money(s.capUsd)}${usdUsed} · ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
-  if (usedFraction(s) < BUDGET_LOW_FRACTION) return line;
-  const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= BUDGET_LOW_FRACTION : true;
-  const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= BUDGET_LOW_FRACTION : true;
+  const warnAt = s.warnAt ?? BUDGET_LOW_FRACTION;
+  if (usedFraction(s) < warnAt) return line;
+  const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= warnAt : true;
+  const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= warnAt : true;
   return `⚠ ${line} → low: ask the owner to run ${raiseCommand(lowUsd, lowRuns)}`;
 }

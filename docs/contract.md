@@ -57,7 +57,7 @@ Where this contract and the shipped engine disagree, this file describes what ac
 | Block | Field | Rule |
 |---|---|---|
 | mak | `goal` | one line, ≤ 160 chars; what you want to be true. Asked of TypeSafe outright |
-| mak | `depth` | `quick` · `standard` · `thorough` = k = 1 · 2 · 3. One subject's `concerns:` section: exactly 3k categories (9 · 18 · 27 yes/no questions). A sweep's finest layer: the same; every layer also caps at 10 · 20 · 30 items asked |
+| mak | `depth` | `quick` · `standard` · `thorough` = k = 1 · 2 · 3 by default. One subject's `concerns:` section: exactly 3k categories (9 · 18 · 27 yes/no questions). A sweep's finest layer: the same; every layer also caps at 10 · 20 · 30 items asked. A project's `config.yaml` can change these counts (see Config) |
 | mak | `where` | 1–5 project paths, optional `:start-end`. We read and redact the code |
 | mak | `ask` | `concerns:` (yes/no categories) + `decisions:` (scale/choice categories) for one subject. In a sweep: layer → `{concerns:, decisions:}` |
 | mak | `over` | sweeps only: nested arrays |
@@ -86,11 +86,11 @@ Each rule ends with the claim id a test proves. The table above is the quick ref
 - One line, at most 160 characters.
 - It is the question asked of TypeSafe outright. [C-010]
 
-**`depth`** sets how many questions a request asks. `quick`, `standard` and `thorough` set k to 1, 2 and 3.
+**`depth`** sets how many questions a request asks. `quick`, `standard` and `thorough` set k to 1, 2 and 3 by default. The numbers below are those defaults; a project's `depth:` and `sweep.itemsPerLayer` settings change them (see Config), and a request still just says `depth: quick`.
 
-- **One subject:** `ask.concerns` holds exactly 3k categories, each with exactly 3 yes/no probes. That is 9, 18 or 27 questions in total. [C-011]
+- **One subject:** `ask.concerns` holds exactly 3k categories, each with exactly 3 yes/no probes. By default that is 9, 18 or 27 questions in total. [C-011]
 - **A sweep:** its finest layer follows the same rule. The finest layer is the last one in `over`'s own order, such as scan's `function` or loop's `story`. [C-011]
-- **Item cap:** every layer of a sweep also caps at 10, 20 or 30 items asked. This cap kept its old numbers when the question counts changed. The two used to match and no longer do. [C-011]
+- **Item cap:** every layer of a sweep also caps at 10, 20 or 30 items asked by default. This cap kept its old numbers when the question counts changed. The two used to match and no longer do. [C-011]
 - **Other sweep layers:** optional. When present, their counts are not enforced (you get a note if thin). Only their shape has to hold: well-formed `concerns:` and `decisions:`. [C-011]
 - **Stop or note:** these section and count rules are stops in `class`, `drill`, `scan` and `loop`. In `view` they are notes ("class will stop on this"), because a partial draft is fine there. [C-011]
 
@@ -1355,7 +1355,7 @@ The Claude Code skill's own "Run this first" guidance sends a cold agent to `mm3
 ### Request basics
 
 - `mak.verb` is optional. The tool name wins, and a mismatch is sent back. [C-085]
-- `depth` counts `concerns:` categories only, exactly 3k of them. [C-086]
+- `depth` counts `concerns:` categories only, exactly 3k of them (k from the project's tier for that verb; 1, 2, 3 by default). [C-086]
 - `decisions:` questions never count toward `depth`. [C-086]
 - Nested items use `- name: <item>` plus child layers beside it. This is what agents write naturally. [C-087]
 - Different items may have different child layers. [C-087]
@@ -1492,10 +1492,20 @@ The Claude Code skill's own "Run this first" guidance sends a cold agent to `mm3
 - With no project it stops with `✖ config: ... → ...` at exit 2. [C-226]
 - The starter is built from the same defaults table the display uses. It is valid as written, and stays valid when any single value line is uncommented. [C-226]
 
+**Settings that change the counts (depth, items, evidence, lens, warnAt):**
+
+- `depth:` gives `class`, `scan` and `loop` each a list of three whole numbers: how many concerns (probes of 3 questions each) `quick`, `standard` and `thorough` ask. The default is `[3, 6, 9]` for each, which is 9, 18 and 27 questions. A request still says `depth: quick`; the config says what that means for that verb. A verb left out keeps the default. [C-235]
+- A depth list must be three whole numbers of at least 1, ascending (`quick <= standard <= thorough`). `drill`, `replay` and `view` have no depth setting, and naming one stops with a fix. Three questions per probe, times the thorough number, plus the most decisions allowed (5), must fit in `sweep.maxQuestionsPerCall`. [C-236]
+- With `depth.class: [15, 30, 45]` a `quick` class request expects exactly 15 concerns categories (45 questions), and a stop names that number. [C-237]
+- `sweep.itemsPerLayer` sets the items asked per layer at `quick`, `standard` and `thorough` (default 10, 20, 30): whole numbers of at least 1, ascending. The lower-only `sweep.maxItems` still applies on top. [C-238]
+- `budget.warnAt` (default 0.8) is the share of a cap at which the budget line starts to warn: above 0 and at most 1. [C-239]
+- `evidence.perItemChars`, `evidence.totalChars` and `evidence.maxFiles` (default 20,000, 60,000 and 500) are whole numbers of at least 1, and `perItemChars` is no larger than `totalChars`. `lens.concernAt`, `lens.weakBelow` and `lens.strongAt` (default 0.5, 0.35, 0.8) lie between 0 and 1 and must satisfy `weakBelow < concernAt < strongAt`. A group that breaks its rule is dropped whole, with a stop saying what to change. [C-240]
+- `mm3 config` and the `--write` starter list every one of these settings, with the question count beside each `depth` tier. With no `config.yaml` every value is the default and no verb's answer changes. [C-241]
+
 **Empty sections:**
 
 - A config section with every child commented out parses as null and means "no overrides". [C-227]
-- That covers `sweep:`, `reuse:`, `budget:`, `mdl:`, `pricing:`, and a `pricing` or `mdl` entry such as `jev-1.13.0:` with nothing under it. [C-227]
+- That covers `sweep:`, `sweep.itemsPerLayer:`, `reuse:`, `depth:`, `evidence:`, `lens:`, `budget:`, `mdl:`, `pricing:`, and a `pricing` or `mdl` entry such as `jev-1.13.0:` with nothing under it. [C-227]
 - It is never a `✖ config.<section>: is not a mapping` stop. [C-227]
 
 **A misnamed config file:**

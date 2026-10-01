@@ -12,7 +12,7 @@ describe('budget', () => {
     const { paths } = tempProject({});
     const { state, created } = loadBudget(paths, T);
     expect(created).toBe(false);
-    expect(state).toEqual({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '1970-01-01T00:00:00Z' });
+    expect(state).toEqual({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0, resetAt: '1970-01-01T00:00:00Z', warnAt: 0.8 });
     expect(loadBudget(paths, T).created).toBe(false);
   });
 
@@ -63,7 +63,7 @@ describe('budget', () => {
     const first = loadBudget(paths, T);
     expect(first.created).toBe(true);
     // caps and `since` came from the legacy file; spent/runs come from the (empty) ledger, never the stale counters.
-    expect(first.state).toEqual({ capUsd: 2, capRuns: 20, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z' });
+    expect(first.state).toEqual({ capUsd: 2, capRuns: 20, spentUsd: 0, runs: 0, resetAt: '2020-01-01T00:00:00Z', warnAt: 0.8 });
     expect(resolveConfig(paths).config.budget).toMatchObject({ usd: 2, runs: 20, since: '2020-01-01T00:00:00Z' });
     // second call: config.yaml already has budget.since — no re-migration, never touches budget.json again.
     writeFileSync(paths.budget, '{ now corrupt, never read again');

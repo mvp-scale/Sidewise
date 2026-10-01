@@ -33,22 +33,22 @@ import type { VerbResult } from '../verbs/types.ts';
 import { DEFAULT_CONFIG, type ConfigSource, type PricingRate } from './defaults.ts';
 import { resolveConfig, type ResolvedConfig } from './load.ts';
 
-type Prim = string | number | boolean;
+type Prim = string | number | boolean | readonly number[];
 
 // Not emit.ts's own num() (String, not toFixed(2)): that helper caps display at 2 decimal places for
 // probabilities, which would round a real pricing rate like $0.042/Mtok down to "0.04" — silently wrong money.
-const valueText = (v: Prim): string => (typeof v === 'string' ? scalar(v, false) : String(v));
+const valueText = (v: Prim): string => (typeof v === 'string' ? scalar(v, false) : Array.isArray(v) ? `[${v.join(', ')}]` : String(v));
 
 /** One field's line. `value` is this field's real effective value (config/default), when it has one at all;
  *  `example` is only ever shown when neither an override nor a default value exists. The 4 env-aware fields
  *  (provider/baseURL/model/timeoutMs — see load.ts's own module doc) can be labeled source: 'env' while their
  *  config-layer `value` is still undefined (env only wins at real runtime, never shown as this module's own
  *  `config.<field>`); that combination gets its own line rather than crashing on a missing value. */
-function fieldLine(indent: string, key: string, source: ConfigSource | undefined, value: Prim | undefined, example: Prim): string {
+function fieldLine(indent: string, key: string, source: ConfigSource | undefined, value: Prim | undefined, example: Prim, extra = ''): string {
   if ((source === 'config' || source === 'env') && value !== undefined) {
-    return `${indent}${key}: ${valueText(value)}  # ${source === 'config' ? 'from config.yaml' : 'env'}`;
+    return `${indent}${key}: ${valueText(value)}  # ${source === 'config' ? 'from config.yaml' : 'env'}${extra}`;
   }
-  if (value !== undefined) return `${indent}# ${key}: ${valueText(value)}  # default`;
+  if (value !== undefined) return `${indent}# ${key}: ${valueText(value)}  # default${extra}`;
   if (source === 'env') return `${indent}# ${key}: (set via env, not config.yaml)`;
   return `${indent}# ${key}: ${valueText(example)}  # example`;
 }
@@ -65,6 +65,11 @@ const EXAMPLES: Record<string, Prim> = {
   'reuse.maxCommits': 20,
 };
 const ex = (key: string): Prim => EXAMPLES[key]!;
+
+const ITEM_TIERS = ['quick', 'standard', 'thorough'] as const;
+const DEPTH_VERBS = ['class', 'scan', 'loop'] as const;
+const EVIDENCE_FIELDS = ['perItemChars', 'totalChars', 'maxFiles'] as const;
+const LENS_FIELDS = ['concernAt', 'weakBelow', 'strongAt'] as const;
 
 const PRICING_FIELDS = ['inputPerMTok', 'outputPerMTok', 'perSecond', 'perCall'] as const;
 
@@ -119,6 +124,7 @@ export function formatConfig(resolved: ResolvedConfig, projectLine: string, extr
     fieldLine('    ', 'runs', s['budget.runs'], c.budget.runs, 500),
     fieldLine('    ', 'per', s['budget.per'], c.budget.per, 'total'),
     fieldLine('    ', 'since', s['budget.since'], c.budget.since, ex('budget.since')),
+    fieldLine('    ', 'warnAt', s['budget.warnAt'], c.budget.warnAt, 0.8),
     '',
     fieldLine('  ', 'provider', s.provider, c.provider, ex('provider')),
     fieldLine('  ', 'baseURL', s.baseURL, c.baseURL, ex('baseURL')),
@@ -133,12 +139,23 @@ export function formatConfig(resolved: ResolvedConfig, projectLine: string, extr
     '  sweep:',
     fieldLine('    ', 'maxItems', s['sweep.maxItems'], c.sweep.maxItems, ex('sweep.maxItems')),
     fieldLine('    ', 'maxQuestionsPerCall', s['sweep.maxQuestionsPerCall'], c.sweep.maxQuestionsPerCall, 500),
+    '    itemsPerLayer:',
+    ...ITEM_TIERS.map((t) => fieldLine('      ', t, s[`sweep.itemsPerLayer.${t}`], c.sweep.itemsPerLayer[t], 10)),
     '',
     fieldLine('  ', 'requestMaxBytes', s.requestMaxBytes, c.requestMaxBytes, 1_048_576),
     '',
     '  reuse:',
     fieldLine('    ', 'maxAgeDays', s['reuse.maxAgeDays'], c.reuse.maxAgeDays, ex('reuse.maxAgeDays')),
     fieldLine('    ', 'maxCommits', s['reuse.maxCommits'], c.reuse.maxCommits, ex('reuse.maxCommits')),
+    '',
+    '  depth:',
+    ...DEPTH_VERBS.map((v) => fieldLine('    ', v, s[`depth.${v}`], c.depth[v], [3, 6, 9], ` · ${c.depth[v].map((n) => n * 3).join(', ')} questions`)),
+    '',
+    '  evidence:',
+    ...EVIDENCE_FIELDS.map((f) => fieldLine('    ', f, s[`evidence.${f}`], c.evidence[f], 0)),
+    '',
+    '  lens:',
+    ...LENS_FIELDS.map((f) => fieldLine('    ', f, s[`lens.${f}`], c.lens[f], 0)),
     '',
     ...mdlLines(resolved),
     '',
@@ -185,6 +202,7 @@ const HINTS: Record<string, string> = {
   'budget.runs': 'paid runs MM3 may make',
   'budget.per': 'count the caps: total | day | hour',
   'budget.since': 'only count spend after this moment',
+  'budget.warnAt': 'share of a cap spent before the budget line warns (above 0, up to 1)',
   provider: 'typesafe | fake (free sample answers)',
   baseURL: 'where classifier calls go (https)',
   model: 'the pinned classifier model',
@@ -195,7 +213,23 @@ const HINTS: Record<string, string> = {
   sweep: 'limits on scan and loop',
   'sweep.maxItems': 'most items one sweep may look at (can only lower the built-in cap)',
   'sweep.maxQuestionsPerCall': 'most questions in one classifier call',
+  'sweep.itemsPerLayer': 'items asked per layer at each depth',
+  'sweep.itemsPerLayer.quick': 'items per layer at depth quick',
+  'sweep.itemsPerLayer.standard': 'items per layer at depth standard',
+  'sweep.itemsPerLayer.thorough': 'items per layer at depth thorough',
   requestMaxBytes: 'largest request file MM3 will read',
+  depth: 'probes (3 questions each) at quick, standard, thorough, per verb',
+  'depth.class': 'class: three whole numbers, ascending',
+  'depth.scan': 'scan: three whole numbers, ascending',
+  'depth.loop': 'loop: three whole numbers, ascending',
+  evidence: 'how much code or text one call may carry',
+  'evidence.perItemChars': 'characters kept per file or item',
+  'evidence.totalChars': 'characters kept in one call (at least perItemChars)',
+  'evidence.maxFiles': 'files one glob may match',
+  lens: 'consensus thresholds over the yes/no answers (weakBelow < concernAt < strongAt)',
+  'lens.concernAt': 'a probe at or above this reads as a concern',
+  'lens.weakBelow': 'consensus is WEAK below this decisiveness',
+  'lens.strongAt': 'consensus is STRONG at or above this agreement',
   reuse: 'when a stored answer is too old to reuse (off unless set)',
   'reuse.maxAgeDays': 're-ask answers older than this many days',
   'reuse.maxCommits': 're-ask after this many commits',
@@ -243,6 +277,7 @@ export function starterConfig(): string {
     setting('  ', 'runs', 'budget.runs'),
     setting('  ', 'per', 'budget.per'),
     setting('  ', 'since', 'budget.since'),
+    setting('  ', 'warnAt', 'budget.warnAt'),
     '',
     top('provider'),
     top('baseURL'),
@@ -266,12 +301,23 @@ export function starterConfig(): string {
     header('', 'sweep', 'sweep'),
     setting('  ', 'maxItems', 'sweep.maxItems'),
     setting('  ', 'maxQuestionsPerCall', 'sweep.maxQuestionsPerCall'),
+    header('  ', 'itemsPerLayer', 'sweep.itemsPerLayer'),
+    ...ITEM_TIERS.map((t) => setting('    ', t, `sweep.itemsPerLayer.${t}`)),
     '',
     top('requestMaxBytes'),
     '',
     header('', 'reuse', 'reuse'),
     setting('  ', 'maxAgeDays', 'reuse.maxAgeDays'),
     setting('  ', 'maxCommits', 'reuse.maxCommits'),
+    '',
+    header('', 'depth', 'depth'),
+    ...DEPTH_VERBS.map((v) => setting('  ', v, `depth.${v}`)),
+    '',
+    header('', 'evidence', 'evidence'),
+    ...EVIDENCE_FIELDS.map((f) => setting('  ', f, `evidence.${f}`)),
+    '',
+    header('', 'lens', 'lens'),
+    ...LENS_FIELDS.map((f) => setting('  ', f, `lens.${f}`)),
     '',
     header('', 'mdl', 'mdl'),
     '#   risk: {values: [low, medium, high]}  # example: your own values for one field',

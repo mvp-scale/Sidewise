@@ -7464,13 +7464,16 @@ var package_default = {
 // src/budget/budget.ts
 import { existsSync as existsSync6, readFileSync as readFileSync6 } from "node:fs";
 
-// src/config/load.ts
-var import_yaml = __toESM(require_dist(), 1);
-import { existsSync, readFileSync } from "node:fs";
-
 // src/config/defaults.ts
-var DEFAULT_CONFIG = {
-  budget: { usd: 5, runs: 500, per: "total" },
+function deepFreeze(value) {
+  if (typeof value === "object" && value !== null && !Object.isFrozen(value)) {
+    Object.freeze(value);
+    for (const v of Object.values(value)) deepFreeze(v);
+  }
+  return value;
+}
+var DEFAULT_CONFIG = deepFreeze({
+  budget: { usd: 5, runs: 500, per: "total", warnAt: 0.8 },
   pricing: {
     "jev-1.13.0": { inputPerMTok: 42 / 1e3 }
     // $42/Btok = $0.042/Mtok (docs.typesafe.ai/models.md) — see answers.ts
@@ -7478,14 +7481,23 @@ var DEFAULT_CONFIG = {
   timeoutMs: 2e4,
   retries: 2,
   backoffMs: 1e3,
-  sweep: { maxQuestionsPerCall: 500 },
+  sweep: { maxQuestionsPerCall: 500, itemsPerLayer: { quick: 10, standard: 20, thorough: 30 } },
   requestMaxBytes: 1048576,
   reuse: {},
-  mdl: {}
-};
-var CONFIG_KEYS = ["budget", "provider", "baseURL", "model", "pricing", "timeoutMs", "retries", "backoffMs", "sweep", "requestMaxBytes", "reuse", "mdl"];
-var CONTRACT_ONLY_KEYS = ["depth", "goal", "where", "ask", "over", "mdl.parent"];
+  mdl: {},
+  depth: { class: [3, 6, 9], scan: [3, 6, 9], loop: [3, 6, 9] },
+  evidence: { perItemChars: 2e4, totalChars: 6e4, maxFiles: 500 },
+  lens: { concernAt: 0.5, weakBelow: 0.35, strongAt: 0.8 }
+});
+var UNSET_BY_DEFAULT = ["provider", "baseURL", "model", "budget.since", "sweep.maxItems", "reuse.maxAgeDays", "reuse.maxCommits"];
+var KEYED_MAPS = ["pricing", "mdl"];
+var CONFIG_KEYS = ["budget", "provider", "baseURL", "model", "pricing", "timeoutMs", "retries", "backoffMs", "sweep", "requestMaxBytes", "reuse", "depth", "evidence", "lens", "mdl"];
+var CONTRACT_ONLY_KEYS = ["goal", "where", "ask", "over", "mdl.parent"];
 var SECRET_LIKE_KEYS = ["apikey", "api_key", "key", "token", "secret", "password", "credential", "credentials"];
+
+// src/config/load.ts
+var import_yaml = __toESM(require_dist(), 1);
+import { existsSync, readFileSync } from "node:fs";
 
 // src/ledger/redact.ts
 var MIN_SECRET_LEN = 8;
@@ -7532,6 +7544,25 @@ function redactDeep(value) {
   return value;
 }
 
+// src/contract/types.ts
+var VERBS = ["view", "class", "replay", "scan", "drill", "loop"];
+var DEPTHS = ["quick", "standard", "thorough"];
+var DEPTH_COUNT = {
+  quick: DEFAULT_CONFIG.depth.class[0] * 3,
+  standard: DEFAULT_CONFIG.depth.class[1] * 3,
+  thorough: DEFAULT_CONFIG.depth.class[2] * 3
+};
+var SWEEP_ITEM_CAP = { ...DEFAULT_CONFIG.sweep.itemsPerLayer };
+var WHYS = ["validate", "find", "debug"];
+var AREAS = ["data", "api", "ui", "auth", "hosting", "build", "tests"];
+var STAGES = ["design", "build", "review", "pre-merge", "post-fix", "release", "operate"];
+var CHANGES = ["feature", "fix", "refactor", "dependency", "config"];
+var RISKS = ["low", "medium", "high"];
+var DECISIONS_MIN = 2;
+var DECISIONS_MAX = 5;
+var FAMILIES = ["access", "injection", "secrets", "input", "output", "availability", "correctness", "design", "design-risk", "done", "other"];
+var BLASTS = ["code", "component", "container", "system", "person"];
+
 // src/config/validate.ts
 var isObj = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 function distance(a, b) {
@@ -7575,6 +7606,16 @@ function checkPositiveNumber(path25, v, out) {
   out.push(stop(path25, `${JSON.stringify(v)} is not a positive number`, "give a number greater than 0"));
   return false;
 }
+function checkWhole(path25, v, out) {
+  if (typeof v === "number" && Number.isInteger(v) && v >= 1) return true;
+  out.push(stop(path25, `${JSON.stringify(v)} is not allowed`, "use a whole number of at least 1"));
+  return false;
+}
+function checkShare(path25, v, out) {
+  if (typeof v === "number" && Number.isFinite(v) && v > 0 && v < 1) return true;
+  out.push(stop(path25, `${JSON.stringify(v)} is not allowed`, "use a number above 0 and below 1, e.g. 0.5"));
+  return false;
+}
 function checkSecretValue(path25, v, out) {
   if (!looksLikeSecret(v)) return false;
   out.push(stop(path25, "looks like a key", "keys go in env (TYPESAFE_API_KEY) or the keychain, never in config"));
@@ -7592,7 +7633,7 @@ var isEmptySection = (v) => v === null || v === void 0;
 function checkBudget(v, out) {
   if (isEmptySection(v)) return {};
   if (!isObj(v)) {
-    out.push(stop("budget", "is not a mapping", "write usd:, runs: and/or per: under budget:"));
+    out.push(stop("budget", "is not a mapping", "write usd:, runs:, per: and/or warnAt: under budget:"));
     return {};
   }
   const result = {};
@@ -7605,9 +7646,13 @@ function checkBudget(v, out) {
       if (checkEnum(path25, v[k], ["total", "day", "hour"], out)) result.per = v[k];
     } else if (k === "since") {
       if (checkNonEmptyString(path25, v[k], out)) result.since = v[k];
+    } else if (k === "warnAt") {
+      const n = v[k];
+      if (typeof n === "number" && Number.isFinite(n) && n > 0 && n <= 1) result.warnAt = n;
+      else out.push(stop(path25, `${JSON.stringify(n)} is not allowed`, "use a share above 0 and up to 1, e.g. 0.8 warns at 80% of a cap"));
     } else {
-      const hint = didYouMean(k, ["usd", "runs", "per", "since"]);
-      out.push(stop(path25, `"${k}" is not a budget field`, hint ? `did you mean ${hint}?` : "use usd, runs, per or since"));
+      const hint = didYouMean(k, ["usd", "runs", "per", "since", "warnAt"]);
+      out.push(stop(path25, `"${k}" is not a budget field`, hint ? `did you mean ${hint}?` : "use usd, runs, per, since or warnAt"));
     }
   }
   return result;
@@ -7645,7 +7690,7 @@ function checkPricing(v, out) {
 function checkSweep(v, out) {
   if (isEmptySection(v)) return {};
   if (!isObj(v)) {
-    out.push(stop("sweep", "is not a mapping", "write maxItems: and/or maxQuestionsPerCall: under sweep:"));
+    out.push(stop("sweep", "is not a mapping", "write maxItems:, maxQuestionsPerCall: and/or itemsPerLayer: under sweep:"));
     return {};
   }
   const result = {};
@@ -7653,9 +7698,12 @@ function checkSweep(v, out) {
     const path25 = `sweep.${k}`;
     if (k === "maxItems" || k === "maxQuestionsPerCall") {
       if (checkPositiveNumber(path25, v[k], out)) result[k] = v[k];
+    } else if (k === "itemsPerLayer") {
+      const per = checkTierCounts(path25, v[k], ITEM_TIERS, out);
+      if (per) result.itemsPerLayer = per;
     } else {
-      const hint = didYouMean(k, ["maxItems", "maxQuestionsPerCall"]);
-      out.push(stop(path25, `"${k}" is not a sweep field`, hint ? `did you mean ${hint}?` : "use maxItems or maxQuestionsPerCall"));
+      const hint = didYouMean(k, ["maxItems", "maxQuestionsPerCall", "itemsPerLayer"]);
+      out.push(stop(path25, `"${k}" is not a sweep field`, hint ? `did you mean ${hint}?` : "use maxItems, maxQuestionsPerCall or itemsPerLayer"));
     }
   }
   return result;
@@ -7677,6 +7725,140 @@ function checkReuse(v, out) {
     }
   }
   return result;
+}
+var ITEM_TIERS = ["quick", "standard", "thorough"];
+function checkTierCounts(path25, v, tiers, out) {
+  if (isEmptySection(v)) return void 0;
+  if (!isObj(v)) {
+    out.push(stop(path25, "is not a mapping", `write ${tiers.join(": <n>, ")}: <n> under it`));
+    return void 0;
+  }
+  const result = {};
+  for (const k of Object.keys(v)) {
+    if (!tiers.includes(k)) {
+      const hint = didYouMean(k, tiers);
+      out.push(stop(`${path25}.${k}`, `"${k}" is not a depth tier`, hint ? `did you mean ${hint}?` : `use ${tiers.join(", ")}`));
+    } else if (checkWhole(`${path25}.${k}`, v[k], out)) result[k] = v[k];
+  }
+  return result;
+}
+var DEPTH_VERBS = ["class", "scan", "loop"];
+var NO_DEPTH_VERBS = ["drill", "replay", "view"];
+function checkTiers(path25, v, out) {
+  if (!Array.isArray(v)) {
+    out.push(stop(path25, `${JSON.stringify(v)} is not a list`, "write three whole numbers, quick to thorough, e.g. [3, 6, 9]"));
+    return void 0;
+  }
+  if (v.length !== 3) {
+    out.push(stop(path25, `${v.length} number${v.length === 1 ? "" : "s"} given`, "give exactly 3: quick, standard, thorough, e.g. [3, 6, 9]"));
+    return void 0;
+  }
+  let ok2 = true;
+  v.forEach((n, i) => {
+    if (typeof n === "number" && Number.isInteger(n) && n >= 1) return;
+    out.push(stop(`${path25}[${i}]`, `${JSON.stringify(n)} is not allowed`, "use whole numbers of at least 1, ascending"));
+    ok2 = false;
+  });
+  if (!ok2) return void 0;
+  const t = v;
+  if (!(t[0] <= t[1] && t[1] <= t[2])) {
+    out.push(stop(path25, `[${t.join(", ")}] is not ascending`, "make quick <= standard <= thorough, e.g. [3, 6, 9]"));
+    return void 0;
+  }
+  return t;
+}
+function checkDepth(v, out) {
+  if (isEmptySection(v)) return {};
+  if (!isObj(v)) {
+    out.push(stop("depth", "is not a mapping", "write class:, scan: and/or loop: under depth:, each a list like [3, 6, 9]"));
+    return {};
+  }
+  const result = {};
+  for (const k of Object.keys(v)) {
+    const path25 = `depth.${k}`;
+    if (DEPTH_VERBS.includes(k)) {
+      const t = checkTiers(path25, v[k], out);
+      if (t) result[k] = t;
+    } else if (NO_DEPTH_VERBS.includes(k)) {
+      out.push(stop(path25, `${k} has no depth setting`, "set depth for class, scan or loop only"));
+    } else {
+      const hint = didYouMean(k, DEPTH_VERBS);
+      out.push(stop(path25, `"${k}" is not a verb with a depth`, hint ? `did you mean ${hint}?` : "use class, scan or loop"));
+    }
+  }
+  return result;
+}
+var EVIDENCE_FIELDS = ["perItemChars", "totalChars", "maxFiles"];
+function checkEvidence(v, out) {
+  if (isEmptySection(v)) return {};
+  if (!isObj(v)) {
+    out.push(stop("evidence", "is not a mapping", "write perItemChars:, totalChars: and/or maxFiles: under evidence:"));
+    return {};
+  }
+  const result = {};
+  for (const k of Object.keys(v)) {
+    const path25 = `evidence.${k}`;
+    if (EVIDENCE_FIELDS.includes(k)) {
+      if (checkWhole(path25, v[k], out)) result[k] = v[k];
+    } else {
+      const hint = didYouMean(k, EVIDENCE_FIELDS);
+      out.push(stop(path25, `"${k}" is not an evidence field`, hint ? `did you mean ${hint}?` : `use ${EVIDENCE_FIELDS.join(", ")}`));
+    }
+  }
+  return result;
+}
+var LENS_FIELDS = ["concernAt", "weakBelow", "strongAt"];
+function checkLens(v, out) {
+  if (isEmptySection(v)) return {};
+  if (!isObj(v)) {
+    out.push(stop("lens", "is not a mapping", "write concernAt:, weakBelow: and/or strongAt: under lens:"));
+    return {};
+  }
+  const result = {};
+  for (const k of Object.keys(v)) {
+    const path25 = `lens.${k}`;
+    if (LENS_FIELDS.includes(k)) {
+      if (checkShare(path25, v[k], out)) result[k] = v[k];
+    } else {
+      const hint = didYouMean(k, LENS_FIELDS);
+      out.push(stop(path25, `"${k}" is not a lens field`, hint ? `did you mean ${hint}?` : `use ${LENS_FIELDS.join(", ")}`));
+    }
+  }
+  return result;
+}
+function checkRelations(value, out) {
+  const per = value.sweep?.itemsPerLayer;
+  if (per) {
+    const eff = { ...DEFAULT_CONFIG.sweep.itemsPerLayer, ...per };
+    if (!(eff.quick <= eff.standard && eff.standard <= eff.thorough)) {
+      out.push(stop("sweep.itemsPerLayer", `quick ${eff.quick}, standard ${eff.standard}, thorough ${eff.thorough} is not ascending`, "make quick <= standard <= thorough"));
+      delete value.sweep.itemsPerLayer;
+    }
+  }
+  const ev = value.evidence;
+  if (ev) {
+    const eff = { ...DEFAULT_CONFIG.evidence, ...ev };
+    if (eff.perItemChars > eff.totalChars) {
+      out.push(stop("evidence", `perItemChars ${eff.perItemChars} is larger than totalChars ${eff.totalChars}`, "make perItemChars no larger than totalChars"));
+      delete value.evidence;
+    }
+  }
+  const lens = value.lens;
+  if (lens) {
+    const eff = { ...DEFAULT_CONFIG.lens, ...lens };
+    if (!(eff.weakBelow < eff.concernAt && eff.concernAt < eff.strongAt)) {
+      out.push(stop("lens", `weakBelow ${eff.weakBelow}, concernAt ${eff.concernAt}, strongAt ${eff.strongAt} is out of order`, "keep weakBelow below concernAt below strongAt"));
+      delete value.lens;
+    }
+  }
+  const maxQ = value.sweep?.maxQuestionsPerCall ?? DEFAULT_CONFIG.sweep.maxQuestionsPerCall;
+  for (const verb of DEPTH_VERBS) {
+    const tiers = value.depth?.[verb];
+    if (tiers && 3 * tiers[2] + DECISIONS_MAX > maxQ) {
+      out.push(stop(`depth.${verb}`, `thorough ${tiers[2]} asks ${3 * tiers[2]} questions plus up to ${DECISIONS_MAX} decisions, more than sweep.maxQuestionsPerCall (${maxQ})`, "lower the thorough number, or raise sweep.maxQuestionsPerCall"));
+      delete value.depth[verb];
+    }
+  }
 }
 var MDL_OVERRIDE_FIELDS = ["values", "note", "as", "pattern", "link", "literal"];
 function checkMdl(v, out) {
@@ -7760,11 +7942,21 @@ function validateConfig(raw) {
       case "reuse":
         value.reuse = checkReuse(v, out);
         break;
+      case "depth":
+        value.depth = checkDepth(v, out);
+        break;
+      case "evidence":
+        value.evidence = checkEvidence(v, out);
+        break;
+      case "lens":
+        value.lens = checkLens(v, out);
+        break;
       case "mdl":
         value.mdl = checkMdl(v, out);
         break;
     }
   }
+  checkRelations(value, out);
   return { stops: out, value };
 }
 
@@ -7802,55 +7994,56 @@ var cleanEnv = (v) => {
 function positiveOr(v, fallback) {
   return v !== void 0 && Number.isFinite(v) && v > 0 ? v : fallback;
 }
+var isTree = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+var KEYED = new Set(KEYED_MAPS);
+var cloneValue = (v) => Array.isArray(v) ? v.slice() : v;
+var DEFAULT_SOURCE_KEYS = [];
+function labelDefaults(tree, path25) {
+  const keyed = KEYED.has(path25);
+  for (const k in tree) {
+    const at = path25 ? `${path25}.${k}` : k;
+    if (!keyed && isTree(tree[k])) labelDefaults(tree[k], at);
+    else DEFAULT_SOURCE_KEYS.push(at);
+  }
+}
+labelDefaults(DEFAULT_CONFIG, "");
+DEFAULT_SOURCE_KEYS.push(...UNSET_BY_DEFAULT);
+function overlay(base, over, at, inKeyedMap, sources) {
+  if (!inKeyedMap && isTree(over) && (isTree(base) || KEYED.has(at))) return mergeTree(isTree(base) ? base : {}, over, at, sources);
+  sources[at] = "config";
+  return cloneValue(over);
+}
+function mergeTree(base, over, path25, sources) {
+  const out = {};
+  const keyed = KEYED.has(path25);
+  const at = (k) => path25 ? `${path25}.${k}` : k;
+  for (const k in base) out[k] = over[k] === void 0 ? base[k] : overlay(base[k], over[k], at(k), keyed, sources);
+  for (const k in over) if (!(k in base) && over[k] !== void 0) out[k] = overlay(void 0, over[k], at(k), keyed, sources);
+  return out;
+}
+function mergeConfig(overrides) {
+  const sources = {};
+  for (const key2 of DEFAULT_SOURCE_KEYS) sources[key2] = "default";
+  const config = mergeTree(DEFAULT_CONFIG, overrides, "", sources);
+  return { config, sources };
+}
 function resolveConfig(paths, env = {}) {
   const file = readConfigFile(paths);
   const validated = file.raw !== void 0 ? validateConfig(file.raw) : { stops: [], value: {} };
   const overrides = validated.value;
   const stops = [...file.stops, ...validated.stops];
-  const sources = {};
   const envProvider = cleanEnv(env.MM3_PROVIDER);
   const envBaseURL = cleanEnv(env.TYPESAFE_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
   const envTimeoutRaw = Number(cleanEnv(env.JEV_TIMEOUT_MS));
   const envTimeout = Number.isFinite(envTimeoutRaw) && envTimeoutRaw > 0 ? envTimeoutRaw : void 0;
-  function layer(path25, envSet, configVal, defaultVal) {
-    sources[path25] = envSet ? "env" : configVal !== void 0 ? "config" : "default";
-    return configVal !== void 0 ? configVal : defaultVal;
-  }
-  const config = {
-    budget: {
-      usd: layer("budget.usd", false, overrides.budget?.usd, DEFAULT_CONFIG.budget.usd),
-      runs: layer("budget.runs", false, overrides.budget?.runs, DEFAULT_CONFIG.budget.runs),
-      per: layer("budget.per", false, overrides.budget?.per, DEFAULT_CONFIG.budget.per),
-      ...overrides.budget?.since !== void 0 ? { since: overrides.budget.since } : {}
-    },
-    provider: layer("provider", envProvider !== void 0, overrides.provider, DEFAULT_CONFIG.provider),
-    baseURL: layer("baseURL", envBaseURL !== void 0, overrides.baseURL, DEFAULT_CONFIG.baseURL),
-    model: layer("model", envModel !== void 0, overrides.model, DEFAULT_CONFIG.model),
-    pricing: { ...DEFAULT_CONFIG.pricing, ...overrides.pricing },
-    timeoutMs: layer("timeoutMs", envTimeout !== void 0, overrides.timeoutMs, DEFAULT_CONFIG.timeoutMs),
-    retries: layer("retries", false, overrides.retries, DEFAULT_CONFIG.retries),
-    backoffMs: layer("backoffMs", false, overrides.backoffMs, DEFAULT_CONFIG.backoffMs),
-    sweep: {
-      maxQuestionsPerCall: layer("sweep.maxQuestionsPerCall", false, overrides.sweep?.maxQuestionsPerCall, DEFAULT_CONFIG.sweep.maxQuestionsPerCall),
-      ...overrides.sweep?.maxItems !== void 0 ? { maxItems: overrides.sweep.maxItems } : {}
-    },
-    requestMaxBytes: layer("requestMaxBytes", false, overrides.requestMaxBytes, DEFAULT_CONFIG.requestMaxBytes),
-    reuse: {
-      ...overrides.reuse?.maxAgeDays !== void 0 ? { maxAgeDays: overrides.reuse.maxAgeDays } : {},
-      ...overrides.reuse?.maxCommits !== void 0 ? { maxCommits: overrides.reuse.maxCommits } : {}
-    },
-    mdl: { ...overrides.mdl }
-  };
-  sources["sweep.maxItems"] = overrides.sweep?.maxItems !== void 0 ? "config" : "default";
-  sources["reuse.maxAgeDays"] = overrides.reuse?.maxAgeDays !== void 0 ? "config" : "default";
-  sources["reuse.maxCommits"] = overrides.reuse?.maxCommits !== void 0 ? "config" : "default";
-  sources["budget.since"] = overrides.budget?.since !== void 0 ? "config" : "default";
-  for (const model of /* @__PURE__ */ new Set([...Object.keys(DEFAULT_CONFIG.pricing), ...Object.keys(overrides.pricing ?? {})])) {
-    sources[`pricing.${model}`] = overrides.pricing && model in overrides.pricing ? "config" : "default";
-  }
-  for (const field of Object.keys(overrides.mdl ?? {})) sources[`mdl.${field}`] = "config";
+  const { config, sources } = mergeConfig(overrides);
+  const envSet = { provider: envProvider !== void 0, baseURL: envBaseURL !== void 0, model: envModel !== void 0, timeoutMs: envTimeout !== void 0 };
+  for (const [path25, isSet] of Object.entries(envSet)) if (isSet) sources[path25] = "env";
   return { config, sources, stops, present: file.present };
+}
+function configOf(ctx) {
+  return ctx.config ?? resolveConfig(ctx.paths, ctx.env);
 }
 function classifierFileConfig(config) {
   return {
@@ -8057,21 +8250,6 @@ function writeConfigOverride(paths, patch) {
 // src/ledger/index.ts
 import { createHash, randomBytes as randomBytes2 } from "node:crypto";
 import { closeSync as closeSync3, existsSync as existsSync5, openSync as openSync3, readFileSync as readFileSync5, readSync as readSync2, renameSync, rmSync, statSync as statSync3 } from "node:fs";
-
-// src/contract/types.ts
-var VERBS = ["view", "class", "replay", "scan", "drill", "loop"];
-var DEPTHS = ["quick", "standard", "thorough"];
-var DEPTH_COUNT = { quick: 9, standard: 18, thorough: 27 };
-var SWEEP_ITEM_CAP = { quick: 10, standard: 20, thorough: 30 };
-var WHYS = ["validate", "find", "debug"];
-var AREAS = ["data", "api", "ui", "auth", "hosting", "build", "tests"];
-var STAGES = ["design", "build", "review", "pre-merge", "post-fix", "release", "operate"];
-var CHANGES = ["feature", "fix", "refactor", "dependency", "config"];
-var RISKS = ["low", "medium", "high"];
-var DECISIONS_MIN = 2;
-var DECISIONS_MAX = 5;
-var FAMILIES = ["access", "injection", "secrets", "input", "output", "availability", "correctness", "design", "design-risk", "done", "other"];
-var BLASTS = ["code", "component", "container", "system", "person"];
 
 // src/contract/mdl-fields.ts
 var UNKNOWN_VALUE = "unknown";
@@ -9191,7 +9369,7 @@ function windowStartMs(budget, now) {
 function stateFromConfig(paths, config, now, opts = {}) {
   const sinceMs = windowStartMs(config.budget, now);
   const { spentUsd, runs } = onStore(paths.log, "read", () => budgetRollup(paths, iso2(sinceMs), opts));
-  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: config.budget.since ?? EPOCH };
+  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: config.budget.since ?? EPOCH, warnAt: config.budget.warnAt };
 }
 function budgetStateNow(paths, now = Date.now(), env = process.env) {
   const { config } = resolveConfig(paths, env);
@@ -9205,19 +9383,20 @@ function peekBudget(paths, now = Date.now(), env = process.env) {
     return void 0;
   }
 }
-function migrateLegacyIfNeeded(paths, env) {
-  if (resolveConfig(paths, env).sources["budget.since"] === "config") return false;
+function migrateLegacyIfNeeded(paths, env, resolved) {
+  if (resolved.sources["budget.since"] === "config") return false;
   return withLock(paths.lock, () => {
-    if (resolveConfig(paths, env).sources["budget.since"] === "config") return false;
     const legacy = readLegacyBudgetJson(paths);
     if (!legacy) return false;
+    if (resolveConfig(paths, env).sources["budget.since"] === "config") return false;
     writeConfigOverride(paths, { budget: { usd: legacy.capUsd, runs: legacy.capRuns, per: "total", since: legacy.resetAt } });
     return true;
   });
 }
 function loadBudget(paths, now = Date.now(), env = process.env) {
-  const created = migrateLegacyIfNeeded(paths, env);
-  return { state: budgetStateNow(paths, now, env), created };
+  const resolved = resolveConfig(paths, env);
+  const created = migrateLegacyIfNeeded(paths, env, resolved);
+  return { state: stateFromConfig(paths, created ? resolveConfig(paths, env).config : resolved.config, now), created };
 }
 function usedFraction(s) {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
@@ -9253,16 +9432,17 @@ function setBudget(paths, caps, now = Date.now(), env = process.env) {
     return budgetStateNow(paths, now, env);
   });
 }
-var BUDGET_LOW_FRACTION = 0.8;
+var BUDGET_LOW_FRACTION = DEFAULT_CONFIG.budget.warnAt;
 function budgetLine(s) {
   const usdLeft = Math.max(0, s.capUsd - s.spentUsd);
   const runsLeft = Math.max(0, s.capRuns - s.runs);
   const usdUsed = s.spentUsd > s.capUsd ? ` (${money(s.spentUsd)} used)` : "";
   const runsUsed = s.runs > s.capRuns ? ` (${s.runs} used)` : "";
   const line3 = `budget: ${moneyLeft(usdLeft, s.capUsd, s.spentUsd)} left of ${money(s.capUsd)}${usdUsed} \xB7 ${runsLeft} of ${s.capRuns} runs left${runsUsed}`;
-  if (usedFraction(s) < BUDGET_LOW_FRACTION) return line3;
-  const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= BUDGET_LOW_FRACTION : true;
-  const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= BUDGET_LOW_FRACTION : true;
+  const warnAt = s.warnAt ?? BUDGET_LOW_FRACTION;
+  if (usedFraction(s) < warnAt) return line3;
+  const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= warnAt : true;
+  const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= warnAt : true;
   return `\u26A0 ${line3} \u2192 low: ask the owner to run ${raiseCommand(lowUsd, lowRuns)}`;
 }
 
@@ -9824,12 +10004,12 @@ function emit(doc) {
 }
 
 // src/config/config.ts
-var valueText = (v) => typeof v === "string" ? scalar(v, false) : String(v);
-function fieldLine(indent3, key2, source, value, example) {
+var valueText = (v) => typeof v === "string" ? scalar(v, false) : Array.isArray(v) ? `[${v.join(", ")}]` : String(v);
+function fieldLine(indent3, key2, source, value, example, extra = "") {
   if ((source === "config" || source === "env") && value !== void 0) {
-    return `${indent3}${key2}: ${valueText(value)}  # ${source === "config" ? "from config.yaml" : "env"}`;
+    return `${indent3}${key2}: ${valueText(value)}  # ${source === "config" ? "from config.yaml" : "env"}${extra}`;
   }
-  if (value !== void 0) return `${indent3}# ${key2}: ${valueText(value)}  # default`;
+  if (value !== void 0) return `${indent3}# ${key2}: ${valueText(value)}  # default${extra}`;
   if (source === "env") return `${indent3}# ${key2}: (set via env, not config.yaml)`;
   return `${indent3}# ${key2}: ${valueText(example)}  # example`;
 }
@@ -9843,6 +10023,10 @@ var EXAMPLES = {
   "reuse.maxCommits": 20
 };
 var ex = (key2) => EXAMPLES[key2];
+var ITEM_TIERS2 = ["quick", "standard", "thorough"];
+var DEPTH_VERBS2 = ["class", "scan", "loop"];
+var EVIDENCE_FIELDS2 = ["perItemChars", "totalChars", "maxFiles"];
+var LENS_FIELDS2 = ["concernAt", "weakBelow", "strongAt"];
 var PRICING_FIELDS = ["inputPerMTok", "outputPerMTok", "perSecond", "perCall"];
 function pricingLines(resolved) {
   const lines = ["  pricing:"];
@@ -9884,6 +10068,7 @@ function formatConfig(resolved, projectLine2, extraNotes = []) {
     fieldLine("    ", "runs", s["budget.runs"], c.budget.runs, 500),
     fieldLine("    ", "per", s["budget.per"], c.budget.per, "total"),
     fieldLine("    ", "since", s["budget.since"], c.budget.since, ex("budget.since")),
+    fieldLine("    ", "warnAt", s["budget.warnAt"], c.budget.warnAt, 0.8),
     "",
     fieldLine("  ", "provider", s.provider, c.provider, ex("provider")),
     fieldLine("  ", "baseURL", s.baseURL, c.baseURL, ex("baseURL")),
@@ -9898,12 +10083,23 @@ function formatConfig(resolved, projectLine2, extraNotes = []) {
     "  sweep:",
     fieldLine("    ", "maxItems", s["sweep.maxItems"], c.sweep.maxItems, ex("sweep.maxItems")),
     fieldLine("    ", "maxQuestionsPerCall", s["sweep.maxQuestionsPerCall"], c.sweep.maxQuestionsPerCall, 500),
+    "    itemsPerLayer:",
+    ...ITEM_TIERS2.map((t) => fieldLine("      ", t, s[`sweep.itemsPerLayer.${t}`], c.sweep.itemsPerLayer[t], 10)),
     "",
     fieldLine("  ", "requestMaxBytes", s.requestMaxBytes, c.requestMaxBytes, 1048576),
     "",
     "  reuse:",
     fieldLine("    ", "maxAgeDays", s["reuse.maxAgeDays"], c.reuse.maxAgeDays, ex("reuse.maxAgeDays")),
     fieldLine("    ", "maxCommits", s["reuse.maxCommits"], c.reuse.maxCommits, ex("reuse.maxCommits")),
+    "",
+    "  depth:",
+    ...DEPTH_VERBS2.map((v) => fieldLine("    ", v, s[`depth.${v}`], c.depth[v], [3, 6, 9], ` \xB7 ${c.depth[v].map((n) => n * 3).join(", ")} questions`)),
+    "",
+    "  evidence:",
+    ...EVIDENCE_FIELDS2.map((f) => fieldLine("    ", f, s[`evidence.${f}`], c.evidence[f], 0)),
+    "",
+    "  lens:",
+    ...LENS_FIELDS2.map((f) => fieldLine("    ", f, s[`lens.${f}`], c.lens[f], 0)),
     "",
     ...mdlLines(resolved),
     "",
@@ -9943,6 +10139,7 @@ var HINTS = {
   "budget.runs": "paid runs MM3 may make",
   "budget.per": "count the caps: total | day | hour",
   "budget.since": "only count spend after this moment",
+  "budget.warnAt": "share of a cap spent before the budget line warns (above 0, up to 1)",
   provider: "typesafe | fake (free sample answers)",
   baseURL: "where classifier calls go (https)",
   model: "the pinned classifier model",
@@ -9953,7 +10150,23 @@ var HINTS = {
   sweep: "limits on scan and loop",
   "sweep.maxItems": "most items one sweep may look at (can only lower the built-in cap)",
   "sweep.maxQuestionsPerCall": "most questions in one classifier call",
+  "sweep.itemsPerLayer": "items asked per layer at each depth",
+  "sweep.itemsPerLayer.quick": "items per layer at depth quick",
+  "sweep.itemsPerLayer.standard": "items per layer at depth standard",
+  "sweep.itemsPerLayer.thorough": "items per layer at depth thorough",
   requestMaxBytes: "largest request file MM3 will read",
+  depth: "probes (3 questions each) at quick, standard, thorough, per verb",
+  "depth.class": "class: three whole numbers, ascending",
+  "depth.scan": "scan: three whole numbers, ascending",
+  "depth.loop": "loop: three whole numbers, ascending",
+  evidence: "how much code or text one call may carry",
+  "evidence.perItemChars": "characters kept per file or item",
+  "evidence.totalChars": "characters kept in one call (at least perItemChars)",
+  "evidence.maxFiles": "files one glob may match",
+  lens: "consensus thresholds over the yes/no answers (weakBelow < concernAt < strongAt)",
+  "lens.concernAt": "a probe at or above this reads as a concern",
+  "lens.weakBelow": "consensus is WEAK below this decisiveness",
+  "lens.strongAt": "consensus is STRONG at or above this agreement",
   reuse: "when a stored answer is too old to reuse (off unless set)",
   "reuse.maxAgeDays": "re-ask answers older than this many days",
   "reuse.maxCommits": "re-ask after this many commits",
@@ -9993,6 +10206,7 @@ function starterConfig() {
     setting("  ", "runs", "budget.runs"),
     setting("  ", "per", "budget.per"),
     setting("  ", "since", "budget.since"),
+    setting("  ", "warnAt", "budget.warnAt"),
     "",
     top("provider"),
     top("baseURL"),
@@ -10016,12 +10230,23 @@ function starterConfig() {
     header("", "sweep", "sweep"),
     setting("  ", "maxItems", "sweep.maxItems"),
     setting("  ", "maxQuestionsPerCall", "sweep.maxQuestionsPerCall"),
+    header("  ", "itemsPerLayer", "sweep.itemsPerLayer"),
+    ...ITEM_TIERS2.map((t) => setting("    ", t, `sweep.itemsPerLayer.${t}`)),
     "",
     top("requestMaxBytes"),
     "",
     header("", "reuse", "reuse"),
     setting("  ", "maxAgeDays", "reuse.maxAgeDays"),
     setting("  ", "maxCommits", "reuse.maxCommits"),
+    "",
+    header("", "depth", "depth"),
+    ...DEPTH_VERBS2.map((v) => setting("  ", v, `depth.${v}`)),
+    "",
+    header("", "evidence", "evidence"),
+    ...EVIDENCE_FIELDS2.map((f) => setting("  ", f, `evidence.${f}`)),
+    "",
+    header("", "lens", "lens"),
+    ...LENS_FIELDS2.map((f) => setting("  ", f, `lens.${f}`)),
     "",
     header("", "mdl", "mdl"),
     "#   risk: {values: [low, medium, high]}  # example: your own values for one field"
@@ -11125,6 +11350,8 @@ function fillBlanks(text, fill) {
 }
 
 // src/contract/validate.ts
+var probesAt = (limits, depth) => limits?.depth?.[DEPTHS.indexOf(depth)] ?? DEPTH_COUNT[depth] / 3;
+var itemCapAt = (limits, depth) => limits?.itemsPerLayer?.[depth] ?? SWEEP_ITEM_CAP[depth];
 var NEEDS = {
   class: ["depth", "where", "ask"],
   view: ["where"],
@@ -11145,11 +11372,11 @@ var STRINGS = { scan: "scan", drill: "each-only", loop: "none", class: "none", v
 var RESERVED2 = ["id", "gate", "goal", "consensus", "escalate", "regressed", "expected", "failing", "passing", "scanned", "reused", "view", "reuse", "runs", "categories"];
 var IRREVERSIBLE = /\b(delete|deploy|drop|pay|payment|migrat\w*|secret|credential)s?\b/iu;
 var IRREVERSIBLE_NOTE = "looks irreversible; don't act on this alone";
-function how(field, verb) {
+function how(field, verb, limits) {
   const sweep = verb === "scan" || verb === "loop" || verb === "drill";
   switch (field) {
     case "depth":
-      return sweep ? 'add "depth: quick" (at most 10 items asked per layer; standard 20, thorough 30)' : 'add "depth: quick" (9 yes/no questions across 3 concerns; standard 18, thorough 27)';
+      return sweep ? `add "depth: quick" (at most ${itemCapAt(limits, "quick")} items asked per layer; standard ${itemCapAt(limits, "standard")}, thorough ${itemCapAt(limits, "thorough")})` : `add "depth: quick" (${3 * probesAt(limits, "quick")} yes/no questions across ${probesAt(limits, "quick")} concerns; standard ${3 * probesAt(limits, "standard")}, thorough ${3 * probesAt(limits, "thorough")})`;
     case "where":
       return 'add "where: [path/to/file.ts]"';
     case "ask":
@@ -11274,7 +11501,7 @@ function checkNumbers(categories, out) {
   const sorted = [...seen].sort((a, b) => a - b);
   if (sorted.some((n, i) => n !== i + 1)) out.push(cross(`\u2716 question numbers: ${clip(sorted.join(" "), 60)} \u2192 number them 1\u2026${sorted.length} with no gaps`));
 }
-function contractIssues(categories, depth, field) {
+function contractIssues(categories, depth, field, limits) {
   const out = [];
   const concerns = categories.filter((c) => c.section === "concerns");
   const decisions = categories.filter((c) => c.section === "decisions");
@@ -11289,7 +11516,7 @@ function contractIssues(categories, depth, field) {
     }
   }
   if (depth !== void 0) {
-    const want = DEPTH_COUNT[depth] / 3;
+    const want = probesAt(limits, depth);
     if (concerns.length !== want) {
       out.push({ field: `${field}.concerns`, problem: `${concerns.length} categor${concerns.length === 1 ? "y" : "ies"}`, fix: `${depth} needs exactly ${want}` });
     }
@@ -11303,12 +11530,12 @@ function contractIssues(categories, depth, field) {
   }
   return out;
 }
-function checkCross(raw, verb) {
+function checkCross(raw, verb, limits) {
   const out = [];
   const notes = [];
   const mak = raw.mak;
   if (mak.verb !== void 0 && mak.verb !== verb) out.push(cross(`\u2716 mak.verb: says "${mak.verb}" but you ran ${verb} \u2192 remove mak.verb, or run mm3 ${mak.verb}`));
-  for (const f of NEEDS[verb]) if (!(f in mak)) out.push(cross(`\u2716 mak.${f}: ${verb} needs it \u2192 ${how(f, verb)}`));
+  for (const f of NEEDS[verb]) if (!(f in mak)) out.push(cross(`\u2716 mak.${f}: ${verb} needs it \u2192 ${how(f, verb, limits)}`));
   for (const f of NEVER[verb]) if (f in mak) out.push(cross(never(f, verb)));
   const over = mak.over;
   const ask2 = mak.ask ?? {};
@@ -11327,7 +11554,7 @@ function checkCross(raw, verb) {
     }
     checkNumbers(cats, out);
     if (categoriesGiven) {
-      const issues = contractIssues(cats, depth, "mak.ask");
+      const issues = contractIssues(cats, depth, "mak.ask", limits);
       if (verb === "view") {
         for (const i of issues) notes.push(`${i.field}: ${i.problem} (${i.fix}); class will stop on this`);
       } else {
@@ -11335,7 +11562,7 @@ function checkCross(raw, verb) {
       }
     }
   } else {
-    for (const p of checkOver(over, STRINGS[verb], SWEEP_ITEM_CAP[depth ?? "quick"])) out.push(cross(p));
+    for (const p of checkOver(over, STRINGS[verb], itemCapAt(limits, depth ?? "quick"))) out.push(cross(p));
     const map = mapLayers(over);
     const finest = map.layers.at(-1);
     for (const [name, v] of Object.entries(ask2)) {
@@ -11363,7 +11590,7 @@ function checkCross(raw, verb) {
       categories.push(...cats);
       if (cats.length > 0) {
         const isFinest = name === finest;
-        const issues = contractIssues(cats, isFinest ? depth : void 0, `mak.ask.${name}`);
+        const issues = contractIssues(cats, isFinest ? depth : void 0, `mak.ask.${name}`, limits);
         if (isFinest) {
           for (const i of issues) out.push(cross(`\u2716 ${i.field}: ${i.problem} \u2192 ${i.fix} \u2192 see: mm3 agent probe`));
         } else if (issues.length) {
@@ -11393,14 +11620,14 @@ function checkCross(raw, verb) {
     }
   };
 }
-function validateRequest(value, verb, rawText, mdlFields) {
+function validateRequest(value, verb, rawText, mdlFields, limits) {
   const blanks = [];
   findBlanks(value, "", blanks);
   if (blanks.length) return { ok: false, stops: blanks };
   const schema = checkSchema(value, verb, rawText, mdlFields);
   if (schema.length) return { ok: false, stops: schema };
   const raw = value;
-  const { stops, mak, notes: crossNotes } = checkCross(raw, verb);
+  const { stops, mak, notes: crossNotes } = checkCross(raw, verb, limits);
   if (!mak) return { ok: false, stops };
   const notes = [...crossNotes];
   const risky = IRREVERSIBLE.exec(mak.goal);
@@ -11416,12 +11643,16 @@ function stopText(stops, verb) {
   const lines = stops.length <= MAX_STOPS2 ? [...stops] : [...stops.slice(0, MAX_STOPS2), `\u2716 request: ${stops.length - MAX_STOPS2} more problems \u2192 fix the ones above, then run again`];
   return [...lines, `\u2192 see: mm3 agent ${verb}`].join("\n");
 }
-function loadRequest(text, verb, mdlFields) {
+function loadRequest(text, verb, mdlFields, limits) {
   const read3 = readRequestText(text);
   if (!read3.ok) return { ok: false, result: { exit: 2, text: stopText(read3.stops, verb) } };
-  const v = validateRequest(read3.value, verb, text, mdlFields);
+  const v = validateRequest(read3.value, verb, text, mdlFields, limits);
   if (!v.ok) return { ok: false, result: { exit: 2, text: stopText(v.stops.map((s) => s.text), verb) } };
   return { ok: true, request: v.request, notes: v.notes };
+}
+function contractLimits(cfg, verb) {
+  const tiers = verb === "class" || verb === "scan" || verb === "loop" ? cfg.depth[verb] : verb === "view" ? cfg.depth.class : void 0;
+  return { ...tiers ? { depth: tiers } : {}, itemsPerLayer: cfg.sweep.itemsPerLayer };
 }
 
 // src/verbs/doctor.ts
@@ -12100,18 +12331,18 @@ function answerKey(evidence, q) {
 function subjectEvidence(files) {
   return JSON.stringify(Object.entries(files).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0));
 }
-var ITEM_LIMITS = { perItemChars: 2e4, totalChars: 6e4 };
-function itemsState(items, notes) {
+var ITEM_LIMITS = DEFAULT_CONFIG.evidence;
+function itemsState(items, notes, limits = ITEM_LIMITS) {
   const out = {};
   let total = 0;
   for (const it of items) {
     const id = redact(it.id);
     let text = redact(it.text);
-    if (text.length > ITEM_LIMITS.perItemChars) {
-      text = text.slice(0, ITEM_LIMITS.perItemChars);
-      notes.push(`${id} truncated to ${ITEM_LIMITS.perItemChars} chars`);
+    if (text.length > limits.perItemChars) {
+      text = text.slice(0, limits.perItemChars);
+      notes.push(`${id} truncated to ${limits.perItemChars} chars`);
     }
-    const room = ITEM_LIMITS.totalChars - total;
+    const room = limits.totalChars - total;
     if (room <= 0) {
       out[id] = "";
       notes.push(`${id} not shown: evidence limit reached`);
@@ -12141,7 +12372,7 @@ import path14 from "node:path";
 var isOutside = (rel) => rel.startsWith("..") || path14.isAbsolute(rel);
 
 // src/evidence/code.ts
-var EVIDENCE_LIMITS = { perFileChars: 2e4, totalChars: 6e4 };
+var EVIDENCE_LIMITS = { perFileChars: DEFAULT_CONFIG.evidence.perItemChars, totalChars: DEFAULT_CONFIG.evidence.totalChars };
 var fmt = (n) => n.toLocaleString("en-US");
 var LINES = /^(\d+)(?:-(\d+))?$/;
 var TAIL = /:(\d+(?:-\d+)?)$/u;
@@ -12158,6 +12389,7 @@ function splitWhere(entry) {
 }
 function readCodeEvidence(root, where, opts = {}) {
   const stopOnOversize = opts.stopOnOversize ?? true;
+  const caps = opts.limits ?? EVIDENCE_LIMITS;
   const errors = [];
   const notes = [];
   const files = {};
@@ -12193,7 +12425,7 @@ function readCodeEvidence(root, where, opts = {}) {
     }
     const shown2 = `${rel.split(path15.sep).join("/")}${lines ? `:${lines}` : ""}`;
     let body = redact(range ? text.split("\n").slice(range.start - 1, range.end).join("\n") : text);
-    if (body.length > EVIDENCE_LIMITS.perFileChars) {
+    if (body.length > caps.perFileChars) {
       if (stopOnOversize) {
         if (range) {
           errors.push(`\u2716 mak.where: "${entry}" is ${fmt(range.end - range.start + 1)} lines, too big to send \u2192 narrow the range`);
@@ -12202,13 +12434,13 @@ function readCodeEvidence(root, where, opts = {}) {
         }
         continue;
       }
-      body = body.slice(0, EVIDENCE_LIMITS.perFileChars);
-      notes.push(`${shown2} truncated to ${EVIDENCE_LIMITS.perFileChars} chars`);
+      body = body.slice(0, caps.perFileChars);
+      notes.push(`${shown2} truncated to ${caps.perFileChars} chars`);
     }
-    const room = EVIDENCE_LIMITS.totalChars - total;
+    const room = caps.totalChars - total;
     if (room <= 0) {
       if (stopOnOversize) {
-        errors.push(`\u2716 mak.where: "${shown2}" doesn't fit \u2014 where: is over ${fmt(EVIDENCE_LIMITS.totalChars)} chars total \u2192 send fewer paths or narrower ranges`);
+        errors.push(`\u2716 mak.where: "${shown2}" doesn't fit \u2014 where: is over ${fmt(caps.totalChars)} chars total \u2192 send fewer paths or narrower ranges`);
         continue;
       }
       notes.push(`${shown2} skipped: evidence limit reached`);
@@ -12216,7 +12448,7 @@ function readCodeEvidence(root, where, opts = {}) {
     }
     if (body.length > room) {
       if (stopOnOversize) {
-        errors.push(`\u2716 mak.where: "${shown2}" doesn't fit \u2014 where: is over ${fmt(EVIDENCE_LIMITS.totalChars)} chars total \u2192 send fewer paths or narrower ranges`);
+        errors.push(`\u2716 mak.where: "${shown2}" doesn't fit \u2014 where: is over ${fmt(caps.totalChars)} chars total \u2192 send fewer paths or narrower ranges`);
         continue;
       }
       body = body.slice(0, room);
@@ -12275,13 +12507,13 @@ function readFileAtRef(repoRoot, ref, relPath, deps) {
   if (result.status !== 0 || FATAL.test(stderr)) return void 0;
   return typeof result.stdout === "string" ? result.stdout : void 0;
 }
-function keep(shown2, text, total, notes) {
+function keep(shown2, text, total, notes, caps) {
   let body = redact(text);
-  if (body.length > EVIDENCE_LIMITS.perFileChars) {
-    body = body.slice(0, EVIDENCE_LIMITS.perFileChars);
-    notes.push(`${shown2} truncated to ${EVIDENCE_LIMITS.perFileChars} chars`);
+  if (body.length > caps.perFileChars) {
+    body = body.slice(0, caps.perFileChars);
+    notes.push(`${shown2} truncated to ${caps.perFileChars} chars`);
   }
-  const room = EVIDENCE_LIMITS.totalChars - total;
+  const room = caps.totalChars - total;
   if (room <= 0) {
     notes.push(`${shown2} skipped: evidence limit reached`);
     return void 0;
@@ -12297,6 +12529,7 @@ function readGitEvidence(root, ref, field, paths, deps) {
     return { ok: false, errors: [`\u2716 mak.compare.${field}: "${ref}" looks like an option, not a ref \u2192 use a branch, tag or commit`] };
   }
   const spawn = deps?.spawn ?? spawnSync;
+  const caps = deps?.limits ?? EVIDENCE_LIMITS;
   const errors = [];
   const notes = [];
   const files = {};
@@ -12328,7 +12561,7 @@ function readGitEvidence(root, ref, field, paths, deps) {
         continue;
       }
       read3 = true;
-      const kept2 = keep(shown2, text, total, notes);
+      const kept2 = keep(shown2, text, total, notes, caps);
       if (kept2) {
         files[shown2] = kept2.body;
         total = kept2.total;
@@ -12344,7 +12577,7 @@ function readGitEvidence(root, ref, field, paths, deps) {
       continue;
     }
     read3 = true;
-    const kept = keep(shown2, typeof result.stdout === "string" ? result.stdout : "", total, notes);
+    const kept = keep(shown2, typeof result.stdout === "string" ? result.stdout : "", total, notes, caps);
     if (kept) {
       files[shown2] = kept.body;
       total = kept.total;
@@ -12363,7 +12596,7 @@ import path18 from "node:path";
 import { readdirSync as readdirSync2 } from "node:fs";
 import path17 from "node:path";
 var SKIP_DIRS = /* @__PURE__ */ new Set([".git", "node_modules", ".mm3", "dist"]);
-var MAX_FILES = 500;
+var MAX_FILES = DEFAULT_CONFIG.evidence.maxFiles;
 var escape = (s) => s.replace(/[.+^$()|[\]\\]/gu, "\\$&");
 function globToRegExp(pattern) {
   let re = "";
@@ -12395,7 +12628,7 @@ function staticPrefix(pattern) {
   }
   return fixed.join("/");
 }
-function expandGlob(root, pattern) {
+function expandGlob(root, pattern, maxFiles = MAX_FILES) {
   const clean2 = pattern.replace(/^\.\//u, "");
   if (path17.isAbsolute(clean2) || clean2.split("/").includes("..")) return { files: [], truncated: false };
   const re = globToRegExp(clean2);
@@ -12416,7 +12649,7 @@ function expandGlob(root, pattern) {
       if (e.isDirectory()) {
         if (!SKIP_DIRS.has(e.name)) walk2(child);
       } else if (e.isFile() && re.test(child)) {
-        if (files.length >= MAX_FILES) {
+        if (files.length >= maxFiles) {
           truncated = true;
           return;
         }
@@ -12740,9 +12973,9 @@ function lineRange2(lines) {
   const end = Number(m2[2]);
   return start >= 1 && start <= end ? { start, end } : void 0;
 }
-function readFiles(root, spec, notes) {
-  const { files, truncated } = expandGlob(root, spec);
-  if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
+function readFiles(root, spec, notes, maxFiles) {
+  const { files, truncated } = expandGlob(root, spec, maxFiles);
+  if (truncated) notes.push(`${spec}: matched more than ${maxFiles} files, using the first ${maxFiles}`);
   const out = [];
   for (const rel of files) {
     const full = path18.join(root, rel);
@@ -12776,14 +13009,14 @@ function readCalls(parent) {
     unit: { path: unit.path, kind: "call", name: u.name, lines: `${u.start + base}-${u.end + base}` }
   }));
 }
-function createCodeResolver(root, notes) {
+function createCodeResolver(root, notes, maxFiles = MAX_FILES) {
   return (_layer, spec, parent) => {
-    if (parent === null) return readFiles(root, spec, notes);
+    if (parent === null) return readFiles(root, spec, notes, maxFiles);
     if (parent.unit.kind === "file") return readFunctions(parent);
     return readCalls(parent);
   };
 }
-function readFilesAt(root, ref, spec, notes, wherePaths) {
+function readFilesAt(root, ref, spec, notes, wherePaths, maxFiles) {
   const clean2 = spec.replace(/^\.\//u, "");
   if (path18.isAbsolute(clean2) || clean2.split("/").includes("..")) return [];
   const repoRoot = repoRootFor(root, wherePaths);
@@ -12799,9 +13032,9 @@ function readFilesAt(root, ref, spec, notes, wherePaths) {
     if (re.test(rel)) matched.push(rel);
   }
   matched.sort();
-  const truncated = matched.length > MAX_FILES;
-  if (truncated) notes.push(`${spec}: matched more than ${MAX_FILES} files, using the first ${MAX_FILES}`);
-  const files = truncated ? matched.slice(0, MAX_FILES) : matched;
+  const truncated = matched.length > maxFiles;
+  if (truncated) notes.push(`${spec}: matched more than ${maxFiles} files, using the first ${maxFiles}`);
+  const files = truncated ? matched.slice(0, maxFiles) : matched;
   const out = [];
   for (const rel of files) {
     const gitRel = path18.relative(repoRoot, path18.resolve(root, rel)).split(path18.sep).join("/");
@@ -12815,9 +13048,9 @@ function readFilesAt(root, ref, spec, notes, wherePaths) {
   }
   return out;
 }
-function createCodeResolverAt(root, ref, notes, wherePaths = []) {
+function createCodeResolverAt(root, ref, notes, wherePaths = [], maxFiles = MAX_FILES) {
   return (_layer, spec, parent) => {
-    if (parent === null) return readFilesAt(root, ref, spec, notes, wherePaths);
+    if (parent === null) return readFilesAt(root, ref, spec, notes, wherePaths, maxFiles);
     if (parent.unit.kind === "file") return readFunctions(parent);
     return readCalls(parent);
   };
@@ -13179,19 +13412,19 @@ var REHEARSAL_ADAPTERS = ["fake", "chaos"];
 var isRehearsal = (adapter) => REHEARSAL_ADAPTERS.includes(adapter);
 
 // src/lens/consensus.ts
-var THRESHOLDS = { concernAt: 0.5, weakBelow: 0.35, strongAt: 0.8 };
+var THRESHOLDS = DEFAULT_CONFIG.lens;
 var majority = (flags) => flags.filter(Boolean).length * 2 >= flags.length;
-function computeConsensus(slots) {
+function computeConsensus(slots, thresholds = THRESHOLDS) {
   if (!slots.length) throw new RangeError("consensus needs at least one slot");
   const concern = slots.map((s) => s.reverse ? 1 - s.p : s.p);
-  const flags = concern.map((c) => c >= THRESHOLDS.concernAt);
+  const flags = concern.map((c) => c >= thresholds.concernAt);
   const frac = flags.filter(Boolean).length / slots.length;
   const agreement = Math.max(frac, 1 - frac);
   const decisiveness = concern.reduce((sum, c) => sum + Math.abs(2 * c - 1), 0) / slots.length;
   const forward = flags.filter((_, i) => !slots[i].reverse);
   const reverse = flags.filter((_, i) => slots[i].reverse);
   const reverseConsistent = !forward.length || !reverse.length || majority(forward) === majority(reverse);
-  const consensus = decisiveness < THRESHOLDS.weakBelow ? "WEAK" : agreement >= THRESHOLDS.strongAt && reverseConsistent ? "STRONG" : "SPLIT";
+  const consensus = decisiveness < thresholds.weakBelow ? "WEAK" : agreement >= thresholds.strongAt && reverseConsistent ? "STRONG" : "SPLIT";
   return {
     consensus,
     verdict: frac >= 0.5 ? "concern" : "clear",
@@ -13223,9 +13456,9 @@ function subjectMak(id, gate, subject, extra) {
 function reusedIds(reusedFrom) {
   return [...new Set(Object.values(reusedFrom))].sort();
 }
-function consensusAndEscalate(categories, answers, depth, notes) {
+function consensusAndEscalate(categories, answers, depth, notes, lens) {
   const slots = categories.filter((c) => c.questions[0]?.kind === "yesno").flatMap((c) => c.questions.map((q) => ({ pos: q.n, reverse: c.pass === "yes", p: answers[String(q.n)].p })));
-  const consensus = computeConsensus(slots).consensus;
+  const consensus = computeConsensus(slots, lens).consensus;
   const escalate = consensus !== "STRONG" || depth === "thorough" || notes.some((n) => n.startsWith(IRREVERSIBLE_NOTE));
   return { consensus, escalate };
 }
@@ -13386,7 +13619,8 @@ function planSweep(request, who, paths, dryRun, opts = {}, limits = {}) {
   }
   const goalQ = goalQuestion(request.mak.goal);
   const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun, reuse: reuseLimits });
-  const cap2 = projectMaxItems !== void 0 ? Math.min(SWEEP_ITEM_CAP[request.mak.depth ?? "quick"], projectMaxItems) : SWEEP_ITEM_CAP[request.mak.depth ?? "quick"];
+  const depthCap = (limits.sweep?.itemsPerLayer ?? SWEEP_ITEM_CAP)[request.mak.depth ?? "quick"];
+  const cap2 = projectMaxItems !== void 0 ? Math.min(depthCap, projectMaxItems) : depthCap;
   const keys = /* @__PURE__ */ new Map();
   const reusedFrom = /* @__PURE__ */ new Map();
   const answers = {};
@@ -13460,7 +13694,7 @@ function planSweep(request, who, paths, dryRun, opts = {}, limits = {}) {
       const notes = [];
       const wanted = new Set(qs.map((q) => q.item).filter((id) => id !== void 0));
       const chunkItems = wanted.size ? callItems.filter((it) => wanted.has(it.id)) : callItems;
-      const state = { ...i === 0 && hasGoal ? { goal: redact(request.mak.goal) } : {}, items: itemsState(chunkItems, notes) };
+      const state = { ...i === 0 && hasGoal ? { goal: redact(request.mak.goal) } : {}, items: itemsState(chunkItems, notes, limits.evidence) };
       return { state, questions: qs };
     });
     return { layer, call: calls[0], extraCalls: calls.slice(1), itemIds, skipped };
@@ -13565,9 +13799,9 @@ function gradeReplay(categories, answers) {
   return { categories: categoryGrades, goal, regressed, gate };
 }
 async function runReplay(text, ctx) {
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
-  const loaded = loadRequest(text, "replay", mdlFields);
+  const loaded = loadRequest(text, "replay", mdlFields, contractLimits(cfg, "replay"));
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const parent = findRun(ctx.paths, request.mak.parent);
@@ -13585,8 +13819,8 @@ async function runReplay(text, ctx) {
   const paths = [...new Set(parent.where.map((w) => w.split(":")[0]))];
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const compare = request.mak.compare;
-  const before = readGitEvidence(ctx.paths.root, compare.before, "before", paths);
-  const after = readGitEvidence(ctx.paths.root, compare.after, "after", paths);
+  const before = readGitEvidence(ctx.paths.root, compare.before, "before", paths, { limits: { perFileChars: cfg.evidence.perItemChars, totalChars: cfg.evidence.totalChars } });
+  const after = readGitEvidence(ctx.paths.root, compare.after, "after", paths, { limits: { perFileChars: cfg.evidence.perItemChars, totalChars: cfg.evidence.totalChars } });
   if (!before.ok || !after.ok) {
     const errors = [...before.ok ? [] : before.errors, ...after.ok ? [] : after.errors];
     return { exit: 2, text: stopText(errors, "replay") };
@@ -13763,8 +13997,8 @@ var WHERE_CAP = 50;
 function whereFromItems(items) {
   return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP);
 }
-function sweepResolverAt(root, ref, notes, wherePaths) {
-  return ref === "worktree" ? createCodeResolver(root, notes) : createCodeResolverAt(root, ref, notes, wherePaths);
+function sweepResolverAt(root, ref, notes, wherePaths, maxFiles) {
+  return ref === "worktree" ? createCodeResolver(root, notes, maxFiles) : createCodeResolverAt(root, ref, notes, wherePaths, maxFiles);
 }
 async function runSweepReplay(ctx, request, loaded, parent, cfg) {
   const layers = parent.ask.layers;
@@ -13800,9 +14034,9 @@ async function runSweepReplay(ctx, request, loaded, parent, cfg) {
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const beforeNotes = [];
   const afterNotes = [];
-  const limits = { sweep: cfg.sweep, reuse: cfg.reuse };
-  const beforeOpts = needsCode ? { resolve: sweepResolverAt(ctx.paths.root, compare.before, beforeNotes, itemPaths) } : {};
-  const afterOpts = needsCode ? { resolve: sweepResolverAt(ctx.paths.root, compare.after, afterNotes, itemPaths) } : {};
+  const limits = { sweep: cfg.sweep, reuse: cfg.reuse, evidence: cfg.evidence };
+  const beforeOpts = needsCode ? { resolve: sweepResolverAt(ctx.paths.root, compare.before, beforeNotes, itemPaths, cfg.evidence.maxFiles) } : {};
+  const afterOpts = needsCode ? { resolve: sweepResolverAt(ctx.paths.root, compare.after, afterNotes, itemPaths, cfg.evidence.maxFiles) } : {};
   const beforePlan = planSweep(sweepRequest, who, ctx.paths, ctx.dryRun ?? false, beforeOpts, limits);
   const afterPlan = planSweep(sweepRequest, who, ctx.paths, ctx.dryRun ?? false, afterOpts, limits);
   if (ctx.dryRun) {
@@ -14021,12 +14255,12 @@ function staleNotes(paths, where, toAsk) {
 // src/verbs/class.ts
 var CAP_NOTE = "would be blocked: the budget cap is already reached";
 async function runClass(text, ctx) {
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
-  const loaded = loadRequest(text, "class", mdlFields);
+  const loaded = loadRequest(text, "class", mdlFields, contractLimits(cfg, "class"));
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
-  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where);
+  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where, { limits: { perFileChars: cfg.evidence.perItemChars, totalChars: cfg.evidence.totalChars } });
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "class") };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
@@ -14073,7 +14307,7 @@ async function runClass(text, ctx) {
   }
   const keys = {};
   for (const [q, k] of keyed) keys[q.id] = k;
-  const { consensus, escalate } = consensusAndEscalate(request.mak.categories, answers, request.mak.depth, loaded.notes);
+  const { consensus, escalate } = consensusAndEscalate(request.mak.categories, answers, request.mak.depth, loaded.notes, cfg.lens);
   const subject = gradeSubject(request.mak.categories, answers);
   const reusedRunIds = reusedIds(reusedFrom);
   const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
@@ -14137,8 +14371,8 @@ var WHERE_CAP2 = 50;
 function whereFromItems2(items) {
   return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP2);
 }
-async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reuseLimits, evidenceOpts) {
-  const evidence = readCodeEvidence(ctx.paths.root, where, evidenceOpts);
+async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reuseLimits, settings, evidenceOpts) {
+  const evidence = readCodeEvidence(ctx.paths.root, where, { ...evidenceOpts, limits: { perFileChars: settings.evidence.perItemChars, totalChars: settings.evidence.totalChars } });
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "drill") };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
@@ -14179,7 +14413,7 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reu
   }
   const keys = {};
   for (const [q, k] of keyed) keys[q.id] = k;
-  const { consensus, escalate } = consensusAndEscalate(request.mak.categories, answers, request.mak.depth, loaded.notes);
+  const { consensus, escalate } = consensusAndEscalate(request.mak.categories, answers, request.mak.depth, loaded.notes, settings.lens);
   const subject = gradeSubject(request.mak.categories, answers);
   const oneSubjectNext = (gate, id) => gate === "pass" ? "act on it" : `fix it, then mm3 replay --parent ${replayParent(id)} --compare <before>..<after>`;
   const reusedRunIds = reusedIds(reusedFrom);
@@ -14238,9 +14472,9 @@ async function runOneSubjectProof(ctx, loaded, request, where, replayParent, reu
   return { exit: 0, text: rec.value.run.response, run: rec.value.run };
 }
 async function runDrill(text, ctx) {
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
-  const loaded = loadRequest(text, "drill", mdlFields);
+  const loaded = loadRequest(text, "drill", mdlFields, contractLimits(cfg, "drill"));
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const parent = findRun(ctx.paths, request.mak.parent);
@@ -14269,7 +14503,7 @@ async function runDrill(text, ctx) {
           )
         };
       }
-      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, cfg.reuse, { stopOnOversize: false });
+      return runOneSubjectProof(ctx, loaded, request, [`${itemRec.unit.path}:${itemRec.unit.lines}`], (id) => id, cfg.reuse, cfg, { stopOnOversize: false });
     }
     const from = request.mak.from;
     const name = from.includes("/") ? from.slice(from.lastIndexOf("/") + 1) : from;
@@ -14301,8 +14535,8 @@ async function runDrill(text, ctx) {
       who,
       ctx.paths,
       ctx.dryRun ?? false,
-      itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes), root } : { root },
-      { sweep: cfg.sweep, reuse: cfg.reuse }
+      itemRec.unit ? { resolve: createCodeResolver(ctx.paths.root, notes, cfg.evidence.maxFiles), root } : { root },
+      { sweep: cfg.sweep, reuse: cfg.reuse, evidence: cfg.evidence }
     );
     if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.mak));
     const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
@@ -14381,19 +14615,19 @@ async function runDrill(text, ctx) {
       )
     };
   }
-  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.mak.parent, cfg.reuse);
+  return runOneSubjectProof(ctx, loaded, request, parent.where, () => request.mak.parent, cfg.reuse, cfg);
 }
 
 // src/verbs/loop.ts
 async function runLoop(text, ctx) {
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
-  const loaded = loadRequest(text, "loop", mdlFields);
+  const loaded = loadRequest(text, "loop", mdlFields, contractLimits(cfg, "loop"));
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, {}, { sweep: cfg.sweep, reuse: cfg.reuse });
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, {}, { sweep: cfg.sweep, reuse: cfg.reuse, evidence: cfg.evidence });
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.mak));
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
@@ -15795,9 +16029,9 @@ function suggestionText(s) {
   if (s.kind === "pattern") return `pattern: ${s.pattern}`;
   return "reference (link: where)";
 }
-function reportFields(paths, env, accept) {
+function reportFields(paths, env, accept, resolved) {
   ensureHotIndexFresh(paths);
-  const { config } = resolveConfig(paths, env);
+  const { config } = configOf({ paths, env, config: resolved });
   const knownKeys = [...MDL_KEYS, ...Object.keys(config.mdl)];
   const fields = undeclaredFieldSamples(paths, { knownKeys });
   if (accept !== void 0) {
@@ -15830,7 +16064,7 @@ function runReport(view, ctx, target, accept) {
   if (requested === "problems") return reportProblems(ctx.paths, env);
   if (requested === "mdl") return reportMdl(ctx.paths, env);
   if (requested === "calls") return reportCalls(ctx.paths, env);
-  if (requested === "fields") return reportFields(ctx.paths, env, accept);
+  if (requested === "fields") return reportFields(ctx.paths, env, accept, ctx.config);
   return runReportWeb({ paths: ctx.paths, env, runner: ctx.runner ?? realRunner, platform: ctx.platform ?? process.platform });
 }
 
@@ -15841,26 +16075,26 @@ var WHERE_CAP3 = 50;
 function whereFromItems3(items) {
   return [...new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []))].sort().slice(0, WHERE_CAP3);
 }
-function unlookedEntrypoints(root, items) {
+function unlookedEntrypoints(root, items, maxFiles) {
   const touched = new Set(items.flatMap((i) => i.unit ? [i.unit.path] : []));
-  const missed = [...new Set(ENTRYPOINT_GLOBS.flatMap((pattern) => expandGlob(root, pattern).files))].filter((f) => !touched.has(f));
+  const missed = [...new Set(ENTRYPOINT_GLOBS.flatMap((pattern) => expandGlob(root, pattern, maxFiles).files))].filter((f) => !touched.has(f));
   if (!missed.length) return void 0;
   const shown2 = missed.slice(0, MISSED_SHOWN);
   const named = missed.length > shown2.length ? `${shown2.join(", ")}, \u2026 ${missed.length - shown2.length} more` : shown2.join(", ");
   return `entrypoints/config outside over: ${named} \u2014 add them to over: file if they matter here`;
 }
 async function runScan(text, ctx) {
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
-  const loaded = loadRequest(text, "scan", mdlFields);
+  const loaded = loadRequest(text, "scan", mdlFields, contractLimits(cfg, "scan"));
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
   const notes = [];
   const who = { adapter: ctx.provider.adapter, model: ctx.provider.model };
   const identity = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes) }, { sweep: cfg.sweep, reuse: cfg.reuse });
+  const plan = planSweep(request, who, ctx.paths, ctx.dryRun ?? false, { resolve: createCodeResolver(ctx.paths.root, notes, cfg.evidence.maxFiles) }, { sweep: cfg.sweep, reuse: cfg.reuse, evidence: cfg.evidence });
   if (ctx.dryRun) return sweepDryRun(plan, identity, probeWarnings(request.mak));
-  const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items);
+  const entrypointNote = unlookedEntrypoints(ctx.paths.root, plan.items, cfg.evidence.maxFiles);
   if (entrypointNote) notes.push(entrypointNote);
   const pre = preflight(ctx, { needsBudget: planNeedsBudget(plan) });
   if (!pre.ok) return pre.result;
@@ -16281,11 +16515,12 @@ function runsForPlaces(paths, places) {
   );
 }
 function runRequestMode(text, ctx) {
-  const mdlFields = effectiveMdlFields(resolveConfig(ctx.paths, ctx.env).config.mdl);
-  const loaded = loadRequest(text, "view", mdlFields);
+  const cfg = configOf(ctx).config;
+  const mdlFields = effectiveMdlFields(cfg.mdl);
+  const loaded = loadRequest(text, "view", mdlFields, contractLimits(cfg, "view"));
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
-  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where);
+  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where, { limits: { perFileChars: cfg.evidence.perItemChars, totalChars: cfg.evidence.totalChars } });
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, "view") };
   const places = request.mak.where.map(stripLines);
   const runsHere = runsForPlaces(ctx.paths, places);
@@ -16297,7 +16532,7 @@ function runRequestMode(text, ctx) {
     const evidenceStr = subjectEvidence(evidence.evidence.files);
     const keys = questions.map((q) => answerKey(evidenceStr, q));
     const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-    const reuseLimits = resolveConfig(ctx.paths, ctx.env).config.reuse;
+    const reuseLimits = cfg.reuse;
     reuse2 = exactReuse(ctx.paths, who, keys, { reuse: reuseLimits });
     if (reuse2 === void 0) reuseMiss = runsHere.length ? `code in where changed since ${runsHere.at(-1).id}` : "never asked";
     appendLookup(ctx.paths, { goal: request.mak.goal, where: request.mak.where, hit: reuse2 !== void 0, reused: reuse2 ?? null });
@@ -16567,7 +16802,7 @@ var RULES = [
     // family (given, or defaulted from the category name — see FAMILIES below); the role table itself (3 named
     // roles per family) is too wide for one dense-card bullet, so it lives in `mm3 agent probe`/`help
     // probe` (FAMILY_ROLES below, same file, one source) and the mm3-probe skill, both pointed at here.
-    text: `depth: quick|standard|thorough = exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories, each with 3 probes in a distinct role \u2014 family: ${list2(FAMILIES)} (role table: mm3 agent probe) \u2014 a sweep: at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer`,
+    text: `depth: quick|standard|thorough = by default exactly ${DEPTH_COUNT.quick}, ${DEPTH_COUNT.standard} or ${DEPTH_COUNT.thorough} yes/no questions across 3k concerns categories (a project can change the counts: mm3 config), each with 3 probes in a distinct role \u2014 family: ${list2(FAMILIES)} (role table: mm3 agent probe) \u2014 a sweep: by default at most ${SWEEP_ITEM_CAP.quick}, ${SWEEP_ITEM_CAP.standard} or ${SWEEP_ITEM_CAP.thorough} items per layer`,
     in: ["card", "authoring", "class", "scan", "loop"]
   },
   { text: `where: at most 5 path entries \u2014 this is all the code a run sees`, in: ["card", "authoring", "class", "view"] },
@@ -16917,7 +17152,7 @@ function configCard() {
     [
       "- syntax: mm3 config [--write]",
       "- free: plain config never writes, never spends, works with or without a project",
-      "- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, mdl) and which of default/config/env it came from",
+      "- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from",
       "- reads .mm3/config.yaml if present \u2014 sparse overrides only, precedence env > config > default",
       "- a bad config.yaml shows its \u2716 problems here too, then the rest of the effective table underneath",
       "- the display is not a file: to customize run mm3 config --write \u2192 writes .mm3/config.yaml (commented guide) only if missing, never overwrites",
@@ -17308,7 +17543,7 @@ async function runSweptVerb(command, rest, paths, ctx) {
   } catch (e) {
     return finish(providerExit(e), e.message);
   }
-  const r = await RUNNERS[command](read3.text, { paths, provider, env: ctx.env, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
+  const r = await RUNNERS[command](read3.text, { paths, provider, env: ctx.env, config: fileConfig, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
   return finish(r.exit, r.text);
 }
 async function dispatch(argv, ctx) {
@@ -17481,6 +17716,8 @@ async function dispatch(argv, ctx) {
   }
   const paths = resolvePaths(ctx.cwd, ctx.env);
   if (!paths) return finish(2, withAgentPointer(NO_PROJECT, command));
+  let resolvedOnce;
+  const resolved = () => resolvedOnce ??= resolveConfig(paths, ctx.env);
   switch (command) {
     case "view": {
       const twice = givenTwice(rest, ["level", "answers"]);
@@ -17504,7 +17741,7 @@ async function dispatch(argv, ctx) {
         } catch {
         }
       }
-      const r = runView(arg, Number(values.level), { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary, values.answers);
+      const r = runView(arg, Number(values.level), { paths, env: ctx.env, config: resolved(), resolveStored: resolveStoredFor(ctx) }, content, values.summary, values.answers);
       return finish(r.exit, r.text);
     }
     case "report": {
@@ -17512,7 +17749,7 @@ async function dispatch(argv, ctx) {
       if (twice) return finish(2, withAgentPointer(twice, command));
       const { values, positionals } = args("report", { args: rest, allowPositionals: true, options: { accept: { type: "string" } } });
       positionalCount("report", positionals, 0, 2);
-      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform }, positionals[1], values.accept);
+      const r = runReport(positionals[0], { paths, env: ctx.env, config: resolved(), runner: ctx.runner, platform: ctx.platform }, positionals[1], values.accept);
       return finish(r.exit, r.text);
     }
     case "class":
@@ -17553,7 +17790,7 @@ async function dispatch(argv, ctx) {
         text = (0, import_yaml6.stringify)({ mak: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount("replay", positionals, 1, 1);
-        const read3 = readRequest(positionals[0], ctx.stdin, resolveConfig(paths, ctx.env).config.requestMaxBytes);
+        const read3 = readRequest(positionals[0], ctx.stdin, resolved().config.requestMaxBytes);
         if ("stop" in read3) return finish(2, withAgentPointer(read3.stop, command));
         text = read3.text;
       }
@@ -17562,12 +17799,12 @@ async function dispatch(argv, ctx) {
         provider = selectProvider(ctx.env, {
           chaosState: path24.join(paths.dir, "chaos.json"),
           resolveStored: resolveStoredFor(ctx),
-          fileConfig: classifierFileConfig(resolveConfig(paths, ctx.env).config)
+          fileConfig: classifierFileConfig(resolved().config)
         });
       } catch (e) {
         return finish(providerExit(e), e.message);
       }
-      const r = await runReplay(text, { paths, provider, env: ctx.env, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
+      const r = await runReplay(text, { paths, provider, env: ctx.env, config: resolved(), dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case "outcome": {

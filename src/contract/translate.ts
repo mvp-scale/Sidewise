@@ -73,17 +73,17 @@ export function subjectEvidence(files: Record<string, string>): string {
 export const ITEM_LIMITS: Readonly<typeof DEFAULT_CONFIG.evidence> = DEFAULT_CONFIG.evidence;
 
 /** state.items for one call: item id → redacted text, capped per item and in total, with a note for each cut. */
-export function itemsState(items: readonly Item[], notes: string[]): Record<string, string> {
+export function itemsState(items: readonly Item[], notes: string[], limits: Pick<typeof ITEM_LIMITS, 'perItemChars' | 'totalChars'> = ITEM_LIMITS): Record<string, string> {
   const out: Record<string, string> = {};
   let total = 0;
   for (const it of items) {
     const id = redact(it.id);
     let text = redact(it.text);
-    if (text.length > ITEM_LIMITS.perItemChars) {
-      text = text.slice(0, ITEM_LIMITS.perItemChars);
-      notes.push(`${id} truncated to ${ITEM_LIMITS.perItemChars} chars`);
+    if (text.length > limits.perItemChars) {
+      text = text.slice(0, limits.perItemChars);
+      notes.push(`${id} truncated to ${limits.perItemChars} chars`);
     }
-    const room = ITEM_LIMITS.totalChars - total;
+    const room = limits.totalChars - total;
     if (room <= 0) {
       out[id] = '';
       notes.push(`${id} not shown: evidence limit reached`);

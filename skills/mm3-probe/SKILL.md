@@ -11,7 +11,7 @@ Read this before filling in `ask:` on a template — `mm3 template <verb>` gives
 
 `ask:` has two sections:
 
-- **concerns** — exactly `3k` categories for depth `k` (quick=1 → 3 categories/9 probes, standard=2 → 6/18, thorough=3 → 9/27), each with **exactly 3 yes/no probes**.
+- **concerns** — exactly `3k` categories for depth `k` (quick=1 → 3 categories/9 probes, standard=2 → 6/18, thorough=3 → 9/27 by default; a project's config can change the counts), each with **exactly 3 yes/no probes**.
 - **decisions** — 2–5 categories, scale or choice only, at least one of each kind. These don't count toward depth.
 
 Why exactly 3 probes, never 1? A single yes/no like "is this handler secure?" can't disagree with itself — there's nothing for `need:` to weigh, and nothing tells you *where* it fails if it does. Three probes that each check a different point on the same path can disagree, and when they do, that disagreement is the finding: reach and sink both read unsafe while guard reads safe is a very different result from all three reading unsafe. One question gives you a verdict with no evidence behind it; three angles give you a verdict you can act on.

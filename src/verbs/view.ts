@@ -26,7 +26,7 @@ import type { Mm3Paths } from '../ledger/paths.ts';
 import { exactReuse, reuseAge } from '../ledger/reuse.ts';
 import type { Level } from '../lens/request.ts';
 import { clip, hasControlChars } from '../util/text.ts';
-import { loadRequest, stopText } from './request.ts';
+import { contractLimits, loadRequest, stopText } from './request.ts';
 import { respondText, mdlRecorded } from './respond.ts';
 import type { VerbResult } from './types.ts';
 
@@ -380,11 +380,11 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
   // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
-  const loaded = loadRequest(text, 'view', mdlFields);
+  const loaded = loadRequest(text, 'view', mdlFields, contractLimits(cfg, 'view'));
   if (!loaded.ok) return loaded.result;
   const { request } = loaded;
 
-  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where);
+  const evidence = readCodeEvidence(ctx.paths.root, request.mak.where, { limits: { perFileChars: cfg.evidence.perItemChars, totalChars: cfg.evidence.totalChars } });
   if (!evidence.ok) return { exit: 2, text: stopText(evidence.errors, 'view') };
 
   const places = request.mak.where.map(stripLines);

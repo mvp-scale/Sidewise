@@ -113,12 +113,13 @@ export const KEYED_MAPS = ['pricing', 'mdl'] as const;
 
 /** Top-level config keys, in the order `mm3 config` prints them. Used by validate.ts for the
  *  unknown-key/did-you-mean check and by load.ts for the printer. */
-export const CONFIG_KEYS = ['budget', 'provider', 'baseURL', 'model', 'pricing', 'timeoutMs', 'retries', 'backoffMs', 'sweep', 'requestMaxBytes', 'reuse', 'mdl'] as const;
+export const CONFIG_KEYS = ['budget', 'provider', 'baseURL', 'model', 'pricing', 'timeoutMs', 'retries', 'backoffMs', 'sweep', 'requestMaxBytes', 'reuse', 'depth', 'evidence', 'lens', 'mdl'] as const;
 
 /** Request-contract concepts an agent might mistake for project settings B1's "not configurable
- *  (request contract) → set it per request" stop. `depth` is the named example in the plan; the others are the
- *  same category of per-request-only field (mak: keys that never belong at the project level). */
-export const CONTRACT_ONLY_KEYS = ['depth', 'goal', 'where', 'ask', 'over', 'mdl.parent'] as const;
+ *  (request contract) → set it per request" stop: mak: keys that never belong at the project level. (`depth` used
+ *  to be the named example; it is now a project setting — what each tier means per verb — while a request still
+ *  says which tier it wants.) */
+export const CONTRACT_ONLY_KEYS = ['goal', 'where', 'ask', 'over', 'mdl.parent'] as const;
 
 /** A key name that looks like it's meant to hold a secret, wherever it appears in the config tree
  *  B1's "keys go in env or the keychain" stop (AGENTS.md rule 6: secrets never in the project or config). */
