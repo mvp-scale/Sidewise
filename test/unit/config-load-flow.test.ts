@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { stringify } from 'yaml';
 import { runCli, type CliCtx } from '../../src/cli.ts';
 import { fingerprintOf, readActive, writeActive } from '../../src/config/active.ts';
-import { runConfig, runConfigLoad } from '../../src/config/config.ts';
+import { nearMissNotes, runConfig, runConfigLoad, runConfigReset } from '../../src/config/config.ts';
 import { resolveConfig } from '../../src/config/load.ts';
 import { writeConfigOverride } from '../../src/config/write.ts';
 import { runDoctor } from '../../src/verbs/doctor.ts';
@@ -362,5 +362,134 @@ describe('mm3 config plain display stays a read', () => {
     const r = runConfig({}, paths, '.');
     expect(r.text).toContain('⚠ config.yaml is not loaded yet → mm3 config --load');
     expect(existsSync(path.join(root, '.mm3', 'config.active.json'))).toBe(false);
+  });
+});
+
+describe('mm3 config --reset [C-248] [C-249]', () => {
+  it('makes the defaults active, leaves config.yaml exactly as it is, and says so', async () => {
+    const { root, paths } = tempProject();
+    const text = '# mine\nbudget:\n  usd: 2\n';
+    write(root, text);
+    await mm3(root, ['config', '--load']);
+    expect(resolveConfig(paths, {}).config.budget.usd).toBe(2);
+    const r = await mm3(root, ['config', '--reset']);
+    expect(r.exit).toBe(0);
+    expect(r.text).toBe('✔ reset · defaults active\n  .mm3/config.yaml was left as it is → mm3 config --load applies it again\n');
+    expect(resolveConfig(paths, {}).config.budget.usd).toBe(5);
+    expect(readFileSync(path.join(root, '.mm3', 'config.yaml'), 'utf8')).toBe(text);
+  });
+
+  it('doctor: defaults when the file is missing or holds only comments; a warning when it holds settings', async () => {
+    const { root, paths } = tempProject();
+    write(root, 'budget:\n  usd: 2\n');
+    await mm3(root, ['config', '--load']);
+    await mm3(root, ['config', '--reset']);
+    expect(runDoctor({}, paths).text).toContain('⚠ defaults are active; config.yaml has settings that are not loaded → mm3 config --load');
+    expect((await mm3(root, ['config'])).text).toContain('  - ⚠ defaults are active; config.yaml has settings that are not loaded → mm3 config --load');
+
+    write(root, '# nothing here\nbudget:\n#   usd: 2\n'); // an all-commented starter: nothing to load
+    expect(runDoctor({}, paths).text).toContain('config: "✔ config: defaults"');
+
+    rmSync(path.join(root, '.mm3', 'config.yaml'));
+    expect(runDoctor({}, paths).text).toContain('config: "✔ config: defaults"');
+    expect((await mm3(root, ['config'])).text).toContain('no config.yaml here');
+  });
+
+  it('a reset starter file (after --write) reads as defaults', async () => {
+    const { root, paths } = tempProject();
+    await mm3(root, ['config', '--write']);
+    await mm3(root, ['config', '--reset']);
+    expect(runDoctor({}, paths).text).toContain('config: "✔ config: defaults"');
+  });
+
+  it('with no config.yaml and nothing active it is a no-op that creates nothing', async () => {
+    const { root, paths } = tempProject();
+    const r = await mm3(root, ['config', '--reset']);
+    expect(r).toEqual({ exit: 0, text: '✔ defaults are already active (no config.yaml, nothing loaded)\n' });
+    expect(existsSync(paths.configActive)).toBe(false);
+    expect(existsSync(paths.config)).toBe(false);
+  });
+
+  it('with an active copy but no config.yaml it resets without the file note', async () => {
+    const { root, paths } = tempProject();
+    write(root, 'budget:\n  usd: 2\n');
+    await mm3(root, ['config', '--load']);
+    rmSync(path.join(root, '.mm3', 'config.yaml'));
+    expect((await mm3(root, ['config', '--reset'])).text).toBe('✔ reset · defaults active\n');
+    expect(resolveConfig(paths, {}).config.budget.usd).toBe(5);
+  });
+
+  it('the one-time automatic load does not undo a reset on the next paid run', async () => {
+    const { root, paths } = tempProject();
+    write(root, 'depth:\n  class: [1, 2, 3]\n'); // a project from before --load
+    await mm3(root, ['config', '--reset']);
+    const ran = await mm3(root, ['class', '-'], oneCategoryClass());
+    expect(ran.exit).toBe(2); // defaults: a one-category quick request needs 3
+    expect(ran.text).not.toContain('loaded automatically');
+    expect(resolveConfig(paths, {}).config.depth.class).toEqual([3, 6, 9]);
+    expect(readActive(paths)?.reset).toBe(true);
+  });
+
+  it('--load after a reset restores the file', async () => {
+    const { root, paths } = tempProject();
+    write(root, 'budget:\n  usd: 2\n');
+    await mm3(root, ['config', '--load']);
+    await mm3(root, ['config', '--reset']);
+    expect((await mm3(root, ['config', '--load'])).exit).toBe(0);
+    expect(resolveConfig(paths, {}).config.budget.usd).toBe(2);
+    expect(readActive(paths)?.reset).toBeUndefined();
+    expect(runDoctor({}, paths).text).toMatch(/✔ config: active/);
+  });
+
+  it('budget set after a reset still writes the file and goes live', async () => {
+    const { root, paths } = tempProject();
+    write(root, 'budget:\n  usd: 2\n');
+    await mm3(root, ['config', '--load']);
+    await mm3(root, ['config', '--reset']);
+    expect((await mm3(root, ['budget', 'set', '--runs', '77'])).exit).toBe(0);
+    expect(resolveConfig(paths, {}).config.budget.runs).toBe(77);
+    expect(readFileSync(path.join(root, '.mm3', 'config.yaml'), 'utf8')).toContain('runs: 77');
+    // with no file at all, a reset copy is replaced by a fresh in-step one
+    const fresh = tempProject();
+    await mm3(fresh.root, ['config', '--load']); // no file: stop, nothing written
+    write(fresh.root, '# c\n');
+    await mm3(fresh.root, ['config', '--load']);
+    rmSync(path.join(fresh.root, '.mm3', 'config.yaml'));
+    await mm3(fresh.root, ['config', '--reset']);
+    await mm3(fresh.root, ['budget', 'set', '--usd', '3']);
+    expect(runDoctor({}, fresh.paths).text).toMatch(/✔ config: active/);
+  });
+
+  it('--reset with --load or --write is a usage stop with the fix', async () => {
+    const { root, paths } = tempProject();
+    for (const other of ['--load', '--write']) {
+      const r = await mm3(root, ['config', '--reset', other]);
+      expect(r.exit).toBe(2);
+      expect(r.text).toContain('--reset cannot go together with --load or --write → run one at a time');
+    }
+    expect(existsSync(paths.configActive)).toBe(false);
+  });
+
+  it('with no project it stops like --write and --load do', () => {
+    expect(runConfigReset(undefined, 'none').exit).toBe(2);
+  });
+});
+
+describe('the near-miss note ignores MM3\'s own files [C-250]', () => {
+  it('config.active.json with config.yaml missing is no misnamed config, but config.ymal still is', async () => {
+    const { root, paths } = tempProject();
+    write(root, 'budget:\n  usd: 2\n');
+    await mm3(root, ['config', '--load']);
+    rmSync(path.join(root, '.mm3', 'config.yaml'));
+    expect(existsSync(paths.configActive)).toBe(true);
+    for (const text of [(await mm3(root, ['config'])).text, runDoctor({}, paths).text]) {
+      expect(text).not.toContain('did you mean config.yaml');
+    }
+    expect(nearMissNotes(paths)).toEqual([]);
+    writeFileSync(path.join(root, '.mm3', 'config.active.json.123.abc.tmp'), 'x'); // an atomic write caught mid-way
+    expect(nearMissNotes(paths)).toEqual([]);
+    writeFileSync(path.join(root, '.mm3', 'config.ymal'), 'budget:\n');
+    expect(nearMissNotes(paths)).toEqual(['found .mm3/config.ymal — did you mean config.yaml? → rename it']);
+    expect(runDoctor({}, paths).text).toContain('found .mm3/config.ymal — did you mean config.yaml? → rename it');
   });
 });

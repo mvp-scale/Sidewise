@@ -124,7 +124,7 @@ export function resolveConfig(paths: Mm3Paths | undefined, env: Record<string, s
   if (active) {
     overrides = active.overrides;
     stops = [];
-    present = true;
+    present = active.reset ? existsSync(paths!.config) : true; // a reset copy says nothing about the file
   } else {
     const file = readConfigFile(paths);
     const validated = file.raw !== undefined ? validateConfig(file.raw) : { stops: [], value: {} };

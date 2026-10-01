@@ -8160,6 +8160,12 @@ function checkConfigText(text) {
   const validated = validateConfig(file.raw);
   return { stops: [...file.stops, ...validated.stops], overrides: validated.value, parsed: true };
 }
+function hasSettings(text) {
+  const { raw } = parseConfigText(text);
+  if (raw === void 0) return true;
+  const live = (v) => v !== null && v !== void 0 && (typeof v === "object" ? Object.values(v).some(live) : true);
+  return live(raw);
+}
 
 // src/config/active.ts
 var fingerprintOf = (text) => createHash("sha256").update(text).digest("hex");
@@ -8170,15 +8176,15 @@ function readActive(paths) {
     if (v.v !== 1 || typeof v.loadedAt !== "string" || typeof v.fingerprint !== "string" || typeof v.overrides !== "object" || v.overrides === null || Array.isArray(v.overrides)) return void 0;
     const checked = validateConfig(v.overrides);
     if (checked.stops.length) return void 0;
-    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value };
+    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value, ...v.reset === true ? { reset: true } : {} };
   } catch {
     return void 0;
   }
 }
-function writeActive(paths, overrides, fingerprint, now = Date.now()) {
+function writeActive(paths, overrides, fingerprint, now = Date.now(), reset = false) {
   onStore(paths.configActive, "write", () => {
     ensureDir(paths);
-    const body = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z"), fingerprint, overrides };
+    const body = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z"), fingerprint, overrides, ...reset ? { reset: true } : {} };
     const tmp = `${paths.configActive}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
     writeFileSync2(tmp, `${JSON.stringify(body)}
 `);
@@ -8196,6 +8202,7 @@ function configStatus(paths) {
     }
   }
   const fileStops = text === void 0 ? [] : checkConfigText(text).stops;
+  if (active?.reset) return text !== void 0 && hasSettings(text) ? { kind: "resetPending", loadedAt: active.loadedAt, fileStops } : { kind: "defaults", fileStops };
   if (text === void 0) return active ? { kind: "missing", loadedAt: active.loadedAt, fileStops } : { kind: "defaults", fileStops };
   if (!active) return { kind: "unloaded", fileStops };
   return { kind: active.fingerprint === fingerprintOf(text) ? "active" : "changed", loadedAt: active.loadedAt, fileStops };
@@ -8210,6 +8217,8 @@ function statusLine(s) {
       return "\u26A0 config.yaml changed since load \u2192 mm3 config --load";
     case "missing":
       return "\u26A0 config.yaml is gone but a loaded config is still active \u2192 restore the file, or load another with mm3 config --load <file>";
+    case "resetPending":
+      return "\u26A0 defaults are active; config.yaml has settings that are not loaded \u2192 mm3 config --load";
     case "unloaded":
       return "\u26A0 config.yaml is not loaded yet \u2192 mm3 config --load (the first paid run loads it automatically)";
   }
@@ -8288,7 +8297,7 @@ function resolveConfig(paths, env = {}) {
   if (active) {
     overrides = active.overrides;
     stops = [];
-    present = true;
+    present = active.reset ? existsSync3(paths.config) : true;
   } else {
     const file = readConfigFile(paths);
     const validated = file.raw !== void 0 ? validateConfig(file.raw) : { stops: [], value: {} };
@@ -8347,7 +8356,7 @@ function writeConfigOverride(paths, patch, now = Date.now()) {
     const had = existsSync4(paths.config);
     const text = had ? readFileSync4(paths.config, "utf8") : "";
     const active = readActive(paths);
-    const wasInSync = active !== void 0 && had && active.fingerprint === fingerprintOf(text);
+    const wasInSync = active !== void 0 && had && (active.fingerprint === fingerprintOf(text) || active.reset === true && !hasSettings(text));
     const doc = (0, import_yaml2.parseDocument)(text, { version: "1.2", schema: "core" });
     setDeep(doc, [], patch);
     const written = doc.toString();
@@ -8355,7 +8364,7 @@ function writeConfigOverride(paths, patch, now = Date.now()) {
     const base = active?.overrides ?? (had ? void 0 : {});
     if (base) {
       const checked = validateConfig(overlay2(base, patch));
-      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || !had && !active ? fingerprintOf(written) : active.fingerprint, now);
+      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || !had && (!active || active.reset) ? fingerprintOf(written) : active.fingerprint, now);
     }
   });
 }
@@ -10233,7 +10242,7 @@ function nearMissNotes(paths) {
   } catch {
     return [];
   }
-  return names.filter((n) => n.toLowerCase().startsWith("config") && n !== "config.yaml").sort().slice(0, 3).map((n) => `found .mm3/${n} \u2014 did you mean config.yaml? \u2192 rename it`);
+  return names.filter((n) => n.toLowerCase().startsWith("config") && n !== "config.yaml" && !n.startsWith(path5.basename(paths.configActive))).sort().slice(0, 3).map((n) => `found .mm3/${n} \u2014 did you mean config.yaml? \u2192 rename it`);
 }
 function runConfig(env, paths, projectLine2) {
   const resolved = resolveConfig(paths, env);
@@ -10450,6 +10459,16 @@ ${kept}
   const head = `\u2714 valid \xB7 active \xB7 ${changes.length} changed from defaults`;
   return { exit: 0, text: `${[head, ...shown2, ...copied ? [`  copied ${file} \u2192 ${label}`] : []].join("\n")}
 ` };
+}
+function runConfigReset(paths, projectLine2, now = Date.now()) {
+  if (!paths) return { exit: 2, text: "\u2716 config: no project here \u2192 run inside a project (a folder with .git or .mm3), or set MM3_HOME" };
+  const fileExists = existsSync8(paths.config);
+  if (!fileExists && !readActive(paths)) return { exit: 0, text: "\u2714 defaults are already active (no config.yaml, nothing loaded)\n" };
+  writeActive(paths, {}, "", now, true);
+  const note = fileExists ? `  ${configFileLabel(projectLine2)} was left as it is \u2192 mm3 config --load applies it again
+` : "";
+  return { exit: 0, text: `\u2714 reset \xB7 defaults active
+${note}` };
 }
 
 // src/mcp/stdio.ts
@@ -17328,11 +17347,12 @@ function configCard() {
   return renderCard(
     ["tool: config"],
     [
-      "- syntax: mm3 config [--write | --load [file]]",
+      "- syntax: mm3 config [--write | --load [file] | --reset]",
       "- free: plain config never writes, never spends, works with or without a project",
       "- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from",
       "- requests read the ACTIVE config, not the file: mm3 config --load [file] checks .mm3/config.yaml (or the named file, copied there as is) and makes it active; \u2714 valid \xB7 active \xB7 N changed from defaults, or every \u2716 problem and the previous active config stays",
       "- an edit to config.yaml changes nothing until loaded: doctor and mm3 config say \u26A0 config.yaml changed since load \u2192 mm3 config --load",
+      "- mm3 config --reset makes the built-in defaults active again and leaves config.yaml as it is (doctor then warns if the file has settings that are not loaded; --load brings them back); it never deletes or edits the file",
       "- a project with a config.yaml and no active copy gets it loaded once, on its first paid run, with a note",
       "- sparse overrides only, precedence env > config > default",
       "- a bad config.yaml shows its \u2716 problems here too, then the effective (active) table underneath",
@@ -17636,7 +17656,7 @@ var LINES3 = {
   outcome: "mm3 outcome <MM3-####> held|overruled|failed --by <actor>",
   budget: "mm3 budget [show | reset | set --usd <n> --runs <n>]",
   doctor: "mm3 doctor [<file> | -]",
-  config: "mm3 config [--write | --load [file]]",
+  config: "mm3 config [--write | --load [file] | --reset]",
   init: "mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]  \xB7  or: mm3 init --agents [--yes]",
   uninstall: "mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]",
   mcp: "mm3 mcp"
@@ -17796,12 +17816,13 @@ async function dispatch(argv, ctx) {
     return finish(r.exit, r.text);
   }
   if (command === "config") {
-    const { positionals, values } = args("config", { args: rest, allowPositionals: true, options: { write: { type: "boolean" }, load: { type: "boolean" } } });
+    const { positionals, values } = args("config", { args: rest, allowPositionals: true, options: { write: { type: "boolean" }, load: { type: "boolean" }, reset: { type: "boolean" } } });
     if (values.load && values.write) throw new UsageStop("config", "--load and --write cannot go together \u2192 run mm3 config --write first, edit the file, then mm3 config --load");
+    if (values.reset && (values.load || values.write)) throw new UsageStop("config", "--reset cannot go together with --load or --write \u2192 run one at a time: mm3 config --reset, then mm3 config --load to bring the file back");
     positionalCount("config", positionals, 0, values.load ? 1 : 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
     const projectLine2 = configPaths ? path25.relative(ctx.cwd, configPaths.root) || "." : "none";
-    const r = values.load ? runConfigLoad(configPaths, positionals[0], ctx.cwd, projectLine2) : values.write ? runConfigWrite(configPaths, projectLine2) : runConfig(ctx.env, configPaths, projectLine2);
+    const r = values.reset ? runConfigReset(configPaths, projectLine2) : values.load ? runConfigLoad(configPaths, positionals[0], ctx.cwd, projectLine2) : values.write ? runConfigWrite(configPaths, projectLine2) : runConfig(ctx.env, configPaths, projectLine2);
     return finish(r.exit, r.text);
   }
   if (command === "mcp") {

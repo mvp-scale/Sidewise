@@ -20,7 +20,7 @@ import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './b
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
 import { JevConfigError } from './classifier/typesafe/config.ts';
-import { runConfig, runConfigLoad, runConfigWrite } from './config/config.ts';
+import { runConfig, runConfigLoad, runConfigReset, runConfigWrite } from './config/config.ts';
 import { autoLoad } from './config/active.ts';
 import { classifierFileConfig, resolveConfig, type ResolvedConfig } from './config/load.ts';
 import { RUN_ID } from './ledger/ids.ts';
@@ -80,7 +80,7 @@ const LINES = {
   outcome: 'mm3 outcome <MM3-####> held|overruled|failed --by <actor>',
   budget: 'mm3 budget [show | reset | set --usd <n> --runs <n>]',
   doctor: 'mm3 doctor [<file> | -]',
-  config: 'mm3 config [--write | --load [file]]',
+  config: 'mm3 config [--write | --load [file] | --reset]',
   init: 'mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]  ·  or: mm3 init --agents [--yes]',
   uninstall: 'mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]',
   mcp: 'mm3 mcp',
@@ -350,12 +350,15 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   // default, since there's nowhere for config.yaml to live). Never spends; plain `config` never writes, and
   // `--write` writes only a missing starter .mm3/config.yaml (never overwrites one that exists).
   if (command === 'config') {
-    const { positionals, values } = args('config', { args: rest, allowPositionals: true, options: { write: { type: 'boolean' }, load: { type: 'boolean' } } });
+    const { positionals, values } = args('config', { args: rest, allowPositionals: true, options: { write: { type: 'boolean' }, load: { type: 'boolean' }, reset: { type: 'boolean' } } });
     if (values.load && values.write) throw new UsageStop('config', '--load and --write cannot go together → run mm3 config --write first, edit the file, then mm3 config --load');
+    if (values.reset && (values.load || values.write)) throw new UsageStop('config', '--reset cannot go together with --load or --write → run one at a time: mm3 config --reset, then mm3 config --load to bring the file back');
     positionalCount('config', positionals, 0, values.load ? 1 : 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
     const projectLine = configPaths ? path.relative(ctx.cwd, configPaths.root) || '.' : 'none';
-    const r = values.load
+    const r = values.reset
+      ? runConfigReset(configPaths, projectLine)
+      : values.load
       ? runConfigLoad(configPaths, positionals[0], ctx.cwd, projectLine)
       : values.write
         ? runConfigWrite(configPaths, projectLine)

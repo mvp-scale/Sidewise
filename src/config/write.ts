@@ -11,6 +11,7 @@ import { parseDocument } from 'yaml';
 import { onStore } from '../ledger/lock.ts';
 import { ensureDir, type Mm3Paths } from '../ledger/paths.ts';
 import { fingerprintOf, readActive, writeActive } from './active.ts';
+import { hasSettings } from './parse.ts';
 import type { Mm3Config } from './defaults.ts';
 import { validateConfig } from './validate.ts';
 
@@ -57,7 +58,8 @@ export function writeConfigOverride(paths: Mm3Paths, patch: DeepPartial<Mm3Confi
     const had = existsSync(paths.config);
     const text = had ? readFileSync(paths.config, 'utf8') : '';
     const active = readActive(paths);
-    const wasInSync = active !== undefined && had && active.fingerprint === fingerprintOf(text);
+    // A reset copy over a file with nothing in it (the starter) is as in step as it can be.
+    const wasInSync = active !== undefined && had && (active.fingerprint === fingerprintOf(text) || (active.reset === true && !hasSettings(text)));
     const doc = parseDocument(text, { version: '1.2', schema: 'core' });
     setDeep(doc, [], patch);
     const written = doc.toString();
@@ -70,7 +72,7 @@ export function writeConfigOverride(paths: Mm3Paths, patch: DeepPartial<Mm3Confi
     const base = active?.overrides ?? (had ? undefined : {});
     if (base) {
       const checked = validateConfig(overlay(base as Tree, patch as Tree));
-      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || (!had && !active) ? fingerprintOf(written) : active!.fingerprint, now);
+      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || (!had && (!active || active.reset)) ? fingerprintOf(written) : active!.fingerprint, now);
     }
   });
 }

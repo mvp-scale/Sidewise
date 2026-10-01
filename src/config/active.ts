@@ -11,7 +11,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { onStore } from '../ledger/lock.ts';
 import { ensureDir, type Mm3Paths } from '../ledger/paths.ts';
 import type { Mm3Config } from './defaults.ts';
-import { checkConfigText } from './parse.ts';
+import { checkConfigText, hasSettings } from './parse.ts';
 import { validateConfig, type ConfigStop } from './validate.ts';
 
 interface ActiveConfig {
@@ -21,6 +21,8 @@ interface ActiveConfig {
   /** sha256 of the config.yaml text these overrides came from. */
   fingerprint: string;
   overrides: Partial<Mm3Config>;
+  /** Set by `mm3 config --reset`: the defaults were made active on purpose, whatever config.yaml says. */
+  reset?: true;
 }
 
 export const fingerprintOf = (text: string): string => createHash('sha256').update(text).digest('hex');
@@ -35,7 +37,7 @@ export function readActive(paths: Mm3Paths | undefined): ActiveConfig | undefine
     if (v.v !== 1 || typeof v.loadedAt !== 'string' || typeof v.fingerprint !== 'string' || typeof v.overrides !== 'object' || v.overrides === null || Array.isArray(v.overrides)) return undefined;
     const checked = validateConfig(v.overrides);
     if (checked.stops.length) return undefined;
-    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value };
+    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value, ...(v.reset === true ? { reset: true as const } : {}) };
   } catch {
     return undefined;
   }
@@ -43,10 +45,10 @@ export function readActive(paths: Mm3Paths | undefined): ActiveConfig | undefine
 
 /** Replaces the active copy atomically (tmp file, then rename): a reader sees the old copy or the new one, never half
  *  of one, and two loads racing each leave one whole valid copy. */
-export function writeActive(paths: Mm3Paths, overrides: Partial<Mm3Config>, fingerprint: string, now: number = Date.now()): void {
+export function writeActive(paths: Mm3Paths, overrides: Partial<Mm3Config>, fingerprint: string, now: number = Date.now(), reset = false): void {
   onStore(paths.configActive, 'write', () => {
     ensureDir(paths);
-    const body: ActiveConfig = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z'), fingerprint, overrides };
+    const body: ActiveConfig = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z'), fingerprint, overrides, ...(reset ? { reset: true as const } : {}) };
     const tmp = `${paths.configActive}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
     writeFileSync(tmp, `${JSON.stringify(body)}\n`);
     renameSync(tmp, paths.configActive);
@@ -62,6 +64,8 @@ type ConfigStatus =
   | { kind: 'changed'; loadedAt: string; fileStops: ConfigStop[] }
   /** Something was loaded, but config.yaml is gone. */
   | { kind: 'missing'; loadedAt: string; fileStops: ConfigStop[] }
+  /** Defaults were made active on purpose (`--reset`), and config.yaml holds settings that are not loaded. */
+  | { kind: 'resetPending'; loadedAt: string; fileStops: ConfigStop[] }
   /** config.yaml exists and has never been loaded (a project from before --load): read as-is until a paid run loads it. */
   | { kind: 'unloaded'; fileStops: ConfigStop[] };
 
@@ -78,6 +82,7 @@ export function configStatus(paths: Mm3Paths | undefined): ConfigStatus {
     }
   }
   const fileStops = text === undefined ? [] : checkConfigText(text).stops;
+  if (active?.reset) return text !== undefined && hasSettings(text) ? { kind: 'resetPending', loadedAt: active.loadedAt, fileStops } : { kind: 'defaults', fileStops };
   if (text === undefined) return active ? { kind: 'missing', loadedAt: active.loadedAt, fileStops } : { kind: 'defaults', fileStops };
   if (!active) return { kind: 'unloaded', fileStops };
   return { kind: active.fingerprint === fingerprintOf(text) ? 'active' : 'changed', loadedAt: active.loadedAt, fileStops };
@@ -95,6 +100,8 @@ export function statusLine(s: ConfigStatus): string | undefined {
       return '⚠ config.yaml changed since load → mm3 config --load';
     case 'missing':
       return '⚠ config.yaml is gone but a loaded config is still active → restore the file, or load another with mm3 config --load <file>';
+    case 'resetPending':
+      return '⚠ defaults are active; config.yaml has settings that are not loaded → mm3 config --load';
     case 'unloaded':
       return '⚠ config.yaml is not loaded yet → mm3 config --load (the first paid run loads it automatically)';
   }

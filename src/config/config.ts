@@ -182,7 +182,7 @@ export function nearMissNotes(paths: Mm3Paths | undefined): string[] {
     return [];
   }
   return names
-    .filter((n) => n.toLowerCase().startsWith('config') && n !== 'config.yaml')
+    .filter((n) => n.toLowerCase().startsWith('config') && n !== 'config.yaml' && !n.startsWith(path.basename(paths.configActive))) // the active copy (and its temp file) are MM3's own, not a misnamed config
     .sort()
     .slice(0, 3)
     .map((n) => `found .mm3/${n} — did you mean config.yaml? → rename it`);
@@ -419,4 +419,18 @@ export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefi
   if (changes.length > shown.length) shown.push(`  … ${changes.length - shown.length} more`);
   const head = `✔ valid · active · ${changes.length} changed from defaults`;
   return { exit: 0, text: `${[head, ...shown, ...(copied ? [`  copied ${file} → ${label}`] : [])].join('\n')}\n` };
+}
+
+/** `mm3 config --reset`: makes the built-in defaults the active config. The user's config.yaml is never touched or
+ *  deleted; the active copy is written empty and marked as a reset, so doctor says defaults are active (and warns
+ *  when config.yaml holds settings that are not loaded) and the one-time automatic load does not undo it.
+ *  `mm3 config --load` brings the file back. With no config.yaml and nothing active there is nothing to reset: no
+ *  file is created. */
+export function runConfigReset(paths: Mm3Paths | undefined, projectLine: string, now: number = Date.now()): VerbResult {
+  if (!paths) return { exit: 2, text: '✖ config: no project here → run inside a project (a folder with .git or .mm3), or set MM3_HOME' };
+  const fileExists = existsSync(paths.config);
+  if (!fileExists && !readActive(paths)) return { exit: 0, text: '✔ defaults are already active (no config.yaml, nothing loaded)\n' };
+  writeActive(paths, {}, '', now, true);
+  const note = fileExists ? `  ${configFileLabel(projectLine)} was left as it is → mm3 config --load applies it again\n` : '';
+  return { exit: 0, text: `✔ reset · defaults active\n${note}` };
 }

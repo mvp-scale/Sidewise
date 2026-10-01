@@ -92,6 +92,6 @@ describe('mm3 config --write (owner path)', () => {
     const { root } = tempProject();
     const r = mm3(root, ['config', '--wrte']);
     expect(r.status).toBe(2);
-    expect(r.stdout + r.stderr).toContain('mm3 config [--write | --load [file]]');
+    expect(r.stdout + r.stderr).toContain('mm3 config [--write | --load [file] | --reset]');
   });
 });

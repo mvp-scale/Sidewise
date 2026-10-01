@@ -278,11 +278,12 @@ function configCard(): string {
   return renderCard(
     ['tool: config'],
     [
-      '- syntax: mm3 config [--write | --load [file]]',
+      '- syntax: mm3 config [--write | --load [file] | --reset]',
       '- free: plain config never writes, never spends, works with or without a project',
       '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from',
       '- requests read the ACTIVE config, not the file: mm3 config --load [file] checks .mm3/config.yaml (or the named file, copied there as is) and makes it active; ✔ valid · active · N changed from defaults, or every ✖ problem and the previous active config stays',
       '- an edit to config.yaml changes nothing until loaded: doctor and mm3 config say ⚠ config.yaml changed since load → mm3 config --load',
+      '- mm3 config --reset makes the built-in defaults active again and leaves config.yaml as it is (doctor then warns if the file has settings that are not loaded; --load brings them back); it never deletes or edits the file',
       '- a project with a config.yaml and no active copy gets it loaded once, on its first paid run, with a note',
       '- sparse overrides only, precedence env > config > default',
       '- a bad config.yaml shows its ✖ problems here too, then the effective (active) table underneath',

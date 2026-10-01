@@ -41,3 +41,13 @@ export function checkConfigText(text: string): { stops: ConfigStop[]; overrides:
   const validated = validateConfig(file.raw);
   return { stops: [...file.stops, ...validated.stops], overrides: validated.value, parsed: true };
 }
+
+/** Whether config.yaml text holds any setting at all. A starter with every line commented out has live section
+ *  headers (`budget:`) but no values, so it holds none; text that does not parse counts as holding something (it
+ *  is not "nothing to load"). */
+export function hasSettings(text: string): boolean {
+  const { raw } = parseConfigText(text);
+  if (raw === undefined) return true;
+  const live = (v: unknown): boolean => v !== null && v !== undefined && (typeof v === 'object' ? Object.values(v as object).some(live) : true);
+  return live(raw);
+}
