@@ -1,6 +1,6 @@
 # The one source for every phrase README.md and mm3lab.dev repeat. npm run check:readme keeps them in step.
-tagline: "Checklists in. Calibrated verdicts out."
-identity: "MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict your coding agent can cite."
+tagline: "Knows in 20 ms. Learns in 500."
+identity: "The memory and decision layer for coding agents. Every answer is citable."
 numbers: []
 install:
   claude: "/plugin marketplace add mvp-scale/mm3"
