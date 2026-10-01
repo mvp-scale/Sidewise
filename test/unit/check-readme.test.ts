@@ -1,6 +1,6 @@
 // Fixtures for scripts/check-readme.ts's pure checker: each rule fails on a small bad README and passes on a good one.
 import { describe, expect, it } from 'vitest';
-import { checkReadme, checkStory, type Story } from '../../scripts/check-readme.ts';
+import { checkExternalLinks, checkReadme, checkStory, externalLinks, type Story } from '../../scripts/check-readme.ts';
 
 const story: Story = {
   tagline: 'Checklists in. Calibrated verdicts out.',
@@ -108,5 +108,24 @@ describe('checkStory', () => {
     expect(out).toContainEqual(expect.stringMatching(/^✖ story\.yaml: install\.npm /));
     expect(out).toContainEqual(expect.stringMatching(/^✖ story\.yaml: numbers /));
     expect(out).toContainEqual(expect.stringMatching(/^✖ story\.yaml: useCases /));
+  });
+});
+
+describe('external link check', () => {
+  it('lists each real http(s) link once, skipping placeholder hosts', () => {
+    const md = '[a](https://github.com/x/y) [b](https://github.com/x/y) see https://api.example.com and http://localhost:3000/z.';
+    expect(externalLinks(md)).toEqual(['https://github.com/x/y']);
+  });
+  it('fails a 404 or 410, only notes other statuses and network errors', async () => {
+    const codes: Record<string, number> = { 'https://a.dev/gone': 404, 'https://a.dev/old': 410, 'https://a.dev/ok': 200, 'https://a.dev/busy': 503 };
+    const r = await checkExternalLinks([...Object.keys(codes), 'https://a.dev/down'], async (u) => {
+      if (u.endsWith('/down')) throw new Error('offline');
+      return codes[u]!;
+    });
+    expect(r.problems).toEqual([
+      '✖ link: https://a.dev/gone is 404 → fix the URL, or push the page it points to',
+      '✖ link: https://a.dev/old is 410 → fix the URL, or push the page it points to',
+    ]);
+    expect(r.notes).toHaveLength(2);
   });
 });

@@ -181,7 +181,38 @@ export function cliDryRun(verb: string, yaml: string): string | null {
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 }
 
+/** Every absolute http(s) link in the README, once each; placeholder hosts (example.com, localhost) are not real pages. */
+export function externalLinks(md: string): string[] {
+  const urls = [...md.matchAll(/https?:\/\/[^)"'\s<>]+/g)].map((m) => m[0].replace(/[.,;:]+$/, ''));
+  return [...new Set(urls)].filter((u) => !/^https?:\/\/(?:[\w.-]+\.)?(?:example\.com|localhost)\b/.test(u) && !/^https?:\/\/127\./.test(u));
+}
+
+/** Fetch each link; a 404 or 410 is a problem line. A network error or other status is a note, not a failure, so an offline run does not block a README edit. */
+export async function checkExternalLinks(urls: string[], get: (url: string) => Promise<number> = headStatus): Promise<{ problems: string[]; notes: string[] }> {
+  const problems: string[] = [];
+  const notes: string[] = [];
+  for (const u of urls) {
+    try {
+      const status = await get(u);
+      if (status === 404 || status === 410) problems.push(`✖ link: ${u} is ${status} → fix the URL, or push the page it points to`);
+      else if (status >= 400) notes.push(`note: ${u} answered ${status}; not treated as dead`);
+    } catch (e) { notes.push(`note: ${u} could not be reached (${(e as Error).message}); skipped`); }
+  }
+  return { problems, notes };
+}
+
+async function headStatus(url: string): Promise<number> {
+  const opts = { redirect: 'follow' as const, signal: AbortSignal.timeout(15_000) };
+  const head = await fetch(url, { ...opts, method: 'HEAD' });
+  if (head.status !== 405 && head.status !== 403) return head.status;
+  return (await fetch(url, opts)).status;
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
+  await main();
+}
+
+async function main(): Promise<void> {
   let story: Story | undefined;
   let problems: string[];
   try { story = loadStory(); problems = checkStory(story); } catch (e) { problems = [`✖ story.yaml: ${(e as Error).message.split('\n')[0]} → fix site/story.yaml`]; }
@@ -190,6 +221,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     problems = checkReadme(md, story!, { root: '.', dryRun: cliDryRun, published: false });
     buildSite(story!); // the site is built here so CI and a clean checkout check the page they would ship
     problems.push(...checkSite(readFileSync('site/dist/index.html', 'utf8'), story!, 'site/dist', md, loadScenes()));
+    const ext = await checkExternalLinks(externalLinks(md));
+    problems.push(...ext.problems);
+    for (const n of ext.notes) console.log(n);
   }
   for (const p of problems) console.log(p);
   console.log(problems.length ? `readme: ${problems.length} problem(s)` : 'readme OK');
