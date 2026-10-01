@@ -43,6 +43,7 @@
 | Path | Holds |
 |---|---|
 | `src/` | engine: the YAML contract (read, validate, layers, grade, emit), evidence (code/git/units), providers, ledger, verbs, CLI |
+| `BACKLOG.md` | what's next and what's parked; delete a line when it ships |
 | `docs/` | the public contract (`contract.md`), the numbers (`numbers.md`), generated evidence for its claims (`evidence/`, indexed by `evidence/README.md`) and the README's images (`assets/`) |
 | `skills/mm3/` | the Agent Skill (`SKILL.md` + references) |
 | `.claude-plugin/` | Claude Code plugin + marketplace manifests |
