@@ -68,14 +68,6 @@ Publishing runs only when the repo variable `MM3_PUBLISH` is `true`, and only th
 
 This section is for any agent that has MM3 installed as a dependency in its own project, not for contributing to MM3 itself.
 
-## Use MM3 in every beat
-
-MM3 works in three beats; use it in every one.
-- Know: `view` first (free, reuses what is known), then `scan` to find where the goal touches the code.
-- Judge: `loop` the plan before code, `class` a specific decision, `drill` into anything unsure or failing (follow `next:`).
-- Prove: after the change is committed, `replay --parent <id> --compare <before>..HEAD` shows what flipped to pass and what regressed; `class` alone is not proof of a change.
-- Run `mm3 agent <verb>` before writing a request.
-
 ## What MM3 is
 
 MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence, never a command. Every request has a `mak:` block (**make**: the request itself, one goal, then plumbing) and an optional `mdl:` block (**model**: why you're here, so the ledger learns). The six verbs split into MAK³ (use what is proven: `view`, `class`, `replay`) and MDL³ (learn what is missing: `scan`, `drill`, `loop`), each across Know, Judge and Prove.

@@ -10,7 +10,7 @@ What's next and what's parked. It lives on `nightly`. When something ships, dele
 - **Delete merged feature branches**, remote and local. Their commits are all in `nightly`.
 - **Raise the timeout** on the ledger-scale doc test. It timed out once on Node 22 and passed on rerun.
 - **Scripted link check** in `npm run check:readme`: fail on any 404 in the README's links, so a dead link can't ship.
-- **Run `mm3 init --agents` in this repo**, so a contributor's agent loads MM3's three beats.
+- **Run `mm3 init --agents` in this repo**, so a contributor's agent gets the pointer to MM3's command cards.
 
 ## Journeys
 
@@ -19,7 +19,7 @@ A journey asks what one agent can do on a $1 cap that covers everything, using t
 - **Journey 2: turn one dial.** What changes when each `class` call asks more questions? Same brief, model and cap, only the questions per call differ. Two runs per arm.
 - **A bigger-model baseline** on the same brief and cap, so the card can show what a cheaper agent plus MM3 learns against an expensive agent alone.
 - **Reuse on a kept ledger.** A second pass on the same repo: how much is answered free from the ledger.
-- **Rerun the bare brief with `mm3 init --agents`** to confirm the lesson in the README.
+- **A journey skill** (kept out of the shipped skills): how to run and consolidate a journey, with the Know, Judge, Prove steps and map-first. Lives in `mm3-journeys`, so journey runs stay consistent without becoming MM3's default.
 - **Record the agent's own tokens per run** in each journey's capture, tokens first and dollars as a dated note.
 
 ## Website

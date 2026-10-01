@@ -10055,15 +10055,6 @@ notes:
 // src/mcp/stdio.ts
 import readline from "node:readline";
 
-// src/help/guidance.ts
-var BEAT_GUIDANCE = [
-  "MM3 works in three beats; use it in every one.",
-  "- Know: `view` first (free, reuses what is known), then `scan` to find where the goal touches the code.",
-  "- Judge: `loop` the plan before code, `class` a specific decision, `drill` into anything unsure or failing (follow `next:`).",
-  "- Prove: after the change is committed, `replay --parent <id> --compare <before>..HEAD` shows what flipped to pass and what regressed; `class` alone is not proof of a change.",
-  "- Run `mm3 agent <verb>` before writing a request."
-].join("\n");
-
 // src/mcp/protocol.ts
 var SUPPORTED_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
 var DEFAULT_VERSION = "2025-06-18";
@@ -10095,7 +10086,7 @@ async function handleMessage(msg, deps) {
     const params = msg.params ?? {};
     const requested = typeof params.protocolVersion === "string" ? params.protocolVersion : void 0;
     const protocolVersion = requested && SUPPORTED_VERSIONS.includes(requested) ? requested : DEFAULT_VERSION;
-    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "mm3", version: deps.serverVersion }, instructions: BEAT_GUIDANCE });
+    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "mm3", version: deps.serverVersion } });
   }
   if (method === "ping") return ok(id, {});
   if (method === "tools/list") return ok(id, { tools: [toolDefinition()] });
@@ -10305,6 +10296,15 @@ import path7 from "node:path";
 // src/setup/agents-file.ts
 import { existsSync as existsSync9, readFileSync as readFileSync9 } from "node:fs";
 import path6 from "node:path";
+
+// src/help/guidance.ts
+var AGENT_POINTER2 = [
+  "MM3 turns a short yes/no checklist into a pass/fail/unsure verdict: evidence, never a command.",
+  "- Run `mm3 agent` first: it names every command and the rules in one card.",
+  "- Run `mm3 agent <verb>` before writing a request. Use the verb that fits the ask; one `class` call is often enough."
+].join("\n");
+
+// src/setup/agents-file.ts
 var AGENTS_OPEN = "<!-- mm3:agents -->";
 var AGENTS_CLOSE = "<!-- /mm3:agents -->";
 var AGENTS_FILE = "AGENTS.md";
@@ -10313,7 +10313,7 @@ var CLAUDE_FILES = [
   { rel: path6.join(".claude", "CLAUDE.md"), importLine: "@../AGENTS.md" }
 ];
 var agentsBlock = () => `${AGENTS_OPEN}
-${BEAT_GUIDANCE}
+${AGENT_POINTER2}
 ${AGENTS_CLOSE}`;
 var importsAgents = (text) => text.split("\n").some((l) => l.trim() === "@AGENTS.md" || l.trim() === "@../AGENTS.md");
 function findBlock(text) {

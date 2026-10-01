@@ -144,9 +144,9 @@ Each journey asks one question: **can a smaller model, with MM3, learn more abou
 **All of it is public:** the brief, the notes for each beat, the diff, the score against our answer key and the full ledger for each of the three runs: [run 1, bare brief](https://github.com/mvp-scale/mm3-journeys/tree/main/wordpress/run-1-bare-brief), [run 2, plugin guidance](https://github.com/mvp-scale/mm3-journeys/tree/main/wordpress/run-2-plugin-guidance), [run 3, each beat spelled out](https://github.com/mvp-scale/mm3-journeys/tree/main/wordpress/run-3-each-beat).
 
 > [!IMPORTANT]
-> **Lessons learned.** The prompt decides whether your agent uses MM3 as a map or as a spot check: 2 runs on a bare brief, 14 when each beat was spelled out. And in all three runs, MM3's guidance was never in the project's `AGENTS.md`: we never ran `mm3 init --agents`.
+> **Lessons learned.** The prompt decides whether your agent uses MM3 as a map or as a spot check: 2 runs on a bare brief, 14 when each beat was spelled out.
 >
-> **Corrective action.** Make sure your agent loads MM3's three beats. Run `mm3 init --agents` once: it writes them to `AGENTS.md` and points `CLAUDE.md` at it. Until then, MM3 flags the project on its first run, and `mm3 doctor` shows it. We're rerunning the bare brief with it to confirm.
+> **Corrective action.** If you want the map, spell the steps out in your agent's brief; the run 3 brief linked above is a starting point. MM3's own guidance stays short on purpose, because one `class` call is often the whole job. `mm3 init --agents` adds a pointer to MM3's command cards to `AGENTS.md` and points `CLAUDE.md` at it.
 
 ## Run it
 
