@@ -12,6 +12,9 @@ export interface VerbContext {
   /** The effective config, resolved once at the request entry (cli.ts) and handed down. Omitted (every test that
    *  builds its own ctx, library callers) keeps today's behavior: each verb reads config.yaml itself. */
   config?: ResolvedConfig;
+  /** Notes the request entry (cli.ts) wants in the run's notes: today only the one-time "config.yaml loaded
+   *  automatically" notice. Omitted: none. */
+  notes?: string[];
   now?: () => number;
   /** Validate, expand and count; print the plan; ask nothing and spend nothing. */
   dryRun?: boolean;

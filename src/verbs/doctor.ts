@@ -18,7 +18,7 @@
  * (setup/keystore.ts, setup/npm-info.ts, setup/plugin.ts).
  *
  * bare `mm3 doctor` also validates `.mm3/config.yaml` when present (free, offline,
- * reusing `config/load.ts`'s own `resolveConfig` — the exact same stops `mm3 config` would show). Given a
+ * through `config/active.ts`'s `configStatus` — the same stops `mm3 config` shows, plus whether the file is loaded). Given a
  * file or stdin (`runDoctorFile`, wired by cli.ts as `mm3 doctor <file|->`), doctor instead checks ONE
  * document and detects its kind: a `mak:` top-level key means a REQUEST, checked with the same
  * read+validate pipeline `--dry-run` uses (verbs/request.ts's `loadRequest` — no ledger, reuse or budget
@@ -33,9 +33,8 @@ import { FAKE_MODEL } from '../classifier/fake.ts';
 import { hasKey, JevConfigError, resolveJevConfig, routeLabel, type JevConfig, type ResolveStored } from '../classifier/typesafe/client.ts';
 import { emit, m, type Value } from '../contract/emit.ts';
 import { VERBS, type Verb } from '../contract/types.ts';
-import type { ConfigSource } from '../config/defaults.ts';
+import { configStatus, statusLine } from '../config/active.ts';
 import { nearMissNotes } from '../config/config.ts';
-import { resolveConfig } from '../config/load.ts';
 import { validateConfig } from '../config/validate.ts';
 import { sqliteAvailable } from '../ledger/index.ts';
 import type { Mm3Paths } from '../ledger/paths.ts';
@@ -160,23 +159,16 @@ function projectLine(root: string, deps: { runner?: Runner }): string {
   return `${root} · plugin enabled here: ${enabled ? 'yes' : 'no'}`;
 }
 
-/** How many top-level config keys a project's own config.yaml actually overrides — derived from
- *  `resolveConfig`'s per-leaf `sources` map (no separate file read needed): any leaf whose source is 'config'
- *  contributes its top-level key (`budget.usd` → `budget`) to the count, deduped. */
-function overrideCount(sources: Record<string, ConfigSource>): number {
-  const tops = new Set<string>();
-  for (const [dotted, src] of Object.entries(sources)) if (src === 'config') tops.add(dotted.split('.')[0]!);
-  return tops.size;
-}
-
-/** The `config:` field: a bad config.yaml shows every problem in one pass, same
- *  `✖ config.<path>: problem → fix` shape `mm3 config`/`doctor <file>` use; a clean or absent one shows
- *  just how many top-level keys it overrides, or "defaults" when none. */
-function configField(paths: Mm3Paths | undefined, env: Record<string, string | undefined>): Value {
-  const resolved = resolveConfig(paths, env);
-  if (resolved.stops.length) return resolved.stops.map((s) => s.text);
-  const n = overrideCount(resolved.sources);
-  return n === 0 ? '✔ config: defaults' : `✔ config: ${n} override${n === 1 ? '' : 's'}`;
+/** The `config:` field: where the config stands (config/active.ts) — nothing configured (the old plain "defaults"),
+ *  loaded and in step with config.yaml, or a warning saying what to do. A config.yaml with problems lists every
+ *  one, same `✖ config.<path>: problem → fix` shape `mm3 config`/`doctor <file>` use. Reads and hashes config.yaml;
+ *  writes nothing. */
+function configField(paths: Mm3Paths | undefined): Value {
+  const status = configStatus(paths);
+  const line = statusLine(status);
+  if (status.fileStops.length) return [...status.fileStops.map((s) => s.text), ...(line ? [line] : [])];
+  if (status.kind === 'defaults') return '✔ config: defaults';
+  return status.kind === 'active' ? `✔ ${line}` : line!;
 }
 
 const MAX_DOCTOR_STOPS = 5;
@@ -292,7 +284,7 @@ export function runDoctor(
         ['cli', cliLine(env, deps.platform ?? process.platform)],
         ['plugin', pluginLine(deps)],
         ...(paths ? [['agents', agentsDoctorValue(paths.root)] as [string, Value]] : []),
-        ['config', configField(paths, env)],
+        ['config', configField(paths)],
       ),
     ],
     ['notes', notes],

@@ -25,13 +25,16 @@
  * module also spots a near-miss file name in `.mm3/` (config.ymal, config.yml, ...) that would otherwise be
  * ignored without a word.
  */
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 import { scalar } from '../contract/emit.ts';
 import { onStore } from '../ledger/lock.ts';
 import { ensureDir, type Mm3Paths } from '../ledger/paths.ts';
 import type { VerbResult } from '../verbs/types.ts';
-import { DEFAULT_CONFIG, type ConfigSource, type PricingRate } from './defaults.ts';
+import { DEFAULT_CONFIG, KEYED_MAPS, type ConfigSource, type PricingRate } from './defaults.ts';
+import { configStatus, fingerprintOf, readActive, statusLine, writeActive } from './active.ts';
 import { resolveConfig, type ResolvedConfig } from './load.ts';
+import { checkConfigText } from './parse.ts';
 
 type Prim = string | number | boolean | readonly number[];
 
@@ -161,7 +164,7 @@ export function formatConfig(resolved: ResolvedConfig, projectLine: string, extr
     '',
     'notes:',
     '  - free: never spends; plain config never writes',
-    ...(resolved.present ? [`  - customized in ${configFileLabel(projectLine)} → edit it, then run mm3 config to check`] : ['  - no config.yaml here → every value is a default or env var', `  - ${customizeNote(projectLine)}`]),
+    ...(resolved.present ? [`  - customized in ${configFileLabel(projectLine)} → edit it, then run mm3 config --load to activate the change`] : ['  - no config.yaml here → every value is a default or env var', `  - ${customizeNote(projectLine)}`]),
     ...extraNotes.map((n) => `  - ${n}`),
   ];
   return `${lines.join('\n')}\n`;
@@ -187,9 +190,12 @@ export function nearMissNotes(paths: Mm3Paths | undefined): string[] {
 
 export function runConfig(env: Record<string, string | undefined>, paths: Mm3Paths | undefined, projectLine: string): VerbResult {
   const resolved = resolveConfig(paths, env);
-  const notes = nearMissNotes(paths);
-  if (resolved.stops.length) {
-    const stopLines = resolved.stops.map((st) => st.text).join('\n');
+  const status = configStatus(paths);
+  const line = statusLine(status);
+  const notes = [...(line ? [line] : []), ...nearMissNotes(paths)];
+  // The problems shown are the file's own, as it stands now (requests run on the loaded copy, which is always clean).
+  if (status.fileStops.length) {
+    const stopLines = status.fileStops.map((st) => st.text).join('\n');
     return { exit: 2, text: `${stopLines}\n\n${formatConfig(resolved, projectLine, notes)}\n→ see: mm3 agent config` };
   }
   return { exit: 0, text: formatConfig(resolved, projectLine, notes) };
@@ -248,7 +254,8 @@ const STARTER_FRONT = [
   '#',
   '# Every setting below is commented out, so MM3 runs on its built-in defaults. To change one, uncomment its',
   '# line (delete the leading "# ") and change the value. To go back to the default, delete the line or comment it',
-  '# out again. Run mm3 config any time to check the file; it lists every problem and where each value comes from.',
+  '# out again. Run mm3 config to check the file: it lists every problem and where each value comes from. Edits take',
+  '# effect only once loaded: mm3 config --load checks the file and makes it the active config (a bad file is refused).',
   '#',
   '# Precedence: environment variable > this file > built-in default.',
   '# Safe to commit: it holds settings only, never keys (those go in env or the keychain). The ledger is not committed.',
@@ -331,12 +338,15 @@ export function starterConfig(): string {
 export function runConfigWrite(paths: Mm3Paths | undefined, projectLine: string): VerbResult {
   if (!paths) return { exit: 2, text: '✖ config: no project here → run inside a project (a folder with .git or .mm3), or set MM3_HOME' };
   const label = configFileLabel(projectLine);
-  const exists: VerbResult = { exit: 0, text: `config: ${label} already exists → not overwritten; edit it, then run mm3 config to check\n` };
+  const exists: VerbResult = { exit: 0, text: `config: ${label} already exists → not overwritten; edit it, then run mm3 config --load to activate the change\n` };
   if (existsSync(paths.config)) return exists;
   const wrote = onStore(paths.config, 'write', () => {
     ensureDir(paths);
     try {
-      writeFileSync(paths.config, starterConfig(), { flag: 'wx' });
+      const starter = starterConfig();
+      writeFileSync(paths.config, starter, { flag: 'wx' });
+      // The starter is active at once (it holds no overrides), so a later edit shows up as "changed since load".
+      writeActive(paths, {}, fingerprintOf(starter));
       return true;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'EEXIST') return false;
@@ -344,5 +354,69 @@ export function runConfigWrite(paths: Mm3Paths | undefined, projectLine: string)
     }
   });
   if (!wrote) return exists;
-  return { exit: 0, text: `wrote: ${label}\nnotes:\n  - every setting is commented out → uncomment a line and change its value, then run mm3 config to check\n` };
+  return { exit: 0, text: `wrote: ${label}\nnotes:\n  - every setting is commented out → uncomment a line and change its value, then run mm3 config --load to check and activate it\n` };
+}
+
+const show = (v: unknown): string => {
+  if (v === undefined) return '(not set)';
+  if (Array.isArray(v)) return `[${v.map(show).join(', ')}]`;
+  if (typeof v === 'object' && v !== null) return `{${Object.entries(v).map(([k, x]) => `${k}: ${show(x)}`).join(', ')}}`;
+  return typeof v === 'string' ? scalar(v, false) : String(v);
+};
+const isTree = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+/** Every setting an override changes from its default, as `path: default → value` (an override equal to its default
+ *  changes nothing and is not listed). A keyed map's entry (a pricing model, an mdl field) is one change. */
+function changesFrom(over: Record<string, unknown>, def: Record<string, unknown>, prefix: string, out: string[]): void {
+  for (const [k, v] of Object.entries(over)) {
+    if (v === undefined) continue;
+    const at = prefix ? `${prefix}.${k}` : k;
+    const d = def[k];
+    if (isTree(v) && !(KEYED_MAPS as readonly string[]).includes(prefix)) changesFrom(v, isTree(d) ? d : {}, at, out);
+    else if (JSON.stringify(v) !== JSON.stringify(d)) out.push(`${at}: ${show(d)} → ${show(v)}`);
+  }
+}
+
+const MAX_CHANGES_SHOWN = 20;
+
+/** `mm3 config --load [file]`: checks the file with the same validation `mm3 config`/`mm3 doctor` use and, only if
+ *  it is clean, makes it the active config (config/active.ts). A bad file prints every problem and leaves the
+ *  active copy exactly as it was: a bad config never goes live. A `file` other than `.mm3/config.yaml` is
+ *  checked first and then copied there verbatim (comments and all; the user's own config.yaml is never rewritten in
+ *  place) before it is loaded. Writes `.mm3/config.active.json` (and, for another file, `.mm3/config.yaml`). */
+export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefined, cwd: string, projectLine: string, now: number = Date.now()): VerbResult {
+  if (!paths) return { exit: 2, text: '✖ config: no project here → run inside a project (a folder with .git or .mm3), or set MM3_HOME' };
+  const label = configFileLabel(projectLine);
+  const source = file === undefined ? paths.config : path.resolve(cwd, file);
+  let text: string;
+  try {
+    text = readFileSync(source, 'utf8');
+  } catch {
+    return {
+      exit: 2,
+      text:
+        file === undefined
+          ? `✖ config: no ${label} to load → run mm3 config --write for a starter, or name a file: mm3 config --load <file>\n`
+          : `✖ config: cannot read "${file}" → check the path\n`,
+    };
+  }
+  const checked = checkConfigText(text);
+  if (checked.stops.length) {
+    const kept = readActive(paths) ? 'not loaded: the active config is unchanged' : 'not loaded: nothing is active yet, so every value stays a default';
+    return { exit: 2, text: `${checked.stops.map((s) => s.text).join('\n')}\n${kept}\n→ see: mm3 agent config\n` };
+  }
+  const copied = path.resolve(source) !== path.resolve(paths.config);
+  if (copied) {
+    onStore(paths.config, 'write', () => {
+      ensureDir(paths);
+      writeFileSync(paths.config, text);
+    });
+  }
+  writeActive(paths, checked.overrides, fingerprintOf(text), now);
+  const changes: string[] = [];
+  changesFrom(checked.overrides as Record<string, unknown>, DEFAULT_CONFIG as unknown as Record<string, unknown>, '', changes);
+  const shown = changes.slice(0, MAX_CHANGES_SHOWN).map((c) => `  ${c}`);
+  if (changes.length > shown.length) shown.push(`  … ${changes.length - shown.length} more`);
+  const head = `✔ valid · active · ${changes.length} changed from defaults`;
+  return { exit: 0, text: `${[head, ...shown, ...(copied ? [`  copied ${file} → ${label}`] : [])].join('\n')}\n` };
 }

@@ -1,7 +1,9 @@
 /**
- * `.mm3/config.yaml` → the effective `Mm3Config`: reads the file if present (never
- * creates it — same free-and-optional spirit as everything else doctor/config touch), validates it
- * (validate.ts), and merges it over the one code defaults table (defaults.ts). Precedence is env > config >
+ * The project's config → the effective `Mm3Config`: takes the overrides from the active copy `mm3 config --load`
+ * made (config/active.ts: one small JSON file, no YAML per request) — or, for a project that has a config.yaml but
+ * never loaded it, from that file as before (never created or written here, same free-and-optional spirit as
+ * everything else doctor/config touch) — validates them (validate.ts), and merges them over the one code
+ * defaults table (defaults.ts). Precedence is env > config >
  * default; the small set of settings that already have their own env var (MM3_PROVIDER,
  * TYPESAFE_BASE_URL, JEV_MODEL, JEV_TIMEOUT_MS) keep that env var as the actual runtime authority — this
  * module's `config.<field>` is the config-or-default LAYER only (never env), because the real routing already
@@ -14,9 +16,10 @@
  * mdl) has no env var at all, so config.<field> here IS the real effective value for those.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { parseDocument } from 'yaml';
 import type { Mm3Paths } from '../ledger/paths.ts';
 import { CONFIG_KEYS, DEFAULT_CONFIG, KEYED_MAPS, UNSET_BY_DEFAULT, type ConfigSource, type Mm3Config } from './defaults.ts';
+import { readActive } from './active.ts';
+import { parseConfigText } from './parse.ts';
 import { validateConfig, type ConfigStop } from './validate.ts';
 
 interface FileReadResult {
@@ -26,8 +29,8 @@ interface FileReadResult {
   present: boolean;
 }
 
-/** Reads and parses `paths.config` if it exists. Never throws, never writes, never creates the file. A YAML
- *  syntax error becomes one stop naming the line, the same style read.ts's request parser uses. */
+/** Reads and parses `paths.config` if it exists. Never throws, never writes, never creates the file. Only the
+ *  fallback for a project with no active copy yet (config/active.ts): once one is loaded, requests never parse YAML. */
 function readConfigFile(paths: Mm3Paths | undefined): FileReadResult {
   if (!paths || !existsSync(paths.config)) return { raw: undefined, stops: [], present: false };
   let text: string;
@@ -36,23 +39,7 @@ function readConfigFile(paths: Mm3Paths | undefined): FileReadResult {
   } catch {
     return { raw: undefined, stops: [], present: false };
   }
-  const doc = parseDocument(text, { version: '1.2', schema: 'core', uniqueKeys: true });
-  const first = doc.errors[0];
-  if (first) {
-    const line = first.linePos?.[0]?.line ?? 1;
-    return { raw: undefined, stops: [{ path: '', text: `✖ config: line ${line} of config.yaml does not parse → fix the YAML syntax` }], present: true };
-  }
-  let value: unknown;
-  try {
-    value = doc.toJS({ maxAliasCount: 50 });
-  } catch {
-    return { raw: undefined, stops: [{ path: '', text: '✖ config: too many aliases (*) in config.yaml → write it out in full' }], present: true };
-  }
-  if (value === null || value === undefined) return { raw: {}, stops: [], present: true }; // an empty file: no overrides, no problem
-  if (typeof value !== 'object' || Array.isArray(value)) {
-    return { raw: undefined, stops: [{ path: '', text: '✖ config: config.yaml is not a YAML mapping → write budget:, provider: etc. as top-level keys' }], present: true };
-  }
-  return { raw: value as Record<string, unknown>, stops: [], present: true };
+  return { ...parseConfigText(text), present: true };
 }
 
 export interface ResolvedConfig {
@@ -128,10 +115,23 @@ function mergeConfig(overrides: Partial<Mm3Config>): { config: Mm3Config; source
  *  broken config.yaml surfaces as `stops` (the caller decides whether that's fatal, e.g. `mm3 doctor`
  *  reports it; most other callers just fall back to defaults and keep going, same as a missing key). */
 export function resolveConfig(paths: Mm3Paths | undefined, env: Record<string, string | undefined> = {}): ResolvedConfig {
-  const file = readConfigFile(paths);
-  const validated = file.raw !== undefined ? validateConfig(file.raw) : { stops: [], value: {} };
-  const overrides = validated.value;
-  const stops = [...file.stops, ...validated.stops];
+  // The loaded copy wins: one small JSON read, no YAML. Only a project that has none yet (never loaded) falls
+  // back to reading config.yaml itself, exactly as before; no file either means plain defaults.
+  const active = readActive(paths);
+  let overrides: Partial<Mm3Config>;
+  let stops: ConfigStop[];
+  let present: boolean;
+  if (active) {
+    overrides = active.overrides;
+    stops = [];
+    present = true;
+  } else {
+    const file = readConfigFile(paths);
+    const validated = file.raw !== undefined ? validateConfig(file.raw) : { stops: [], value: {} };
+    overrides = validated.value;
+    stops = [...file.stops, ...validated.stops];
+    present = file.present;
+  }
   const envProvider = cleanEnv(env.MM3_PROVIDER);
   const envBaseURL = cleanEnv(env.TYPESAFE_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
@@ -145,7 +145,7 @@ export function resolveConfig(paths: Mm3Paths | undefined, env: Record<string, s
   const envSet: Record<string, boolean> = { provider: envProvider !== undefined, baseURL: envBaseURL !== undefined, model: envModel !== undefined, timeoutMs: envTimeout !== undefined };
   for (const [path, isSet] of Object.entries(envSet)) if (isSet) sources[path] = 'env';
 
-  return { config, sources, stops, present: file.present };
+  return { config, sources, stops, present };
 }
 
 /** Where a verb gets its config: the one resolved at the request entry (`ctx.config`), else a fresh read — direct

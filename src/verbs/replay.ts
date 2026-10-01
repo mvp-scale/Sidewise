@@ -262,6 +262,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
         `2 states · ${budget}`,
         ctx.provider.adapter,
         ctx.paths,
+        ctx.notes,
       ),
     );
 
@@ -600,6 +601,7 @@ async function runSweepReplay(ctx: VerbContext, request: Request, loaded: { note
         `2 refs · ${calls} call${calls === 1 ? '' : 's'} · ${askedQuestions} question${askedQuestions === 1 ? '' : 's'} · ${budget}`,
         ctx.provider.adapter,
         ctx.paths,
+        ctx.notes,
       ),
     );
 

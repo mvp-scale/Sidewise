@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { runConfigLoad } from '../../src/config/config.ts';
 import { envFilePath, setEnvFileValue } from '../../src/setup/env-file.ts';
 import { writeInstallRecord } from '../../src/setup/install-record.ts';
 import type { RunResult, Runner } from '../../src/setup/runner.ts';
@@ -263,10 +264,16 @@ describe('doctor (P5)', () => {
       expect(r.text).toContain('config: "✔ config: defaults"');
     });
 
-    it('a clean override file: config: N overrides', () => {
+    it('a clean override file that has been loaded: config: active (loaded <time>)', () => {
       const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: 10\nprovider: fake\n' });
+      expect(runConfigLoad(paths, undefined, paths.root, '.').exit).toBe(0);
       const r = runDoctor({}, paths);
-      expect(r.text).toContain('config: "✔ config: 2 overrides"');
+      expect(r.text).toMatch(/config: "✔ config: active \(loaded \d{4}-\d\d-\d\dT[\d:]+Z\)"/);
+    });
+
+    it('a config.yaml that was never loaded is flagged, not silently counted', () => {
+      const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: 10\n' });
+      expect(runDoctor({}, paths).text).toContain('⚠ config.yaml is not loaded yet → mm3 config --load');
     });
 
     it('a broken config.yaml: every problem in one pass, same ✖ config.<path> shape mm3 config uses', () => {

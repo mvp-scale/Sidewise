@@ -74,6 +74,7 @@ export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResul
         `${calls} call${calls === 1 ? '' : 's'} · ${plan.askedQuestions} question${plan.askedQuestions === 1 ? '' : 's'} · ${budget}`,
         ctx.provider.adapter,
         ctx.paths,
+        ctx.notes,
       ),
     );
 

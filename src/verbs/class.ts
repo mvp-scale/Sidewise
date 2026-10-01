@@ -125,6 +125,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
         budget,
         ctx.provider.adapter,
         ctx.paths,
+        ctx.notes,
       ),
     );
 

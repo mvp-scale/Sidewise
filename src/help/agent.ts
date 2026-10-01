@@ -272,17 +272,20 @@ function templateCard(): string {
 }
 
 /** `mm3 agent config`'s card: `mm3 config` is free, never writes (`--write` writes only a missing
- *  starter file), and works with or without a project. Terse like every other tool card here — the full key list lives in `mm3 config`'s
+ *  starter file, `--load` writes the active copy), and works with or without a project. Terse like every other tool card here — the full key list lives in `mm3 config`'s
  *  own output (it prints every effective value plus its source), not repeated here. */
 function configCard(): string {
   return renderCard(
     ['tool: config'],
     [
-      '- syntax: mm3 config [--write]',
+      '- syntax: mm3 config [--write | --load [file]]',
       '- free: plain config never writes, never spends, works with or without a project',
       '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from',
-      '- reads .mm3/config.yaml if present — sparse overrides only, precedence env > config > default',
-      '- a bad config.yaml shows its ✖ problems here too, then the rest of the effective table underneath',
+      '- requests read the ACTIVE config, not the file: mm3 config --load [file] checks .mm3/config.yaml (or the named file, copied there as is) and makes it active; ✔ valid · active · N changed from defaults, or every ✖ problem and the previous active config stays',
+      '- an edit to config.yaml changes nothing until loaded: doctor and mm3 config say ⚠ config.yaml changed since load → mm3 config --load',
+      '- a project with a config.yaml and no active copy gets it loaded once, on its first paid run, with a note',
+      '- sparse overrides only, precedence env > config > default',
+      '- a bad config.yaml shows its ✖ problems here too, then the effective (active) table underneath',
       '- the display is not a file: to customize run mm3 config --write → writes .mm3/config.yaml (commented guide) only if missing, never overwrites',
       '- a misnamed .mm3/config.ymal (or config.yml, config.json) gets a did-you-mean note here and in doctor',
     ],
