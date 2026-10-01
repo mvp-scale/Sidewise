@@ -7,11 +7,19 @@ An MM3 request is only as good as its questions. The schema (`references/request
 
 Read this before filling in `ask:` on a template — `mm3 template <verb>` gives you the plumbing; this gives you the questions.
 
+## What a probe is
+
+**A probe is three well-formed questions that look at one problem from three angles.** TypeSafe defines what a good question is: one measurable fact, nothing stacked, nothing subjective. A single question can still push the answer the wrong way, so MM3 never relies on one. It asks three, from three angles chosen by the problem's **family** (for injection: reach, guard, sink). Agreement across the three makes the category's result more accurate and more consistent, and when they disagree you can see where it fails. The families and their angles are in the table below; `other` is for a problem that fits none, and you name its three angles yourself.
+
+**Depth is how many probes you ask.** `quick`, `standard` and `thorough` mean 3, 6 or 9 probes by default (9, 18 or 27 questions). A project can change the numbers in `config.yaml`.
+
+In the request YAML a probe is one `concerns:` category holding exactly 3 questions (the field name is part of the contract and stays as it is).
+
 ## The contract in one screen
 
 `ask:` has two sections:
 
-- **concerns** — exactly `3k` categories for depth `k` (quick=1 → 3 categories/9 probes, standard=2 → 6/18, thorough=3 → 9/27 by default; a project's config can change the counts), each with **exactly 3 yes/no probes**.
+- **concerns** — one category per probe: 3, 6 or 9 of them for quick, standard or thorough by default (9, 18 or 27 questions; a project's config can change the counts), each with **exactly 3 yes/no questions**.
 - **decisions** — 2–5 categories, scale or choice only, at least one of each kind. These don't count toward depth.
 
 Why exactly 3 probes, never 1? A single yes/no like "is this handler secure?" can't disagree with itself — there's nothing for `need:` to weigh, and nothing tells you *where* it fails if it does. Three probes that each check a different point on the same path can disagree, and when they do, that disagreement is the finding: reach and sink both read unsafe while guard reads safe is a very different result from all three reading unsafe. One question gives you a verdict with no evidence behind it; three angles give you a verdict you can act on.
