@@ -26,7 +26,7 @@ npm install -g @mvpscale/mm3
 mm3 init
 ```
 
-**Status: beta.** It works well and we use it ourselves; formal benchmarks are coming. The plugin works today; the npm package is out as a nightly, and the first release follows.
+**Status: beta.** It works well and we use it ourselves; formal benchmarks are coming. The plugin and the npm package are both out.
 
 ### Try it locally
 
