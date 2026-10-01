@@ -13,7 +13,7 @@
  * top-level, self-contained over: a scan or loop stores.
  */
 import { providerIdentity } from '../classifier/select.ts';
-import { resolveConfig } from '../config/load.ts';
+import { configOf } from '../config/load.ts';
 import { combine, gradeItems, gradeSubject, goalGate, sweepGate, worstFirst, type CategoryGrade, type ItemGrade, type Mark } from '../contract/grade.ts';
 import { firstStringLayer } from '../contract/layers.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions, type AskedQuestion } from '../contract/translate.ts';
@@ -98,7 +98,7 @@ export function gradeReplay(categories: readonly Category[], answers: Record<str
 
 export async function runReplay(text: string, ctx: VerbContext): Promise<VerbResult> {
   // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
   const loaded = loadRequest(text, 'replay', mdlFields);
   if (!loaded.ok) return loaded.result;

@@ -16,7 +16,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { parseDocument } from 'yaml';
 import type { Mm3Paths } from '../ledger/paths.ts';
-import { CONFIG_KEYS, DEFAULT_CONFIG, type ConfigSource, type Mm3Config } from './defaults.ts';
+import { CONFIG_KEYS, DEFAULT_CONFIG, KEYED_MAPS, UNSET_BY_DEFAULT, type ConfigSource, type Mm3Config } from './defaults.ts';
 import { validateConfig, type ConfigStop } from './validate.ts';
 
 interface FileReadResult {
@@ -75,6 +75,55 @@ function positiveOr<T extends number | undefined>(v: number | undefined, fallbac
   return v !== undefined && Number.isFinite(v) && v > 0 ? v : fallback;
 }
 
+type Tree = Record<string, unknown>;
+const isTree = (v: unknown): v is Tree => typeof v === 'object' && v !== null && !Array.isArray(v);
+const KEYED = new Set<string>(KEYED_MAPS);
+
+/** An override value as stored: arrays are copied so the file's parse result is never aliased. */
+const cloneValue = (v: unknown): unknown => (Array.isArray(v) ? v.slice() : v);
+
+/** Every setting's source key when config.yaml is silent: each leaf (a scalar or an array), at each entry
+ *  of a keyed map (`pricing.<model>`), and at each setting that is unset by default (no key in DEFAULT_CONFIG).
+ *  Built once; each resolve fills a fresh map from it and relabels only what the file actually names. */
+const DEFAULT_SOURCE_KEYS: string[] = [];
+function labelDefaults(tree: Tree, path: string): void {
+  const keyed = KEYED.has(path);
+  for (const k in tree) {
+    const at = path ? `${path}.${k}` : k;
+    if (!keyed && isTree(tree[k])) labelDefaults(tree[k], at);
+    else DEFAULT_SOURCE_KEYS.push(at);
+  }
+}
+labelDefaults(DEFAULT_CONFIG as unknown as Tree, '');
+DEFAULT_SOURCE_KEYS.push(...UNSET_BY_DEFAULT);
+
+/** One value of the overrides laid over its default: a table merges key by key; a scalar, an array or a keyed-map
+ *  entry replaces the default whole. Labels what it replaced as `config`. */
+function overlay(base: unknown, over: unknown, at: string, inKeyedMap: boolean, sources: Record<string, ConfigSource>): unknown {
+  if (!inKeyedMap && isTree(over) && (isTree(base) || KEYED.has(at))) return mergeTree(isTree(base) ? base : {}, over, at, sources);
+  sources[at] = 'config';
+  return cloneValue(over);
+}
+
+/** `base` with `over` laid over it (see overlay); a key `over` doesn't name is the (frozen) default branch itself, shared. */
+function mergeTree(base: Tree, over: Tree, path: string, sources: Record<string, ConfigSource>): Tree {
+  const out: Tree = {};
+  const keyed = KEYED.has(path);
+  const at = (k: string): string => (path ? `${path}.${k}` : k);
+  for (const k in base) out[k] = over[k] === undefined ? base[k] : overlay(base[k], over[k], at(k), keyed, sources);
+  for (const k in over) if (!(k in base) && over[k] !== undefined) out[k] = overlay(undefined, over[k], at(k), keyed, sources);
+  return out;
+}
+
+/** DEFAULT_CONFIG with the validated overrides laid over it, plus every setting's source label. */
+function mergeConfig(overrides: Partial<Mm3Config>): { config: Mm3Config; sources: Record<string, ConfigSource> } {
+  // A loop, not a spread: copying a 50-key dictionary-mode object costs ~10x more than filling a fresh one.
+  const sources: Record<string, ConfigSource> = {};
+  for (const key of DEFAULT_SOURCE_KEYS) sources[key] = 'default';
+  const config = mergeTree(DEFAULT_CONFIG as unknown as Tree, overrides as Tree, '', sources) as unknown as Mm3Config;
+  return { config, sources };
+}
+
 /** The full precedence resolution: env (where one exists) > config.yaml > DEFAULT_CONFIG. Never throws — a
  *  broken config.yaml surfaces as `stops` (the caller decides whether that's fatal, e.g. `mm3 doctor`
  *  reports it; most other callers just fall back to defaults and keep going, same as a missing key). */
@@ -83,56 +132,26 @@ export function resolveConfig(paths: Mm3Paths | undefined, env: Record<string, s
   const validated = file.raw !== undefined ? validateConfig(file.raw) : { stops: [], value: {} };
   const overrides = validated.value;
   const stops = [...file.stops, ...validated.stops];
-  const sources: Record<string, ConfigSource> = {};
-
   const envProvider = cleanEnv(env.MM3_PROVIDER);
   const envBaseURL = cleanEnv(env.TYPESAFE_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
   const envTimeoutRaw = Number(cleanEnv(env.JEV_TIMEOUT_MS));
   const envTimeout = Number.isFinite(envTimeoutRaw) && envTimeoutRaw > 0 ? envTimeoutRaw : undefined;
 
-  /** Labels `path`'s source (see module doc: for the 4 env-aware fields this is a LABEL only, not what
-   *  `config.<field>` below is set to) and returns the config-or-default value either way. */
-  function layer<T>(path: string, envSet: boolean, configVal: T | undefined, defaultVal: T): T {
-    sources[path] = envSet ? 'env' : configVal !== undefined ? 'config' : 'default';
-    return configVal !== undefined ? configVal : defaultVal;
-  }
-
-  const config: Mm3Config = {
-    budget: {
-      usd: layer('budget.usd', false, overrides.budget?.usd, DEFAULT_CONFIG.budget.usd),
-      runs: layer('budget.runs', false, overrides.budget?.runs, DEFAULT_CONFIG.budget.runs),
-      per: layer('budget.per', false, overrides.budget?.per, DEFAULT_CONFIG.budget.per),
-      ...(overrides.budget?.since !== undefined ? { since: overrides.budget.since } : {}),
-    },
-    provider: layer('provider', envProvider !== undefined, overrides.provider, DEFAULT_CONFIG.provider),
-    baseURL: layer('baseURL', envBaseURL !== undefined, overrides.baseURL, DEFAULT_CONFIG.baseURL),
-    model: layer('model', envModel !== undefined, overrides.model, DEFAULT_CONFIG.model),
-    pricing: { ...DEFAULT_CONFIG.pricing, ...overrides.pricing },
-    timeoutMs: layer('timeoutMs', envTimeout !== undefined, overrides.timeoutMs, DEFAULT_CONFIG.timeoutMs),
-    retries: layer('retries', false, overrides.retries, DEFAULT_CONFIG.retries),
-    backoffMs: layer('backoffMs', false, overrides.backoffMs, DEFAULT_CONFIG.backoffMs),
-    sweep: {
-      maxQuestionsPerCall: layer('sweep.maxQuestionsPerCall', false, overrides.sweep?.maxQuestionsPerCall, DEFAULT_CONFIG.sweep.maxQuestionsPerCall),
-      ...(overrides.sweep?.maxItems !== undefined ? { maxItems: overrides.sweep.maxItems } : {}),
-    },
-    requestMaxBytes: layer('requestMaxBytes', false, overrides.requestMaxBytes, DEFAULT_CONFIG.requestMaxBytes),
-    reuse: {
-      ...(overrides.reuse?.maxAgeDays !== undefined ? { maxAgeDays: overrides.reuse.maxAgeDays } : {}),
-      ...(overrides.reuse?.maxCommits !== undefined ? { maxCommits: overrides.reuse.maxCommits } : {}),
-    },
-    mdl: { ...overrides.mdl },
-  };
-  sources['sweep.maxItems'] = overrides.sweep?.maxItems !== undefined ? 'config' : 'default';
-  sources['reuse.maxAgeDays'] = overrides.reuse?.maxAgeDays !== undefined ? 'config' : 'default';
-  sources['reuse.maxCommits'] = overrides.reuse?.maxCommits !== undefined ? 'config' : 'default';
-  sources['budget.since'] = overrides.budget?.since !== undefined ? 'config' : 'default';
-  for (const model of new Set([...Object.keys(DEFAULT_CONFIG.pricing), ...Object.keys(overrides.pricing ?? {})])) {
-    sources[`pricing.${model}`] = overrides.pricing && model in overrides.pricing ? 'config' : 'default';
-  }
-  for (const field of Object.keys(overrides.mdl ?? {})) sources[`mdl.${field}`] = 'config';
+  // One generic merge: validated overrides over DEFAULT_CONFIG, labelling every leaf's source as it goes. The four
+  // env-aware fields are then relabelled `env` when their env var is set (a LABEL only; the value stays the
+  // config-or-default one, see the module doc).
+  const { config, sources } = mergeConfig(overrides);
+  const envSet: Record<string, boolean> = { provider: envProvider !== undefined, baseURL: envBaseURL !== undefined, model: envModel !== undefined, timeoutMs: envTimeout !== undefined };
+  for (const [path, isSet] of Object.entries(envSet)) if (isSet) sources[path] = 'env';
 
   return { config, sources, stops, present: file.present };
+}
+
+/** Where a verb gets its config: the one resolved at the request entry (`ctx.config`), else a fresh read — direct
+ *  callers (tests, library use) that never set it keep working exactly as before. */
+export function configOf(ctx: { paths?: Mm3Paths; env?: Record<string, string | undefined>; config?: ResolvedConfig }): ResolvedConfig {
+  return ctx.config ?? resolveConfig(ctx.paths, ctx.env);
 }
 
 /** The subset `selectProvider`/`resolveJevConfig` accept as `deps.fileConfig` — see typesafe/config.ts. Reads

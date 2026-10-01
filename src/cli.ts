@@ -21,7 +21,7 @@ import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
 import { JevConfigError } from './classifier/typesafe/config.ts';
 import { runConfig, runConfigWrite } from './config/config.ts';
-import { classifierFileConfig, resolveConfig } from './config/load.ts';
+import { classifierFileConfig, resolveConfig, type ResolvedConfig } from './config/load.ts';
 import { RUN_ID } from './ledger/ids.ts';
 import { LockError, StoreError } from './ledger/lock.ts';
 import { appendOutcome, findRun, isContractRun, LedgerError, type Outcome } from './ledger/log.ts';
@@ -237,7 +237,7 @@ async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths
   } catch (e) {
     return finish(providerExit(e), (e as Error).message);
   }
-  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
+  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, config: fileConfig, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
   return finish(r.exit, r.text);
 }
 
@@ -471,6 +471,10 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
 
   const paths = resolvePaths(ctx.cwd, ctx.env);
   if (!paths) return finish(2, withAgentPointer(NO_PROJECT, command));
+  // The effective config, read once per request and only by the commands that use it (`budget set`/`reset` and the
+  // ledger-only commands never need it, and `budget` rewrites config.yaml, so it must not be carried past that).
+  let resolvedOnce: ResolvedConfig | undefined;
+  const resolved = (): ResolvedConfig => (resolvedOnce ??= resolveConfig(paths, ctx.env));
   switch (command) {
     case 'view': {
       const twice = givenTwice(rest, ['level', 'answers']);
@@ -498,7 +502,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
           // not a file: treat arg itself as the place/id
         }
       }
-      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary, values.answers);
+      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env, config: resolved(), resolveStored: resolveStoredFor(ctx) }, content, values.summary, values.answers);
       return finish(r.exit, r.text);
     }
     case 'report': {
@@ -507,7 +511,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       const { values, positionals } = args('report', { args: rest, allowPositionals: true, options: { accept: { type: 'string' } } });
       // 0-2 positionals: the view name, then an optional target — only meaningful for `report graph <kind:label>`.
       positionalCount('report', positionals, 0, 2);
-      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform }, positionals[1], values.accept);
+      const r = runReport(positionals[0], { paths, env: ctx.env, config: resolved(), runner: ctx.runner, platform: ctx.platform }, positionals[1], values.accept);
       return finish(r.exit, r.text);
     }
     case 'class':
@@ -556,7 +560,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         text = stringify({ mak: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount('replay', positionals, 1, 1);
-        const read = readRequest(positionals[0]!, ctx.stdin, resolveConfig(paths, ctx.env).config.requestMaxBytes);
+        const read = readRequest(positionals[0]!, ctx.stdin, resolved().config.requestMaxBytes);
         if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
         text = read.text;
       }
@@ -565,12 +569,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         provider = selectProvider(ctx.env, {
           chaosState: path.join(paths.dir, 'chaos.json'),
           resolveStored: resolveStoredFor(ctx),
-          fileConfig: classifierFileConfig(resolveConfig(paths, ctx.env).config),
+          fileConfig: classifierFileConfig(resolved().config),
         });
       } catch (e) {
         return finish(providerExit(e), (e as Error).message);
       }
-      const r = await runReplay(text, { paths, provider, env: ctx.env, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
+      const r = await runReplay(text, { paths, provider, env: ctx.env, config: resolved(), dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case 'outcome': {

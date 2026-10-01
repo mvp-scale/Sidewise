@@ -6,7 +6,9 @@
  *   SPLIT  otherwise
  * Thresholds are starting values; outcomes in the ledger tune them later.
  */
-export const THRESHOLDS = { concernAt: 0.5, weakBelow: 0.35, strongAt: 0.8 } as const;
+import { DEFAULT_CONFIG } from '../config/defaults.ts';
+
+export const THRESHOLDS: Readonly<typeof DEFAULT_CONFIG.lens> = DEFAULT_CONFIG.lens;
 
 export type Consensus = 'STRONG' | 'SPLIT' | 'WEAK';
 

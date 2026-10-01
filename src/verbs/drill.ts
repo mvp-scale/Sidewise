@@ -12,7 +12,7 @@
  * (unchanged items are reused, so it is nearly free), since replay refuses a sweep parent outright.
  */
 import { providerIdentity } from '../classifier/select.ts';
-import { resolveConfig } from '../config/load.ts';
+import { configOf } from '../config/load.ts';
 import { m, type Value } from '../contract/emit.ts';
 import { goalGate, gradeItems, gradeSubject, sweepGate, worstFirst } from '../contract/grade.ts';
 import { firstStringLayer, type Item } from '../contract/layers.ts';
@@ -182,7 +182,7 @@ async function runOneSubjectProof(
 
 export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResult> {
   // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
   const loaded = loadRequest(text, 'drill', mdlFields);
   if (!loaded.ok) return loaded.result;

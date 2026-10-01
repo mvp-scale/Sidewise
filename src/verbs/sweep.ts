@@ -31,7 +31,7 @@ import type { VerbContext, VerbResult } from './types.ts';
  *  file's own unit tests) keeps the code's own defaults: no extra item cap beyond the depth ceiling, no
  *  question-per-call split, no reuse age/commit limit. */
 interface SweepLimits {
-  sweep?: Mm3Config['sweep'];
+  sweep?: Omit<Mm3Config['sweep'], 'itemsPerLayer'>;
   reuse?: ReuseLimits;
 }
 

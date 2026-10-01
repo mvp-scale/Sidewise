@@ -9,7 +9,7 @@
  */
 import { providerIdentity } from '../classifier/select.ts';
 import { checkBudget, peekBudget } from '../budget/budget.ts';
-import { resolveConfig } from '../config/load.ts';
+import { configOf } from '../config/load.ts';
 import type { Value } from '../contract/emit.ts';
 import { gradeSubject } from '../contract/grade.ts';
 import { answerKey, goalQuestion, subjectEvidence, subjectQuestions } from '../contract/translate.ts';
@@ -30,7 +30,7 @@ const CAP_NOTE = 'would be blocked: the budget cap is already reached';
 
 export async function runClass(text: string, ctx: VerbContext): Promise<VerbResult> {
   // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
-  const cfg = resolveConfig(ctx.paths, ctx.env).config;
+  const cfg = configOf(ctx).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
   const loaded = loadRequest(text, 'class', mdlFields);
   if (!loaded.ok) return loaded.result;

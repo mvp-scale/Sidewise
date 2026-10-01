@@ -12,8 +12,8 @@
  * is never consulted again, and never trusted if corrupt — config.yaml is the sole authority once it exists.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import type { Mm3Config } from '../config/defaults.ts';
-import { resolveConfig } from '../config/load.ts';
+import { DEFAULT_CONFIG, type Mm3Config } from '../config/defaults.ts';
+import { resolveConfig, type ResolvedConfig } from '../config/load.ts';
 import { writeConfigOverride } from '../config/write.ts';
 import { budgetRollup } from '../ledger/index.ts';
 import { onStore, withLock } from '../ledger/lock.ts';
@@ -117,20 +117,25 @@ export function peekBudget(paths: Mm3Paths, now: number = Date.now(), env: Recor
  *  under the new scheme, whether by a real `budget reset` or by this very migration). A no-op every subsequent
  *  call. Returns true only when it actually wrote, so `loadBudget` can report it as `created` — the same
  *  one-time-notice spirit as the old "budget file created with defaults." */
-function migrateLegacyIfNeeded(paths: Mm3Paths, env: Record<string, string | undefined>): boolean {
-  if (resolveConfig(paths, env).sources['budget.since'] === 'config') return false;
+function migrateLegacyIfNeeded(paths: Mm3Paths, env: Record<string, string | undefined>, resolved: ResolvedConfig): boolean {
+  if (resolved.sources['budget.since'] === 'config') return false;
   return withLock(paths.lock, () => {
-    if (resolveConfig(paths, env).sources['budget.since'] === 'config') return false;
+    // Both reads are pure, so the legacy file is checked first: with none there is nothing to migrate and no
+    // reason to read config.yaml again. A migration that raced in while the lock was awaited still wins.
     const legacy = readLegacyBudgetJson(paths);
     if (!legacy) return false;
+    if (resolveConfig(paths, env).sources['budget.since'] === 'config') return false;
     writeConfigOverride(paths, { budget: { usd: legacy.capUsd, runs: legacy.capRuns, per: 'total', since: legacy.resetAt } });
     return true;
   });
 }
 
 export function loadBudget(paths: Mm3Paths, now: number = Date.now(), env: Record<string, string | undefined> = process.env): { state: BudgetState; created: boolean } {
-  const created = migrateLegacyIfNeeded(paths, env);
-  return { state: budgetStateNow(paths, now, env), created };
+  // One config read serves the migration check and the state — it is read again only when the migration just
+  // rewrote config.yaml (then the caps in the file are the migrated ones).
+  const resolved = resolveConfig(paths, env);
+  const created = migrateLegacyIfNeeded(paths, env, resolved);
+  return { state: stateFromConfig(paths, created ? resolveConfig(paths, env).config : resolved.config, now), created };
 }
 
 export function usedFraction(s: BudgetState): number {
@@ -196,7 +201,7 @@ export function setBudget(paths: Mm3Paths, caps: { capUsd?: number; capRuns?: nu
 
 /** Share of a cap spent at which the line turns into a warning (and says what to do) — below it the line is
  *  plain headroom, so an agent reading "10% used" no longer mistakes a nearly-empty meter for a constraint. [C-229] */
-export const BUDGET_LOW_FRACTION = 0.8;
+export const BUDGET_LOW_FRACTION = DEFAULT_CONFIG.budget.warnAt;
 
 /** The one budget-line formatter: run notes, `budget`, `budget set/reset` all print exactly this. It states
  *  what is LEFT, not a percentage — `budget: $0.11 left of $0.12 · 27 of 30 runs left`. A `⚠` appears only at

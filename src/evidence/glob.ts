@@ -5,9 +5,10 @@
  */
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_CONFIG } from '../config/defaults.ts';
 
 export const SKIP_DIRS = new Set(['.git', 'node_modules', '.mm3', 'dist']);
-export const MAX_FILES = 500;
+export const MAX_FILES = DEFAULT_CONFIG.evidence.maxFiles;
 
 const escape = (s: string): string => s.replace(/[.+^$()|[\]\\]/gu, '\\$&');
 
