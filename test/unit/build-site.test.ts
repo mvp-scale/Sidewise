@@ -26,7 +26,7 @@ describe('renderSite', () => {
   it('keeps a "$" in story text literal and links each number to the GitHub copy of its method', () => {
     const html = renderSite(story, '{{numbers}}');
     expect(html).toContain('$0.000065 per check &amp; more');
-    expect(html).toContain('href="https://github.com/mvp-scale/mm3/blob/nightly/docs/numbers.md#cost-per-check"');
+    expect(html).toContain('href="https://github.com/mvp-scale/mm3/blob/main/docs/numbers.md#cost-per-check"');
   });
   it('throws on an unknown placeholder, and fills the demo slot only when given', () => {
     expect(() => renderSite(story, '{{nope}}')).toThrow(/unknown placeholder/);

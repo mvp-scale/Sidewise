@@ -74,7 +74,7 @@ export interface ItemRecord {
 }
 
 /** One run of any verb under the YAML contract v1. */
-/** One provider call's own telemetry (plan 2c B2): additive detail alongside the run's aggregate `costUsd`/
+/** One provider call's own telemetry: additive detail alongside the run's aggregate `costUsd`/
  *  `calls` — a run's own `telemetry` array holds one entry per HTTP call actually made (never per reused
  *  answer). The `source: 'cache'` shape (a reused answer's prorated saving) is declared here for the future
  *  piece that populates it (ledger/reuse.ts's own territory) — nothing in this codebase constructs one yet. */
@@ -150,15 +150,15 @@ export interface ContractRun {
    *  reader must treat a missing value the same as these fields never having been asked about. */
   route?: string | null;
   baseURL?: string | null;
-  /** git HEAD sha at run time, or null (not a repo / git absent) — plan 2b. Optional for the same reason as
+  /** git HEAD sha at run time, or null (not a repo / git absent). Optional for the same reason as
    *  route/baseURL above: an older record simply never had one. The index's own column for this is named
    *  after the OTel semantic convention `vcs.ref.head.revision` (docs only — no code depends on that name). */
   commit?: string | null;
-  /** replay only (plan 2c B2): which of the parent's concerns this run's own `mak.expect` predicted would
+  /** replay only: which of the parent's concerns this run's own `mak.expect` predicted would
    *  turn to pass — a list of concern names, or the literal `'none'` (predict no flips). Optional so an older
    *  record (predating this field) still reads. */
   expect?: string[] | 'none';
-  /** replay only (plan 2c B1): the before/after refs' own resolved shas (evidence/git.ts's `resolveRefSha`),
+  /** replay only: the before/after refs' own resolved shas (evidence/git.ts's `resolveRefSha`),
    *  distinct from `commit` above (replay's `commit` is the AFTER ref's resolved sha). Optional for the same
    *  reason as `commit`. */
   commits?: { before: string | null; after: string | null };
@@ -203,7 +203,7 @@ export interface FailedRecord {
 export type NewFailed = Omit<FailedRecord, 'kind' | 'id' | 'uid' | 'ts'>;
 
 /**
- * A free `view` draft check (plan 2b): never a run (no MM3-#### id — `id` is its own ulid, same as a failed
+ * A free `view` draft check: never a run (no MM3-#### id — `id` is its own ulid, same as a failed
  * record), never counted toward the budget, and never counted as a run anywhere (index.ts's `applyLine` already
  * only treats `kind === 'run'` as a run; every run-counting/report path is untouched by this kind existing).
  * Logged so the ledger can see what agents search for, which CONTRACT already claimed happens ("the lookup is

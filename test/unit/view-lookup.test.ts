@@ -1,4 +1,4 @@
-// view's free `kind: 'lookup'` ledger record (plan 2b): CONTRACT already claimed "the lookup is logged" —
+// view's free `kind: 'lookup'` ledger record: CONTRACT already claimed "the lookup is logged" —
 // this makes it true. A lookup is never a run: no MM3-#### id, never counted toward the budget, and never
 // counted as a run by readLedger/index.ts's own run-counting (isRun/isContractRun).
 import { readFileSync } from 'node:fs';
@@ -35,7 +35,7 @@ describe('view: free lookup records', () => {
   it('a miss (no matching prior run) logs hit: false, reused: null, and explains the miss as "never asked" [N2]', () => {
     const { paths } = tempProject();
     const r = runView(CLASS_TEXT, 1, { paths, env: {} });
-    expect(r.text).toContain('reuse: never asked'); // plan 2c B3 N2: no prior run touched this place at all
+    expect(r.text).toContain('reuse: never asked'); // no prior run touched this place at all
     const lookups = readLedger(paths).filter(isLookup);
     expect(lookups).toHaveLength(1);
     expect(lookups[0]).toMatchObject({ hit: false, reused: null });

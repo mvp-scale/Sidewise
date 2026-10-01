@@ -1,5 +1,5 @@
 /**
- * The mdl v2 field table (plan 2c A4): the single source every mdl-block consumer is generated from — the
+ * The mdl v2 field table: the single source every mdl-block consumer is generated from — the
  * schema check (schema-check.ts's checkMdl), the cross-validator (validate.ts), the `mm3 agent mdl`
  * legend card (help/agent.ts), and `mm3 help mdl` (help/topics.ts). One table, one place to add a field
  * or change a note, so none of those four views can quietly drift from each other. Plan 2c B1 makes this
@@ -11,7 +11,7 @@
 import type { MdlFieldOverride } from '../config/defaults.ts';
 import { AREAS, BLASTS, CHANGES, RISKS, STAGES, WHYS, type Area, type Blast, type Change, type Risk, type Stage, type Why } from './types.ts';
 
-/** `unknown` is always a legal value for a closed field, alongside its own enum (plan 2c: "fill what you know"). */
+/** `unknown` is always a legal value for a closed field, alongside its own enum ("fill what you know"). */
 export const UNKNOWN_VALUE = 'unknown';
 
 type MdlFieldKind = 'closed-single' | 'closed-list' | 'freetext' | 'chain-list' | 'freetext-list';
@@ -25,18 +25,18 @@ export interface MdlField {
   maxList?: number;
   /** The one-line doc note shown after the field in the card (e.g. area's "omit for whole-system questions..."). */
   note?: string;
-  /** plan 2c B1 config override (`mdl.<key>.as`): an additional name a request may use for this field instead
+  /** config override (`mdl.<key>.as`): an additional name a request may use for this field instead
    *  of (or alongside) its built-in `key` — both names validate identically and both are accepted in a request;
    *  only ever set by `effectiveMdlFields`, never in the built-in MDL_FIELDS table. */
   alias?: string;
-  /** plan 2c B1 config override (`mdl.<key>.pattern`): a regex source a freetext-kind field's value(s) must
+  /** config override (`mdl.<key>.pattern`): a regex source a freetext-kind field's value(s) must
    *  additionally match, on top of the normal length/line checks. Ignored for closed/chain-list fields. */
   pattern?: string;
-  /** plan 2c B1 config override (`mdl.<key>.link`): Phase C graph-index metadata (a `handled-by` edge to a
+  /** config override (`mdl.<key>.link`): graph-index metadata (a `handled-by` edge to a
    *  `where` path) — carried through so it round-trips, but not consumed by schema validation or the card body
    *  beyond a passthrough note; no graph exists yet to link to. */
   link?: string;
-  /** plan 2c B1 config override (`mdl.<key>.literal`): when true, this built-in field is recorded as-is with
+  /** config override (`mdl.<key>.literal`): when true, this built-in field is recorded as-is with
    *  no shape checking at all (the same "no further checking" treatment a custom mdl key already gets), even
    *  though it keeps its catalog `key`/enum for the card's own documentation purposes. */
   literal?: boolean;
@@ -75,7 +75,7 @@ export const MDL_KEYS: readonly string[] = [...MDL_FIELDS.map((f) => f.key), MDL
  *             works too (an alias adds a name, it doesn't take one away) — see schema-check.ts's checkMdl for
  *             how both are accepted and validated identically.
  *   pattern — carried through as-is (schema-check.ts applies it to freetext-kind fields).
- *   link    — carried through as-is; no validation or graph meaning yet (Phase C).
+ *   link    — carried through as-is; no validation or graph meaning yet.
  *   literal — carried through as-is; schema-check.ts skips this field's normal shape checks when set.
  *
  * The 5 C4 chain levels (CHAIN_LEVELS) and the `uses` chain grammar (CHAIN_RE) are never touched here — B1 is
@@ -100,7 +100,7 @@ export function effectiveMdlFields(overrides: Record<string, MdlFieldOverride> |
   });
 }
 
-/** The C4 chain grammar (plan 2c A4): chain := part (" -> " part)*, part := level:name("/"name)*["?"].
+/** The C4 chain grammar: chain := part (" -> " part)*, part := level:name("/"name)*["?"].
  *  `?` may end ANY part (card v2.1: "end any part with ?", not just the code level). */
 export const CHAIN_LEVELS = ['person', 'system', 'container', 'component', 'code'] as const;
 /** kebab-case name, or a code identifier (letters, digits, '.', '_', '-'). */
@@ -108,7 +108,7 @@ const NAME = '[A-Za-z0-9._-]+';
 const PART = `(?:${CHAIN_LEVELS.join('|')}):${NAME}(?:/${NAME})*\\??`;
 export const CHAIN_RE = new RegExp(`^${PART}(?: -> ${PART})*$`, 'u');
 
-/** Hard caps (plan 2c A4). */
+/** Hard caps. */
 export const MAX_MDL_LINES = 25;
 export const MAX_CUSTOM_KEY_LEN = 20;
 export const MAX_FREETEXT_LEN = 160;
@@ -125,7 +125,7 @@ export function closedValues(field: MdlField): readonly string[] {
   return [...(field.values ?? []), UNKNOWN_VALUE];
 }
 
-/** A ledger record written before plan 2c may still carry `mdl.nodes` (a single chain string, the old plan 2b
+/** A ledger record written before mdl v2 may still carry `mdl.nodes` (a single chain string, the older
  *  shape) instead of `uses`. Any reader of a stored Mdl block should run it through this first so `nodes` and
  *  `uses` are never both something a caller has to check — old records keep `nodes` on disk (nothing rewrites
  *  history), but every reader sees it as a 1-item `uses` list. Not wired into every reader from this module

@@ -57,7 +57,7 @@ export function consensusAndEscalate(
 }
 
 /** `mdl: {recorded: [...]}` fields, or the string "none" when nothing was recorded. Named in `Mdl`'s own
- *  field order (why, area, stage, change, risk, problem, uses, touches, blast — plan 2c's `uses` replaces plan
+ *  field order (why, area, stage, change, risk, problem, uses, touches, blast — the `uses` replaces plan
  *  2b's `nodes` in the same slot); any custom keys (mdl.extras) are appended next, sorted; `extra` (e.g.
  *  replay.ts's `['parent']`) always comes last. */
 export function mdlRecorded(mdl: Mdl | null, extra?: readonly string[]): Value {

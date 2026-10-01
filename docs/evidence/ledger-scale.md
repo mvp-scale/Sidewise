@@ -10,7 +10,7 @@ below), never claimed as measured.** This machine was running other work at the 
 caveat every prior round has carried) — `placeBroad`/`placeNarrow` are noisy again below for that reason;
 `rebuild`/`catchup*`/point-op/graph-op numbers are trustworthy.
 
-## This round: plan 2c Phase C controller fix — the (s,p,o) traversal index (item 5)
+## The (s,p,o) traversal index
 
 Controller verification asked for a `(s, p, o)` index for outbound walks (plus anything else the traversal plan
 needed, checked with `EXPLAIN QUERY PLAN`), since the prior round's own "likely (not confirmed)" root-cause note
@@ -75,7 +75,7 @@ band is exactly why the `graphRebuild`/`graphCatchup50` p95 misses above are cal
 noise" rather than real regressions — everything measured on this machine this round shows the same
 double-digit-percent swing on a single/small-sample row.
 
-## Bottom line (prior round): plan 2c Phase C, "before C3" — the catch-up O(n)
+## Bottom line (prior round): the catch-up O(n)
 
 An earlier internal scale review measured `catchup1` growing with ledger size (91.8 ms at
 10k → 431.2 ms at 100k) and flagged it as a bug to find and fix before building the graph tier on top of the

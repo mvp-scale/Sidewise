@@ -68,7 +68,7 @@ describe('class', () => {
     expect(r2.text).toContain('reused: [MM3-0001]'); // [C-130] fix #6: which run's answers this one reused
   });
 
-  // plan 2c B2/B, item 6: a fully-reused run's own telemetry gains a source:'cache' entry naming the origin,
+  // a fully-reused run's own telemetry gains a source:'cache' entry naming the origin,
   // prorated from that origin's real provider telemetry — the origin's whole 12-question call was reused whole
   // here, so this is an exact figure, not an estimate.
   it('a fully-reused second run records cache-side telemetry alongside the free run [C-130]', async () => {
@@ -94,7 +94,7 @@ describe('class', () => {
     expect(r2.text).toContain(JSON.stringify('stale: MM3-0001 answered "Is request text placed directly into the SQL quer…" on older code (p 0.94)'));
   });
 
-  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
   // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
   it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
@@ -202,10 +202,10 @@ describe('class', () => {
     expect(r.text).toContain('adapter fake · not evidence');
   });
 
-  // plan 2c B, item 5: reuse.maxAgeDays/maxCommits now apply to every verb's reuse lookup, not just view's own
+  // reuse.maxAgeDays/maxCommits now apply to every verb's reuse lookup, not just view's own
   // exact-reuse — class.ts stands in for the one-subject verbs here. maxCommits is used (not maxAgeDays) so the
   // test is deterministic without mocking the clock: git itself proves how far HEAD has moved.
-  it('reuse.maxCommits: an answer further behind HEAD than the cap is re-asked, not reused [plan 2c B3/B]', async () => {
+  it('reuse.maxCommits: an answer further behind HEAD than the cap is re-asked, not reused', async () => {
     if (!hasGit()) return;
     const { root, paths } = tempProject({ 'src/user.ts': 'export function findUser(id) { return db.query(`SELECT * FROM users WHERE id = ${id}`); }\n' });
     gitInit(root);

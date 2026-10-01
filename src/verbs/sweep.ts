@@ -26,7 +26,7 @@ import { askAll, record, recordFree, type PlannedCall, type Step } from './pay.t
 import { dryRunText } from './respond.ts';
 import type { VerbContext, VerbResult } from './types.ts';
 
-/** planSweep's optional project settings (plan 2c B, item 4/5) — sourced from a caller's own
+/** planSweep's optional project settings — sourced from a caller's own
  *  `resolveConfig(ctx.paths, ctx.env).config`; omitted (every pre-existing 4-arg call site, including this
  *  file's own unit tests) keeps the code's own defaults: no extra item cap beyond the depth ceiling, no
  *  question-per-call split, no reuse age/commit limit. */
@@ -39,7 +39,7 @@ interface PlannedLayer {
   layer: string;
   call: PlannedCall | null;
   /** Extra calls beyond `call`, when this layer's questions exceeded `sweep.maxQuestionsPerCall` and had to be
-   *  split (plan 2c B, item 4) — empty in the common case (well under the default 500). `call` (chunk 0, which
+   *  split — empty in the common case (well under the default 500). `call` (chunk 0, which
    *  carries the goal when this layer has it) plus `extraCalls`, in order, is the full list of calls this layer
    *  makes; runSweep/sweepDryRun/plannedCallCount all read it that way rather than assuming one call per layer. */
   extraCalls: PlannedCall[];
@@ -65,7 +65,7 @@ interface SweepPlan {
   /** Item questions actually placed into a call; the goal is never counted here. */
   askedQuestions: number;
   /** One line per layer whose questions exceeded sweep.maxQuestionsPerCall and had to be split into more than
-   *  one call (plan 2c B, item 4) — empty when nothing was split. Callers fold this into their own response
+   *  one call — empty when nothing was split. Callers fold this into their own response
    *  notes (and sweepDryRun's own extraNotes) so a split is visible, not silent. */
   splitNotes: string[];
 }
@@ -113,8 +113,7 @@ function chunk<T>(arr: readonly T[], size: number): T[][] {
  * (lookupAnswers). No resolver: loop's over: is always plain arrays (checkOver's 'none' rule), so expand never
  * needs one. `dryRun`: threaded into lookupAnswers as `readOnly` — a sweep verb's --dry-run reply (sweepDryRun)
  * is built from THIS plan, so a plan built for a dry run must never persist a catch-up/rebuild of index.db to
- * disk (dry runs and free reads write nothing); a real run's plan self-heals as before. `limits` (plan 2c B,
- * items 4/5): a caller's own `resolveConfig(ctx.paths, ctx.env).config` sweep/reuse settings — omitted (every
+ * disk (dry runs and free reads write nothing); a real run's plan self-heals as before. `limits`: a caller's own `resolveConfig(ctx.paths, ctx.env).config` sweep/reuse settings — omitted (every
  * pre-existing call site until this round, and this file's own unit tests), the code's own defaults apply: the
  * depth's compiled-in item cap, no question-per-call split, no reuse staleness limit.
  */
@@ -128,7 +127,7 @@ export function planSweep(request: Request, who: Who, paths: Mm3Paths, dryRun: b
   const maxQuestionsPerCall = limits.sweep?.maxQuestionsPerCall ?? DEFAULT_CONFIG.sweep.maxQuestionsPerCall;
 
   // Pass 1: every ask, flat, grouped by item so pass 2 can look a whole item's asks up at once. The goal's own
-  // key isn't known yet (plan 2c B11 — it depends on which items pass 2 ends up ASKING), so it isn't collected
+  // key isn't known yet (it depends on which items pass 2 ends up ASKING), so it isn't collected
   // here; item keys only.
   const asksByItem = new Map<string, LayerAsk[]>();
   const allKeys: string[] = [];
@@ -193,7 +192,7 @@ export function planSweep(request: Request, who: Who, paths: Mm3Paths, dryRun: b
     return { layer: layer.name, callItems, callQuestions, itemIds, skipped, resolvedItems };
   });
 
-  // B11 (plan 2c): the goal's own reuse key includes evidence — the sorted concatenation of every RESOLVED
+  // B11: the goal's own reuse key includes evidence — the sorted concatenation of every RESOLVED
   // item's own unit text (every item with an ask that wasn't skipped past the depth cap: reused whole or asked
   // fresh both count, so the same unchanged sweep always builds the identical concatenation whether or not any
   // individual item happens to reuse this time — only a real change to one of them, or a change in which items
@@ -225,7 +224,7 @@ export function planSweep(request: Request, who: Who, paths: Mm3Paths, dryRun: b
     }
   }
 
-  // plan 2c B, item 4: a layer's questions past sweep.maxQuestionsPerCall split into several calls, each with
+  // a layer's questions past sweep.maxQuestionsPerCall split into several calls, each with
   // only the evidence its own chunk's questions actually reference (never the whole layer's items repeated in
   // every chunk) — chunk 0 still carries the goal, since callQuestions always puts it first when present.
   const splitNotes: string[] = [];
@@ -257,7 +256,7 @@ export function planNeedsBudget(plan: SweepPlan): boolean {
 }
 
 /** Every call this plan would actually make, in layer order: a layer's own call (chunk 0, or none) then its
- *  extraCalls (plan 2c B, item 4's split) — the one flat list askAll/telemetry/dryRunText all count against. */
+ *  extraCalls (the split) — the one flat list askAll/telemetry/dryRunText all count against. */
 function plannedCalls(plan: SweepPlan): PlannedCall[] {
   return plan.planned.flatMap((p) => (p.call ? [p.call, ...p.extraCalls] : []));
 }

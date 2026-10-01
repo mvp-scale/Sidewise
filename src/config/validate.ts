@@ -1,7 +1,7 @@
 /**
  * Pure validation of a RAW, already-YAML-parsed `.mm3/config.yaml` value against the defaults table
  * (defaults.ts) — no file I/O, no env reads, so `mm3 doctor` can call this straight on a file it already
- * read itself (plan 2c B1b), and load.ts can call it on its own parse result. Every problem is a help-first
+ * read itself, and load.ts can call it on its own parse result. Every problem is a help-first
  * stop in the shared `✖ config.<path>: problem → fix` shape (AGENTS.md rule 7); this module only builds text,
  * never throws.
  */
@@ -68,7 +68,7 @@ function checkPositiveNumber(path: string, v: unknown, out: ConfigStop[]): boole
 
 /** The value-shaped counterpart to checkSecretLike (which flags a secret-NAMED key): a real key pasted into a
  *  config value — `baseURL`, `budget.since`, an mdl override's free text — stops here regardless of what the
- *  surrounding key is called. Reuses redact.ts's own detectors (plan 2c B, security item) so this file never
+ *  surrounding key is called. Reuses redact.ts's own detectors (security item) so this file never
  *  duplicates the pattern list. */
 function checkSecretValue(path: string, v: string, out: ConfigStop[]): boolean {
   if (!looksLikeSecret(v)) return false;

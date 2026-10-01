@@ -49,7 +49,7 @@ describe('contract runs', () => {
     expect(() => readLedger(paths)).toThrow(/line 2 of \.mm3\/log\.jsonl is not a ledger record/);
   });
 
-  it('recordCall({ contract }) spends and appends in one lock section; a broken ledger fails the budget closed too [plan 2c B1]', () => {
+  it('recordCall({ contract }) spends and appends in one lock section; a broken ledger fails the budget closed too', () => {
     const { paths } = tempProject({});
     const { budget, record } = recordCall(paths, 0.02, { contract: sampleContractRun() }, T);
     expect(record.id).toBe('MM3-0001');
@@ -57,7 +57,7 @@ describe('contract runs', () => {
     expect(budget.runs).toBe(1);
     rmSync(paths.log);
     mkdirSync(paths.log);
-    // Spend is now derived FROM the ledger (plan 2c B1), so a broken ledger fails every budget read closed too
+    // Spend is now derived FROM the ledger, so a broken ledger fails every budget read closed too
     // — there's no separate counter left to roll back to, the way the old budget.json design needed.
     expect(() => recordCall(paths, 0.02, { contract: sampleContractRun() }, T)).toThrow(/EISDIR/);
     expect(() => loadBudget(paths)).toThrow(/EISDIR/);
@@ -77,7 +77,7 @@ describe('answer reuse', () => {
     appendContractRun(paths, sampleContractRun(), T, 'b');
     appendContractRun(paths, sampleContractRun({ adapter: 'fake', model: 'mm3-fake-1', answers: { 1: { kind: 'yesno', p: 0.1 } }, keys: { 1: 'k-fake' } }), T, 'b');
     const found = lookupAnswers(paths, WHO, ['k-1', 'k-goal', 'k-none']);
-    // plan 2c B3: a Reusable now also carries the origin's ts/commit/where (age/commits-since display).
+    // a Reusable now also carries the origin's ts/commit/where (age/commits-since display).
     expect(Object.fromEntries(found)).toMatchObject({
       'k-goal': { id: 'MM3-0001', answer: { kind: 'yesno', p: 0.2 } },
       'k-1': { id: 'MM3-0001', answer: { kind: 'yesno', p: 0.9 } },

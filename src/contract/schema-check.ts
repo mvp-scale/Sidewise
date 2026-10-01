@@ -3,7 +3,7 @@
  * schema library. Each check mirrors one schema rule, worded as a help-first stop; test/contract/
  * schema-agreement.test.ts proves the two agree on a corpus (these checks find nothing exactly when the schema
  * accepts). Rules the schema can't express (counts, per-section kind restrictions) live in validate.ts, same
- * split as before plan 2b: this file is shape only.
+ * split as before this file is shape only.
  */
 import { clip } from '../util/text.ts';
 import { DEPTHS, FAMILIES, VERBS, type Stop, type Verb } from './types.ts';
@@ -41,8 +41,8 @@ const isTag = (k: string): boolean => TAG.test(k) && len(k) <= 20;
 class Out {
   readonly stops: Stop[] = [];
   /** A `mdl.*` stop (or the bare `mdl` block-cap stop) earns its own deeper pointer, the same way
-   *  validate.ts's cross stops already embed "→ see: mm3 agent probe" directly in their own text (plan 2c
-   *  A5 follow-up F3) — the generic trailing "→ see: mm3 agent <verb>" that stopText (verbs/request.ts)
+   *  validate.ts's cross stops already embed "→ see: mm3 agent probe" directly in their own text —
+   *  the generic trailing "→ see: mm3 agent <verb>" that stopText (verbs/request.ts)
    *  appends to the whole response still fires afterward regardless; this is an ADDITIONAL, more specific line
    *  for mdl fields, since the mdl legend lives at `mm3 agent mdl`, not at the verb's own card. */
   add(field: string, problem: string, fix: string): void {
@@ -146,7 +146,7 @@ function checkSectionsBlock(v: Record<string, unknown>, field: string, out: Out)
 }
 
 /** mak.ask: one subject is {concerns:, decisions:} straight under ask; a sweep keys those by layer instead
- *  (ask: {<layer>: {concerns:, decisions:}}). A legacy flat category directly under ask (plan 2a's shape, no
+ *  (ask: {<layer>: {concerns:, decisions:}}). A legacy flat category directly under ask (the shape, no
  *  concerns:/decisions: wrapper) is refused outright — nothing is published on the old contract yet. */
 function checkAsk(ask: unknown, verb: Verb | undefined, out: Out): void {
   const templateHint = `mm3 template ${verb ?? '<verb>'}`;
@@ -218,7 +218,7 @@ function checkTouches(v: unknown, out: Out): void {
   });
 }
 
-/** mdl.uses: a single chain string, or a list of up to 5 (plan 2c: "a single string is accepted as a 1-item
+/** mdl.uses: a single chain string, or a list of up to 5 ("a single string is accepted as a 1-item
  *  list"). Each entry must match the C4 chain grammar (mdl-fields.ts's CHAIN_RE). Returns the parsed chains
  *  (as given, normalized to a list) for validate.ts's own orphan-code-part note check, or undefined on any stop. */
 function checkUses(v: unknown, out: Out): string[] | undefined {
@@ -245,14 +245,14 @@ function checkUses(v: unknown, out: Out): string[] | undefined {
   return ok ? (list as string[]) : undefined;
 }
 
-/** why/stage/change/risk/blast: value must be in the field's own enum, or the literal "unknown" (plan 2c: valid
+/** why/stage/change/risk/blast: value must be in the field's own enum, or the literal "unknown" (valid
  *  in every closed field). */
 function checkClosedSingle(field: MdlField, v: unknown, out: Out): void {
   const allowed = closedValues(field);
   if (!(allowed as readonly unknown[]).includes(v)) out.add(`mdl.${field.key}`, show(v), `use ${list(field.values!)}`);
 }
 
-/** area: a single value, or a list of up to `maxList` (plan 2c: single or list ≤2), each one of AREAS or
+/** area: a single value, or a list of up to `maxList` (single or list ≤2), each one of AREAS or
  *  "unknown". */
 function checkClosedList(field: MdlField, v: unknown, out: Out): void {
   const allowed = closedValues(field);
@@ -295,7 +295,7 @@ function checkMak(mak: unknown, verb: Verb | undefined, out: Out): void {
   if ('expect' in mak) {
     const e = mak.expect;
     if (e === 'none' || (Array.isArray(e) && e.length === 0)) {
-      // plan 2c N4: "none" predicts no flips at all — any flip is reported as unexpected:. An empty list names no
+      // "none" predicts no flips at all — any flip is reported as unexpected:. An empty list names no
       // concern to fix, which is the same prediction, so it is accepted as none (validate.ts normalizes it).
     } else if (!Array.isArray(e) || e.length < 1 || e.length > 9 || !e.every((x) => typeof x === 'string' && isTag(x))) {
       out.add('mak.expect', show(e), 'give 1–9 concern names, lowercase kebab-case, ≤ 20 characters, or the word "none"');
@@ -309,10 +309,10 @@ function checkMak(mak: unknown, verb: Verb | undefined, out: Out): void {
 }
 
 /** Every catalog field, dispatched by kind — the single place that decides which checker a field's value goes
- *  through, generated from mdl-fields.ts's MDL_FIELDS table (plan 2c A4: "schema check, validator, card and
- *  stops are generated" from one module) or a project's own effective (config-overridden) table (plan 2c B1).
+ *  through, generated from mdl-fields.ts's MDL_FIELDS table ("schema check, validator, card and
+ *  stops are generated" from one module) or a project's own effective (config-overridden) table.
  *  `parent` isn't in MDL_FIELDS (it's an alias of mak.parent, a run id, not a catalog value) and keeps its own
- *  check below, same as before. A `literal: true` override (plan 2c B1's `mdl.<field>.literal`) skips every
+ *  check below, same as before. A `literal: true` override (the `mdl.<field>.literal`) skips every
  *  kind-based check below and falls back to the same "one line ≤160, or a list of ≤5, recorded as-is" treatment
  *  a custom (non-catalog) key already gets — the field keeps its catalog `key`/enum for the card's own
  *  documentation, but a project that set `literal` has said it doesn't want that enum enforced. A `pattern`
@@ -357,9 +357,8 @@ function checkMdlField(field: MdlField, v: unknown, out: Out): void {
 }
 
 /** Any mdl key beyond the catalog and `parent`: accepted when it's a valid lower-kebab key (≤20 chars) whose
- *  value is one line ≤160, or a list of ≤5 such lines — recorded as-is, no further checking (plan 2c A4's
- *  "custom keys"). A malformed key (not kebab-case, too long, uppercase) still gets the old "not a field" stop.
- *  `keys` (plan 2c B1): the effective key list to suggest, including any project alias — defaults to the
+ *  value is one line ≤160, or a list of ≤5 such lines — recorded as-is, no further checking (custom keys). A malformed key (not kebab-case, too long, uppercase) still gets the old "not a field" stop.
+ *  `keys`: the effective key list to suggest, including any project alias — defaults to the
  *  built-in MDL_KEYS for a caller with no effective table of its own. */
 function checkUnknownMdlKey(k: string, out: Out, keys: readonly string[] = MDL_KEYS): void {
   out.add(`mdl.${clip(k, 20)}`, 'not a field', `use ${list(keys)}, or a lower-kebab key ≤${MAX_CUSTOM_KEY_LEN} characters`);
@@ -374,7 +373,7 @@ function checkCustomMdlValue(k: string, v: unknown, out: Out): void {
 }
 
 /** The `mdl:` block's own source-line count (raw YAML text, since a parsed value has already lost the
- *  formatting the cap is measured against — plan 2c A4: "count the source lines of the block"). Counted as: the
+ *  formatting the cap is measured against — "count the source lines of the block"). Counted as: the
  *  top-level `mdl:` line itself, plus every following line up to (not including) the next column-0 key or EOF —
  *  blank lines inside the block count too (an agent padding the block with blank lines still uses up its cap).
  *  `undefined` when the request has no top-level `mdl:` line at all (nothing to cap). */
@@ -384,7 +383,7 @@ export function mdlBlockLineCount(rawText: string | undefined): number | undefin
   // A real saved file almost always ends with its own trailing newline (every writeFileSync call in this
   // codebase included) — splitting on "\n" turns that into one phantom empty element after the last real line,
   // not a blank line the agent actually typed. Drop just that one artifact so a genuine 25-line mdl: block
-  // ending the file isn't over-counted to 26 (plan 2c Phase A follow-up F6) — a real blank line the agent typed
+  // ending the file isn't over-counted to 26 — a real blank line the agent typed
   // INSIDE the block still counts, per the comment above.
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
   const start = lines.findIndex((l) => /^mdl\s*:/u.test(l));
@@ -398,7 +397,7 @@ export function mdlBlockLineCount(rawText: string | undefined): number | undefin
   return count;
 }
 
-/** `mdlFields` (plan 2c B1): the project's effective (config-overridden) table, or MDL_FIELDS by default. A
+/** `mdlFields`: the project's effective (config-overridden) table, or MDL_FIELDS by default. A
  *  field with a project `as:` alias (`field.alias`) accepts EITHER its built-in `key` or the alias in the
  *  request — an alias adds a name, it never takes the original away — but not both at once (ambiguous: which
  *  one wins?), which is its own stop. */
@@ -441,8 +440,8 @@ const RENAMED_BLOCKS: Record<string, string> = { side: 'mak', wise: 'mdl' };
  *  `verb` is used only to word the flat-ask/empty-ask fix text ("mm3 template <verb>"); every other check
  *  here is verb-agnostic, matching the published schema (which has no concept of verb either). `rawText`: the
  *  original request text, threaded through only so checkMdl can count the mdl: block's own SOURCE lines
- *  (plan 2c A4's ≤25-line cap) — a parsed value has already lost the formatting that cap is measured against. */
-/** `mdlFields` (plan 2c B1): the caller's effective mdl table (built-in MDL_FIELDS, merged with any project
+ *  (the ≤25-line cap) — a parsed value has already lost the formatting that cap is measured against. */
+/** `mdlFields`: the caller's effective mdl table (built-in MDL_FIELDS, merged with any project
  *  `.mm3/config.yaml` `mdl:` overrides via `effectiveMdlFields`) — defaults to the built-in table so
  *  every existing caller with no project/config keeps today's exact behavior. */
 export function checkSchema(value: unknown, verb?: Verb, rawText?: string, mdlFields: readonly MdlField[] = MDL_FIELDS): Stop[] {

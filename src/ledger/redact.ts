@@ -62,7 +62,7 @@ export function redact(text: string): string {
 }
 
 /** Whether `value` itself, standalone (no surrounding "key: " prefix needed), looks like a real secret — the
- *  same provider-shaped PATTERNS above, or a registered resolved key. config/validate.ts (plan 2c B, security
+ *  same provider-shaped PATTERNS above, or a registered resolved key. config/validate.ts (security
  *  item) uses this to catch a real key pasted into a config VALUE (e.g. baseURL) regardless of what the key
  *  around it is named — checkSecretLike (defaults.ts's SECRET_LIKE_KEYS) already covers the key-NAME-shaped
  *  case; this is the value-shaped one. `lastIndex` is reset before each test: PATTERNS carry the `g` flag for

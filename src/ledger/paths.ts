@@ -38,7 +38,7 @@ export function pathsFor(root: string): Mm3Paths {
  * those write paths (log.ts, budget.ts, ledger/index.ts) and from init's own explicit "create the project"
  * step, so first-run users are covered either way. Idempotent and cheap: skips the write once the file exists.
  *
- * One exception to the blanket ignore: `config.yaml` (plan 2c B1) holds a project's own shared settings
+ * One exception to the blanket ignore: `config.yaml` holds a project's own shared settings
  * (budget caps, provider, pricing, reuse limits) — the opposite of everything else in here, which is
  * per-machine/disposable. `!config.yaml` un-ignores it so a team that chooses to create one can commit it
  * with the rest of the project; nothing here ever creates that file itself (config/load.ts only ever reads

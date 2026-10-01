@@ -2,7 +2,7 @@
  * Measures the SQLite ledger index (src/ledger/index.ts, Task 29 revised) at scale: rebuild time, db size vs
  * log size, per-call catch-up after 1/50 new lines, reuse hit/miss, run-by-id, an outcome append, broad/narrow
  * place lookups, a dynamic Mdl json_extract query without/with an expression index, one real end-to-end paid
- * `class` call through the fake provider, and (plan 2c "Before C3") the graph tier (src/ledger/graph.ts): a
+ * `class` call through the fake provider, and the graph tier (src/ledger/graph.ts): a
  * full graph rebuild, graph catch-up after 50 new lines, `problemCounts` top-20, and a depth-4 `traverse` —
  * The graph targets (traversal < 100 ms, rebuild < 30 s at 100k runs) come from the internal scale plan. Not part of
  * `npm test` — 10k/100k ledgers take real time and real disk; run by hand (`npx tsx scripts/bench-ledger.ts`)
@@ -77,7 +77,7 @@ const TAGS = ['injection', 'guards', 'timeouts', 'retries', 'validation', 'permi
 const BROAD_AREA = AREAS[0];
 const NARROW_PATH = `src/${BROAD_AREA}/file0.ts`;
 
-// Graph-tier fixture (plan 2c "Before C3" bench task, research doc §5: "a few hundred components, heavy-tailed").
+// Graph-tier fixture (a few hundred components, heavy-tailed).
 // A bounded component/entity pool so `mdl.uses`/`mdl.touches` labels recur across runs the way a real
 // project's would — without this the graph tier would have too few non-trivial edges for `traverse` below to
 // be a meaningful depth-4 measurement (just a handful of disjoint one-hop chains).
@@ -255,7 +255,7 @@ function benchRebuild(paths: Mm3Paths, n: number): BenchRow {
  *  A new copy per sample — "fresh open" (design binding #2: every real MM3 process opens its own
  *  connection; there's no warm-WAL state to reuse between commands, see the spike's Surprise §1).
  *
- *  Bug fixed 2026-09-28 (plan 2c Phase C "before C3" step): this used to route through `timeCalls`, which times
+ *  Bug fixed 2026-09-28: this used to route through `timeCalls`, which times
  *  its OWN wall-clock span around the whole per-sample closure — copy, append, fsync, `nextRunNumber`, AND the
  *  temp dir's `rmSync` cleanup — while the closure separately computed its own `ms` around just `nextRunNumber`
  *  and returned it, a return value `timeCalls` never reads. So every reported catchup1/catchup50 number was
@@ -378,9 +378,9 @@ async function benchClassCall(paths: Mm3Paths, n: number): Promise<ClassRow> {
   // (exit 3, calls: -1) and never actually pays, no matter how the request itself is shaped. A generous
   // project-local override (never touching the real DEFAULT_CONFIG) keeps this row measuring the real call.
   writeFileSync(paths.config, `budget:\n  usd: ${Math.max(100, n) * 1}\n  runs: ${n + 1000}\n`);
-  // depth: quick needs exactly 3 concerns categories of 3 probes each (3k x 3 — plan 2b's contract; see
+  // depth: quick needs exactly 3 concerns categories of 3 probes each (3k x 3 — the contract; see
   // skills/mm3/templates/class.yaml) — anything else is a validation stop (exit 2, calls never happen).
-  // Fixed 2026-09-28 (plan 2c Phase C): this used the pre-2b flat `ask.reach` shape (10 questions, no
+  // Fixed 2026-09-28: this used the pre-2b flat `ask.reach` shape (10 questions, no
   // concerns/decisions split), which the current schema rejects outright — every run of this bench silently
   // timed a ~10ms validation STOP (exit 2, calls: -1), never a real paid call, and the doc's "class" row was
   // reporting that stop's cost as if it were the real end-to-end number.
@@ -452,7 +452,7 @@ async function benchOne(paths: Mm3Paths, n: number, gen: GenResult): Promise<{ r
 
   const mdl = await benchMdlQuery(paths.index);
 
-  // Graph tier (plan 2c "Before C3" bench task): rebuild first (this paths' index.db has never had a graph
+  // Graph tier rebuild first (this paths' index.db has never had a graph
   // ingest before now, so this is a genuine first-ever full ingest, not a repeat), then — only if that worked,
   // i.e. node:sqlite is real — catch-up/read ops against the now-caught-up graph. Inserted before benchClassCall
   // below so these numbers reflect exactly `n` runs, not n+1 after that call appends one more ledger line.

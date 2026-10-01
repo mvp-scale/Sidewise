@@ -144,7 +144,7 @@ function logFailed(ctx: VerbContext, verb: Verb, costUsd: number | undefined, re
   return fail(1, `✖ classifier: ${reason} → retry; the call was counted against the budget`);
 }
 
-/** One provider call's own telemetry (plan 2c B2) — `latencyMs` measured locally around the call, never trusted
+/** One provider call's own telemetry — `latencyMs` measured locally around the call, never trusted
  *  from the provider; `retries`/`baseURL` come along for free from what this call site already has (an
  *  `identity` lookup every verb already does before calling askAll — cheap and pure, no extra I/O). */
 function telemetryOf(model: string, identity: { baseURL: string | null }, call: PlannedCall, result: ClassifierResult, latencyMs: number): TelemetryEntry {
@@ -171,7 +171,7 @@ function telemetryOf(model: string, identity: { baseURL: string | null }, call: 
 /** The calls in order. Answers are merged by question id; the cost is their sum, or undefined if any call didn't
  *  report one. `costEstimated` is true when ANY summed call's cost came from a token-based estimate
  *  (typesafe/answers.ts) rather than the provider's own reported figure, so the total can be marked as such.
- *  `telemetry` (plan 2c B2): one entry per call actually made — never per reused answer (see ledger/reuse.ts for
+ *  `telemetry`: one entry per call actually made — never per reused answer (see ledger/reuse.ts for
  *  the separate `source: 'cache'` shape, not built here). */
 export async function askAll(
   ctx: VerbContext,

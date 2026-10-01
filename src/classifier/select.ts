@@ -10,7 +10,7 @@ import { hasKey, resolveJevConfig, routeLabel, type JevFileConfig, type Provider
 
 type Env = Record<string, string | undefined>;
 
-/** plan 2c B1: `MM3_PROVIDER` still wins outright (env > config > default); `deps.fileConfig?.provider`
+/** `MM3_PROVIDER` still wins outright (env > config > default); `deps.fileConfig?.provider`
  *  (config.yaml's `provider:` key) is the fallback when no env var names one at all — same precedence as every
  *  other config-aware field in this codebase. */
 function wantedProvider(env: Env, deps: { fileConfig?: JevFileConfig }): string | undefined {

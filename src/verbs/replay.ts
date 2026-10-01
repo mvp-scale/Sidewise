@@ -3,7 +3,7 @@
  * worktree). A one-subject parent (class, replay, or drill's one-subject form): two calls at most (one per
  * state), reusing per question exactly like class.ts; goal is asked once, on the "after" state only. Grading
  * pairs before/after per category (fixed/still) and across all of them (regressed), which alone can fail the
- * gate even when every "after" category passes. A sweep parent (scan, loop, or drill's sweep form — plan 2c
+ * gate even when every "after" category passes. A sweep parent (scan, loop, or drill's sweep form
  * C2): re-runs the parent's own sweep.ts engine TWICE, once per ref, over a ref-aware code resolver
  * (evidence/units.ts's createCodeResolverAt) instead of the working tree — unchanged units reuse for free
  * (planSweep's own reuse lookup keys on unit text, identical at both refs for anything that didn't change, so
@@ -97,7 +97,7 @@ export function gradeReplay(categories: readonly Category[], answers: Record<str
 }
 
 export async function runReplay(text: string, ctx: VerbContext): Promise<VerbResult> {
-  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
+  // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
   const loaded = loadRequest(text, 'replay', mdlFields);
@@ -110,13 +110,13 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   // (round3-findings.md, STOPS.md #1). Routed through stopText so they match every other verb's stop shape.
   if (!parent) return { exit: 2, text: stopText([`✖ mak.parent: ${request.mak.parent} is not in the ledger → check the id`], 'replay') };
   if (!isContractRun(parent)) return { exit: 2, text: stopText([`✖ mak.parent: ${parent.id} predates the YAML contract → run class again on this code`], 'replay') };
-  // plan 2c C2: a sweep parent (scan, loop, or drill's sweep form) is replayed by re-running its own sweep at
+  // a sweep parent (scan, loop, or drill's sweep form) is replayed by re-running its own sweep at
   // both refs, not refused — see runSweepReplay's own header comment.
   if (parent.items !== null) return runSweepReplay(ctx, request, loaded, parent, cfg);
 
   const categories = parent.ask.categories;
-  // expect: names which of the parent's concerns this replay should turn to pass (plan 2b), or the literal
-  // "none" to predict no flips at all (plan 2c N4) — every named entry must be a real concern of the parent;
+  // expect: names which of the parent's concerns this replay should turn to pass, or the literal
+  // "none" to predict no flips at all — every named entry must be a real concern of the parent;
   // decisions categories don't count (they're never "fixed").
   const concernNames = categories.filter((c) => c.section === 'concerns').map((c) => c.name);
   const expect = request.mak.expect!;
@@ -207,7 +207,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
   // The agent's own prediction, graded against what actually happened: a concern named in expect: is "fixed"
   // when it missed/was mid before and clears now, "still" when it missed/was mid before and still doesn't
   // clear. A concern that already passed before predicts nothing meaningful either way, so it's left out of
-  // both lists (plan 2b: "grading the prediction against the expected concerns"). N4: expect: none predicts no
+  // both lists ("grading the prediction against the expected concerns"). N4: expect: none predicts no
   // flips at all — either way, any CONCERN category that flips (before != after) without being named in expect
   // (an empty list, for "none") is reported separately as unexpected:, replacing the old forced workaround of
   // having to name every affected concern up front.
@@ -265,7 +265,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
       ),
     );
 
-  // plan 2c B1: commit is the AFTER ref's own resolved sha (in the repo that actually contains the parent's
+  // commit is the AFTER ref's own resolved sha (in the repo that actually contains the parent's
   // where files), plus commits: {before, after} for both refs resolved the same way — replacing the old
   // "always null" (replay has no single worktree-HEAD commit the way class/scan/drill/loop do, but its two
   // compared refs each resolve to a real sha).
@@ -317,8 +317,7 @@ export async function runReplay(text: string, ctx: VerbContext): Promise<VerbRes
  *  a sweep parent's items nest file -> function -> call, and rolling children up here would double-count a
  *  change already reported by the child's own entry), fixed/still (question numbers that missed/were mid
  *  before and clear now, or still don't) and regressed (passing before, not after now) — the sweep-shaped twin
- *  of gradeReplay's own per-category computation above, keyed by item id instead of category name (plan 2c C2,
- *  N3: "the same fixed/still/regressed/expected output per item"). undefined when the item was graded (asked or
+ *  of gradeReplay's own per-category computation above, keyed by item id instead of category name ("the same fixed/still/regressed/expected output per item"). undefined when the item was graded (asked or
  *  reused) at NEITHER state — skipped past the depth cap, or its layer has no categories, at both refs, same as
  *  a sweep's own `failing:`/`passing:` counts already only cover graded items. */
 export interface SweepReplayItemGrade {
@@ -356,7 +355,7 @@ function sweepReplayItemGrade(beforeIg: ItemGrade | undefined, afterIg: ItemGrad
   return { before: beforeMarks ? beforeIg!.ownGate : 'unsure', after: afterMarks ? afterIg!.ownGate : 'unsure', fixed, still, regressed };
 }
 
-/** A sweep parent's before/after grade, per item (plan 2c C2, N3) — `itemIds` fixes the display order (the
+/** A sweep parent's before/after grade, per item — `itemIds` fixes the display order (the
  *  "after" state's own item order, then any item that only ever existed "before", e.g. a file deleted between
  *  the two refs). Pure: reads two already-graded `gradeItems()` maps, same "reuse gradeReplay's own logic, just
  *  keyed differently" shape as this file's other grading function, gradeReplay. */
@@ -390,7 +389,7 @@ function sweepResolverAt(root: string, ref: string, notes: string[], wherePaths:
 }
 
 /**
- * plan 2c C2: replays a SWEEP parent's own questions (scan, loop, or drill's sweep form) at two refs, instead of
+ * replays a SWEEP parent's own questions (scan, loop, or drill's sweep form) at two refs, instead of
  * refusing it. Same engine as scan/drill (sweep.ts's planSweep/runSweep), run twice — once per ref, over a
  * ref-aware resolver (units.ts's createCodeResolverAt) instead of the working tree — with the SAME categories/
  * layers the parent asked (`parent.ask.layers`) and the SAME `over:` it swept (`parent.over`). An unchanged

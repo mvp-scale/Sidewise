@@ -215,7 +215,7 @@ describe('drill: a sweep parent (scan) — the sweep shape, worst first, passing
     expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
-  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
   // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
   it('a legacy budget.json is migrated into config.yaml (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function findUser(req) { return db.query(`x ${req.id}`); }\n' });
@@ -379,7 +379,7 @@ describe('drill: a one-subject parent (class) — the class shape', () => {
     expect(r.text).toContain('adapter fake · not evidence');
   });
 
-  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
   // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
   it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'export function f(x) { return db.query(`x ${x}`); }\n' });

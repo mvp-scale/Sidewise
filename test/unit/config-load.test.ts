@@ -1,4 +1,4 @@
-// plan 2c B1: .mm3/config.yaml → the effective config (defaults < config.yaml < env), validation stops,
+// .mm3/config.yaml → the effective config (defaults < config.yaml < env), validation stops,
 // and the mm3 config command's printed output.
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
@@ -82,7 +82,7 @@ describe('validateConfig', () => {
     expect(nested.stops.some((s) => s.text.includes('keys go in env or the keychain'))).toBe(true);
   });
 
-  // plan 2c B, security item: a real key pasted into a config VALUE stops regardless of the key's own name —
+  // a real key pasted into a config VALUE stops regardless of the key's own name —
   // baseURL isn't secret-shaped itself, only the value is. Built at runtime (never a literal secret in the repo).
   it('a key-shaped VALUE stops even under a non-secret-named key (baseURL)', () => {
     const secret = 'sk-' + 'A'.repeat(24);
@@ -121,7 +121,7 @@ describe('mm3 config command', () => {
     expect(r.text).toContain('# default');
   });
 
-  // plan 2c B, item 3: mm3 config's output must be valid, copyable YAML — not the old "5  # default" quoted
+  // mm3 config's output must be valid, copyable YAML — not the old "5  # default" quoted
   // string it used to print, which emit.ts's own scalar() double-quoted (a " #" inside a plain string disqualifies
   // it), so pasting it into config.yaml produced garbage. Every commented default/example line must, on its own,
   // uncomment into a valid config.yaml fragment.

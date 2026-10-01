@@ -17,7 +17,7 @@
  * real keychain, npm or claude. Only cli.ts's own production call wires the real implementations
  * (setup/keystore.ts, setup/npm-info.ts, setup/plugin.ts).
  *
- * plan 2c B1b: bare `mm3 doctor` also validates `.mm3/config.yaml` when present (free, offline,
+ * bare `mm3 doctor` also validates `.mm3/config.yaml` when present (free, offline,
  * reusing `config/load.ts`'s own `resolveConfig` — the exact same stops `mm3 config` would show). Given a
  * file or stdin (`runDoctorFile`, wired by cli.ts as `mm3 doctor <file|->`), doctor instead checks ONE
  * document and detects its kind: a `mak:` top-level key means a REQUEST, checked with the same
@@ -169,7 +169,7 @@ function overrideCount(sources: Record<string, ConfigSource>): number {
   return tops.size;
 }
 
-/** The `config:` field (plan 2c B1b): a bad config.yaml shows every problem in one pass, same
+/** The `config:` field: a bad config.yaml shows every problem in one pass, same
  *  `✖ config.<path>: problem → fix` shape `mm3 config`/`doctor <file>` use; a clean or absent one shows
  *  just how many top-level keys it overrides, or "defaults" when none. */
 function configField(paths: Mm3Paths | undefined, env: Record<string, string | undefined>): Value {
@@ -211,7 +211,7 @@ function sniffVerb(text: string): Verb {
   }
 }
 
-/** Controller-found defect (plan 2c B): a contract cross-stop (validate.ts's checkCross) already embeds its own
+/** Controller-found defect: a contract cross-stop (validate.ts's checkCross) already embeds its own
  *  "→ see: mm3 agent probe" pointer in the stop line itself; loadRequest's own stopText then appends a
  *  SECOND, generic "→ see: mm3 agent <verb>" at the very end — deliberate for a real verb's own --dry-run
  *  (schema-check.ts's header comment: that pointer is an ADDITIONAL, more specific one, and the generic trailing
@@ -224,7 +224,7 @@ function singleTrailingPointer(text: string): string {
   return lines.map((line, i) => (i === last ? line : line.replace(/ → see: mm3 agent \S+$/, ''))).join('\n');
 }
 
-/** `mm3 doctor <file>` / `mm3 doctor -` (plan 2c B1b): checks ONE document, offline, and never writes
+/** `mm3 doctor <file>` / `mm3 doctor -`: checks ONE document, offline, and never writes
  *  anything — works with no project at all. See the module doc for the kind-detection rule. */
 export function runDoctorFile(text: string): VerbResult {
   if (isRequestShaped(text)) {

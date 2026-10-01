@@ -36,7 +36,7 @@ import type { VerbContext, VerbResult } from './types.ts';
  * reuses every item that didn't change. Never mm3 replay: replay.ts refuses a sweep parent. */
 const REDRILL_NEXT = 'fix it, then run this drill again (unchanged items are reused, so it is nearly free)';
 
-/** The `where` a sweep drill records (plan 2b: recorded for every verb): every item's own code path, unique,
+/** The `where` a sweep drill records (recorded for every verb): every item's own code path, unique,
  *  sorted, capped at 50 — same rule scan.ts applies to its own sweep, duplicated rather than shared (the two
  *  verb files own no common module here). An idea item (no `unit`, e.g. drilling a loop item) contributes
  *  nothing, same as scan's own code-only items. */
@@ -72,7 +72,7 @@ async function runOneSubjectProof(
   const questions = [goalQuestion(request.mak.goal), ...subjectQuestions(request.mak.categories)];
   const keyed = questions.map((q) => [q, answerKey(evidenceStr, q)] as const);
   // Reuse is resolved before preflight/dry-run, same as class.ts: a fully-reused drill's free call is never
-  // blocked by an already-reached budget cap, and a dry run can predict how much reuses. plan 2c B, item 5:
+  // blocked by an already-reached budget cap, and a dry run can predict how much reuses..
   // reuse.maxAgeDays/maxCommits apply here too, not just view's own exact-reuse.
   const reused = lookupAnswers(ctx.paths, who, keyed.map(([, k]) => k), { readOnly: ctx.dryRun ?? false, reuse: reuseLimits });
 
@@ -181,7 +181,7 @@ async function runOneSubjectProof(
 }
 
 export async function runDrill(text: string, ctx: VerbContext): Promise<VerbResult> {
-  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
+  // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
   const loaded = loadRequest(text, 'drill', mdlFields);

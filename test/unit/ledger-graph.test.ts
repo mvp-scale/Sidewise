@@ -1,4 +1,4 @@
-// The graph tier (ledger/graph.ts, plan 2c C3): a second, independent set of tables in the same index.db,
+// The graph tier (ledger/graph.ts): a second, independent set of tables in the same index.db,
 // refreshed only by `refreshGraph`, never on the paid path. These tests build small hand-crafted ledgers
 // (appendContractRun/appendOutcome, same helpers replay.test.ts/view.test.ts use) and inspect the resulting
 // nodes/triples directly via a raw node:sqlite connection (getSqliteCtor, exported from ledger/index.ts for

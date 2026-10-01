@@ -99,7 +99,7 @@ describe('runInit: a fresh --yes --no-claude --key-stdin run, inside a git proje
     expect(readInstallRecord(ctx.env)).toMatchObject({ mode: 'user', npmPrefix: path.join(home, '.local') });
     expect(readEnvFile(envFilePath(ctx.env))).toMatchObject({ values: { TYPESAFE_API_KEY: 'dummy-key-value-123' } });
     expect(existsSync(path.join(ctx.cwd, '.mm3', '.gitignore'))).toBe(true);
-    // plan 2c B1: config.yaml is the one file under .mm3/ meant to be committed (ledger/paths.ts's ensureDir).
+    // config.yaml is the one file under .mm3/ meant to be committed (ledger/paths.ts's ensureDir).
     expect(readFileSync(path.join(ctx.cwd, '.mm3', '.gitignore'), 'utf8')).toBe('*\n!config.yaml\n');
   });
 

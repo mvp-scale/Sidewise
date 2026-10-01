@@ -122,7 +122,7 @@ describe('validateRequest', () => {
       stopsOf({ mak: { goal: 'The fix works', parent: 'MM3-0042', compare: { before: 'main', after: 'HEAD' }, expect: ['a'], ask: fullAsk(1) } }, 'replay'),
     ).toEqual(["✖ mak.ask: replay re-runs the parent's questions → remove ask; for new questions, use class"]);
 
-    // plan 2b: mak.parent is now allowed on every verb, as lineage (not just drill/replay).
+    // mak.parent is now allowed on every verb, as lineage (not just drill/replay).
     const v = validateRequest(req({ parent: 'MM3-0001' }), 'class');
     if (!v.ok) throw new Error(v.stops.map((s) => s.text).join('\n'));
     expect(v.request.mak.parent).toBe('MM3-0001');
@@ -296,7 +296,7 @@ describe('validateRequest', () => {
     expect(v.ok && v.notes).toEqual(['looks irreversible; don\'t act on this alone ("deploy")']);
 
     // view: a partial draft (one concerns category, 2 probes, no decisions) validates — the section/count
-    // rules become notes, not stops (plan 2b: "a partial draft is fine").
+    // rules become notes, not stops ("a partial draft is fine").
     const partial = validateRequest(parse(readFileSync('test/fixtures/requests/valid/view.yaml', 'utf8')), 'view');
     if (!partial.ok) throw new Error(partial.stops.map((s) => s.text).join('\n'));
     expect(partial.notes.length).toBeGreaterThan(0);

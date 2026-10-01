@@ -29,7 +29,7 @@ function linearLookup(records: readonly LedgerRecord[], who: Who, keys: readonly
   }
   return out;
 }
-/** lookupAnswers now returns each hit's own ts/commit/where too (plan 2c B3, for age/commits-since display and
+/** lookupAnswers now returns each hit's own ts/commit/where too (for age/commits-since display and
  *  staleness eviction) — this oracle only ever claimed id/answer correctness, so every comparison against it
  *  projects the real result down to that same shape first. */
 function idAnswerOnly(m: ReadonlyMap<string, { id: string; answer: unknown }>): Record<string, { id: string; answer: unknown }> {

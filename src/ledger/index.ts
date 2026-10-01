@@ -41,10 +41,10 @@
  *     values only (no prefix expansion at write time — `placeCandidates` below does a LIKE-prefix read instead).
  *   categories(run_id, name, section, family, gate): one row per category a run's own ask carried — one-subject
  *     (`ask.categories`) or a sweep's own layers (`ask.layers[].categories`), never both — so `mm3 report`
- *     can `GROUP BY family` with a plain indexed query instead of a JSON blob (plan 2b's "family per category
+ *     can `GROUP BY family` with a plain indexed query instead of a JSON blob (the "family per category
  *     as queryable"; see `runCategories` below). The `mdl` column's own JSON blob already carries
  *     problem/nodes/touches/blast for free (it serializes the run's whole `Mdl` object verbatim, and that
- *     type gained those fields in plan 2b too) — no schema change needed for those; `family` (and `section`)
+ *     type gained those fields too) — no schema change needed for those; `family` (and `section`)
  *     are the genuinely new things to index here, since they live on each `Category`, not on `mdl`.
  */
 import { createHash, randomBytes } from 'node:crypto';
@@ -193,7 +193,7 @@ export interface IndexHandle {
    *  contract run with no `ask`) are excluded — there's nothing to group them by. */
   patternCounts(): PatternRow[];
   /** For a future `mm3 report families`: every concern `family` any category has ever carried, with how
-   *  many categories (and distinct runs) touched it and their pass/fail/unsure split — plan 2b's "family per
+   *  many categories (and distinct runs) touched it and their pass/fail/unsure split — the "family per
    *  category as queryable" made real, not just stored. Categories with no family set are excluded (nothing to
    *  group them by, same discipline as patternCounts). */
   familyCounts(): FamilyRow[];
@@ -201,7 +201,7 @@ export interface IndexHandle {
   recentReplays(limit: number): Candidate[];
   /** For `mm3 report history`: every recorded outcome, newest first, capped at `limit`. */
   recentOutcomes(limit: number): { runId: string; outcome: OutcomeRecord['outcome']; ts: string; by: string }[];
-  /** For the budget (plan 2c B1): total `costUsd` and count of every contract-run/run/failed record with
+  /** For the budget: total `costUsd` and count of every contract-run/run/failed record with
    *  `ts >= sinceIso` — one indexed query, never a full-ledger scan on the paid path. See `budgetRollup` below. */
   budgetRollup(sinceIso: string): { spentUsd: number; runs: number };
 }
@@ -214,14 +214,14 @@ interface Sink {
   run(rec: RunRecord | ContractRun, offset: number): void;
   outcome(rec: OutcomeRecord): void;
   /** A failed call: never gets an id-index entry (no MM3-####, nothing to look up by), but its `ts`/`costUsd`
-   *  still count toward the budget rollup below (plan 2c B1: "budget.runs == paid runs + failed records") —
+   *  still count toward the budget rollup below ("budget.runs == paid runs + failed records") —
    *  see budgetRollup's own comment for why this needs its own tiny table rather than living in `runs`. */
   failed(rec: FailedRecord): void;
 }
 
 const CHUNK_BYTES = 1 << 20; // 1 MiB: bounds memory during a scan regardless of log.jsonl's size.
 
-/** Whether a run/contract record counts toward the budget rollup (plan 2c B1's invariant: "budget.runs == paid
+/** Whether a run/contract record counts toward the budget rollup (the invariant: "budget.runs == paid
  *  runs (calls > 0) + failed records"). A Plan-1 `RunRecord` has no `calls` field — it predates reuse/free runs
  *  entirely, so every one of them was paid. A `ContractRun` counts only when it actually made a call:
  *  `recordFree`'s fully-reused runs (`calls: 0`) must never inflate the run cap or its spend. */
@@ -229,7 +229,7 @@ function countsTowardBudget(rec: RunRecord | ContractRun): boolean {
   return !isContractRun(rec) || rec.calls > 0;
 }
 
-/** plan 2c F1 (and the MM3 rename): a ledger record written before plan 2c may still carry `mdl.nodes` (a single chain string) instead
+/** A ledger record written before mdl v2 may still carry `mdl.nodes` (a single chain string) instead
  *  of `mdl.uses` — every raw-JSON parse site in the ledger (this file's own `parseLedgerLine`/`readRecordAt`, and
  *  log.ts's `readLedger`) runs a freshly-parsed record through here so every reader (report, view, report patterns/
  *  history) sees `uses` uniformly, without each of them having to check for the old shape. Guarded: most records
@@ -405,13 +405,13 @@ interface MemoryState {
   reuseKey: Map<string, Map<string, { runId: string; qid: string }>>;
   candidatesByWho: Map<string, Candidate[]>;
   places: { kind: 'where' | 'tag'; val: string; runId: string }[];
-  /** Mirrors the SQL engine's `categories` table (plan 2b: family/section per category, queryable) — feeds
+  /** Mirrors the SQL engine's `categories` table (family/section per category, queryable) — feeds
    *  familyCounts below (see runCategories's own comment for how both engines fill this identically). */
   categories: { runId: string; name: string; section: string; family: string | null; gate: string | null }[];
   childrenByParent: Map<string, Candidate[]>;
   outcomes: Map<string, { outcome: OutcomeRecord['outcome']; uid: string; ts: string; by: string }>;
   /** id -> {ts, cost}, one entry per run/failed record ever applied (keyed, like the SQL `spend` table's own
-   *  PRIMARY KEY, so a reprocessed id replaces rather than double-counts) — plan 2c B1's budget rollup source. */
+   *  PRIMARY KEY, so a reprocessed id replaces rather than double-counts) B1's budget rollup source. */
   spend: Map<string, { ts: string; cost: number }>;
   /** Every run, oldest first, regardless of adapter/model — `recentReplays`/`patternCounts` need a global view
    *  `candidatesByWho` (scoped per adapter+model) can't give them. */
@@ -625,11 +625,11 @@ function buildMemoryHandle(paths: Mm3Paths): IndexHandle {
 
 // Bumped to 6 (from 5) here: a new `spend` table carries one row per costed record (every RunRecord/
 // ContractRun AND, newly, every FailedRecord too — failed calls previously had no index row at all; see
-// Sink.failed's own comment) so the budget (plan 2c B1) can compute spentUsd/runs since a given timestamp with
+// Sink.failed's own comment) so the budget can compute spentUsd/runs since a given timestamp with
 // one indexed query instead of a full-ledger scan. Caps (usd/runs/per/since) now live in `.mm3/
 // config.yaml`, not a separate running counter — see src/budget/budget.ts.
 // Bumped to 5 (from 4) here: a new `categories` table carries each contract run's own category shapes
-// (name, section, family, its own gate) — plan 2b's "family per category as queryable" — populated the same
+// (name, section, family, its own gate) — the "family per category as queryable" — populated the same
 // way `places`/`answer_keys` are, from the same one-subject `ask.categories` or sweep `ask.layers[].categories`
 // (never both). The new mdl fields (problem/nodes/touches/blast) need no schema change at all: `mdlJson`
 // already serializes the whole `mdl` object into `runs.mdl` verbatim, so they're already queryable via
@@ -704,7 +704,7 @@ CREATE INDEX idx_spend_ts ON spend(ts);
 
 /** Every category a contract run's own ask carries: one-subject (`ask.categories`) or a sweep's own layers
  *  (`ask.layers[].categories`), never both (validate.ts's checkCross builds it the same way) — feeds the
- *  `categories` table (family/section per category, plan 2b), populated identically by both engines below. */
+ *  `categories` table (family/section per category), populated identically by both engines below. */
 function runCategories(rec: RunRecord | ContractRun): Category[] {
   if (!isContractRun(rec)) return [];
   return rec.ask.categories.length ? rec.ask.categories : rec.ask.layers.flatMap((l) => l.categories);
@@ -1288,7 +1288,7 @@ export function withIndex<T>(paths: Mm3Paths, fn: (h: IndexHandle) => T, opts: {
   return runSqlite(paths, fn, { forceRebuild: opts.forceRebuild ?? false, readOnly: opts.readOnly ?? false });
 }
 
-/** The budget's own read (plan 2c B1): total spend/run count for every record (run, contract-run or failed)
+/** The budget's own read: total spend/run count for every record (run, contract-run or failed)
  *  timestamped `sinceIso` or later — one indexed query on the SQLite path, a bounded in-memory filter on the
  *  fallback. Safe to call from inside an already-held `paths.lock` (e.g. `recordCall`): `withIndex`/`ensureFreshDb`
  *  use `withLockIfNeeded`, which detects a lock this same process already holds and skips re-acquiring it. */

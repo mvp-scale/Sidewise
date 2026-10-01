@@ -126,7 +126,7 @@ export function outcomeHelp(): string {
   ].join('\n');
 }
 
-/** plan 2c B1b: `doctor` gained a second form (`doctor <file|->`) alongside its original bare system report —
+/** `doctor` gained a second form (`doctor <file|->`) alongside its original bare system report —
  *  documented here the same way outcome/budget are, since neither is a `mak:`-YAML verb. */
 export function doctorHelp(): string {
   return [

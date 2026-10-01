@@ -215,7 +215,7 @@ describe('log', () => {
     expect(() => readLedger(paths)).toThrow(/line 2 of \.mm3\/log\.jsonl is not valid JSON → fix or remove that line/);
   });
 
-  // plan 2c F1: a record written before plan 2c may still carry the old `mdl.nodes` (a single chain string)
+  // a record written before mdl v2 may still carry the old `mdl.nodes` (a single chain string)
   // instead of `uses` — readLedger (report-web.ts's and view.ts's byPlaceFullScan's own reader) must read it
   // back as a 1-item `uses` list, not leave the old shape for every caller to check for itself.
   it('reads an old mdl.nodes record as a 1-item uses list', () => {

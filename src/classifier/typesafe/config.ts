@@ -74,7 +74,7 @@ export interface JevConfig {
   pricing?: Record<string, PricingRate>;
 }
 
-/** The middle layer between env and the hardcoded defaults below (plan 2c B1: env > config > default) — a
+/** The middle layer between env and the hardcoded defaults below (env > config > default) — a
  *  project's `.mm3/config.yaml`, already resolved by `src/config/load.ts`'s `classifierFileConfig`. Purely
  *  additive: every existing call site that omits this keeps behaving exactly as before. */
 export interface JevFileConfig {
@@ -163,7 +163,7 @@ function resolveBaseURL(env: Env, baseDefault: string, fileConfig?: JevFileConfi
  * Omitting it keeps this call exactly as pure as before: no existing caller starts doing keychain/file I/O
  * just by this feature landing.
  *
- * `deps.fileConfig` (plan 2c B1, default: none): a project's `.mm3/config.yaml`, already resolved to plain
+ * `deps.fileConfig` (default: none): a project's `.mm3/config.yaml`, already resolved to plain
  * fields by `src/config/load.ts`'s `classifierFileConfig`. Purely additive, same discipline as resolveStored —
  * every existing call site that omits it keeps reading env-then-hardcoded-default exactly as before. When
  * given, it's the middle layer: env (JEV_MODEL/TYPESAFE_BASE_URL/JEV_TIMEOUT_MS) still wins over it, and it

@@ -23,7 +23,7 @@ interface Line {
   of?: string;
 }
 
-/** Reads the current run count straight off the built `mm3 budget` line (plan 2c B1: budget is
+/** Reads the current run count straight off the built `mm3 budget` line (budget is
  *  ledger-derived, no separate budget.json to read) — e.g. "budget: $5.00 left of $5.00 · 497 of 500 runs left" (used = cap − left). */
 function budgetRunsOf(root: string): number {
   const out = mm3(root, ['budget']).stdout;

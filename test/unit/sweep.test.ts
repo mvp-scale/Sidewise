@@ -114,7 +114,7 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     expect(p.skipped).toEqual(['part13', 'part14']);
   });
 
-  // plan 2c B, item 4: sweep.maxItems is LOWER-only — a project may tighten the depth's compiled-in item
+  // sweep.maxItems is LOWER-only — a project may tighten the depth's compiled-in item
   // ceiling, never raise past it.
   describe('sweep.maxItems (lower-only vs the depth cap)', () => {
     const category = { name: 'boundaries', section: 'concerns' as const, pass: 'yes' as const, need: 'all' as const, tags: [], questions: [{ n: 1, kind: 'yesno' as const, text: 'Does {part} own one clear responsibility?' }] };
@@ -144,7 +144,7 @@ describe('planSweep + runSweep (the contract loop example)', () => {
     });
   });
 
-  // plan 2c B, item 4: a layer's questions past sweep.maxQuestionsPerCall split into several calls, each
+  // a layer's questions past sweep.maxQuestionsPerCall split into several calls, each
   // carrying only the evidence its own chunk's questions reference; every call still lands in telemetry.
   describe('sweep.maxQuestionsPerCall (splitting one layer into several calls)', () => {
     it('a small limit splits the part layer into more than one call, noted in splitNotes', async () => {

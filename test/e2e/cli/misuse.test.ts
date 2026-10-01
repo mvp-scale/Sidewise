@@ -213,7 +213,7 @@ describe('view', () => {
     for (const target of ['../..', '..', 'src/../../etc', '/etc']) {
       expect(expectCleanStop(unchanged(root, ['view', target]), 2)).toBe(`✖ view: "${target}" is outside the project → use a folder inside it, a tag, or MM3-####`);
     }
-    // A successful place view now logs a free `kind:"lookup"` record (plan 2c B4) — no longer a no-op, so it's
+    // A successful place view now logs a free `kind:"lookup"` record — no longer a no-op, so it's
     // run plain rather than through `unchanged`.
     const abs = mm3(root, ['view', path.join(root, 'src')]);
     expect(abs.status).toBe(0);

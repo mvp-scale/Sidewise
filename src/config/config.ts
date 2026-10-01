@@ -1,5 +1,5 @@
 /**
- * `mm3 config`: prints the EFFECTIVE config as valid, copyable YAML (plan 2c B, item 3) — plain `config` never
+ * `mm3 config`: prints the EFFECTIVE config as valid, copyable YAML — plain `config` never
  * writes anything. Free, like `doctor`: works with or without a project (no project just means every value is a
  * default, since there's nowhere for config.yaml to live). A broken config.yaml is reported here too (the same
  * stops `mm3 doctor` would show), but this command still prints the rest of the effective table

@@ -20,7 +20,7 @@ import { itemRecords, planNeedsBudget, plannedCallCount, planSweep, recordSweep,
 import type { VerbContext, VerbResult } from './types.ts';
 
 export async function runLoop(text: string, ctx: VerbContext): Promise<VerbResult> {
-  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
+  // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
   const loaded = loadRequest(text, 'loop', mdlFields);

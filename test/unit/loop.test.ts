@@ -109,7 +109,7 @@ describe('loop', () => {
     expect(r.exit).toBe(0);
   });
 
-  // plan 2c B, item 5: a sweep's fully-reused second run shows each reused origin's age, not just that reuse
+  // a sweep's fully-reused second run shows each reused origin's age, not just that reuse
   // happened — the same reusedAgeNotes line class.ts/drill.ts/replay.ts now show, wired here into the shared
   // sweep engine's own response.
   it('a fully-reused second run names the origin run and its age in notes', async () => {
@@ -128,7 +128,7 @@ describe('loop', () => {
     expect(r.text).toContain('cost estimated from tokens (no live pricing reported)');
   });
 
-  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
   // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
   it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({});

@@ -4,7 +4,7 @@
  * runs, per-category record, and `reuse` when the exact question set was asked before); otherwise the raw
  * string is a place (a folder or tag, showing the newest 10/20/30 runs with outcome counts) or a run id
  * (showing its lineage up and down). Rehearsal-adapter runs (fake, chaos) are labelled and counted apart.
- * The hot cache replaces the linear reads without changing the output. `--answers` (plan 2c C1) adds, for a
+ * The hot cache replaces the linear reads without changing the output. `--answers` adds, for a
  * run id only, one line per question that run actually asked: its text, its checked answer, whether it was
  * reused (and from which run id), and its answer key.
  */
@@ -163,7 +163,7 @@ function byPlaceIndexed(place: string, paths: Mm3Paths, limit: number, summary: 
   );
 }
 
-/** B4 (plan 2c): a place browse (a folder, a tag, or '.') is logged too, free — the same "what agents search
+/** B4: a place browse (a folder, a tag, or '.') is logged too, free — the same "what agents search
  *  for" signal request mode's own draft check already gave (`kind: 'lookup'`, no MM3-#### id, never counted
  *  toward the budget or any run total). There's no exact-answer reuse to report for a bare place browse (that
  *  concept only applies to a real draft check's own question set), so `hit`/`reused` are always false/null here
@@ -285,7 +285,7 @@ function answersLines(self: AnyRun): string[] {
   return [`  answers ${rows.length}:`, ...rows.map((r) => `    ${answerLine(r)}`)];
 }
 
-/** B4 (plan 2c): a run-id view is logged too, on a HIT only (same discipline as request mode: a validation
+/** B4: a run-id view is logged too, on a HIT only (same discipline as request mode: a validation
  *  failure — here, `id` not in the ledger — never writes a lookup, mirroring loadRequest's own early return
  *  before runRequestMode's appendLookup call). Called after withIndex returns (never nested inside its
  *  callback): appendLookup takes its own lock, and this avoids any question of lock re-entrancy across the two. */
@@ -375,7 +375,7 @@ function runsForPlaces(paths: Mm3Paths, places: readonly string[]): ContractRun[
 
 /** Request mode: the contract's own view shape. loadRequest and readCodeEvidence stop it exactly as class does. */
 function runRequestMode(text: string, ctx: ViewContext): VerbResult {
-  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
+  // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const mdlFields = effectiveMdlFields(resolveConfig(ctx.paths, ctx.env).config.mdl);
   const loaded = loadRequest(text, 'view', mdlFields);
   if (!loaded.ok) return loaded.result;
@@ -392,7 +392,7 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
     : [...new Set(runsHere.flatMap((r) => Object.keys(r.categories)))];
 
   let reuse: string | undefined;
-  // plan 2c B3 N2: when there's no exact reuse, say why — "never asked" (no prior run touched this place at
+  // when there's no exact reuse, say why — "never asked" (no prior run touched this place at
   // all) vs "code in where changed since MM3-x" (a prior run is right there, its evidence just no longer
   // matches this exact question set) — instead of just omitting the field, as before.
   let reuseMiss: string | undefined;
@@ -401,7 +401,7 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
     const evidenceStr = subjectEvidence(evidence.evidence.files);
     const keys = questions.map((q) => answerKey(evidenceStr, q));
     const who = providerIdentity(ctx.env, { resolveStored: ctx.resolveStored });
-    // plan 2c B3 D2: an answer older than reuse.maxAgeDays/maxCommits is treated as a miss, not reused.
+    // an answer older than reuse.maxAgeDays/maxCommits is treated as a miss, not reused.
     const reuseLimits = resolveConfig(ctx.paths, ctx.env).config.reuse;
     reuse = exactReuse(ctx.paths, who, keys, { reuse: reuseLimits });
     if (reuse === undefined) reuseMiss = runsHere.length ? `code in where changed since ${runsHere.at(-1)!.id}` : 'never asked';
@@ -411,7 +411,7 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
     appendLookup(ctx.paths, { goal: request.mak.goal, where: request.mak.where, hit: reuse !== undefined, reused: reuse ?? null });
   }
 
-  // plan 2c B3 D1: a found reuse also shows its own age/commits-since, right beside the id it already showed.
+  // a found reuse also shows its own age/commits-since, right beside the id it already showed.
   // `reuse` names the matching run itself (not necessarily one of `runsHere`, which is scoped by place, not by
   // exact question-key match), so its own record is looked up directly.
   const reuseRun = reuse ? findRun(ctx.paths, reuse) : undefined;
@@ -436,7 +436,7 @@ function runRequestMode(text: string, ctx: ViewContext): VerbResult {
  * existing caller that already has the text in hand, e.g. a request string read from stdin) keeps checking
  * `arg` itself for request mode, unchanged. `summary` (`--summary`) only applies to place mode — a
  * run id or a request draft ignores it, since "one line per place" makes no sense for either. `answers`
- * (`--answers`, plan 2c C1) only applies to a run id — place/tag and request-draft modes ignore it, the
+ * (`--answers`) only applies to a run id — place/tag and request-draft modes ignore it, the
  * same restriction as `summary`'s, just reversed. */
 export function runView(arg: string, level: Level, ctx: ViewContext, content?: string, summary = false, answers = false): VerbResult {
   const probe = (content ?? arg).trim();

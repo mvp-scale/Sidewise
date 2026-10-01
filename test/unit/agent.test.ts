@@ -282,7 +282,7 @@ describe('every agent card follows the same key order', () => {
   });
 });
 
-// plan 2c B1/F2: `mm3 agent mdl`'s card is generated from mdl-fields.ts's MDL_FIELDS, or from a
+// `mm3 agent mdl`'s card is generated from mdl-fields.ts's MDL_FIELDS, or from a
 // project's own EFFECTIVE (config-overridden) table when `deps.paths` names one with a `.mm3/config.yaml`
 // `mdl:` override. Pinned exactly (no project) so any accidental drift in the card text is caught; a second
 // test proves the override actually reaches the rendered card end to end, not just in mdl-fields.ts unit tests.

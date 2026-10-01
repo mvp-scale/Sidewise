@@ -1,5 +1,5 @@
 /**
- * The one place that WRITES `.mm3/config.yaml` (plan 2c B1). Every other config module is read-only
+ * The one place that WRITES `.mm3/config.yaml`. Every other config module is read-only
  * (load.ts/validate.ts/config.ts) — `mm3 budget set`/`reset` and the one-time budget.json migration
  * (src/budget/budget.ts) are the only callers, and they only ever merge a sparse patch into whatever is already
  * there, preserving every other key (and comments, since this goes through the `yaml` package's own Document

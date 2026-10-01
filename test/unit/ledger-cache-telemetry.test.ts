@@ -1,4 +1,4 @@
-// plan 2c B2/B, item 6: on reuse, one source:'cache' telemetry entry per distinct origin run, prorated from
+// on reuse, one source:'cache' telemetry entry per distinct origin run, prorated from
 // that origin's own provider telemetry.
 import { describe, expect, it } from 'vitest';
 import { appendContractRun } from '../../src/ledger/log.ts';

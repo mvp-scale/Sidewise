@@ -32,7 +32,7 @@ const ENTRYPOINT_GLOBS = ['server.js', 'app.js', 'index.js', 'main.js', 'config/
 // of files, and spelling out every one works against "help first, be concise." [C-168]
 const MISSED_SHOWN = 3;
 
-/** The `where` a sweep run records (plan 2b: recorded for every verb): every item's own code path, unique,
+/** The `where` a sweep run records (recorded for every verb): every item's own code path, unique,
  *  sorted, capped at 50 — a sweep's own `where` on the wire is always `[]` (over: names the files instead),
  *  but the run itself still touched real paths worth showing in `view`/`report`. */
 const WHERE_CAP = 50;
@@ -53,7 +53,7 @@ function unlookedEntrypoints(root: string, items: readonly { unit?: { path: stri
 }
 
 export async function runScan(text: string, ctx: VerbContext): Promise<VerbResult> {
-  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
+  // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
   const loaded = loadRequest(text, 'scan', mdlFields);

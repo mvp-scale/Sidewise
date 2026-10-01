@@ -146,7 +146,7 @@ describe('view: request mode', () => {
     const text = 'mak:\n  goal: This login handler is safe to merge\n  depth: quick\n  where: [src/user.ts:1-3]\n  ask:\n    concerns:\n      injection:\n        pass: no\n        1: Is request text placed directly into the SQL query?\n';
     const r = runView(text, 1, { paths, env: {} });
     expect(r.exit).toBe(0);
-    // plan 2c B3 N2: no prior run touched this place at all -> "never asked", not just an omitted field.
+    // no prior run touched this place at all -> "never asked", not just an omitted field.
     expect(r.text).toBe(
       ['mak:', '  view: src/user.ts:1-3', '  reuse: never asked', '  runs: 0', '  categories:', '    injection: {runs: 0}', 'mdl: {recorded: none}', 'next: mm3 class', 'notes: [free]'].join(
         '\n',
@@ -168,7 +168,7 @@ describe('view: request mode', () => {
     const r = runView(draft, 1, { paths, env: {} });
     expect(r.text).toContain('runs: 1');
     expect(r.text).toContain('injection: {runs: 1, pass: 0, fail: 1, last: MM3-0001}');
-    // plan 2c B3 N2: a prior run DID touch this place, but its evidence key no longer matches this exact draft
+    // a prior run DID touch this place, but its evidence key no longer matches this exact draft
     // (a different goal text) — say so by name, not just omit the field.
     expect(r.text).toContain('reuse: code in where changed since MM3-0001');
   });
@@ -180,13 +180,13 @@ describe('view: request mode', () => {
     const classResult = await runClass(text, { paths, provider: createFakeAdapter(), env: {} });
     expect(classResult.exit).toBe(0);
     const linesBefore = readLedger(paths).length;
-    // plan 2c B1: budget state is ledger-derived now (no budget.json bytes to diff) — compare the computed
+    // budget state is ledger-derived now (no budget.json bytes to diff) — compare the computed
     // state before/after instead, proving the free lookup spent/counted nothing.
     const budgetBefore = loadBudget(paths).state;
     // The SAME request text: same goal, same categories/questions, same where.
     const r = runView(text, 1, { paths, env: {} });
     expect(r.text).toContain('reuse: MM3-0001');
-    // plan 2c B3 D1: a found reuse also shows its own age (no git repo here, so no commits-since to show).
+    // a found reuse also shows its own age (no git repo here, so no commits-since to show).
     expect(r.text).toContain('reuseAge: {days: 0}');
     expect(r.text).toContain('next: mm3 view MM3-0001');
     // Plan 2b: a real draft check (a full ask, not just a bare place/id lookup) is logged, free — one new

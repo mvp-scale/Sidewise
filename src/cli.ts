@@ -117,7 +117,7 @@ class UsageStop extends Error {
 
 const OUTCOMES: readonly string[] = ['held', 'overruled', 'failed'];
 const NO_PROJECT = '✖ project: no .mm3 or .git folder here or above → run inside a project, or "mkdir .mm3" to start one here';
-// plan 2c B1: the default lives in config/defaults.ts's requestMaxBytes now (still 1_048_576) — a project can
+// the default lives in config/defaults.ts's requestMaxBytes now (still 1_048_576) — a project can
 // lower or raise it via config.yaml; readRequest below takes the effective value as a parameter rather than
 // reading this constant directly, so every call site stays honest about where its own cap came from.
 const DEFAULT_REQUEST_MAX_BYTES = 1_048_576;
@@ -324,7 +324,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   if (command === 'doctor') {
     const { positionals } = args('doctor', { args: rest, allowPositionals: true, options: {} });
     positionalCount('doctor', positionals, 0, 1);
-    // plan 2c B1b: `doctor <file|->` checks ONE document (a request or a config file, kind auto-detected) —
+    // `doctor <file|->` checks ONE document (a request or a config file, kind auto-detected) —
     // free, offline, no project needed at all, so this branch never calls resolvePaths/runDoctor's own project
     // report. Reuses the same file/stdin reader every request-taking command already uses, at the code default
     // max size (a standalone doctor check has no project config to size it against).
@@ -539,7 +539,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         // contract), the placeholder is never read — runReplay's own findRun/isContractRun checks bail first.
         const parentRun = findRun(paths, values.parent);
         const goal = parentRun && isContractRun(parentRun) ? parentRun.goal : 'The change works';
-        // expect: (plan 2b, required): --expect names specific concerns (comma-separated) this replay should
+        // expect: (required): --expect names specific concerns (comma-separated) this replay should
         // turn to pass — the agent's own prediction, never a default. Omitting it defeats the point (the agent
         // must actually predict), so the flag form requires it exactly like the file form's schema does.
         const expect = values.expect

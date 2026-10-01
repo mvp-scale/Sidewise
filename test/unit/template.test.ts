@@ -175,7 +175,7 @@ describe('runTemplate', () => {
       const parsed = readRequestText(r.text);
       expect(parsed.ok).toBe(true);
       const v = parsed.ok && validateRequest(parsed.value, 'replay');
-      // expect: is required for replay (plan 2b) but replay.ts doesn't store it on ContractRun yet as this
+      // expect: is required for replay but replay.ts doesn't store it on ContractRun yet as this
       // test was written (that lands with replay.ts's own expect: feature) — fromRunId already reads it
       // defensively, so once replay.ts starts writing it this flips to a plain `expect(v && v.ok).toBe(true)`
       // with no further change here; until then, this proves the rebuild is faithful everywhere else.

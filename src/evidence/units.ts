@@ -86,8 +86,7 @@ export function createCodeResolver(root: string, notes: string[]): Resolver {
   };
 }
 
-/** The ref-aware mirror of readFiles: lists and reads files at `ref` instead of the working tree (plan 2c C2 —
- *  a sweep-parent replay re-runs the parent's own file layer at two git states). `root` resolves to its own
+/** The ref-aware mirror of readFiles: lists and reads files at `ref` instead of the working tree (a sweep-parent replay re-runs the parent's own file layer at two git states). `root` resolves to its own
  *  containing git repo once (git.ts's repoRootFor, the same "repo that actually contains the run's own files"
  *  rule the rest of this codebase already applies via C-147 — `wherePaths` is the caller's own equivalent of a
  *  run's `where`, here the sweep-parent's own item paths). Paths from `git ls-tree` come back repo-relative;
@@ -129,7 +128,7 @@ function readFilesAt(root: string, ref: string, spec: string, notes: string[], w
   return out;
 }
 
-/** One Resolver mirroring createCodeResolver, but reading a git ref instead of the working tree (plan 2c C2: a
+/** One Resolver mirroring createCodeResolver, but reading a git ref instead of the working tree (a
  *  sweep-parent replay reads the SAME layers — file -> function -> call — at two refs). Only the first layer
  *  (file listing/reading) is ref-aware; function/call splitting is pure text parsing (splitFunctions/splitCalls),
  *  ref-agnostic, so it's shared verbatim with createCodeResolver via readFunctions/readCalls. `wherePaths`

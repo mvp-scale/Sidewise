@@ -1,4 +1,4 @@
-// Phase B's index additions (ledger/index.ts): patternFingerprint, and the four IndexHandle methods
+// The index additions (ledger/index.ts): patternFingerprint, and the four IndexHandle methods
 // `mm3 report` is built on — distinctPlaces, patternCounts, recentReplays, recentOutcomes. Same discipline
 // as ledger-index.test.ts: every read is checked on both engines (real SQLite and the in-memory fallback), via
 // the same `__testOnly.forceFallback` toggle.

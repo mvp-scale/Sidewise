@@ -1,5 +1,5 @@
 /**
- * The budget (plan 2c B1): caps (`usd`, `runs`, `per`, `since`) live in `.mm3/config.yaml`'s `budget:` key;
+ * The budget: caps (`usd`, `runs`, `per`, `since`) live in `.mm3/config.yaml`'s `budget:` key;
  * spent/runs are derived from the ledger itself — every RunRecord/ContractRun/FailedRecord already carries its
  * own `costUsd`, summed via an index rollup (ledger/index.ts's `budgetRollup`) — so there is no separate counter
  * to ever drift out of sync with what was actually recorded. `per: total` (the default) counts everything since

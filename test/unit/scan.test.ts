@@ -240,7 +240,7 @@ describe('scan', () => {
     expect(r.text).toContain('adapter fake · not evidence');
   });
 
-  // plan 2c B1: budget.json is no longer the source of truth (caps live in config.yaml, spend is ledger-derived)
+  // budget.json is no longer the source of truth (caps live in config.yaml, spend is ledger-derived)
   // — a brand-new project with neither file runs on silent defaults. The "created" note now fires only once,
   // the first time a legacy budget.json is found and migrated into config.yaml.
   it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {

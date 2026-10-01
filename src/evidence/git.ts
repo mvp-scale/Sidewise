@@ -50,7 +50,7 @@ function firstWhereDir(root: string, wherePaths: readonly string[]): string {
 
 /** Resolves `ref` to its sha in the git repo that actually CONTAINS this run's own `where` files (`git -C <dir
  *  of first where path>`), not necessarily the MM3 project root — a monorepo package or a vendored project
- *  one level down is its own repo (plan 2c B1). `ref === 'worktree'` resolves to that repo's own HEAD (the
+ *  one level down is its own repo. `ref === 'worktree'` resolves to that repo's own HEAD (the
  *  working tree's own commit); any other ref is resolved literally (`git rev-parse <ref>`), guarded by the same
  *  `isGitOption` check `readGitEvidence` uses so a `-`-prefixed ref can never reach git. Null when: the ref
  *  looks like an option, `where` is non-empty but its path isn't inside any repo, git can't resolve the ref, or
@@ -68,15 +68,14 @@ export function resolveRefSha(root: string, ref: string, wherePaths: readonly st
   return result.status === 0 && out ? out : null;
 }
 
-/** The repo HEAD sha of whichever repo actually contains this run's own `where` files (plan 2c B1 — see
+/** The repo HEAD sha of whichever repo actually contains this run's own `where` files (see
  *  `resolveRefSha`), or null when it isn't in a repo, or git is absent — the ledger's own `commit` field.
  *  `wherePaths` defaults to `[]` (falls back to `root`'s own repo) for any caller with no file paths of its own. */
 export function currentCommitSha(root: string, wherePaths: readonly string[] = [], deps?: { spawn?: Spawn }): string | null {
   return resolveRefSha(root, 'worktree', wherePaths, deps);
 }
 
-/** The directory form of resolveRefSha's own "repo that actually contains this run's own files" rule (plan 2c
- *  C2: a sweep-parent replay needs to run further git commands there itself — listing/reading files at a ref —
+/** The directory form of resolveRefSha's own "repo that actually contains this run's own files" rule (a sweep-parent replay needs to run further git commands there itself — listing/reading files at a ref —
  *  not just resolve one ref to a sha). Same fallback as resolveRefSha: `root` itself when `wherePaths` is empty
  *  (nothing to resolve a containing repo from); undefined only when `wherePaths` is non-empty but isn't inside
  *  any repo at all. */
@@ -88,7 +87,7 @@ export function repoRootFor(root: string, wherePaths: readonly string[], deps?: 
 
 /** Every file `git` knows about at `ref`, repo-relative (`git ls-tree -r --name-only`) — the ref-aware mirror of
  *  evidence/glob.ts's own directory walk, for units.ts's createCodeResolverAt (a sweep-parent replay reads two
- *  git states instead of the working tree, plan 2c C2). A ref that looks like a git option must never reach git
+ *  git states instead of the working tree). A ref that looks like a git option must never reach git
  *  (same `isGitOption` guard every other git-reading function here uses); a ref git can't resolve, a `repoRoot`
  *  that isn't a repo, or no git at all, is an empty list — the caller notes it, never a stop (createCodeResolver's
  *  own unreadable-file handling follows the same "a note, not a stop" discipline). */

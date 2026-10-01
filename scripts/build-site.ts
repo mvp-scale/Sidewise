@@ -9,7 +9,7 @@ import { loadStories, renderPlayer } from './build-demo.ts';
 import { loadStory, type Story } from './story.ts';
 
 /** The site is served apart from the repo, so a number's method links to the GitHub copy of the doc. */
-const BLOB = 'https://github.com/mvp-scale/mm3/blob/nightly/';
+const BLOB = 'https://github.com/mvp-scale/mm3/blob/main/';
 export const methodUrl = (method: string): string => BLOB + method;
 
 export const VERB_BLURBS: Record<string, string> = {

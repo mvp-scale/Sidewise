@@ -37,7 +37,7 @@ interface JevClient {
 
 const NO_KEY_MESSAGE = '✖ provider: no TypeSafe key → set TYPESAFE_API_KEY (direct) or AI_GATEWAY_API_KEY (gateway), or MM3_PROVIDER=fake to try requests';
 
-/** Retries beyond the first attempt: 2 more tries, 3 attempts total — the hardcoded default; plan 2c B1's
+/** Retries beyond the first attempt: 2 more tries, 3 attempts total — the hardcoded default;
  *  `config.retries`/`config.backoffMs` (config.yaml → JevConfig, see typesafe/config.ts) override either one
  *  per project, since `config` here already carries them when a caller resolved it with `deps.fileConfig`. */
 const MAX_RETRIES = 2;
@@ -67,7 +67,7 @@ export function createJevClient(config: JevConfig, deps: { fetch?: typeof fetch;
         try {
           const { body, requestId } = await postSystemOne(config, doFetch, key, payload, opts);
           const parsed = parseAnswers(body, request.questions, config.pricing);
-          // plan 2c B2: how many retries this ask() took (0 = first attempt succeeded) — surfaced in the
+          // how many retries this ask() took (0 = first attempt succeeded) — surfaced in the
           // run's own telemetry (pay.ts), never trusted for cost/latency, just call-shape.
           return { ...parsed, ...(requestId ? { requestId } : {}), retries: attempt - 1 };
         } catch (e) {

@@ -25,7 +25,7 @@ export function stopText(stops: readonly string[], verb: AgentTarget): string {
   return [...lines, `→ see: mm3 agent ${verb}`].join('\n');
 }
 
-/** `mdlFields` (plan 2c B1): the caller's effective (project `.mm3/config.yaml` `mdl:`-aware) field
+/** `mdlFields`: the caller's effective (project `.mm3/config.yaml` `mdl:`-aware) field
  *  table — build it once via `effectiveMdlFields(resolveConfig(paths, env).config.mdl)` and pass it in;
  *  omitted, this validates against the built-in table only (the pre-B1 behavior every existing caller keeps). */
 export function loadRequest(text: string, verb: Verb, mdlFields?: readonly MdlField[]): { ok: true; request: Request; notes: string[] } | { ok: false; result: VerbResult } {

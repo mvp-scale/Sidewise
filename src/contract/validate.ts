@@ -5,7 +5,7 @@
  *   2. the schema (schema-check.ts mirrors request.schema.json);
  *   3. the rules the schema can't express: the verb's own fields, numbering, sections, depth, layers and
  *      {blanks}. A problem that only weakens the answer is a note, never a stop — except: the concerns/decisions
- *      section and count rules are stops in class, drill, scan and loop, but only notes in view (plan 2b: "a
+ *      section and count rules are stops in class, drill, scan and loop, but only notes in view ("a
  *      partial draft is fine").
  */
 import { clip } from '../util/text.ts';
@@ -44,7 +44,7 @@ const NEEDS: Record<Verb, Field[]> = {
   drill: ['parent', 'from', 'ask'],
 };
 
-// mak.parent is allowed on every verb now (plan 2b): required by drill/replay (NEEDS above), lineage-only
+// mak.parent is allowed on every verb now: required by drill/replay (NEEDS above), lineage-only
 // everywhere else — so it is deliberately absent from every list below. mdl.parent remains an accepted alias.
 const NEVER: Record<Verb, Field[]> = {
   class: ['over', 'from', 'compare', 'expect'],
@@ -58,7 +58,7 @@ const NEVER: Record<Verb, Field[]> = {
 const STRINGS: Record<Verb, StringRule> = { scan: 'scan', drill: 'each-only', loop: 'none', class: 'none', view: 'none', replay: 'none' };
 
 /** Keys the response uses beside the categories: a category can't share one. "expected" is replay's new
- *  expect: grade (plan 2b); a category with this name would collide with its response key. */
+ *  expect: grade; a category with this name would collide with its response key. */
 const RESERVED = ['id', 'gate', 'goal', 'consensus', 'escalate', 'regressed', 'expected', 'failing', 'passing', 'scanned', 'reused', 'view', 'reuse', 'runs', 'categories'];
 
 export const IRREVERSIBLE = /\b(delete|deploy|drop|pay|payment|migrat\w*|secret|credential)s?\b/iu;
@@ -200,7 +200,7 @@ function buildCategories(sections: Record<string, unknown>, field: string, out: 
     }
   }
   // Numbering order (unconditional, like the duplicate/gap check below): concerns first, then decisions,
-  // within this one ask block (one subject, or one sweep layer) — plan 2b.
+  // within this one ask block (one subject, or one sweep layer).
   const concernNums = cats.filter((c) => c.section === 'concerns').flatMap((c) => c.questions.map((q) => q.n));
   const decisionNums = cats.filter((c) => c.section === 'decisions').flatMap((c) => c.questions.map((q) => q.n));
   if (concernNums.length && decisionNums.length && Math.max(...concernNums) > Math.min(...decisionNums)) {
@@ -225,7 +225,7 @@ interface Issue {
   fix: string;
 }
 
-/** The concerns/decisions section-and-count rules (plan 2b): exactly 3k concerns categories for the depth,
+/** The concerns/decisions section-and-count rules: exactly 3k concerns categories for the depth,
  *  2-5 decisions categories with at least one scale and one choice. `depth` is undefined to skip the
  *  concerns-count check (drill without a depth, or a sweep's non-finest layer). Returned as plain
  *  (field, problem, fix) issues so the caller can render them as stops (class/drill/scan/loop, and a sweep's
@@ -360,8 +360,8 @@ function checkCross(raw: Record<string, unknown>, verb: Verb): { stops: Stop[]; 
 }
 
 /** `rawText`: the original request text (before YAML parsing), passed through only so checkSchema's mdl:
- *  line-cap check (plan 2c A4) can count the block's own source lines — everything else here works on the
- *  already-parsed `value`. `mdlFields` (plan 2c B1): the caller's effective (project-config-aware) mdl table,
+ *  line-cap check can count the block's own source lines — everything else here works on the
+ *  already-parsed `value`. `mdlFields`: the caller's effective (project-config-aware) mdl table,
  *  passed straight through to checkSchema; omitted, every caller keeps the built-in table. */
 export function validateRequest(value: unknown, verb: Verb, rawText?: string, mdlFields?: readonly MdlField[]): Validated {
   const blanks: Stop[] = [];

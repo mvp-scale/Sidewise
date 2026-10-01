@@ -1,5 +1,5 @@
 /**
- * The ONE code defaults table for `.mm3/config.yaml` (plan 2c B1): every setting MM3 can run with,
+ * The ONE code defaults table for `.mm3/config.yaml`: every setting MM3 can run with,
  * and the value it runs with when a project's config is silent on it. `config/load.ts` merges a project's
  * sparse overrides on top of this; `config/validate.ts` checks a raw override object shape-by-shape against
  * it. Nothing here reads a file or an env var — this module is pure data plus the types that describe it.
@@ -35,7 +35,7 @@ export interface Mm3Config {
   model?: string;
   /** Keyed by model id (e.g. `jev-1.13.0`) — the default seeds TypeSafe's own currently-published rate (moved
    *  here from `src/classifier/typesafe/answers.ts`'s `RATE_PER_INPUT_TOKEN`; that module still owns actually
-   *  reading it for cost estimates — see plan 2c B2). */
+   *  reading it for cost estimates —). */
   pricing: Record<string, PricingRate>;
   timeoutMs: number;
   retries: number;
@@ -75,11 +75,11 @@ export const DEFAULT_CONFIG: Mm3Config = {
  *  unknown-key/did-you-mean check and by load.ts for the printer. */
 export const CONFIG_KEYS = ['budget', 'provider', 'baseURL', 'model', 'pricing', 'timeoutMs', 'retries', 'backoffMs', 'sweep', 'requestMaxBytes', 'reuse', 'mdl'] as const;
 
-/** Request-contract concepts an agent might mistake for project settings — plan 2c B1's "not configurable
+/** Request-contract concepts an agent might mistake for project settings B1's "not configurable
  *  (request contract) → set it per request" stop. `depth` is the named example in the plan; the others are the
  *  same category of per-request-only field (mak: keys that never belong at the project level). */
 export const CONTRACT_ONLY_KEYS = ['depth', 'goal', 'where', 'ask', 'over', 'mdl.parent'] as const;
 
-/** A key name that looks like it's meant to hold a secret, wherever it appears in the config tree — plan 2c
+/** A key name that looks like it's meant to hold a secret, wherever it appears in the config tree
  *  B1's "keys go in env or the keychain" stop (AGENTS.md rule 6: secrets never in the project or config). */
 export const SECRET_LIKE_KEYS = ['apikey', 'api_key', 'key', 'token', 'secret', 'password', 'credential', 'credentials'] as const;

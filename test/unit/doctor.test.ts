@@ -250,8 +250,8 @@ describe('doctor (P5)', () => {
     });
   });
 
-  // plan 2c B1b: bare `mm3 doctor` also validates .mm3/config.yaml when present.
-  describe('the config: field [plan 2c B1b]', () => {
+  // bare `mm3 doctor` also validates .mm3/config.yaml when present.
+  describe('the config: field', () => {
     it('no project at all: config: defaults', () => {
       const r = runDoctor({}, undefined);
       expect(r.text).toContain('config: "✔ config: defaults"');
@@ -281,7 +281,7 @@ describe('doctor (P5)', () => {
 
 const VALID_CLASS_REQUEST = readFileSync('test/fixtures/requests/valid/class.yaml', 'utf8');
 
-describe('runDoctorFile [plan 2c B1b]', () => {
+describe('runDoctorFile', () => {
   it('a request-shaped document (mak:) is checked the same way --dry-run would', () => {
     const r = runDoctorFile(VALID_CLASS_REQUEST);
     expect(r.exit).toBe(0);
@@ -333,7 +333,7 @@ describe('runDoctorFile [plan 2c B1b]', () => {
     expect(r).toEqual({ exit: 0, text: '✔ config: valid' });
   });
 
-  // Controller-found defect (plan 2c B): a contract cross-stop (sections/angles/counts) already embeds its own
+  // Controller-found defect: a contract cross-stop (sections/angles/counts) already embeds its own
   // "→ see: mm3 agent probe" pointer; loadRequest's stopText then appends a second, generic
   // "→ see: mm3 agent <verb>" at the very end. Fine for a real verb's --dry-run (schema-check.ts's own
   // header comment says that pointer is deliberately additional there), but doctor is meant to print each stop

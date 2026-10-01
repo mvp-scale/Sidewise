@@ -50,7 +50,7 @@ describe('readGitEvidence: an option-shaped ref never reaches git', () => {
   });
 });
 
-describe('currentCommitSha (plan 2b: the ledger\'s own run.commit field)', () => {
+describe('currentCommitSha (the ledger\'s own run.commit field)', () => {
   it('null when the project is not a git repo, and never calls spawn for a nonexistent one', () => {
     const { root } = tempProject({});
     const spawn = vi.fn(() => ({ status: 1, stdout: '' }));
@@ -86,7 +86,7 @@ describe('currentCommitSha (plan 2b: the ledger\'s own run.commit field)', () =>
   });
 });
 
-describe('resolveRefSha (plan 2c B1: replay\'s own commit/commits.before/commits.after)', () => {
+describe('resolveRefSha (replay\'s own commit/commits.before/commits.after)', () => {
   it('never lets an option-shaped ref reach git', () => {
     const { root } = tempProject({});
     const spawn = vi.fn();

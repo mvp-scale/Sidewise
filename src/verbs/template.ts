@@ -76,7 +76,7 @@ function categoryToWire(c: Category): Record<string, unknown> {
   return out;
 }
 
-/** Categories split back into their concerns:/decisions: sections (plan 2b) — the two halves of one ask block,
+/** Categories split back into their concerns:/decisions: sections — the two halves of one ask block,
  *  concerns first (the order toCategory/validate.ts's own numbering rule requires anyway). */
 function sectionsToWire(categories: readonly Category[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};

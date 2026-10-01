@@ -2,7 +2,7 @@
  * The graph tier: a SECOND, independent set of tables in the SAME `.mm3/index.db` file the hot tier
  * (ledger/index.ts) already uses — its own `nodes`/`triples` tables, its own `meta` keys (`graph_schema_version`,
  * `graph_upto`), never touching the hot tier's own `schema_version`/`upto`/`runs`/`places`/`categories` etc. A
- * graph-schema change here never forces the hot tier to rebuild (plan 2c C3); the other direction also holds:
+ * graph-schema change here never forces the hot tier to rebuild; the other direction also holds:
  * a hot-tier rebuild replaces the WHOLE db file (ledger/index.ts's `rebuildToDisk`, a tmp file + atomic rename),
  * which wipes this tier's tables too — harmless, since the next call here just finds no `graph_schema_version`
  * meta key, treats that exactly like a schema-version mismatch, and rebuilds from byte 0. Same self-healing
@@ -34,7 +34,7 @@
  * `mdlJson`) — a future `v_mdl` reader reads it from there directly. Do not "fix" this later by adding a
  * problem triple; it would just duplicate what `runs.mdl` already answers.
  *
- * Predicate vocabulary implemented in `ingestContractRun`/`ingestOutcome` below (plan 2c C3): about, is-a,
+ * Predicate vocabulary implemented in `ingestContractRun`/`ingestOutcome` below: about, is-a,
  * checks (run --checks--> category: the run checked this category — controller fix, 2026-09-28: this used to
  * be named `asks`, and the name `checks` used to be misapplied one hop further down, below), judged (category
  * --judged--> place, WITH the gate's own score: what that check found there — the run-level "judged (run,
@@ -211,7 +211,7 @@ function gateScore(gate: string | undefined): number | null {
   return gate === 'pass' ? 1 : gate === 'fail' ? 0 : gate === 'unsure' ? 0.5 : null;
 }
 
-/** One contract run's own triples (plan 2c C3's predicate list). `mdlConfig` is the effective project config's
+/** One contract run's own triples (the predicate list). `mdlConfig` is the effective project config's
  *  `mdl:` overrides (`resolveConfig(...).config.mdl`), resolved once per `refreshGraph` call, never per line. */
 function ingestContractRun(db: GraphDb, rec: ContractRun, mdlConfig: Record<string, MdlFieldOverride>): void {
   const RUN = rec.id;
@@ -331,7 +331,7 @@ function ingestContractRun(db: GraphDb, rec: ContractRun, mdlConfig: Record<stri
   }
 
   // 14. contains (inferred) — every place this run is `at` paired with every component/code node it `uses`,
-  // within this SAME run: the "architecture layers can emerge from the data" signal (research doc §4.1). One
+  // within this SAME run: the "architecture layers can emerge from the data" signal. One
   // row per witnessing run; a reader rolling this up can COUNT(DISTINCT run) per (s,p,o) for confidence later.
   for (const placeId of placeNodeIds) for (const compId of compOrCode) addTriple(db, 'contains', placeId, compId, RUN, 'inferred', null);
 
@@ -493,7 +493,7 @@ export interface GraphEdge {
 const EMPTY_NEIGHBORHOOD: { nodes: (GraphNode & { id: number })[]; edges: GraphEdge[] } = { nodes: [], edges: [] };
 
 /** A small neighborhood around one node: every node within `depth` hops (either direction) and the edges
- *  between them. `depth` defaults to 2 and is capped at 6 (research doc O3), same as `traverse` below. */
+ *  between them. `depth` defaults to 2 and is capped at 6, same as `traverse` below. */
 export function graphAround(paths: Mm3Paths, opts: { kind: string; label: string; depth?: number }): { nodes: (GraphNode & { id: number })[]; edges: GraphEdge[] } {
   if (!existsSync(paths.index)) return EMPTY_NEIGHBORHOOD;
   const db = openGraphDb(paths.index);
@@ -633,7 +633,7 @@ export interface CallStat {
   day: string;
   verb: string;
   model: string;
-  /** 'none' marks a fallback row: a pre-telemetry record (plan 2c B2 predates it) with no `telemetry` array at
+  /** 'none' marks a fallback row: a pre-telemetry record with no `telemetry` array at
    *  all — its own aggregate `calls`/`costUsd`/`adapter`/`model` stand in, so an old ledger still shows its
    *  calls and cost instead of silently vanishing from this view. */
   source: 'provider' | 'cache' | 'none';
@@ -645,8 +645,8 @@ export interface CallStat {
 
 /** Telemetry rollup (cost/tokens/latency-adjacent counts, by day/verb/model/source): the hot tier does not
  *  index `telemetry` (it lives inside each run's full JSON body), so this reads full records via
- *  `readRecordAt` for a WINDOWED, CAPPED run set (research doc O4 — default the last 30 days, and a hard run
- *  cap regardless), never a full-ledger scan. A run written before plan 2c B2 (or any run whose `telemetry`
+ *  `readRecordAt` for a WINDOWED, CAPPED run set (default the last 30 days, and a hard run
+ *  cap regardless), never a full-ledger scan. A run written before telemetry existed (or any run whose `telemetry`
  *  simply wasn't recorded) carries no `telemetry` array — rather than drop it from this view entirely, its own
  *  `calls`/`costUsd`/`adapter`/`model` (always present, every schema version) fill in one `source: 'none'` row
  *  per day/verb/model, with `tokens`/`savedUsd` left at 0 (unknown at that granularity). */
@@ -711,7 +711,7 @@ const MAX_UNDECLARED_KEYS = 50;
 const MAX_VALUES_PER_KEY = 200;
 const MAX_SAMPLES_PER_KEY = 5;
 
-/** `mm3 report fields` (plan 2c C3): every `mdl.extras` key across the hot tier's own `runs.mdl` JSON
+/** `mm3 report fields`: every `mdl.extras` key across the hot tier's own `runs.mdl` JSON
  *  column (see index.ts's `mdlJson`: `{mdl, categories}`, the same column `mdlRows` above already reads)
  *  that ISN'T one of `opts.knownKeys` — the caller passes the built-in mdl catalog keys plus whatever a
  *  project's own `config.mdl` already declares. Bounded on both axes (distinct keys, and distinct values per
@@ -765,7 +765,7 @@ export interface TraversalHit {
 const PATH_SEP = '\u001f'; // never appears in a real label; safer than a human-looking separator like " > "
 
 /** One `WITH RECURSIVE` traversal from a start node, depth-capped at 6 server-side regardless of what's asked
- *  (research doc O3), with a cycle guard (a comma-joined visited-id list + `NOT LIKE`) and a row `LIMIT` so a
+ * , with a cycle guard (a comma-joined visited-id list + `NOT LIKE`) and a row `LIMIT` so a
  *  dense graph can't blow up one query. Returns instantly (and correctly — zero rows) when the graph is
  *  empty/small or the start node doesn't exist. */
 export function traverse(paths: Mm3Paths, opts: { kind: string; label: string; maxDepth?: number; limit?: number }): TraversalHit[] {

@@ -1,4 +1,4 @@
-// mm3 report [graph|problems|mdl|calls|fields] (plan 2c C3): the graph-tier reader views wired into
+// mm3 report [graph|problems|mdl|calls|fields]: the graph-tier reader views wired into
 // `report`, plus `fields`'s own undeclared-mdl-key discovery and `--accept` write-back. Builds small
 // hand-crafted ledgers (appendContractRun, same helper every other report test uses) and reads them back
 // through `runReport` only — never the graph tier's own internals (ledger-graph.test.ts already covers those).

@@ -51,7 +51,7 @@ describe('mm3 doctor', () => {
     expect(stop).toMatch(/^✖ TYPESAFE_BASE_URL:/);
   });
 
-  // plan 2c B1b: doctor now takes 0 or 1 positional (the file to check, or - for stdin), so a SECOND positional
+  // doctor now takes 0 or 1 positional (the file to check, or - for stdin), so a SECOND positional
   // is what's now "extra" — one alone is a file to read, covered by the file/config/stdin tests below.
   it('extra arguments are refused with the doctor usage line', () => {
     const { root } = tempProject();
@@ -64,8 +64,8 @@ describe('mm3 doctor', () => {
     expect(mm3(root, ['--help']).stdout).toContain('mm3 doctor');
   });
 
-  // plan 2c B1b: `mm3 doctor <file|->` checks ONE document, no project needed at all.
-  describe('doctor <file|-> [plan 2c B1b]', () => {
+  // `mm3 doctor <file|->` checks ONE document, no project needed at all.
+  describe('doctor <file|->', () => {
     it('a valid request file: exit 0, no project needed', () => {
       const root = mkdtempSync(path.join(os.tmpdir(), 'mm3-doctor-file-'));
       const reqPath = path.join(root, 'req.yaml');

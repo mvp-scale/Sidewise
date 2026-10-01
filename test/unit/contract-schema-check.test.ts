@@ -83,7 +83,7 @@ describe('checkSchema', () => {
     expect(texts(e2)).toEqual(['✖ mak.expect: ["Not A Tag"] → give 1–9 concern names, lowercase kebab-case, ≤ 20 characters, or the word "none"']);
     const e3 = base();
     e3.mak.expect = 'none';
-    expect(texts(e3)).toEqual([]); // plan 2c N4: "none" predicts no flips at all
+    expect(texts(e3)).toEqual([]); // "none" predicts no flips at all
   });
 
   it('questions: not a question, no "?", too long, a broken scale or choice [C-021] [C-022]', () => {
@@ -207,7 +207,7 @@ describe('checkSchema', () => {
     ]);
   });
 
-  // Plan 2c Phase A follow-up F6: the test above builds its mdl: block as an in-memory joined string, never a
+  // the test above builds its mdl: block as an in-memory joined string, never a
   // real saved file with a genuine trailing newline at EOF — this one goes through the full
   // readRequestText -> checkSchema pipeline against an actual file on disk (Plan 2a's CRLF/BOM concern, applied
   // here to the mdl block's own line count).
@@ -306,7 +306,7 @@ describe('checkSchema', () => {
   });
 });
 
-// plan 2c B1: a project's .mm3/config.yaml `mdl:` overrides merge onto MDL_FIELDS.
+// a project's .mm3/config.yaml `mdl:` overrides merge onto MDL_FIELDS.
 describe('effectiveMdlFields', () => {
   it('no overrides (undefined or {}): returns MDL_FIELDS itself, unchanged', () => {
     expect(effectiveMdlFields(undefined)).toBe(MDL_FIELDS);

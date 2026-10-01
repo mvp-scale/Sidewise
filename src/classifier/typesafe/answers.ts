@@ -49,12 +49,12 @@ export interface JevResponse {
   /** true when `costUsd` came from the caller's own `pricing` table (costOf below), not the server's own reported cost. */
   costEstimated?: boolean;
   requestId?: string;
-  /** Set by client.ts (plan 2c B2), not by parseAnswers itself: how many retries this ask() took beyond the
+  /** Set by client.ts, not by parseAnswers itself: how many retries this ask() took beyond the
    *  first attempt (0 = succeeded first try). Undefined here; always present once client.ts returns it. */
   retries?: number;
 }
 
-/** Per-model pricing (plan 2c B2) now lives in `src/config/defaults.ts`'s `DEFAULT_CONFIG.pricing`, sparsely
+/** Per-model pricing now lives in `src/config/defaults.ts`'s `DEFAULT_CONFIG.pricing`, sparsely
  *  overridable per project via `.mm3/config.yaml`'s `pricing:` key — this module no longer owns a rate
  *  table of its own. `PricingRate.inputPerMTok`/`outputPerMTok` are dollars per MILLION tokens (not per token);
  *  `perCall` is a flat per-request add-on. TypeSafe's direct route never reports a cost at all (only
@@ -132,7 +132,7 @@ function readScore(raw: Record<string, unknown>, id: string, n: number): JevAnsw
 }
 
 /** Parse a /v1/systemone body against the questions that were sent. Throws JevApiError (non-retryable) if malformed.
- *  `pricing` (plan 2c B2, optional): the effective config's per-model rate table, used only when the server
+ *  `pricing` (optional): the effective config's per-model rate table, used only when the server
  *  itself reports no cost (see costOf above) — omitted, every model's cost stays unreported, same as before B2. */
 export function parseAnswers(raw: unknown, questions: Record<string, JevQuestion>, pricing: Record<string, PricingRate> = DEFAULT_CONFIG.pricing): Omit<JevResponse, 'requestId'> {
   if (!isRecord(raw) || !isRecord(raw.answers)) throw malformed('missing `answers`', raw);

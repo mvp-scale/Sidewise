@@ -98,7 +98,7 @@ export MM3_HOME="$D"
 export XDG_CONFIG_HOME="$D/.config"   # never the developer's own key file
 export MM3_PROVIDER=fake
 
-# plan 2c B1: budget.json is no longer the live authority (.mm3/config.yaml is; spend is ledger-derived) —
+# budget.json is no longer the live authority (.mm3/config.yaml is; spend is ledger-derived) —
 # a brand-new project just runs on silent defaults now, with no "budget file created" note at all. Seed a
 # legacy budget.json here so flow 3's first paid call still demonstrates the one real remaining case: a legacy
 # file migrating into config.yaml, once.

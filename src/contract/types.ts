@@ -5,11 +5,11 @@ export type Verb = (typeof VERBS)[number];
 export const DEPTHS = ['quick', 'standard', 'thorough'] as const;
 export type Depth = (typeof DEPTHS)[number];
 /** quick/standard/thorough = k = 1/2/3: the concerns section holds exactly 3k categories, each with exactly 3
- *  yes/no probes, so exactly this many yes/no questions in total (9/18/27) — plan 2b. Distinct from
+ *  yes/no probes, so exactly this many yes/no questions in total (9/18/27). Distinct from
  *  SWEEP_ITEM_CAP below, which kept the old 10/20/30 numbers for a different thing (items per layer). */
 export const DEPTH_COUNT: Record<Depth, number> = { quick: 9, standard: 18, thorough: 27 };
 /** A sweep: at most this many items asked per layer (reused items are free and don't count) — unchanged from
- *  plan 2a even though DEPTH_COUNT's own numbers moved; the two used to coincide and no longer do. */
+ *  the original rule even though DEPTH_COUNT's own numbers moved; the two used to coincide and no longer do. */
 export const SWEEP_ITEM_CAP: Record<Depth, number> = { quick: 10, standard: 20, thorough: 30 };
 
 export const WHYS = ['validate', 'find', 'debug'] as const;
@@ -26,7 +26,7 @@ export type Change = (typeof CHANGES)[number];
 export type Risk = (typeof RISKS)[number];
 
 /** ask has two sections: concerns (exactly 3k yes/no categories) and decisions (2-5 scale/choice categories,
- *  at least one of each kind) — plan 2b. DECISIONS_MIN/MAX replace the old MAX_EXTRAS as the only rule. */
+ *  at least one of each kind). DECISIONS_MIN/MAX replace the old MAX_EXTRAS as the only rule. */
 export const SECTIONS = ['concerns', 'decisions'] as const;
 export type Section = (typeof SECTIONS)[number];
 export const DECISIONS_MIN = 2;
@@ -79,7 +79,7 @@ export interface Mak {
   from?: string;
   compare?: { before: string; after: string };
   /** replay only: which of the parent's concerns this replay should turn to pass, or the literal "none" to
-   *  predict no flips at all (plan 2c N4) — any category that flips anyway is listed in the response's
+   *  predict no flips at all — any category that flips anyway is listed in the response's
    *  `unexpected:`. */
   expect?: string[] | 'none';
   /** One subject: the categories straight under ask (concerns first, then decisions). Empty in a sweep. */
@@ -92,7 +92,7 @@ export interface Mak {
 
 export interface Mdl {
   why?: Why;
-  /** Single value, or a list of up to 2 (plan 2c: "omit for whole-system questions: uses carries the map"). */
+  /** Single value, or a list of up to 2 ("omit for whole-system questions: uses carries the map"). */
   area?: Area | Area[];
   stage?: Stage;
   change?: Change;
@@ -100,9 +100,9 @@ export interface Mdl {
   parent?: string;
   /** One line: what the agent is solving right now. */
   problem?: string;
-  /** Up to 5 C4 chains: "level:name( -> level:name)*" (mdl-fields.ts's CHAIN_RE). Replaces plan 2b's single
+  /** Up to 5 C4 chains: "level:name( -> level:name)*" (mdl-fields.ts's CHAIN_RE). Replaces the single
    *  `nodes` string (removed, nothing published): a reader of an OLD ledger record that still has `mdl.nodes`
-   *  must keep treating it as a 1-item `uses` (plan 2c A4) — see mdl-fields.ts's normalizeMdl. */
+   *  must keep treating it as a 1-item `uses` — see mdl-fields.ts's normalizeMdl. */
   uses?: string[];
   /** Entities/objects the run touches, up to 5. */
   touches?: string[];

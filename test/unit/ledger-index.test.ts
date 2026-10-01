@@ -245,7 +245,7 @@ describe('findRun recovers from a stale or bad index without crashing', () => {
   });
 });
 
-// plan 2c F1: a record written before plan 2c may still carry the old `mdl.nodes` (a single chain string)
+// a record written before mdl v2 may still carry the old `mdl.nodes` (a single chain string)
 // instead of `uses` — readRecordAt (report.ts's and view.ts's own per-record reader, and findRun which uses it)
 // must read it back as a 1-item `uses` list.
 it('readRecordAt reads an old mdl.nodes record as a 1-item uses list', () => {
@@ -286,7 +286,7 @@ describe('the fallback path gives identical results to whatever engine is really
     expect(b).toEqual(a);
   });
 
-  it('familyCounts (plan 2b: family/section per category, indexed) agrees between the two engines', () => {
+  it('familyCounts (family/section per category, indexed) agrees between the two engines', () => {
     const { paths } = tempProject({});
     appendContractRun(
       paths,

@@ -10547,8 +10547,8 @@ var isTag = (k) => TAG.test(k) && len(k) <= 20;
 var Out = class {
   stops = [];
   /** A `mdl.*` stop (or the bare `mdl` block-cap stop) earns its own deeper pointer, the same way
-   *  validate.ts's cross stops already embed "→ see: mm3 agent probe" directly in their own text (plan 2c
-   *  A5 follow-up F3) — the generic trailing "→ see: mm3 agent <verb>" that stopText (verbs/request.ts)
+   *  validate.ts's cross stops already embed "→ see: mm3 agent probe" directly in their own text —
+   *  the generic trailing "→ see: mm3 agent <verb>" that stopText (verbs/request.ts)
    *  appends to the whole response still fires afterward regardless; this is an ADDITIONAL, more specific line
    *  for mdl fields, since the mdl legend lives at `mm3 agent mdl`, not at the verb's own card. */
   add(field, problem, fix) {

@@ -1,6 +1,6 @@
 // replay: re-runs a parent's questions on two states; fixed/still/regressed. A one-subject parent (class,
 // replay, drill's one-subject form) is answered category-by-category; a sweep parent (scan, loop, drill's sweep
-// form) re-runs the sweep at both refs and answers item-by-item (plan 2c C2) — only a drill sweep CONTINUATION
+// form) re-runs the sweep at both refs and answers item-by-item — only a drill sweep CONTINUATION
 // (anchored on a root item this run can't rebuild) and a legacy (Plan 1) parent still stop.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -24,7 +24,7 @@ const withEstimatedCost = (inner: Stub): Stub => ({ ...inner, ask: async (q, s) 
 const env = { MM3_ACTOR: 'r' };
 const T = Date.parse('2026-09-26T12:00:00Z');
 
-/** A full, valid quick-depth ask (plan 2b: 3 concerns categories x 3 probes + 2 decisions), for class requests
+/** A full, valid quick-depth ask (3 concerns categories x 3 probes + 2 decisions), for class requests
  *  that replay.ts's own tests build a parent from — replay never cares about the exact question text, only
  *  that "injection" (the category most of these tests check) is real and its questions are numbered 1-3. */
 const QUICK_ASK =
@@ -191,7 +191,7 @@ describe('replay', () => {
     expect(r.text).toBe('✖ mak.parent: MM3-0042 is not in the ledger → check the id\n→ see: mm3 agent replay');
   });
 
-  it("expect: must name one of the parent's actual concerns (plan 2b)", async () => {
+  it("expect: must name one of the parent's actual concerns", async () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });
     await runClass(`mak:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n${QUICK_ASK}`, { paths, provider: stubProvider({ yes: () => 0.9 }), env }); // MM3-0001
     const r = await runReplay(
@@ -578,7 +578,7 @@ describe('replay', () => {
     expect(r.text).toContain('adapter fake · not evidence');
   });
 
-  // plan 2c B1: budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
+  // budget.json is no longer the source of truth — a brand-new project with neither budget.json nor
   // config.yaml runs on silent defaults; the "created" note now fires once, when a legacy budget.json migrates.
   it('a legacy budget.json is migrated into config.yaml, and the first run says so (BRIEF §5) [C-093]', async () => {
     const { paths } = tempProject({ 'src/a.ts': 'anything\n' });

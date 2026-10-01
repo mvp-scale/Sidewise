@@ -56,7 +56,7 @@ export interface Who {
   model: string;
 }
 
-/** plan 2c B3: caps beyond which a reused answer is treated as stale and skipped (falling through to an
+/** caps beyond which a reused answer is treated as stale and skipped (falling through to an
  *  older still-valid holder, or a fresh ask). Either bound omitted = no cap on that dimension (today's
  *  behavior) — see `.mm3/config.yaml`'s `reuse: {maxAgeDays, maxCommits}` (src/config/defaults.ts). */
 export interface ReuseLimits {
@@ -111,7 +111,7 @@ export function reuseAge(paths: Mm3Paths, r: Pick<Reusable, 'ts' | 'commit' | 'w
   return { ageDays, commitsSince: commitsSince(paths.root, r.commit, r.where) };
 }
 
-/** plan 2c B, item 5: every verb that reuses answers shows each reused run's age/commits-since, not just
+/** every verb that reuses answers shows each reused run's age/commits-since, not just
  *  view's own exact-reuse (which already renders it structurally as reuseAge:). This is the smaller-format-change
  *  option the plan allows for the other verbs (class/drill/replay/sweeps): their existing `reused: [ids]` list
  *  stays exactly as it was: one extra notes: line names each distinct id's own age, so nothing that already reads
@@ -151,7 +151,7 @@ function readCandidate(paths: Mm3Paths, offset: number, who: Who): ContractRun |
 
 /** The fast path for one key: the reuse index's current holder, re-read from its own record (never the stored
  *  qid — see the file header). undefined when the slot is empty, its holder is blocked, too stale under
- *  `limits` (plan 2c B3 D2 — the caller then falls back to the scan, which can find an older still-valid
+ *  `limits` (the caller then falls back to the scan, which can find an older still-valid
  *  holder), or anything about it doesn't check out (a stale offset, a shape that no longer matches). */
 function fastReuse(paths: Mm3Paths, handle: IndexHandle, who: Who, key: string, limits: ReuseLimits | undefined, now: number): Reusable | undefined {
   const hit = handle.reuseKeyHit(who.adapter, who.model, key);
@@ -183,7 +183,7 @@ function fastReuse(paths: Mm3Paths, handle: IndexHandle, who: Who, key: string, 
  *  escaping unwrapped just because this call now sometimes runs first. */
 /** The record `origin` names (an id, not an offset) if it's a contract run for `who` — used only when a
  *  candidate's own `reusedFrom[qid]` points past it to a deeper origin, so that origin's OWN ts/commit/where
- *  (not the candidate's) drive age/commits-since and staleness (plan 2c B3). `handle.findOffset` is the same
+ *  (not the candidate's) drive age/commits-since and staleness. `handle.findOffset` is the same
  *  id -> offset lookup `view.ts`'s lineage walk already relies on. */
 function readOrigin(paths: Mm3Paths, handle: IndexHandle, origin: string, who: Who): ContractRun | undefined {
   const offset = handle.findOffset(origin);
@@ -258,7 +258,7 @@ export function exactReuse(paths: Mm3Paths, who: Who, keys: readonly string[], o
         for (const { offset } of handle.candidates(who.adapter, who.model)) {
           const run = readCandidate(paths, offset, who);
           if (!run) continue;
-          if (isStale(paths, { ts: run.ts, commit: run.commit ?? null, where: run.where }, opts.reuse, now)) continue; // plan 2c B3 D2: too old/far behind — keep walking
+          if (isStale(paths, { ts: run.ts, commit: run.commit ?? null, where: run.where }, opts.reuse, now)) continue; // too old/far behind — keep walking
           const qidOf = new Map(Object.entries(run.keys).map(([qid, key]) => [key, qid]));
           const holds = keys.every((k) => {
             const qid = qidOf.get(k);
@@ -275,7 +275,7 @@ export function exactReuse(paths: Mm3Paths, who: Who, keys: readonly string[], o
   );
 }
 
-/** plan 2c B2/B, item 6: one `source: 'cache'` telemetry entry per distinct origin run this run reused
+/** one `source: 'cache'` telemetry entry per distinct origin run this run reused
  *  ANYTHING from — `questions` is how many of THIS run's own questions came from that origin, `original` is
  *  that origin's own provider spend prorated down to that same fraction. `estimated` is true whenever that's a
  *  genuine proration (this run reused only PART of what the origin itself paid for); an origin whose entire

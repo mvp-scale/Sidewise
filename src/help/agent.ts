@@ -213,7 +213,7 @@ function budgetCard(): string {
   );
 }
 
-/** `mm3 agent doctor`'s card (plan 2c B1b). Bare `doctor` is the full system report (provider/key/project/
+/** `mm3 agent doctor`'s card. Bare `doctor` is the full system report (provider/key/project/
  *  node/config); `doctor <file|->` is a narrower, standalone check — no project, no ledger, no classifier — of
  *  ONE document, auto-detecting whether it's a request (`mak:`) or a `.mm3/config.yaml`-shaped file. */
 function doctorCard(): string {
@@ -271,7 +271,7 @@ function templateCard(): string {
   );
 }
 
-/** `mm3 agent config`'s card (plan 2c B1): `mm3 config` is free, never writes (`--write` writes only a missing
+/** `mm3 agent config`'s card: `mm3 config` is free, never writes (`--write` writes only a missing
  *  starter file), and works with or without a project. Terse like every other tool card here — the full key list lives in `mm3 config`'s
  *  own output (it prints every effective value plus its source), not repeated here. */
 function configCard(): string {
@@ -289,26 +289,26 @@ function configCard(): string {
   );
 }
 
-/** `mm3 agent mdl`'s legend card (plan 2c A5) — deliberately NOT built through `renderCard`: it has its
+/** `mm3 agent mdl`'s legend card — deliberately NOT built through `renderCard`: it has its
  *  own fixed shape (FIELDS/ARCHITECTURE/WRITE IT FLAT/EXAMPLE, no `rules:`/`patterns:`/`run:`), spelled out
  *  verbatim by the plan, so it's exempt from the "every card follows the same key order" invariant
  *  (test/unit/agent.test.ts's NON_VERBS list deliberately leaves `mdl` out for this reason). The FIELDS block's
  *  values and notes come from `mdl-fields.ts`'s MDL_FIELDS table (not retyped here); a unit test cross-checks
- *  every table entry still appears in this text, so the two can't silently drift apart. Phase B makes this
- *  config-aware (the table gains overrides); today it's the built-in defaults only. */
+ *  every table entry still appears in this text, so the two can't silently drift apart. With a project config,
+ *  the table also gains that project's overrides. */
 /** blast's own values (types.ts's BLASTS) are ordered narrowest-first (validation only cares about set
  *  membership) — the card shows them widest-first (person, the biggest blast radius, first) since that's the
  *  order a reader scans the C4 levels in. Card-display order only; validation still goes through closedValues. */
 const BLAST_CARD_ORDER = ['person', 'system', 'container', 'component', 'code'];
 
-/** A field's note, plus its project alias (`mdl.<field>.as`, plan 2c B1) when it has one — an alias ADDS a
+/** A field's note, plus its project alias (`mdl.<field>.as`) when it has one — an alias ADDS a
  *  name (the original key still works too, per mdl-fields.ts's effectiveMdlFields), so the card says so
  *  rather than silently relabeling the field and hiding the original. */
 function noteWithAlias(field: MdlField): string {
   return field.alias ? `${field.note ?? ''}${field.note ? ' ' : ''}(also: mdl.${field.alias})` : (field.note ?? '');
 }
 
-/** `mdlFields` (plan 2c B1, F2): the caller's effective (project-config-aware) table — defaults to the
+/** `mdlFields`: the caller's effective (project-config-aware) table — defaults to the
  *  built-in MDL_FIELDS, the exact card `mm3 agent mdl` always printed before config overrides existed.
  *  Values/notes come straight from whichever table is given; `blast`'s card-display order (below) falls back to
  *  the built-in widest-first BLAST_CARD_ORDER only when its values are still the built-in default — an override
@@ -368,7 +368,7 @@ function mdlCard(mdlFields: readonly MdlField[] = MDL_FIELDS): string {
   ].join('\n');
 }
 
-/** Non-verb targets `agent` recognizes, beyond the six verbs above. `mdl` (plan 2c) is deliberately not a
+/** Non-verb targets `agent` recognizes, beyond the six verbs above. `mdl` is deliberately not a
  *  `renderCard`-shaped tool card — see mdlCard's own comment. */
 const AGENT_TOPICS: Record<string, () => string> = {
   probe: probeCard,
@@ -388,7 +388,7 @@ export const AGENT_EXTRAS: readonly string[] = Object.keys(AGENT_TOPICS);
 /** `env`/`deps` default to an empty environment (no key, not inside the plugin) so every existing caller that
  *  doesn't care about the no-key hint — every verb/tool card is unaffected by either — keeps working
  *  unchanged; cli.ts's real wiring passes `ctx.env` and the same `resolveStored` doctor uses. `deps.paths`
- *  (plan 2c B1, additive): when given, `mm3 agent mdl` reads that project's own `.mm3/config.yaml`
+ *  (additive): when given, `mm3 agent mdl` reads that project's own `.mm3/config.yaml`
  *  `mdl:` overrides and generates the card from the EFFECTIVE table instead of the built-in one; omitted
  *  (every existing caller/test), the card stays exactly the built-in one it always was. */
 export function runAgent(

@@ -127,7 +127,7 @@ describe('runHelp', () => {
     expect(text.toLowerCase()).toContain('needs --usd or --runs');
   });
 
-  it('[plan 2c B1b] help doctor: documents both the bare report and the <file|-> form', () => {
+  it(' help doctor: documents both the bare report and the <file|-> form', () => {
     const text = runHelp('doctor').text;
     expect(text).toContain('## doctor');
     expect(text).toContain('mm3 doctor my-request.yaml');

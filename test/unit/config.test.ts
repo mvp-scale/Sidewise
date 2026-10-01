@@ -1,4 +1,4 @@
-// config (plan 2c B1): loadConfig (src/config/load.ts's resolveConfig) reads .mm3/config.yaml if present,
+// config: loadConfig (src/config/load.ts's resolveConfig) reads .mm3/config.yaml if present,
 // validates and sparse-merges it over DEFAULT_CONFIG, and labels each field's source (default/config/env).
 // `mm3 config` (runConfig/formatConfig) prints the effective table; a broken file surfaces stops without
 // hiding the rest. The classifier-side `fileConfig` threading (resolveJevConfig/selectProvider) must stay

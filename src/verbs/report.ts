@@ -5,13 +5,13 @@
  * `withIndex(..., {readOnly:true})`, exactly like `view.ts`, so they work unchanged on the linear-fallback path
  * too (no on-disk index, or Node < 22.13's own test hook); `web` (report-web.ts) reads the whole ledger directly
  * instead (it needs every run, not a capped index-backed view) and is the one view that writes something — a
- * self-contained `.mm3/viewer.html`. graph/problems/mdl/calls/fields (plan 2c C3) read the graph tier
+ * self-contained `.mm3/viewer.html`. graph/problems/mdl/calls/fields read the graph tier
  * and/or the hot tier's own raw tables straight off disk (ledger/graph.ts) — each calls `ensureHotIndexFresh`
  * (a real, non-readOnly `withIndex` catch-up/rebuild of the HOT tier) and, for graph/problems/mdl/calls,
  * `refreshGraph` after it (readers refresh both tiers; the paid path never does), so these always reflect the
  * ledger even with no index.db yet or a stale one — see `ensureHotIndexFresh`'s own comment for why raw-SQL
  * readers need this and hits/patterns/history don't. A clean message replaces a stack trace when
- * `GraphUnavailableError` fires (Node < 22.13). `fields` (plan 2c C3) reads undeclared `mdl.extras` keys
+ * `GraphUnavailableError` fires (Node < 22.13). `fields` reads undeclared `mdl.extras` keys
  * straight off the hot tier's own `runs.mdl` column and suggests a shape to promote one into `config.mdl`
  * with `--accept`.
  *   hits     — the newest run's own gate per place x category, worst first, flagging a one-subject answer
@@ -27,7 +27,7 @@
  *              rendered as `kind:label --predicate--> kind:label` lines. No target names is a clean note, never
  *              a whole-graph dump.
  *   problems — family x place gate counts (ledger/graph.ts's problemCounts), worst (most fail) first — the
- *              ranked, agent-facing knowledge pull (research doc O6).
+ *              ranked, agent-facing knowledge pull.
  *   mdl     — every run's own mdl fields (ledger/graph.ts's mdlRows), newest first.
  *   calls    — telemetry rolled up by day/verb/model/source (ledger/graph.ts's callStats), default last 30 days.
  *   fields   — undeclared `mdl.extras` keys, with counts/samples and a suggested type to promote into
@@ -368,7 +368,7 @@ function reportGraph(paths: Mm3Paths, env: Record<string, string | undefined>, t
 
 /** ≤8 distinct values across ≥5 runs → closed; else one fixed candidate regex (most specific first) matching
  *  every value → pattern; else every value looks like a where/route path (contains "/" and ends in a short
- *  extension-like suffix) → reference (`link: where`); else no suggestion yet (plan 2c C3, "foundational only" —
+ *  extension-like suffix) → reference (`link: where`); else no suggestion yet ("foundational only" —
  *  no attempt to correlate a value back to a specific run's own `where` list). */
 interface FieldSuggestion {
   kind: 'closed' | 'pattern' | 'reference';

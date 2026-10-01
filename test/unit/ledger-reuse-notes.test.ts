@@ -1,4 +1,4 @@
-// plan 2c B, item 5: reusedAgeNotes is the "smaller format change" the plan allows for verbs other than view
+// reusedAgeNotes is the "smaller format change" the plan allows for verbs other than view
 // (class/drill/replay/sweeps): the existing `reused: [ids]` list stays as-is, and this adds ONE notes: line
 // naming each distinct id's own age/commits-since.
 import { describe, expect, it } from 'vitest';

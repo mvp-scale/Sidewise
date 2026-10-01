@@ -1,7 +1,7 @@
 /**
  * Records a paid call: its line in the ledger, and the budget state it leaves behind, in ONE lock section, so
  * budget.runs == run records + failed records at all times. Spend is no longer a separate counter to keep in
- * sync (plan 2c B1: the budget is derived from the ledger itself) — there is nothing to roll back if the append
+ * sync (the budget is derived from the ledger itself) — there is nothing to roll back if the append
  * fails, since nothing was "spent" anywhere else. Never nests withLock (budgetStateNow's own index read is
  * reentrancy-safe against a lock this same process already holds — see its own comment).
  */

@@ -1,5 +1,5 @@
 /**
- * `.mm3/config.yaml` → the effective `Mm3Config` (plan 2c B1): reads the file if present (never
+ * `.mm3/config.yaml` → the effective `Mm3Config`: reads the file if present (never
  * creates it — same free-and-optional spirit as everything else doctor/config touch), validates it
  * (validate.ts), and merges it over the one code defaults table (defaults.ts). Precedence is env > config >
  * default; the small set of settings that already have their own env var (MM3_PROVIDER,

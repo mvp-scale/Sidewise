@@ -35,7 +35,7 @@ describe('a corrupt log', () => {
     // preflight can still successfully self-heal (build or catch up) the index over the valid PREFIX before its
     // separate, stricter tail check refuses the command — legitimate self-healing, not a violation of "nothing
     // is spent or logged." budget.json must stay untouched here; log.jsonl keeps its truncated tail plus exactly
-    // one new `kind:"lookup"` line from the successful view below (plan 2c B4: a place view now logs a free
+    // one new `kind:"lookup"` line from the successful view below (a place view now logs a free
     // lookup record — no longer the strict no-op this test used to pin).
     const before = snapshotLedgerAndBudget(root);
     const stop = '✖ ledger: line 2 of .mm3/log.jsonl is not valid JSON → fix or remove that line';

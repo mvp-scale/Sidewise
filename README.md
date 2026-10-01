@@ -66,8 +66,6 @@ The response, **real output · jev-1.13.0 · api.typesafe.ai · 321 ms · ~$0.00
 - **Decisions:** measure first passes (0.89); severity is unsure (low, 0.56).
 - **Next:** the concerns disagree, so consensus is SPLIT, `escalate` is true, and `next:` points at a drill into availability. The `mdl:` line lists what the ledger recorded about why the agent asked, so later runs on this code start from it.
 
-<p align="center"><a href="https://mm3lab.dev/#run">Step through two full stories, WordPress and n8n, on mm3lab.dev →</a></p>
-
 ## Why MM3
 
 An agent can ask a fast classifier a yes/no about your code, but on its own that answer is untraceable and never reused. MM3 asks the same way every time, scores the answer and keeps it, so every check adds to what you know about your codebase.
@@ -152,7 +150,7 @@ Each journey asks one question: **can a smaller model, with MM3, learn more abou
 
 ## Run it
 
-Let your agent drive. `mm3 agent` prints every command and rule in one dense card built for agents, and `mm3 agent <verb>` gives one verb's rules with good and bad examples. Claude agents read it and run the commands just fine, down to Haiku: it drove [both of our stories](https://mm3lab.dev/#run) end to end.
+Let your agent drive. `mm3 agent` prints every command and rule in one dense card built for agents, and `mm3 agent <verb>` gives one verb's rules with good and bad examples. Claude agents read it and run the commands just fine, down to Haiku: it drove both of our stories end to end.
 
 For humans, `mm3 help` is the same contract in plain words, and `mm3 template <verb>` prints a filled-in request with its rules as comments. Four jobs to start with:
 

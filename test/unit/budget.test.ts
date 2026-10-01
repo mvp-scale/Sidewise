@@ -16,7 +16,7 @@ describe('budget', () => {
     expect(loadBudget(paths, T).created).toBe(false);
   });
 
-  it('spend and run count are ledger-derived: every recorded call counts, no separate counter to drift [plan 2c B1]', () => {
+  it('spend and run count are ledger-derived: every recorded call counts, no separate counter to drift', () => {
     const { paths } = tempProject({});
     setBudget(paths, { capRuns: 2 }, T);
     recordSpend(paths, 0, T + 1000);
@@ -56,7 +56,7 @@ describe('budget', () => {
     });
   });
 
-  it('migrates a legacy budget.json into config.yaml once, then never trusts it again [plan 2c B1]', () => {
+  it('migrates a legacy budget.json into config.yaml once, then never trusts it again', () => {
     const { paths } = tempProject({});
     mkdirSync(paths.dir, { recursive: true });
     writeFileSync(paths.budget, JSON.stringify({ capUsd: 2, capRuns: 20, spentUsd: 999, runs: 999, resetAt: '2020-01-01T00:00:00Z' }));

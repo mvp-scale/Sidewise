@@ -246,7 +246,7 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it("replay: expected: grades expect:'s prediction, right after the per-category lines, before regressed: (plan 2b)", () => {
+  it("replay: expected: grades expect:'s prediction, right after the per-category lines, before regressed:", () => {
     const doc = m(
       [
         'mak',
@@ -284,7 +284,7 @@ describe('emit (golden: the contract examples)', () => {
     roundTrip(doc);
   });
 
-  it("mdl: {recorded: [...]} carries plan 2c's knowledge fields (problem/uses/touches/blast), in that order, last", () => {
+  it("mdl: {recorded: [...]} carries the knowledge fields (problem/uses/touches/blast), in that order, last", () => {
     const doc = m(
       ['mak', m(['id', 'MM3-0080'], ['gate', 'pass'])],
       ['mdl', m(['recorded', ['why', 'area', 'problem', 'uses', 'touches', 'blast']])],

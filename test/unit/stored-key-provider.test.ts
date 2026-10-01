@@ -37,7 +37,7 @@ function fakeCtx(overrides: Partial<CliCtx> = {}): CliCtx {
   };
 }
 
-// A full, valid quick-depth ask (plan 2b: 3 concerns categories x 3 probes + 2 decisions) — the exact request
+// A full, valid quick-depth ask (3 concerns categories x 3 probes + 2 decisions) — the exact request
 // shape doesn't matter for this file's own assertions (key resolution / route selection), only that it validates.
 const classReq =
   'mak:\n  goal: check this code\n  depth: quick\n  where: [src/a.ts]\n' +

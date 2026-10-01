@@ -29,7 +29,7 @@ import type { VerbContext, VerbResult } from './types.ts';
 const CAP_NOTE = 'would be blocked: the budget cap is already reached';
 
 export async function runClass(text: string, ctx: VerbContext): Promise<VerbResult> {
-  // plan 2c B1: a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
+  // a project's own .mm3/config.yaml mdl: overrides apply to every mdl: block it validates.
   const cfg = resolveConfig(ctx.paths, ctx.env).config;
   const mdlFields = effectiveMdlFields(cfg.mdl);
   const loaded = loadRequest(text, 'class', mdlFields);
@@ -108,7 +108,7 @@ export async function runClass(text: string, ctx: VerbContext): Promise<VerbResu
   // Which prior runs this run's answers came from, when any were reused — not just that reuse happened.
   const reusedRunIds = reusedIds(reusedFrom);
   const reusedAges = reusedAgeNotes(ctx.paths, reusedRunIds);
-  // plan 2c B2/B, item 6: one cache-side telemetry entry per distinct origin reused from, alongside whatever
+  // one cache-side telemetry entry per distinct origin reused from, alongside whatever
   // provider call(s) this run itself made.
   telemetry = [...telemetry, ...cacheTelemetry(ctx.paths, reusedFrom)];
   const response = (id: string, budget: string): string =>

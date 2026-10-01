@@ -82,7 +82,7 @@ describe('every non-request-validation stop still points at its own "mm3 agent <
           return { text: gate.message };
         }),
       },
-      // plan 2c B1: a corrupt legacy budget.json no longer stops anything (silently ignored — config.yaml is
+      // a corrupt legacy budget.json no longer stops anything (silently ignored — config.yaml is
       // the real authority now); the still-live budget stop is `set` given a non-positive cap.
       { label: 'budget: set given a bad cap', target: 'budget', text: textOf(() => setBudget(corruptPaths, { capUsd: 0 })) },
       { label: 'outcome: an unknown run id', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'MM3-9999', 'held', 'anyone')) },
@@ -154,7 +154,7 @@ describe('every non-request-validation stop still points at its own "mm3 agent <
       expectPointer(r.text, 'class');
     });
 
-    // plan 2c B1b: doctor now has its own agent card (`mm3 agent doctor`), so a usage mistake points at it
+    // doctor now has its own agent card (`mm3 agent doctor`), so a usage mistake points at it
     // like every other pointable command — this used to be the one exception.
     it('doctor is now pointable too: a bad flag points at "mm3 agent doctor"', async () => {
       const r = await runCli(['doctor', '--bogus'], fakeCliCtx());

@@ -38,7 +38,7 @@ describe('schema agreement (TS checks ⇔ JSON Schema)', () => {
     expect(docs.filter((d) => d.file.startsWith('valid/')).map((d) => path.basename(d.file)).sort()).toEqual(['class.yaml', 'drill.yaml', 'loop.yaml', 'replay.yaml', 'scan.yaml', 'view.yaml']);
   });
 
-  // agents/** predates plan 2b's ask sections (concerns:/decisions:) — real transcripts from an earlier round,
+  // agents/** predates the ask sections (concerns:/decisions:) — real transcripts from an earlier round,
   // kept for the mutation fuzzer's realism corpus below (which only needs agreement, never acceptance), but no
   // longer expected to validate under the current contract. Only valid/** (this plan's own worked examples)
   // must still be accepted by both checkers; see "none of the agents' requests validate any more" below.

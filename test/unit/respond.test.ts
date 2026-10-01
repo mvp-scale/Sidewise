@@ -74,7 +74,7 @@ describe('mdlRecorded', () => {
     ]);
   });
 
-  it("plan 2c's knowledge fields (problem/uses/touches/blast) append last, in that order, extras after them", () => {
+  it("the knowledge fields (problem/uses/touches/blast) append last, in that order, extras after them", () => {
     expect(mdlRecorded({ problem: 'fixing the injection in findUser' })).toEqual(['problem']);
     expect(mdlRecorded({ uses: ['container:api -> component:dao'] })).toEqual(['uses']);
     expect(mdlRecorded({ uses: [] })).toBe('none'); // an empty list is not "set"

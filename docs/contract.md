@@ -666,7 +666,7 @@ notes: ["2 states · budget: $4.96 left of $5.00 · 495 of 500 runs left"]
 
 ### A sweep parent
 
-A sweep parent is scan, loop, or drill's own sweep form (plan 2c C2).
+A sweep parent is scan, loop, or drill's own sweep form.
 
 - **What it re-runs:** `replay` re-runs the parent's own sweep twice, once per ref. It uses `over:` and the `ask:` layers the parent recorded. [C-216]
 - **Same two states:** it runs over the same two `compare:` states as a one-subject parent. [C-216]
