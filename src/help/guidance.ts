@@ -1,14 +1,12 @@
 /**
- * The one source of the three-beat guidance: where an agent is at each decision (Know, Judge, Prove), not just
- * at the start. A single string so every surface says the same thing and a drift test can pin them:
- * the MCP `initialize` instructions (mcp/protocol.ts), the top of skills/mm3/SKILL.md, and the opt-in block
- * `mm3 init --agents` writes into a project's AGENTS.md. Plain English, markdown-safe (a lead line, then "- "
- * bullets), no blank lines, so it can be pasted verbatim anywhere.
+ * The short block `mm3 init --agents` writes into a project's AGENTS.md: what MM3 is and where the rules live,
+ * and nothing about how to sequence a job. A single string so a drift test can pin it. It names no workflow on
+ * purpose: one `class` call is often the whole job, and a structured process (map, plan check, replay) is for the
+ * journeys we run and publish, not for every user. Plain English, markdown-safe (a lead line, then "- " bullets),
+ * no blank lines, so it can be pasted verbatim anywhere.
  */
-export const BEAT_GUIDANCE: string = [
-  'MM3 works in three beats; use it in every one.',
-  '- Know: `view` first (free, reuses what is known), then `scan` to find where the goal touches the code.',
-  '- Judge: `loop` the plan before code, `class` a specific decision, `drill` into anything unsure or failing (follow `next:`).',
-  '- Prove: after the change is committed, `replay --parent <id> --compare <before>..HEAD` shows what flipped to pass and what regressed; `class` alone is not proof of a change.',
-  '- Run `mm3 agent <verb>` before writing a request.',
+export const AGENT_POINTER: string = [
+  'MM3 turns a short yes/no checklist into a pass/fail/unsure verdict: evidence, never a command.',
+  '- Run `mm3 agent` first: it names every command and the rules in one card.',
+  '- Run `mm3 agent <verb>` before writing a request. Use the verb that fits the ask; one `class` call is often enough.',
 ].join('\n');

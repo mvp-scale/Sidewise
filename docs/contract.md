@@ -1645,7 +1645,7 @@ The key's source (`env`, `keychain` or `file`) is carried alongside it. [C-097]
 **`mm3 init --agents`** is an opt-in step that runs on its own. [C-233]
 
 - It has no install, key or plugin step. Combined with another init flag, it stops at exit 2. [C-233]
-- It writes the three-beat guidance into the project's `AGENTS.md`, between `<!-- mm3:agents -->` and `<!-- /mm3:agents -->`. [C-233]
+- It writes a short pointer (what MM3 is, run `mm3 agent` first, then `mm3 agent <verb>` before a request; no workflow) into the project's `AGENTS.md`, between `<!-- mm3:agents -->` and `<!-- /mm3:agents -->`. [C-233]
 - The file is created when missing. [C-233]
 - The block is appended when there are no markers. [C-233]
 - Only what sits between the markers is replaced when there are markers. An unmatched marker stops with `✖ agents: ... → fix`. [C-233]

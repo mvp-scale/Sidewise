@@ -7,7 +7,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { BEAT_GUIDANCE } from '../help/guidance.ts';
+import { AGENT_POINTER } from '../help/guidance.ts';
 
 const AGENTS_OPEN = '<!-- mm3:agents -->';
 const AGENTS_CLOSE = '<!-- /mm3:agents -->';
@@ -18,7 +18,7 @@ export const CLAUDE_FILES = [
   { rel: path.join('.claude', 'CLAUDE.md'), importLine: '@../AGENTS.md' },
 ] as const;
 
-export const agentsBlock = (): string => `${AGENTS_OPEN}\n${BEAT_GUIDANCE}\n${AGENTS_CLOSE}`;
+export const agentsBlock = (): string => `${AGENTS_OPEN}\n${AGENT_POINTER}\n${AGENTS_CLOSE}`;
 
 /** A line that is exactly `@AGENTS.md` or `@../AGENTS.md` once trimmed. */
 export const importsAgents = (text: string): boolean => text.split('\n').some((l) => l.trim() === '@AGENTS.md' || l.trim() === '@../AGENTS.md');

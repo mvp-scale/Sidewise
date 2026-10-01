@@ -1,4 +1,4 @@
-// mm3 init --agents [C-233]: writes the three-beat guidance into the project's AGENTS.md between
+// mm3 init --agents [C-233]: writes the short MM3 pointer block into the project's AGENTS.md between
 // <!-- mm3:agents --> markers (and wires CLAUDE.md to import AGENTS.md), shows exactly what it will write
 // first, and writes only on --yes or an explicit yes. Only this one step runs: no npm, no key, no plugin.
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -7,10 +7,10 @@ import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { runCli } from '../../../src/cli.ts';
-import { BEAT_GUIDANCE } from '../../../src/help/guidance.ts';
+import { AGENT_POINTER } from '../../../src/help/guidance.ts';
 import { type InitCtx, type InitFlags, runInit } from '../../../src/setup/init.ts';
 
-const BLOCK = `<!-- mm3:agents -->\n${BEAT_GUIDANCE}\n<!-- /mm3:agents -->`;
+const BLOCK = `<!-- mm3:agents -->\n${AGENT_POINTER}\n<!-- /mm3:agents -->`;
 const FLAGS: InitFlags = { key: 'no', yes: true, agents: true };
 
 function project(files: Record<string, string> = {}): { root: string; ctx: InitCtx; typed: (s: string) => void } {
