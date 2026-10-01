@@ -32,5 +32,5 @@ describe('docs/evidence/ledger-scale.md structure is current', () => {
       }
     }
     expect(sawAnOpTable).toBe(true);
-  });
+  }, 60_000); // the fresh bench run timed out once at the 5 s default on Node 22
 });
