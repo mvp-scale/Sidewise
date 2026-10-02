@@ -10,7 +10,7 @@
 # by the order below — reordering flows changes the ids and gate values later flows assert on.
 #   npm run test:flows
 set -u
-cd "$(git rev-parse --show-toplevel)"
+cd "$(dirname "$0")/.."
 CLI="$(pwd)/dist/cli.js"
 
 if [ ! -f "$CLI" ]; then
