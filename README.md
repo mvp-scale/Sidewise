@@ -19,7 +19,7 @@ In Claude Code, from your project:
 
 Pick **project** scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on "TypeSafe API key", paste, Enter, then "Save configuration". Leave it empty to add one later with `mm3 init`.
 
-The plugin carries its own copy of MM3, and Claude Code puts a plugin's `bin/` folder on Claude's Bash PATH, so Claude can run every command (`mm3 config --load` included) without anything else installed. It is always the same version as the plugin.
+The plugin carries its own copy of MM3 and gives Claude the `mm3` tool, so Claude can run every command (`mm3 config --load` included) without anything else installed. It is updated through Claude Code, like any plugin.
 
 In your own terminal (optional, needs Node 22.13+). Run it without installing anything:
 
