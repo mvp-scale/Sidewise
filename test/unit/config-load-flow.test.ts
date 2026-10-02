@@ -11,6 +11,7 @@ import { runCli, type CliCtx } from '../../src/cli.ts';
 import { fingerprintOf, readActive, writeActive } from '../../src/config/active.ts';
 import { nearMissNotes, runConfig, runConfigLoad, runConfigReset } from '../../src/config/config.ts';
 import { resolveConfig } from '../../src/config/load.ts';
+import { hasGit } from '../../src/evidence/git.ts';
 import { writeConfigOverride } from '../../src/config/write.ts';
 import { runDoctor } from '../../src/verbs/doctor.ts';
 import { setBudget } from '../../src/budget/budget.ts';
@@ -218,7 +219,8 @@ describe('requests read only the active copy [C-245]', () => {
 });
 
 describe('the active copy on disk', () => {
-  it('is ignored by git, beside the committed config.yaml [C-246]', async () => {
+  it('is ignored by git, beside the committed config.yaml [C-246]', async (ctx) => {
+    if (!hasGit()) return ctx.skip();
     const { root } = tempProject();
     spawnSync('git', ['init', '-q'], { cwd: root });
     write(root, 'budget:\n  usd: 2\n');
