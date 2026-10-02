@@ -1332,6 +1332,12 @@ It has its own shape and its own rule.
 
 `mm3 agent` with no target lists one atomic purpose line under each verb and tool, not just its name. [C-189]
 
+**Guidance for agents:**
+
+- The plugin carries one short guidance text (under 1,800 bytes, one `IMPORTANT` line, no build sequence): work top-down (`view`, then `scan` only when the location is unknown, then `drill` the flagged item, then `loop` to check a design; `class` for a known location), send a pilot before a batch, a sweep's `gate: fail` is normal, run `mm3 agent probe` before writing questions, cite run ids, and give helpers `mm3 agent delegate`. The MCP `initialize` reply sends it as `instructions`, so it reaches the lead agent only while the plugin is enabled. `mm3 init --agents` writes the same body behind "If the `mm3` tool is available…", and the `mm3` skill and the project guide carry it too (the skill within its first 100 lines). A test fails if any of them differs. [C-255]
+- `mm3 agent delegate` prints a block to paste into every helper prompt: the same body, then to use only the `mm3` MCP tool (never the shell), never read `.mm3/log.jsonl`, report each run id with its gate and what was not run, and that the lead checks the ids against the ledger. `mm3 agent` points at it. [C-256]
+- The shipped skills follow Anthropic's progressive-disclosure rules: every `SKILL.md` is under 500 lines, a markdown file over 100 lines opens with a `## Contents` list within its first 25 lines, reference files link to no other file (one level deep), and `mm3-probe` keeps its rules (what a probe is, the angles, what makes a good one, bad probes, decisions) in its first 100 lines, with the long material (`mdl`, the per-verb recipes, the per-family pairs) in files linked directly from it. A test fails otherwise. [C-257]
+
 - **The shape:** it is `verbs (pick by goal):` followed by one bullet per verb. A bullet looks like `- view: free; what's already known, before any paid call`. Then a `tools:` section shaped the same way. [C-189]
 - **Why:** an agent holding a goal ("is this handler safe to merge?") rather than a verb name can map straight to the right one. [C-189]
 - **The closing `run:` lines** say what each next step is for, not just its name. [C-189]

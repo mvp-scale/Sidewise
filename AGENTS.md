@@ -72,6 +72,17 @@ This section is for any agent that has MM3 installed as a dependency in its own 
 
 MM3 turns a short numbered yes/no checklist into a calibrated pass/fail/unsure verdict — evidence, never a command. Every request has a `mak:` block (**make**: the request itself, one goal, then plumbing) and an optional `mdl:` block (**model**: why you're here, so the ledger learns). The six verbs split into MAK³ (use what is proven: `view`, `class`, `replay`) and MDL³ (learn what is missing: `scan`, `drill`, `loop`), each across Know, Judge and Prove.
 
+## Use it well
+
+IMPORTANT: work top-down. Ask a few high-leverage questions per layer and drill only where MM3 flags something. "Exhaustive" means every layer covered through that funnel, not every file.
+
+- Open goal, in order: `view` (free reuse) → `scan` only when you do not know where to look → `drill` the flagged item → `loop` to check a design. Known location: `class` on the representative code.
+- Pilot first: send one small request, read the answer, fix the questions, then widen. Send no more than a few before you have read one.
+- A sweep that says `gate: fail` is normal (any file failing any concern fails it): read the failing categories and the `next:` line; do not stop and do not repeat it.
+- Before writing a request run `mm3 agent probe` (distinct roles per probe, a "none fits" option on every choice) and tag it with mdl (`uses`, `area`).
+- Do not ration: a call costs a fraction of a cent. Cite the run id (MM3-####) for every claim that comes from MM3, and mark the rest as your own reading.
+- Delegating? Give helpers `mm3 agent delegate`, and check their reports against the ledger: a helper can report work it did not do.
+
 ## Run this first
 
 Run `mm3 agent` first: it names every command an agent needs — the six verbs plus `report`, `outcome`, `budget`, `template` — and the universal rules, in one dense, no-prose card. Then run `mm3 agent <command>` before writing a request: a verb's own card is its enforced rules and good/bad examples; a tool's is its syntax and a good/bad pair. `mm3 help` is the human-readable version of the same contract: a one-screen card, plus `help <verb>` (view, class, replay, scan, drill, loop) and `help <topic>` (authoring, verdict, mdl, reuse) going deeper — both free, no project needed. `mm3 report [hits|patterns|history]` reads back what the ledger has learned across every place so far — free, no options beyond the view name; a read tool, not a seventh verb.

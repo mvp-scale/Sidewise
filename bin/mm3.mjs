@@ -8385,7 +8385,7 @@ function isRecord(v) {
   const r = v;
   if (r.kind === "outcome") return [r.id, r.of, r.outcome, r.by, r.ts].every(isText);
   if (r.kind === "failed") return [r.id, r.ts, r.verb, r.actor, r.adapter, r.model, r.reason].every(isText);
-  if (r.kind === "config") return [r.id, r.uid, r.ts, r.fingerprint].every(isText) && isObj2(r.settings) && Array.isArray(r.changes) && r.changes.every(isText) && (r.windowSince === void 0 || isText(r.windowSince));
+  if (r.kind === "config") return [r.id, r.uid, r.ts, r.fingerprint].every(isText) && isObj2(r.settings) && Array.isArray(r.changes) && r.changes.every(isText) && (r.windowSince === void 0 || isText(r.windowSince)) && (r.absent === void 0 || r.absent === true);
   if (r.kind === "lookup") return [r.id, r.uid, r.ts, r.goal].every(isText) && Array.isArray(r.where) && r.where.every(isText) && typeof r.hit === "boolean";
   if (r.kind !== "run") return false;
   if (r.v === 2) {
@@ -10074,7 +10074,7 @@ function configStatus(paths) {
     }
   }
   const latest = paths ? latestConfigRecord(paths) : void 0;
-  if (text === void 0) return latest ? { kind: "gone", loadedAt: latest.ts, fileStops: [] } : { kind: "defaults", fileStops: [] };
+  if (text === void 0) return latest && !latest.absent ? { kind: "gone", loadedAt: latest.ts, fileStops: [] } : { kind: "defaults", fileStops: [] };
   const fileStops = checkConfigText(text).stops;
   if (fileStops.length) return { kind: "invalid", fileStops };
   if (!latest) return hasSettings(text) ? { kind: "unrecorded", fileStops } : { kind: "defaults", fileStops };
@@ -10089,7 +10089,7 @@ function statusLine(s) {
     case "unrecorded":
       return "\u26A0 config.yaml is in effect but its latest change is not recorded \u2192 mm3 config --load";
     case "gone":
-      return `\u26A0 config.yaml is gone (last loaded ${s.loadedAt}) \u2192 the defaults apply; restore the file, or load another with mm3 config --load <file>`;
+      return `\u26A0 config.yaml is gone (last loaded ${s.loadedAt}) \u2192 the defaults apply; run mm3 config --load to record the defaults, or restore the file`;
     case "invalid":
       return "\u2716 config.yaml has a problem \u2192 fix it: paid runs stop until you do";
   }
@@ -10394,9 +10394,24 @@ var budgetChanged = (a, b) => {
   const d = DEFAULT_CONFIG.budget;
   return (a.budget?.usd ?? d.usd) !== (b.budget?.usd ?? d.usd) || (a.budget?.runs ?? d.runs) !== (b.budget?.runs ?? d.runs) || (a.budget?.per ?? d.per) !== (b.budget?.per ?? d.per);
 };
+function loadAbsent(paths, now) {
+  const previous = latestConfigRecord(paths);
+  if (!previous || previous.absent) return { exit: 0, text: "\u2714 no config.yaml \xB7 the defaults already apply \xB7 nothing to record \u2192 mm3 config --write for a starter\n" };
+  const previousSettings = previous.settings ?? {};
+  const changes = [];
+  changesFrom(mergeConfig({}).config, mergeConfig(previousSettings).config, "", changes);
+  const restarted = budgetChanged(previousSettings, {});
+  ensureDir(paths);
+  appendConfig(paths, { fingerprint: fingerprintOf(""), settings: {}, changes, absent: true, ...restarted ? { windowSince: isoSeconds(now) } : previous.windowSince ? { windowSince: previous.windowSince } : {} }, now);
+  const shown2 = changes.slice(0, MAX_CHANGES_SHOWN).map((c) => `  ${c}`);
+  if (changes.length > shown2.length) shown2.push(`  \u2026 ${changes.length - shown2.length} more`);
+  return { exit: 0, text: `${["\u2714 no config.yaml \xB7 the defaults apply \xB7 recorded", ...shown2, ...restarted ? ["  count restarted: the budget changed, so spend is counted from now"] : []].join("\n")}
+` };
+}
 function runConfigLoad(paths, file, cwd, projectLine2, now = Date.now()) {
   if (!paths) return { exit: 2, text: "\u2716 config: no project here \u2192 run inside a project (a folder with .git or .mm3), or set MM3_HOME" };
   const label = configFileLabel(projectLine2);
+  if (file === void 0 && !existsSync8(paths.config)) return loadAbsent(paths, now);
   const source = file === void 0 ? paths.config : path5.resolve(cwd, file);
   let text;
   try {
@@ -10448,6 +10463,21 @@ not loaded: nothing was recorded
 // src/mcp/stdio.ts
 import readline from "node:readline";
 
+// src/help/guidance.ts
+var BODY = [
+  'IMPORTANT: work top-down. Ask a few high-leverage questions per layer and drill only where MM3 flags something. "Exhaustive" means every layer covered through that funnel, not every file.',
+  "- Open goal, in order: `view` (free reuse) \u2192 `scan` only when you do not know where to look \u2192 `drill` the flagged item \u2192 `loop` to check a design. Known location: `class` on the representative code.",
+  "- Pilot first: send one small request, read the answer, fix the questions, then widen. Send no more than a few before you have read one.",
+  "- A sweep that says `gate: fail` is normal (any file failing any concern fails it): read the failing categories and the `next:` line; do not stop and do not repeat it.",
+  '- Before writing a request run `mm3 agent probe` (distinct roles per probe, a "none fits" option on every choice) and tag it with mdl (`uses`, `area`).',
+  "- Do not ration: a call costs a fraction of a cent. Cite the run id (MM3-####) for every claim that comes from MM3, and mark the rest as your own reading.",
+  "- Delegating? Give helpers `mm3 agent delegate`, and check their reports against the ledger: a helper can report work it did not do."
+];
+var LEAD = "Run `mm3 agent` first for the commands and rules, then `mm3 agent <verb>` before writing a request.";
+var MM3_GUIDANCE = [`MM3 is active here: use it to ground analysis in evidence, not as an afterthought. ${LEAD}`, ...BODY].join("\n");
+var AGENT_POINTER2 = [`If the \`mm3\` tool is available, MM3 is active in this project. ${LEAD}`, ...BODY].join("\n");
+var GUIDANCE_BODY = BODY;
+
 // src/mcp/protocol.ts
 var SUPPORTED_VERSIONS = ["2024-11-05", "2025-03-26", "2025-06-18", "2025-11-25"];
 var DEFAULT_VERSION = "2025-06-18";
@@ -10479,7 +10509,7 @@ async function handleMessage(msg, deps) {
     const params = msg.params ?? {};
     const requested = typeof params.protocolVersion === "string" ? params.protocolVersion : void 0;
     const protocolVersion = requested && SUPPORTED_VERSIONS.includes(requested) ? requested : DEFAULT_VERSION;
-    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "mm3", version: deps.serverVersion } });
+    return ok(id, { protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "mm3", version: deps.serverVersion }, instructions: MM3_GUIDANCE });
   }
   if (method === "ping") return ok(id, {});
   if (method === "tools/list") return ok(id, { tools: [toolDefinition()] });
@@ -10690,15 +10720,6 @@ import path8 from "node:path";
 // src/setup/agents-file.ts
 import { existsSync as existsSync10, readFileSync as readFileSync11 } from "node:fs";
 import path7 from "node:path";
-
-// src/help/guidance.ts
-var AGENT_POINTER2 = [
-  "MM3 turns a short yes/no checklist into a pass/fail/unsure verdict: evidence, never a command.",
-  "- Run `mm3 agent` first: it names every command and the rules in one card.",
-  "- Run `mm3 agent <verb>` before writing a request. Use the verb that fits the ask; one `class` call is often enough."
-].join("\n");
-
-// src/setup/agents-file.ts
 var AGENTS_OPEN = "<!-- mm3:agents -->";
 var AGENTS_CLOSE = "<!-- /mm3:agents -->";
 var AGENTS_FILE = "AGENTS.md";
@@ -15734,7 +15755,7 @@ ul.story-list li { padding:3px 0; border-bottom:1px solid var(--border); overflo
   .rail-left, .rail-right { border:none; border-top:1px solid var(--border); position:static; }
 }
 `;
-var BODY = `
+var BODY2 = `
 <header class="topbar">
   <div class="topbar-left">
     <span class="brand">MM3</span>
@@ -15971,7 +15992,7 @@ function renderViewerHtml(data) {
 <style>${CSS}</style>
 </head>
 <body>
-${BODY}
+${BODY2}
 <script type="application/json" id="viewer-data">${json}</script>
 <script>${CLIENT_JS}</script>
 </body>
@@ -17229,6 +17250,7 @@ function overview(env, deps) {
       "run: mm3 agent <verb|tool> \u2014 before writing that request",
       "run: mm3 agent probe \u2014 before writing questions: how to phrase one",
       "run: mm3 agent verdict \u2014 before reading a response: how to read it",
+      "run: mm3 agent delegate \u2014 before handing MM3 work to a helper agent: what to paste into its prompt",
       ...noKeyRunLine(env, deps)
     ]
   );
@@ -17351,6 +17373,7 @@ function configCard() {
       "- free: plain config never writes, never spends, works with or without a project",
       "- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from",
       "- .mm3/config.yaml IS the config: every request reads it, so an edit applies at once and deleting the file means defaults",
+      "- to return to the defaults, delete .mm3/config.yaml, then run mm3 config --load (it records the change); do not guess old values",
       "- mm3 config --load [file] checks the file (a named file is copied to .mm3/config.yaml as is) and records a receipt in the ledger: \u2714 valid \xB7 loaded \xB7 N changed since the last load, or every \u2716 problem and nothing recorded",
       "- doctor and mm3 config compare the file with the latest receipt: \u2714 config: loaded <time>, or \u26A0 config.yaml is in effect but its latest change is not recorded \u2192 mm3 config --load",
       "- a changed budget (usd, runs, per) restarts the count when loaded; the receipt says so",
@@ -17358,6 +17381,18 @@ function configCard() {
       "- sparse overrides only, precedence env > config > default",
       "- the display is not a file: to customize run mm3 config --write \u2192 writes .mm3/config.yaml (commented guide) only if missing, never overwrites",
       "- a misnamed .mm3/config.ymal (or config.yml, config.json) gets a did-you-mean note here and in doctor"
+    ]
+  );
+}
+function delegateCard() {
+  return renderCard(
+    ["tool: delegate"],
+    [
+      "- paste this card into the prompt of every helper you hand MM3 work to",
+      "- use only the `mm3` MCP tool, never the shell (there is no mm3 command on PATH), one request at a time; never read .mm3/log.jsonl",
+      "- report each MM3 run id with its gate, and say what you did NOT run; the lead checks the ids against the ledger before relying on the report",
+      "- start with one small request, then the batch; a helper that stops early or says it finished is checked, not trusted",
+      ...GUIDANCE_BODY
     ]
   );
 }
@@ -17426,7 +17461,8 @@ var AGENT_TOPICS = {
   template: templateCard,
   mdl: mdlCard,
   config: configCard,
-  doctor: doctorCard
+  doctor: doctorCard,
+  delegate: delegateCard
 };
 var agentExtras = () => Object.keys(AGENT_TOPICS);
 var AGENT_EXTRAS = Object.keys(AGENT_TOPICS);

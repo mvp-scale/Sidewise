@@ -53,6 +53,7 @@ describe('the plugin bundle over real MCP stdio', () => {
 
     const init = await s.rpc('initialize', { protocolVersion: '2025-06-18' });
     expect((init.result as { protocolVersion: string }).protocolVersion).toBe('2025-06-18');
+    expect((init.result as { instructions?: string }).instructions).toMatch(/^MM3 is active here: .*\nIMPORTANT: work top-down/su); // the guidance, sent only while the plugin runs
     s.notify('notifications/initialized');
     const list = await s.rpc('tools/list');
     expect((list.result as { tools: Array<{ name: string }> }).tools.map((t) => t.name)).toEqual(['mm3']);

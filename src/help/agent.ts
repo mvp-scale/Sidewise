@@ -54,6 +54,7 @@ import type { Mm3Paths } from '../ledger/paths.ts';
 import { inPluginContext, NO_KEY_PLUGIN_HINT } from '../setup/plugin.ts';
 import type { VerbResult } from '../verbs/types.ts';
 import { clip, hasControlChars } from '../util/text.ts';
+import { GUIDANCE_BODY } from './guidance.ts';
 import { terseLines } from './patterns.ts';
 import { TOOL_LINE } from './report.ts';
 import { BAD_PROBE_EXAMPLE, FAMILY_ROLES, PROBE_RULES, ruleLines, VERDICT_FACTS } from './rules.ts';
@@ -135,6 +136,7 @@ function overview(env: Record<string, string | undefined>, deps: { resolveStored
       'run: mm3 agent <verb|tool> — before writing that request',
       'run: mm3 agent probe — before writing questions: how to phrase one',
       'run: mm3 agent verdict — before reading a response: how to read it',
+      'run: mm3 agent delegate — before handing MM3 work to a helper agent: what to paste into its prompt',
       ...noKeyRunLine(env, deps),
     ],
   );
@@ -295,6 +297,22 @@ function configCard(): string {
   );
 }
 
+/** `mm3 agent delegate`'s card: a block a lead agent pastes into every helper prompt that may use MM3. Helpers do not
+ *  reliably inherit the lead's instructions (the MCP `instructions` reach the lead only), so this carries what a helper
+ *  needs: the guidance body plus how to report. */
+function delegateCard(): string {
+  return renderCard(
+    ['tool: delegate'],
+    [
+      '- paste this card into the prompt of every helper you hand MM3 work to',
+      '- use only the `mm3` MCP tool, never the shell (there is no mm3 command on PATH), one request at a time; never read .mm3/log.jsonl',
+      '- report each MM3 run id with its gate, and say what you did NOT run; the lead checks the ids against the ledger before relying on the report',
+      '- start with one small request, then the batch; a helper that stops early or says it finished is checked, not trusted',
+      ...GUIDANCE_BODY,
+    ],
+  );
+}
+
 /** `mm3 agent mdl`'s legend card — deliberately NOT built through `renderCard`: it has its
  *  own fixed shape (FIELDS/ARCHITECTURE/WRITE IT FLAT/EXAMPLE, no `rules:`/`patterns:`/`run:`), spelled out
  *  verbatim by the plan, so it's exempt from the "every card follows the same key order" invariant
@@ -386,6 +404,7 @@ const AGENT_TOPICS: Record<string, () => string> = {
   mdl: mdlCard,
   config: configCard,
   doctor: doctorCard,
+  delegate: delegateCard,
 };
 const agentExtras = (): string[] => Object.keys(AGENT_TOPICS);
 /** Re-exported for the CLI's own usage line, the same way help/index.ts's HELP_EXTRAS already is. */
