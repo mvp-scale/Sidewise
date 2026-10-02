@@ -37,7 +37,8 @@ export function configStatus(paths: Mm3Paths | undefined): ConfigStatus {
     }
   }
   const latest = paths ? latestConfigRecord(paths) : undefined;
-  if (text === undefined) return latest ? { kind: 'gone', loadedAt: latest.ts, fileStops: [] } : { kind: 'defaults', fileStops: [] };
+  // No file: the defaults apply. A recorded load of a file that is now gone warns until the defaults are recorded too.
+  if (text === undefined) return latest && !latest.absent ? { kind: 'gone', loadedAt: latest.ts, fileStops: [] } : { kind: 'defaults', fileStops: [] };
   const fileStops = checkConfigText(text).stops;
   if (fileStops.length) return { kind: 'invalid', fileStops };
   if (!latest) return hasSettings(text) ? { kind: 'unrecorded', fileStops } : { kind: 'defaults', fileStops };
@@ -55,7 +56,7 @@ export function statusLine(s: ConfigStatus): string | undefined {
     case 'unrecorded':
       return '⚠ config.yaml is in effect but its latest change is not recorded → mm3 config --load';
     case 'gone':
-      return `⚠ config.yaml is gone (last loaded ${s.loadedAt}) → the defaults apply; restore the file, or load another with mm3 config --load <file>`;
+      return `⚠ config.yaml is gone (last loaded ${s.loadedAt}) → the defaults apply; run mm3 config --load to record the defaults, or restore the file`;
     case 'invalid':
       return '✖ config.yaml has a problem → fix it: paid runs stop until you do';
   }

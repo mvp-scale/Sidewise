@@ -99,11 +99,12 @@ describe('mm3 config --load', () => {
   });
 
 
-  it('with no config.yaml to load it says how to get one', async () => {
-    const { root } = tempProject();
+  it('[C-248] with no config.yaml and no earlier load there is nothing to record, and it says how to get a starter', async () => {
+    const { root, paths } = tempProject();
     const r = await mm3(root, ['config', '--load']);
-    expect(r.exit).toBe(2);
-    expect(r.text).toContain('no .mm3/config.yaml to load → run mm3 config --write for a starter');
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('✔ no config.yaml · the defaults already apply · nothing to record → mm3 config --write for a starter');
+    expect(latestConfigRecord(paths)).toBeUndefined();
   });
 
 

@@ -386,6 +386,24 @@ const budgetChanged = (a: Partial<Mm3Config>, b: Partial<Mm3Config>): boolean =>
   return (a.budget?.usd ?? d.usd) !== (b.budget?.usd ?? d.usd) || (a.budget?.runs ?? d.runs) !== (b.budget?.runs ?? d.runs) || (a.budget?.per ?? d.per) !== (b.budget?.per ?? d.per);
 };
 
+/** `mm3 config --load` with no `.mm3/config.yaml`: the defaults already apply, so there is nothing to check. When a
+ *  load of a file was recorded before, taking the file away is a change too: record a receipt of the defaults (so the
+ *  ledger says when, what changed and, if the budget changed, where its count restarts) and doctor stops warning. With
+ *  no earlier load, or when the defaults were already recorded, there is nothing to record. */
+function loadAbsent(paths: Mm3Paths, now: number): VerbResult {
+  const previous = latestConfigRecord(paths);
+  if (!previous || previous.absent) return { exit: 0, text: '✔ no config.yaml · the defaults already apply · nothing to record → mm3 config --write for a starter\n' };
+  const previousSettings = (previous.settings ?? {}) as Partial<Mm3Config>;
+  const changes: string[] = [];
+  changesFrom(mergeConfig({}).config as unknown as Record<string, unknown>, mergeConfig(previousSettings).config as unknown as Record<string, unknown>, '', changes);
+  const restarted = budgetChanged(previousSettings, {});
+  ensureDir(paths);
+  appendConfig(paths, { fingerprint: fingerprintOf(''), settings: {}, changes, absent: true, ...(restarted ? { windowSince: isoSeconds(now) } : previous.windowSince ? { windowSince: previous.windowSince } : {}) }, now);
+  const shown = changes.slice(0, MAX_CHANGES_SHOWN).map((c) => `  ${c}`);
+  if (changes.length > shown.length) shown.push(`  … ${changes.length - shown.length} more`);
+  return { exit: 0, text: `${['✔ no config.yaml · the defaults apply · recorded', ...shown, ...(restarted ? ['  count restarted: the budget changed, so spend is counted from now'] : [])].join('\n')}\n` };
+}
+
 /** `mm3 config --load [file]`: checks the file with the same validation `mm3 config`/`mm3 doctor` use and, only if it is
  *  clean, appends a receipt to the ledger: when, the file's hash, the settings, what changed since the previous receipt
  *  (or from the defaults, for the first). It does not change what runs read: every request already reads config.yaml
@@ -397,6 +415,7 @@ const budgetChanged = (a: Partial<Mm3Config>, b: Partial<Mm3Config>): boolean =>
 export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefined, cwd: string, projectLine: string, now: number = Date.now()): VerbResult {
   if (!paths) return { exit: 2, text: '✖ config: no project here → run inside a project (a folder with .git or .mm3), or set MM3_HOME' };
   const label = configFileLabel(projectLine);
+  if (file === undefined && !existsSync(paths.config)) return loadAbsent(paths, now);
   const source = file === undefined ? paths.config : path.resolve(cwd, file);
   let text: string;
   try {

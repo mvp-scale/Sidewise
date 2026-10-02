@@ -241,6 +241,8 @@ export interface ConfigRecord {
   changes: string[];
   /** The budget count starts here: set when this load changed the budget, carried forward by later loads that did not. */
   windowSince?: string;
+  /** The load found no config.yaml: the receipt records going back to the defaults. */
+  absent?: true;
 }
 
 export type NewConfig = Omit<ConfigRecord, 'kind' | 'id' | 'uid' | 'ts'>;
@@ -287,7 +289,7 @@ export function isRecord(v: unknown): v is LedgerRecord {
   const r = v as Record<string, unknown>;
   if (r.kind === 'outcome') return [r.id, r.of, r.outcome, r.by, r.ts].every(isText);
   if (r.kind === 'failed') return [r.id, r.ts, r.verb, r.actor, r.adapter, r.model, r.reason].every(isText);
-  if (r.kind === 'config') return [r.id, r.uid, r.ts, r.fingerprint].every(isText) && isObj(r.settings) && Array.isArray(r.changes) && r.changes.every(isText) && (r.windowSince === undefined || isText(r.windowSince));
+  if (r.kind === 'config') return [r.id, r.uid, r.ts, r.fingerprint].every(isText) && isObj(r.settings) && Array.isArray(r.changes) && r.changes.every(isText) && (r.windowSince === undefined || isText(r.windowSince)) && (r.absent === undefined || r.absent === true);
   if (r.kind === 'lookup') return [r.id, r.uid, r.ts, r.goal].every(isText) && Array.isArray(r.where) && r.where.every(isText) && typeof r.hit === 'boolean';
   if (r.kind !== 'run') return false;
   if (r.v === 2) {

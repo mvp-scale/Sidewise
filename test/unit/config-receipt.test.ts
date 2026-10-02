@@ -166,6 +166,45 @@ describe('mm3 config says where the file stands against the latest receipt', () 
   });
 });
 
+describe('taking the file away is a load too [C-248]', () => {
+  const setup = async () => {
+    const t = tempProject();
+    write(t.root, 'budget:\n  usd: 1\n  runs: 5\n');
+    await mm3(t.root, ['config', '--load']);
+    rmSync(configPath(t.root));
+    return t;
+  };
+
+  it('[C-248] --load with the file gone records the defaults and says so', async () => {
+    const { root, paths } = await setup();
+    const r = await mm3(root, ['config', '--load']);
+    expect(r.exit).toBe(0);
+    expect(r.text).toContain('✔ no config.yaml · the defaults apply · recorded');
+    expect(r.text).toContain('budget.runs: 5 → 500');
+    expect(r.text).toContain('count restarted');
+    expect(latestConfigRecord(paths)).toMatchObject({ absent: true, settings: {}, changes: expect.arrayContaining(['budget.usd: 1 → 5', 'budget.runs: 5 → 500']) });
+  });
+
+  it('[C-248] doctor and config then read as the defaults, with no warning left behind', async () => {
+    const { root } = await setup();
+    await mm3(root, ['config', '--load']);
+    const text = (await mm3(root, ['doctor'])).text + (await mm3(root, ['config'])).text;
+    expect(text).toContain('config: "✔ config: defaults"');
+    expect(text).not.toContain('is gone');
+  });
+
+  it('[C-248] before the load, the warning says what to run', async () => {
+    const { root } = await setup();
+    expect((await mm3(root, ['doctor'])).text).toContain('⚠ config.yaml is gone (last loaded');
+    expect((await mm3(root, ['doctor'])).text).toContain('run mm3 config --load to record the defaults');
+  });
+
+  it('[C-248] the agent card says how to return to the defaults', async () => {
+    const { root } = tempProject();
+    expect((await mm3(root, ['agent', 'config'])).text).toContain('to return to the defaults, delete .mm3/config.yaml, then run mm3 config --load');
+  });
+});
+
 describe('what is gone', () => {
   it('[C-248] mm3 config --reset is no longer a flag', async () => {
     const { root } = tempProject();

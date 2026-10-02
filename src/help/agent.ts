@@ -283,6 +283,7 @@ function configCard(): string {
       '- free: plain config never writes, never spends, works with or without a project',
       '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from',
       '- .mm3/config.yaml IS the config: every request reads it, so an edit applies at once and deleting the file means defaults',
+      '- to return to the defaults, delete .mm3/config.yaml, then run mm3 config --load (it records the change); do not guess old values',
       '- mm3 config --load [file] checks the file (a named file is copied to .mm3/config.yaml as is) and records a receipt in the ledger: ✔ valid · loaded · N changed since the last load, or every ✖ problem and nothing recorded',
       '- doctor and mm3 config compare the file with the latest receipt: ✔ config: loaded <time>, or ⚠ config.yaml is in effect but its latest change is not recorded → mm3 config --load',
       '- a changed budget (usd, runs, per) restarts the count when loaded; the receipt says so',
