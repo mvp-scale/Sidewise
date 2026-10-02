@@ -6,13 +6,13 @@
  * `agents:` line `mm3 doctor` always prints. The note is recorded by a marker file in `.mm3/` so it appears once
  * per project; doctor never reads or writes that marker.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { nextRunNumber } from '../ledger/log.ts';
 import type { Mm3Paths } from '../ledger/paths.ts';
 import { AGENTS_FILE, CLAUDE_FILES, findBlock, importsAgents } from './agents-file.ts';
 
 type AgentsState = 'ok' | 'claude-md-no-import' | 'no-block';
-export const AGENTS_NOTE_MARKER = 'agents-note-shown';
 
 const read = (file: string): string | undefined => (existsSync(file) ? readFileSync(file, 'utf8') : undefined);
 
@@ -38,16 +38,11 @@ export function agentsDoctorValue(root: string): string {
   return state === 'ok' ? 'ok' : AGENTS_FIX[state];
 }
 
-/** The one-time note, consuming it: undefined when the project is ok or the note was already shown here. A
- *  marker that can't be written (read-only ledger) just means the note may show again; it never fails a run. */
-export function takeAgentsNote(paths: Mm3Paths): string | undefined {
-  if (existsSync(path.join(paths.dir, AGENTS_NOTE_MARKER))) return undefined;
+/** The one-time note: undefined when the project is ok, or when this is not the project's first real run (a run is
+ *  already recorded in the ledger, so the note was already carried by that one). Called while a run's response is
+ *  built, before that run is recorded. */
+export function agentsNote(paths: Mm3Paths): string | undefined {
+  if (nextRunNumber(paths) > 1) return undefined;
   const state = agentsState(paths.root);
-  if (state === 'ok') return undefined;
-  try {
-    writeFileSync(path.join(paths.dir, AGENTS_NOTE_MARKER), 'shown\n');
-  } catch {
-    // best effort
-  }
-  return `agents: ${AGENTS_FIX[state]}`;
+  return state === 'ok' ? undefined : `agents: ${AGENTS_FIX[state]}`;
 }

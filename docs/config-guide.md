@@ -14,13 +14,14 @@ default from `src/config/defaults.ts`. Precedence, highest first:
 
 - `mm3 config` prints the effective config and where each value came from (`default`, `config` or `env`). It is free.
 - `mm3 config --write` creates a commented starter `.mm3/config.yaml` when none exists.
-- `mm3 config --load [file]` checks the file and makes it the active config. `mm3 config --reset` makes the defaults active again.
+- `mm3 config --load [file]` checks the file and records a receipt of it in the ledger (when, a hash, what changed since the last load).
 - A wrong key stops with a fix: `✖ sweep.maxItem: "maxItem" is not a sweep field → did you mean maxItems?`
 - Secrets never go in this file. Use env vars, the OS keychain, or a 0600 user file.
 
-**Editing the file changes nothing until you load it.** Run `mm3 config --load`: it checks the file, and if it is valid it
-becomes the active config and every request uses it. A bad file is refused and the active config stays as it was.
-`mm3 doctor` says whether the config is active, still on defaults, or edited since the last load. Section 5 has the detail.
+**The file is the config.** Every request reads `.mm3/config.yaml` itself, so an edit applies at once and deleting the file
+means the defaults. `mm3 config --load` checks the file and records a receipt in the ledger; it doesn't change what runs.
+`mm3 doctor` compares the file with the latest receipt: loaded, in effect but not recorded, gone, or has a problem.
+Section 5 has the detail.
 
 ## 1. What exists today
 
@@ -36,7 +37,7 @@ budget:
   since: 2026-10-01T00:00:00Z   # only count runs after this time
 ```
 
-**The happy path.** `mm3 budget` shows what is left and how to change it. To raise (or lower) a cap, edit `budget.usd` or `budget.runs` here, then run `mm3 config --load`. A load whose budget changed starts the count over from that moment, so the new cap is a fresh allowance; a load that changes other settings keeps the count. To start over with the same caps, set `budget.since` to now. If you write `since` yourself it decides the window and nothing is stamped. So by default the cap is a fresh allowance each time you change it, not a lifetime ceiling; to keep a ceiling on everything ever spent, pin `since` to the beginning. A load right after `mm3 config --reset` never restarts the count, and runs in the same second as a load still count. The restart is recorded only in the loaded copy (`.mm3/config.active.json`), so if that file is deleted the count goes back to everything in the ledger until the next load. There is no `budget set` or `budget reset`: asking for one stops and points here.
+**The happy path.** `mm3 budget` shows what is left and how to change it. To raise (or lower) a cap, edit `budget.usd` or `budget.runs` here, then run `mm3 config --load`. A load whose budget changed starts the count over from that moment, so the new cap is a fresh allowance; a load that changes other settings keeps the count. To start over with the same caps, set `budget.since` to now. If you write `since` yourself it decides the window and nothing is restarted. So by default the cap is a fresh allowance each time you change it, not a lifetime ceiling; to keep a ceiling on everything ever spent, pin `since` to the beginning. Runs in the same second as a load still count. The restart point is kept in the load's ledger receipt, never in your file. There is no `budget set` or `budget reset`: asking for one stops and points here.
 
 ### Classifier endpoint and model
 
@@ -166,25 +167,25 @@ If a developer wants a setting that is in section 3, open an issue first. Those 
 
 ## 5. How loading works
 
-Editing the file does nothing until you load it, so you always know which config is running.
+The file is the config. Loading records it.
 
 | Command | Does |
 |---|---|
 | `mm3 config --write` | writes a starter `.mm3/config.yaml` to edit |
-| `mm3 config --load [file]` | checks the file is well formed, tidies it, activates it, and says so: `✔ valid · active · 2 changed from defaults` |
-| `mm3 config --reset` | makes the defaults active again; leaves your `config.yaml` as it is |
-| `mm3 config` | shows the active config and where each value came from |
-| `mm3 doctor` | says whether the config is active, still on defaults, or edited since the last load |
+| `mm3 config --load [file]` | checks the file is well formed and records a receipt in the ledger: `✔ valid · loaded · 2 changed from the defaults` |
+| `mm3 config` | shows the effective config and where each value came from |
+| `mm3 doctor` | compares the file with the latest receipt: loaded, in effect but not recorded, gone, or has a problem |
 
 How it works:
 
-1. **Load = check + activate.** `--load` runs the same checks as `mm3 doctor`. If they pass, it saves a checked copy of the
-   config in `.mm3/` (git ignores it) along with a fingerprint of the file. If they fail, it stops with a fix and the
-   active config stays as it was. A bad config can never go live.
-2. **Requests read only the checked copy.** No YAML parsing per request, one read per request, passed down to every verb.
-3. **Edited but not loaded:** `mm3 doctor` says `⚠ config.yaml changed since load → mm3 config --load`.
-4. **Existing projects:** a project with a `config.yaml` and no loaded copy gets a one-time automatic load, with a note, so
-   nobody's settings silently stop working after the upgrade.
+1. **Requests read the file.** Every request reads and checks `.mm3/config.yaml` (about 0.4 ms) and passes the result down to every
+   verb. There is no loaded copy and no second file, so there is no state to fall out of date. Delete the file and the defaults apply.
+2. **Load = check + record.** `--load` runs the same checks as `mm3 doctor`. If they pass, it appends a `config` record to the
+   ledger: the time, a hash of the file, the settings, and what changed since the previous receipt. If they fail, it stops with a
+   fix and records nothing.
+3. **A bad file stops paid runs.** `class`, `scan`, `drill`, `loop` and `replay` exit 2 with every problem and the fix, and spend
+   nothing. The free reads still answer.
+4. **Edited but not recorded:** `mm3 doctor` says `⚠ config.yaml is in effect but its latest change is not recorded → mm3 config --load`.
 5. **One defaults table.** `DEFAULT_CONFIG` stays the single place a default lives. The old constants (`DEPTH_COUNT`,
    `SWEEP_ITEM_CAP`, `ITEM_LIMITS`, `MAX_FILES`, `THRESHOLDS`, `BUDGET_LOW_FRACTION`) move into it. `DEPTH_COUNT` and
    `SWEEP_ITEM_CAP` stay exported from `src/index.ts`, derived from the defaults.
@@ -192,8 +193,8 @@ How it works:
    labelling each value's source. A new setting then needs a default and a check, and nothing else.
 
 Tests that prove it: with no config, `mm3 config` and the verbs give identical output before and after; a valid file loads
-and `mm3 config` shows its values; an invalid file is refused and the old config stays active; an edit without a load
-changes nothing and `mm3 doctor` flags it; `depth.class: [15, 30, 45]` makes a quick `class` request expect 45 questions.
+and leaves a receipt, and `mm3 config` shows its values; an edit applies at once and `mm3 doctor` flags it as not recorded;
+an invalid file stops paid runs and records nothing; `depth.class: [15, 30, 45]` makes a quick `class` request expect 45 questions.
 
 ## 6. Does this break anything?
 
@@ -202,7 +203,7 @@ Goal: no change to core behavior. With no `config.yaml`, every verb gives the sa
 | Area | Changes? | Note |
 |---|---|---|
 | Defaults | No | Every new key defaults to today's value (9 / 18 / 27 questions, 10 / 20 / 30 items, 0.8, 20,000 / 60,000, 500, 0.5 / 0.35 / 0.8). |
-| Existing `config.yaml` files | Yes, mitigated | A file that works today still works, but edits stop being live: they take effect on `mm3 config --load`. A project with a file and no loaded copy gets a one-time automatic load, with a note. |
+| Existing `config.yaml` files | No | A file that works today still works, and edits stay live at once. `mm3 config --load` only records a receipt. |
 | Requests and answers | No | `depth: quick`, the YAML contract, the pass bar (0.70 / 0.30) and the response format are untouched. No golden test for the answer format should change. |
 | Ledger and reuse | No (to verify) | Reuse and `replay` work from recorded questions, so a changed `depth` should not invalidate old runs. Test it. |
 | Library exports | Careful | `DEPTH_COUNT` and `SWEEP_ITEM_CAP` are re-exported from `src/index.ts`. Keep them as exports derived from the defaults, so code that imports them still works. |
@@ -211,4 +212,4 @@ Goal: no change to core behavior. With no `config.yaml`, every verb gives the sa
 | Static text | Check | The request schema's description and the templates say "9, 18 or 27". They stay correct for the defaults, but must not state the count as a rule once config can change it. |
 | Older MM3 reading a newer config | Minor | An older version rejects the new keys as unknown, with a did-you-mean. Mention it in the release note. |
 
-The behavior changes are that new settings exist and can be set, and that config edits take effect on `mm3 config --load`.
+The behavior changes are that new settings exist and can be set, and that a config.yaml with a problem now stops paid runs with the fix.

@@ -34,7 +34,7 @@ import { FAKE_MODEL } from '../classifier/fake.ts';
 import { hasKey, JevConfigError, resolveJevConfig, routeLabel, type JevConfig, type ResolveStored } from '../classifier/typesafe/client.ts';
 import { emit, m, type Value } from '../contract/emit.ts';
 import { VERBS, type Verb } from '../contract/types.ts';
-import { configStatus, statusLine } from '../config/active.ts';
+import { configStatus, statusLine } from '../config/receipt.ts';
 import { nearMissNotes } from '../config/config.ts';
 import { validateConfig } from '../config/validate.ts';
 import { sqliteAvailable } from '../ledger/index.ts';
@@ -194,7 +194,7 @@ function projectLine(root: string, deps: { runner?: Runner }): string {
   return `${root} · plugin enabled here: ${enabled ? 'yes' : 'no'}`;
 }
 
-/** The `config:` field: where the config stands (config/active.ts) — nothing configured (the old plain "defaults"),
+/** The `config:` field: where the config stands (config/receipt.ts) — nothing configured (the old plain "defaults"),
  *  loaded and in step with config.yaml, or a warning saying what to do. A config.yaml with problems lists every
  *  one, same `✖ config.<path>: problem → fix` shape `mm3 config`/`doctor <file>` use. Reads and hashes config.yaml;
  *  writes nothing. */
@@ -203,7 +203,7 @@ function configField(paths: Mm3Paths | undefined): Value {
   const line = statusLine(status);
   if (status.fileStops.length) return [...status.fileStops.map((s) => s.text), ...(line ? [line] : [])];
   if (status.kind === 'defaults') return '✔ config: defaults';
-  return status.kind === 'active' ? `✔ ${line}` : line!;
+  return status.kind === 'loaded' ? `✔ ${line}` : line!;
 }
 
 const MAX_DOCTOR_STOPS = 5;

@@ -39,7 +39,7 @@ describe('mm3 <command> --help/-h [C-179]', () => {
     const cases: Array<[string, string]> = [
       ['doctor', 'mm3 doctor'],
       ['budget', 'mm3 budget [show]'],
-      ['config', 'mm3 config [--write | --load [file] | --reset]'],
+      ['config', 'mm3 config [--write | --load [file]]'],
       ['init', 'mm3 init'],
       ['mcp', 'mm3 mcp'],
       ['outcome', 'mm3 outcome <MM3-####> held|overruled|failed --by <actor>'],

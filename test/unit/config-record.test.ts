@@ -30,7 +30,7 @@ describe('the config record', () => {
     expect(readLedger(paths)).toEqual([r]);
   });
 
-  it('is not a run and not spend: the run counter and the budget rollup do not move', () => {
+  it('[C-249] is not a run and not spend: the run counter and the budget rollup do not move', () => {
     const { paths } = tempProject({});
     recordSpend(paths, 0.5);
     const before = withIndex(paths, (h) => ({ runs: h.runCount(), spend: h.budgetRollup('1970-01-01T00:00:00Z') }));
@@ -76,7 +76,7 @@ describe('a copy of MM3 that does not know a record kind', () => {
     return paths;
   };
 
-  it('names the kind and says to update, instead of "not a ledger record"', () => {
+  it('[C-249] names the kind and says to update, instead of "not a ledger record"', () => {
     const paths = withLine(JSON.stringify({ kind: 'mystery', id: 'x', uid: 'x', ts: '2026-10-02T14:00:00Z' }));
     expect(() => readLedger(paths)).toThrow(/✖ ledger: line 1 of .*log\.jsonl has a "mystery" record this MM3 does not know → update this copy of MM3 \(mm3 doctor shows which\)/);
   });

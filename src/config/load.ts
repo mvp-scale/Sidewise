@@ -1,9 +1,8 @@
 /**
- * The project's config → the effective `Mm3Config`: takes the overrides from the active copy `mm3 config --load`
- * made (config/active.ts: one small JSON file, no YAML per request) — or, for a project that has a config.yaml but
- * never loaded it, from that file as before (never created or written here, same free-and-optional spirit as
- * everything else doctor/config touch) — validates them (validate.ts), and merges them over the one code
- * defaults table (defaults.ts). Precedence is env > config >
+ * The project's config → the effective `Mm3Config`: reads `.mm3/config.yaml` itself on every request (a few hundred
+ * microseconds; never created or written here, same free-and-optional spirit as everything else doctor/config
+ * touch), validates it (validate.ts), and merges the overrides over the one code defaults table (defaults.ts).
+ * There is no loaded copy: the file is the config, and `mm3 config --load` only records a receipt in the ledger. Precedence is env > config >
  * default; the small set of settings that already have their own env var (MM3_PROVIDER,
  * TYPESAFE_BASE_URL, JEV_MODEL, JEV_TIMEOUT_MS) keep that env var as the actual runtime authority — this
  * module's `config.<field>` is the config-or-default LAYER only (never env), because the real routing already
@@ -18,7 +17,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import type { Mm3Paths } from '../ledger/paths.ts';
 import { CONFIG_KEYS, DEFAULT_CONFIG, KEYED_MAPS, UNSET_BY_DEFAULT, type ConfigSource, type Mm3Config } from './defaults.ts';
-import { readActive } from './active.ts';
 import { parseConfigText } from './parse.ts';
 import { validateConfig, type ConfigStop } from './validate.ts';
 
@@ -29,8 +27,7 @@ interface FileReadResult {
   present: boolean;
 }
 
-/** Reads and parses `paths.config` if it exists. Never throws, never writes, never creates the file. Only the
- *  fallback for a project with no active copy yet (config/active.ts): once one is loaded, requests never parse YAML. */
+/** Reads and parses `paths.config` if it exists. Never throws, never writes, never creates the file. */
 function readConfigFile(paths: Mm3Paths | undefined): FileReadResult {
   if (!paths || !existsSync(paths.config)) return { raw: undefined, stops: [], present: false };
   let text: string;
@@ -103,7 +100,7 @@ function mergeTree(base: Tree, over: Tree, path: string, sources: Record<string,
 }
 
 /** DEFAULT_CONFIG with the validated overrides laid over it, plus every setting's source label. */
-function mergeConfig(overrides: Partial<Mm3Config>): { config: Mm3Config; sources: Record<string, ConfigSource> } {
+export function mergeConfig(overrides: Partial<Mm3Config>): { config: Mm3Config; sources: Record<string, ConfigSource> } {
   // A loop, not a spread: copying a 50-key dictionary-mode object costs ~10x more than filling a fresh one.
   const sources: Record<string, ConfigSource> = {};
   for (const key of DEFAULT_SOURCE_KEYS) sources[key] = 'default';
@@ -115,23 +112,12 @@ function mergeConfig(overrides: Partial<Mm3Config>): { config: Mm3Config; source
  *  broken config.yaml surfaces as `stops` (the caller decides whether that's fatal, e.g. `mm3 doctor`
  *  reports it; most other callers just fall back to defaults and keep going, same as a missing key). */
 export function resolveConfig(paths: Mm3Paths | undefined, env: Record<string, string | undefined> = {}): ResolvedConfig {
-  // The loaded copy wins: one small JSON read, no YAML. Only a project that has none yet (never loaded) falls
-  // back to reading config.yaml itself, exactly as before; no file either means plain defaults.
-  const active = readActive(paths);
-  let overrides: Partial<Mm3Config>;
-  let stops: ConfigStop[];
-  let present: boolean;
-  if (active) {
-    overrides = active.overrides;
-    stops = [];
-    present = active.reset ? existsSync(paths!.config) : true; // a reset copy says nothing about the file
-  } else {
-    const file = readConfigFile(paths);
-    const validated = file.raw !== undefined ? validateConfig(file.raw) : { stops: [], value: {} };
-    overrides = validated.value;
-    stops = [...file.stops, ...validated.stops];
-    present = file.present;
-  }
+  // The file is the config: read and checked on every request (a few hundred microseconds). No file means defaults.
+  const file = readConfigFile(paths);
+  const validated = file.raw !== undefined ? validateConfig(file.raw) : { stops: [], value: {} };
+  const overrides: Partial<Mm3Config> = validated.value;
+  const stops: ConfigStop[] = [...file.stops, ...validated.stops];
+  const present = file.present;
   const envProvider = cleanEnv(env.MM3_PROVIDER);
   const envBaseURL = cleanEnv(env.TYPESAFE_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);

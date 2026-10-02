@@ -26,7 +26,7 @@ describe('mm3 config --write (owner path)', () => {
     expect(after.status).toBe(0);
     expect(after.stdout).not.toContain('✖');
     expect(after.stdout).toContain('customized in .mm3/config.yaml');
-    expect(mm3(root, ['doctor']).stdout).toMatch(/✔ config: active \(loaded /); // --write loads its (empty) starter
+    expect(mm3(root, ['doctor']).stdout).toContain('✔ config: defaults'); // the starter sets nothing, so it reads as the defaults
   });
 
   it('[C-226] [C-227] uncommenting `usd: 1` shows it as from config.yaml; uncommenting `maxItems: 30` under sweep is valid', () => {
@@ -92,6 +92,6 @@ describe('mm3 config --write (owner path)', () => {
     const { root } = tempProject();
     const r = mm3(root, ['config', '--wrte']);
     expect(r.status).toBe(2);
-    expect(r.stdout + r.stderr).toContain('mm3 config [--write | --load [file] | --reset]');
+    expect(r.stdout + r.stderr).toContain('mm3 config [--write | --load [file]]');
   });
 });

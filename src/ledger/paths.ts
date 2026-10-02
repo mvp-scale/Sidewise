@@ -18,7 +18,6 @@ export interface Mm3Paths {
   config: string;
   /** The ACTIVE copy of that config: the validated overrides plus a fingerprint of the file they were loaded
    *  from (config/active.ts). Requests read this, never config.yaml, once it exists. Ignored by git. */
-  configActive: string;
 }
 
 export function pathsFor(root: string): Mm3Paths {
@@ -31,7 +30,6 @@ export function pathsFor(root: string): Mm3Paths {
     budget: path.join(dir, 'budget.json'),
     index: path.join(dir, 'index.db'),
     config: path.join(dir, 'config.yaml'),
-    configActive: path.join(dir, 'config.active.json'),
   };
 }
 

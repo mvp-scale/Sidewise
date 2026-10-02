@@ -7462,7 +7462,7 @@ var package_default = {
 };
 
 // src/budget/budget.ts
-import { existsSync as existsSync7, readFileSync as readFileSync7 } from "node:fs";
+import { existsSync as existsSync6, readFileSync as readFileSync6 } from "node:fs";
 
 // src/config/defaults.ts
 function deepFreeze(value) {
@@ -7496,179 +7496,7 @@ var CONTRACT_ONLY_KEYS = ["goal", "where", "ask", "over", "mdl.parent"];
 var SECRET_LIKE_KEYS = ["apikey", "api_key", "key", "token", "secret", "password", "credential", "credentials"];
 
 // src/config/load.ts
-import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
-
-// src/config/active.ts
-import { createHash } from "node:crypto";
-import { existsSync as existsSync2, readFileSync as readFileSync2, renameSync, writeFileSync as writeFileSync2 } from "node:fs";
-
-// src/ledger/lock.ts
-import { closeSync, mkdirSync, openSync, readFileSync, statSync, unlinkSync, writeSync } from "node:fs";
-import path from "node:path";
-var LockError = class extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "LockError";
-  }
-};
-var StoreError = class extends Error {
-  constructor(message) {
-    super(message);
-    this.name = "StoreError";
-  }
-};
-var shownStore = (file) => `${path.basename(path.dirname(file))}/${path.basename(file)}`;
-function storeError(e, file, action) {
-  const code = e?.code;
-  if (typeof code !== "string") return e;
-  return new StoreError(`\u2716 files: cannot ${action} ${shownStore(file)} (${code}) \u2192 make .mm3/ a writable folder, with log.jsonl and budget.json as files`);
-}
-function onStore(file, action, fn) {
-  try {
-    return fn();
-  } catch (e) {
-    throw storeError(e, file, action);
-  }
-}
-function sleepSync(ms) {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-function isAlive(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (e) {
-    return e.code !== "ESRCH";
-  }
-}
-var DEAD_PID_GRACE_MS = 2e3;
-var ORPHAN_BREAK_MS = 2e3;
-var errno = (e) => e?.code;
-var notALock = (lockPath) => new StoreError(`\u2716 files: ${shownStore(lockPath)} is not a lock file \u2192 remove it`);
-function readLock(lockPath) {
-  try {
-    const st = statSync(lockPath);
-    if (!st.isFile()) throw notALock(lockPath);
-    return { body: readFileSync(lockPath, "utf8"), ageMs: Date.now() - st.mtimeMs };
-  } catch (e) {
-    if (e instanceof StoreError) throw e;
-    if (errno(e) === "ENOENT") return void 0;
-    throw notALock(lockPath);
-  }
-}
-function isStale(lock, staleMs) {
-  const pid = Number.parseInt(lock.body.trim(), 10);
-  if (Number.isInteger(pid) && pid > 0) return lock.ageMs >= DEAD_PID_GRACE_MS && !isAlive(pid);
-  return lock.ageMs > staleMs;
-}
-function tryBreak(lockPath, staleMs) {
-  const breakPath = `${lockPath}.break`;
-  const first = readLock(lockPath);
-  if (!first) return true;
-  if (!isStale(first, staleMs)) return false;
-  try {
-    closeSync(openSync(breakPath, "wx"));
-  } catch (e) {
-    if (errno(e) !== "EEXIST") throw storeError(e, breakPath, "write");
-    try {
-      if (Date.now() - statSync(breakPath).mtimeMs > ORPHAN_BREAK_MS) unlinkSync(breakPath);
-    } catch {
-    }
-    return false;
-  }
-  try {
-    const now = readLock(lockPath);
-    if (!now) return true;
-    if (!isStale(now, staleMs)) return false;
-    try {
-      unlinkSync(lockPath);
-    } catch (e) {
-      if (errno(e) !== "ENOENT") throw storeError(e, lockPath, "write");
-    }
-    return true;
-  } finally {
-    try {
-      unlinkSync(breakPath);
-    } catch {
-    }
-  }
-}
-function withLock(lockPath, fn, opts = {}) {
-  const timeoutMs = opts.timeoutMs ?? 5e3;
-  const staleMs = opts.staleMs ?? 3e4;
-  onStore(lockPath, "write", () => mkdirSync(path.dirname(lockPath), { recursive: true }));
-  const start = Date.now();
-  for (; ; ) {
-    try {
-      const fd = openSync(lockPath, "wx");
-      try {
-        writeSync(fd, `${process.pid}
-`);
-        closeSync(fd);
-      } catch (e) {
-        try {
-          closeSync(fd);
-        } catch {
-        }
-        unlinkSync(lockPath);
-        throw storeError(e, lockPath, "write");
-      }
-      break;
-    } catch (e) {
-      if (e instanceof StoreError) throw e;
-      if (e.code !== "EEXIST") throw storeError(e, lockPath, "write");
-      if (tryBreak(lockPath, staleMs)) continue;
-      if (Date.now() - start > timeoutMs) {
-        throw new LockError(`\u2716 lock: ${shownStore(lockPath)} is locked \u2192 wait for the other run, or delete the lock file if no run is active`);
-      }
-      sleepSync(25);
-    }
-  }
-  try {
-    return fn();
-  } finally {
-    try {
-      unlinkSync(lockPath);
-    } catch {
-    }
-  }
-}
-
-// src/ledger/paths.ts
-import { existsSync, mkdirSync as mkdirSync2, writeFileSync } from "node:fs";
-import path2 from "node:path";
-function pathsFor(root) {
-  const dir = path2.join(root, ".mm3");
-  return {
-    root,
-    dir,
-    log: path2.join(dir, "log.jsonl"),
-    lock: path2.join(dir, "lock"),
-    budget: path2.join(dir, "budget.json"),
-    index: path2.join(dir, "index.db"),
-    config: path2.join(dir, "config.yaml"),
-    configActive: path2.join(dir, "config.active.json")
-  };
-}
-function ensureDir(paths) {
-  mkdirSync2(paths.dir, { recursive: true });
-  const gitignore = path2.join(paths.dir, ".gitignore");
-  if (!existsSync(gitignore)) writeFileSync(gitignore, "*\n!config.yaml\n");
-}
-function findRoot(cwd) {
-  let dir = path2.resolve(cwd);
-  for (; ; ) {
-    if (existsSync(path2.join(dir, ".mm3")) || existsSync(path2.join(dir, ".git"))) return dir;
-    const up = path2.dirname(dir);
-    if (up === dir) return void 0;
-    dir = up;
-  }
-}
-function resolvePaths(cwd = process.cwd(), env = process.env) {
-  const home = env.MM3_HOME?.trim();
-  const root = home ? path2.resolve(home) : findRoot(cwd);
-  return root === void 0 ? void 0 : pathsFor(root);
-}
+import { existsSync, readFileSync } from "node:fs";
 
 // src/config/parse.ts
 var import_yaml = __toESM(require_dist(), 1);
@@ -8167,83 +7995,12 @@ function hasSettings(text) {
   return live(raw);
 }
 
-// src/config/active.ts
-var fingerprintOf = (text) => createHash("sha256").update(text).digest("hex");
-function readActive(paths) {
-  if (!paths || !existsSync2(paths.configActive)) return void 0;
-  try {
-    const v = JSON.parse(readFileSync2(paths.configActive, "utf8"));
-    if (v.v !== 1 || typeof v.loadedAt !== "string" || typeof v.fingerprint !== "string" || typeof v.overrides !== "object" || v.overrides === null || Array.isArray(v.overrides)) return void 0;
-    const checked = validateConfig(v.overrides);
-    if (checked.stops.length) return void 0;
-    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value, ...v.reset === true ? { reset: true } : {}, ...v.stamped === true ? { stamped: true } : {} };
-  } catch {
-    return void 0;
-  }
-}
-function writeActive(paths, overrides, fingerprint, now = Date.now(), reset = false, stamped = false) {
-  onStore(paths.configActive, "write", () => {
-    ensureDir(paths);
-    const body = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z"), fingerprint, overrides, ...reset ? { reset: true } : {}, ...stamped ? { stamped: true } : {} };
-    const tmp = `${paths.configActive}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
-    writeFileSync2(tmp, `${JSON.stringify(body)}
-`);
-    renameSync(tmp, paths.configActive);
-  });
-}
-function configStatus(paths) {
-  const active = readActive(paths);
-  let text;
-  if (paths && existsSync2(paths.config)) {
-    try {
-      text = readFileSync2(paths.config, "utf8");
-    } catch {
-      text = void 0;
-    }
-  }
-  const fileStops = text === void 0 ? [] : checkConfigText(text).stops;
-  if (active?.reset) return text !== void 0 && hasSettings(text) ? { kind: "resetPending", loadedAt: active.loadedAt, fileStops } : { kind: "defaults", fileStops };
-  if (text === void 0) return active ? { kind: "missing", loadedAt: active.loadedAt, fileStops } : { kind: "defaults", fileStops };
-  if (!active) return { kind: "unloaded", fileStops };
-  return { kind: active.fingerprint === fingerprintOf(text) ? "active" : "changed", loadedAt: active.loadedAt, fileStops };
-}
-function statusLine(s) {
-  switch (s.kind) {
-    case "defaults":
-      return void 0;
-    case "active":
-      return `config: active (loaded ${s.loadedAt})`;
-    case "changed":
-      return "\u26A0 config.yaml changed since load \u2192 mm3 config --load";
-    case "missing":
-      return "\u26A0 config.yaml is gone but a loaded config is still active \u2192 restore the file, or load another with mm3 config --load <file>";
-    case "resetPending":
-      return "\u26A0 defaults are active; config.yaml has settings that are not loaded \u2192 mm3 config --load";
-    case "unloaded":
-      return "\u26A0 config.yaml is not loaded yet \u2192 mm3 config --load (the first paid run loads it automatically)";
-  }
-}
-var AUTO_LOAD_NOTE = "config.yaml loaded automatically (first run after upgrade) \u2192 mm3 config --load to reload after edits";
-function autoLoad(paths, now = Date.now()) {
-  if (readActive(paths) || !existsSync2(paths.config)) return void 0;
-  let text;
-  try {
-    text = readFileSync2(paths.config, "utf8");
-  } catch {
-    return void 0;
-  }
-  const checked = checkConfigText(text);
-  if (checked.stops.length) return void 0;
-  writeActive(paths, checked.overrides, fingerprintOf(text), now);
-  return AUTO_LOAD_NOTE;
-}
-
 // src/config/load.ts
 function readConfigFile(paths) {
-  if (!paths || !existsSync3(paths.config)) return { raw: void 0, stops: [], present: false };
+  if (!paths || !existsSync(paths.config)) return { raw: void 0, stops: [], present: false };
   let text;
   try {
-    text = readFileSync3(paths.config, "utf8");
+    text = readFileSync(paths.config, "utf8");
   } catch {
     return { raw: void 0, stops: [], present: false };
   }
@@ -8290,21 +8047,11 @@ function mergeConfig(overrides) {
   return { config, sources };
 }
 function resolveConfig(paths, env = {}) {
-  const active = readActive(paths);
-  let overrides;
-  let stops;
-  let present;
-  if (active) {
-    overrides = active.overrides;
-    stops = [];
-    present = active.reset ? existsSync3(paths.config) : true;
-  } else {
-    const file = readConfigFile(paths);
-    const validated = file.raw !== void 0 ? validateConfig(file.raw) : { stops: [], value: {} };
-    overrides = validated.value;
-    stops = [...file.stops, ...validated.stops];
-    present = file.present;
-  }
+  const file = readConfigFile(paths);
+  const validated = file.raw !== void 0 ? validateConfig(file.raw) : { stops: [], value: {} };
+  const overrides = validated.value;
+  const stops = [...file.stops, ...validated.stops];
+  const present = file.present;
   const envProvider = cleanEnv(env.MM3_PROVIDER);
   const envBaseURL = cleanEnv(env.TYPESAFE_BASE_URL);
   const envModel = cleanEnv(env.JEV_MODEL);
@@ -8331,7 +8078,176 @@ function classifierFileConfig(config) {
 
 // src/config/write.ts
 var import_yaml2 = __toESM(require_dist(), 1);
-import { existsSync as existsSync4, readFileSync as readFileSync4, writeFileSync as writeFileSync3 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync3, writeFileSync as writeFileSync2 } from "node:fs";
+
+// src/ledger/lock.ts
+import { closeSync, mkdirSync, openSync, readFileSync as readFileSync2, statSync, unlinkSync, writeSync } from "node:fs";
+import path from "node:path";
+var LockError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "LockError";
+  }
+};
+var StoreError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "StoreError";
+  }
+};
+var shownStore = (file) => `${path.basename(path.dirname(file))}/${path.basename(file)}`;
+function storeError(e, file, action) {
+  const code = e?.code;
+  if (typeof code !== "string") return e;
+  return new StoreError(`\u2716 files: cannot ${action} ${shownStore(file)} (${code}) \u2192 make .mm3/ a writable folder, with log.jsonl and budget.json as files`);
+}
+function onStore(file, action, fn) {
+  try {
+    return fn();
+  } catch (e) {
+    throw storeError(e, file, action);
+  }
+}
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e.code !== "ESRCH";
+  }
+}
+var DEAD_PID_GRACE_MS = 2e3;
+var ORPHAN_BREAK_MS = 2e3;
+var errno = (e) => e?.code;
+var notALock = (lockPath) => new StoreError(`\u2716 files: ${shownStore(lockPath)} is not a lock file \u2192 remove it`);
+function readLock(lockPath) {
+  try {
+    const st = statSync(lockPath);
+    if (!st.isFile()) throw notALock(lockPath);
+    return { body: readFileSync2(lockPath, "utf8"), ageMs: Date.now() - st.mtimeMs };
+  } catch (e) {
+    if (e instanceof StoreError) throw e;
+    if (errno(e) === "ENOENT") return void 0;
+    throw notALock(lockPath);
+  }
+}
+function isStale(lock, staleMs) {
+  const pid = Number.parseInt(lock.body.trim(), 10);
+  if (Number.isInteger(pid) && pid > 0) return lock.ageMs >= DEAD_PID_GRACE_MS && !isAlive(pid);
+  return lock.ageMs > staleMs;
+}
+function tryBreak(lockPath, staleMs) {
+  const breakPath = `${lockPath}.break`;
+  const first = readLock(lockPath);
+  if (!first) return true;
+  if (!isStale(first, staleMs)) return false;
+  try {
+    closeSync(openSync(breakPath, "wx"));
+  } catch (e) {
+    if (errno(e) !== "EEXIST") throw storeError(e, breakPath, "write");
+    try {
+      if (Date.now() - statSync(breakPath).mtimeMs > ORPHAN_BREAK_MS) unlinkSync(breakPath);
+    } catch {
+    }
+    return false;
+  }
+  try {
+    const now = readLock(lockPath);
+    if (!now) return true;
+    if (!isStale(now, staleMs)) return false;
+    try {
+      unlinkSync(lockPath);
+    } catch (e) {
+      if (errno(e) !== "ENOENT") throw storeError(e, lockPath, "write");
+    }
+    return true;
+  } finally {
+    try {
+      unlinkSync(breakPath);
+    } catch {
+    }
+  }
+}
+function withLock(lockPath, fn, opts = {}) {
+  const timeoutMs = opts.timeoutMs ?? 5e3;
+  const staleMs = opts.staleMs ?? 3e4;
+  onStore(lockPath, "write", () => mkdirSync(path.dirname(lockPath), { recursive: true }));
+  const start = Date.now();
+  for (; ; ) {
+    try {
+      const fd = openSync(lockPath, "wx");
+      try {
+        writeSync(fd, `${process.pid}
+`);
+        closeSync(fd);
+      } catch (e) {
+        try {
+          closeSync(fd);
+        } catch {
+        }
+        unlinkSync(lockPath);
+        throw storeError(e, lockPath, "write");
+      }
+      break;
+    } catch (e) {
+      if (e instanceof StoreError) throw e;
+      if (e.code !== "EEXIST") throw storeError(e, lockPath, "write");
+      if (tryBreak(lockPath, staleMs)) continue;
+      if (Date.now() - start > timeoutMs) {
+        throw new LockError(`\u2716 lock: ${shownStore(lockPath)} is locked \u2192 wait for the other run, or delete the lock file if no run is active`);
+      }
+      sleepSync(25);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    try {
+      unlinkSync(lockPath);
+    } catch {
+    }
+  }
+}
+
+// src/ledger/paths.ts
+import { existsSync as existsSync2, mkdirSync as mkdirSync2, writeFileSync } from "node:fs";
+import path2 from "node:path";
+function pathsFor(root) {
+  const dir = path2.join(root, ".mm3");
+  return {
+    root,
+    dir,
+    log: path2.join(dir, "log.jsonl"),
+    lock: path2.join(dir, "lock"),
+    budget: path2.join(dir, "budget.json"),
+    index: path2.join(dir, "index.db"),
+    config: path2.join(dir, "config.yaml")
+  };
+}
+function ensureDir(paths) {
+  mkdirSync2(paths.dir, { recursive: true });
+  const gitignore = path2.join(paths.dir, ".gitignore");
+  if (!existsSync2(gitignore)) writeFileSync(gitignore, "*\n!config.yaml\n");
+}
+function findRoot(cwd) {
+  let dir = path2.resolve(cwd);
+  for (; ; ) {
+    if (existsSync2(path2.join(dir, ".mm3")) || existsSync2(path2.join(dir, ".git"))) return dir;
+    const up = path2.dirname(dir);
+    if (up === dir) return void 0;
+    dir = up;
+  }
+}
+function resolvePaths(cwd = process.cwd(), env = process.env) {
+  const home = env.MM3_HOME?.trim();
+  const root = home ? path2.resolve(home) : findRoot(cwd);
+  return root === void 0 ? void 0 : pathsFor(root);
+}
+
+// src/config/write.ts
 function setDeep(doc, prefix, value) {
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     for (let i = 1; i < prefix.length; i++) {
@@ -8353,37 +8269,19 @@ function setDeep(doc, prefix, value) {
     if (v !== void 0) setDeep(doc, [...prefix, k], v);
   }
 }
-var isTree2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
-function overlay2(base, patch) {
-  const out = { ...base };
-  for (const [k, v] of Object.entries(patch)) {
-    if (v === void 0) continue;
-    out[k] = isTree2(v) ? overlay2(isTree2(out[k]) ? out[k] : {}, v) : v;
-  }
-  return out;
-}
-function writeConfigOverride(paths, patch, now = Date.now()) {
+function writeConfigOverride(paths, patch) {
   onStore(paths.config, "write", () => {
     ensureDir(paths);
-    const had = existsSync4(paths.config);
-    const text = had ? readFileSync4(paths.config, "utf8") : "";
-    const active = readActive(paths);
-    const wasInSync = active !== void 0 && had && (active.fingerprint === fingerprintOf(text) || active.reset === true && !hasSettings(text));
+    const text = existsSync3(paths.config) ? readFileSync3(paths.config, "utf8") : "";
     const doc = (0, import_yaml2.parseDocument)(text, { version: "1.2", schema: "core" });
     setDeep(doc, [], patch);
-    const written = doc.toString();
-    writeFileSync3(paths.config, written);
-    const base = active?.overrides ?? (had ? void 0 : {});
-    if (base) {
-      const checked = validateConfig(overlay2(base, patch));
-      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || !had && (!active || active.reset) ? fingerprintOf(written) : active.fingerprint, now, false, active?.stamped === true);
-    }
+    writeFileSync2(paths.config, doc.toString());
   });
 }
 
 // src/ledger/index.ts
-import { createHash as createHash2, randomBytes as randomBytes2 } from "node:crypto";
-import { closeSync as closeSync3, existsSync as existsSync6, openSync as openSync3, readFileSync as readFileSync6, readSync as readSync2, renameSync as renameSync2, rmSync, statSync as statSync3 } from "node:fs";
+import { createHash, randomBytes as randomBytes2 } from "node:crypto";
+import { closeSync as closeSync3, existsSync as existsSync5, openSync as openSync3, readFileSync as readFileSync5, readSync as readSync2, renameSync, rmSync, statSync as statSync3 } from "node:fs";
 
 // src/contract/mdl-fields.ts
 var UNKNOWN_VALUE = "unknown";
@@ -8436,7 +8334,7 @@ function normalizeMdl(mdl2) {
 }
 
 // src/ledger/log.ts
-import { accessSync, appendFileSync, closeSync as closeSync2, constants, existsSync as existsSync5, openSync as openSync2, readFileSync as readFileSync5, readSync, statSync as statSync2 } from "node:fs";
+import { accessSync, appendFileSync, closeSync as closeSync2, constants, existsSync as existsSync4, openSync as openSync2, readFileSync as readFileSync4, readSync, statSync as statSync2 } from "node:fs";
 import path3 from "node:path";
 
 // src/ledger/ids.ts
@@ -8460,6 +8358,14 @@ function formatRunId(n) {
 }
 
 // src/ledger/log.ts
+var KNOWN_KINDS = ["run", "outcome", "failed", "lookup", "config"];
+function notARecord(value, lineNo, shown2) {
+  const kind = value && typeof value === "object" && !Array.isArray(value) ? value.kind : void 0;
+  if (typeof kind === "string" && !KNOWN_KINDS.includes(kind)) {
+    return new LedgerError(`\u2716 ledger: line ${lineNo} of ${shown2} has a ${JSON.stringify(kind.slice(0, 30))} record this MM3 does not know \u2192 update this copy of MM3 (mm3 doctor shows which)`);
+  }
+  return new LedgerError(`\u2716 ledger: line ${lineNo} of ${shown2} is not a ledger record \u2192 fix or remove that line`);
+}
 var LedgerError = class extends Error {
   /** 1: the ledger itself is the problem · 2: the caller asked for something the ledger doesn't hold. */
   exit;
@@ -8479,6 +8385,7 @@ function isRecord(v) {
   const r = v;
   if (r.kind === "outcome") return [r.id, r.of, r.outcome, r.by, r.ts].every(isText);
   if (r.kind === "failed") return [r.id, r.ts, r.verb, r.actor, r.adapter, r.model, r.reason].every(isText);
+  if (r.kind === "config") return [r.id, r.uid, r.ts, r.fingerprint].every(isText) && isObj2(r.settings) && Array.isArray(r.changes) && r.changes.every(isText) && (r.windowSince === void 0 || isText(r.windowSince));
   if (r.kind === "lookup") return [r.id, r.uid, r.ts, r.goal].every(isText) && Array.isArray(r.where) && r.where.every(isText) && typeof r.hit === "boolean";
   if (r.kind !== "run") return false;
   if (r.v === 2) {
@@ -8488,7 +8395,7 @@ function isRecord(v) {
 }
 var shownLog = (paths) => path3.relative(paths.root, paths.log).split(path3.sep).join("/");
 function readLedger(paths, opts = {}) {
-  const text = onStore(paths.log, "read", () => existsSync5(paths.log) ? readFileSync5(paths.log, "utf8") : "");
+  const text = onStore(paths.log, "read", () => existsSync4(paths.log) ? readFileSync4(paths.log, "utf8") : "");
   const shown2 = shownLog(paths);
   const records = [];
   const lines = text.split("\n");
@@ -8504,14 +8411,14 @@ function readLedger(paths, opts = {}) {
     }
     if (!isRecord(value)) {
       if (inProgress) return;
-      throw new LedgerError(`\u2716 ledger: line ${i + 1} of ${shown2} is not a ledger record \u2192 fix or remove that line`);
+      throw notARecord(value, i + 1, shown2);
     }
     records.push(normalizeRecordMdl(value));
   });
   return records;
 }
 function checkTail(paths, upto, lineCount) {
-  if (!existsSync5(paths.log)) return;
+  if (!existsSync4(paths.log)) return;
   const size = statSync2(paths.log).size;
   if (size <= upto) return;
   const fd = openSync2(paths.log, "r");
@@ -8537,7 +8444,7 @@ function checkTail(paths, upto, lineCount) {
   } catch {
     throw new LedgerError(`\u2716 ledger: line ${lineNo} of ${shown2} is not valid JSON \u2192 fix or remove that line`);
   }
-  if (!isRecord(value)) throw new LedgerError(`\u2716 ledger: line ${lineNo} of ${shown2} is not a ledger record \u2192 fix or remove that line`);
+  if (!isRecord(value)) throw notARecord(value, lineNo, shown2);
 }
 function checkLedger(paths) {
   withLock(paths.lock, () => {
@@ -8545,7 +8452,7 @@ function checkLedger(paths) {
       const at = withIndex(paths, (h) => ({ upto: h.upto(), lineCount: h.lineCount() }));
       checkTail(paths, at.upto, at.lineCount);
     });
-    if (existsSync5(paths.log)) onStore(paths.log, "write", () => accessSync(paths.log, constants.W_OK));
+    if (existsSync4(paths.log)) onStore(paths.log, "write", () => accessSync(paths.log, constants.W_OK));
   });
 }
 function logEndsCleanly(logPath) {
@@ -8621,6 +8528,14 @@ function appendFailedLocked(paths, failed, now = Date.now()) {
   const record2 = { kind: "failed", id: uid, uid, ts: iso(now), ...redactDeep(failed), actor: redactSecrets(failed.actor) };
   appendLine(paths, record2);
   return record2;
+}
+function appendConfig(paths, config, now = Date.now()) {
+  return withLock(paths.lock, () => {
+    const uid = ulid(now);
+    const record2 = { kind: "config", id: uid, uid, ts: iso(now), ...redactDeep(config) };
+    appendLine(paths, record2);
+    return record2;
+  });
 }
 function appendLookup(paths, lookup, now = Date.now()) {
   return withLock(paths.lock, () => {
@@ -8739,7 +8654,7 @@ function parseLedgerLine(raw, lineNo, shown2) {
     throw new LedgerError(`\u2716 ledger: line ${lineNo} of ${shown2} is not valid JSON \u2192 fix or remove that line`);
   }
   if (!isRecord(value)) {
-    throw new LedgerError(`\u2716 ledger: line ${lineNo} of ${shown2} is not a ledger record \u2192 fix or remove that line`);
+    throw notARecord(value, lineNo, shown2);
   }
   return normalizeRecordMdl(value);
 }
@@ -8751,6 +8666,10 @@ function applyLine(sink, raw, startByte, lineNo, shown2) {
   }
   if (value.kind === "failed") {
     sink.failed(value);
+    return false;
+  }
+  if (value.kind === "config") {
+    sink.config(startByte);
     return false;
   }
   if (value.kind !== "run") return false;
@@ -8788,7 +8707,7 @@ function scanRange(fd, from, to, sink, shown2, startUpto, startLineCount) {
   }
   return { upto: at, lineCount: line3, runsSeen, lastLineStart, lastLineRaw };
 }
-var sha256hex = (text) => createHash2("sha256").update(text, "utf8").digest("hex");
+var sha256hex = (text) => createHash("sha256").update(text, "utf8").digest("hex");
 function hashLogRange(logPath, from, to) {
   if (to <= from) return sha256hex("");
   const fd = openSync3(logPath, "r");
@@ -8839,7 +8758,7 @@ function readRecordAt(logPath, offset) {
   }
 }
 function emptyMemoryState() {
-  return { runOffset: /* @__PURE__ */ new Map(), blocked: /* @__PURE__ */ new Set(), reuseKey: /* @__PURE__ */ new Map(), candidatesByWho: /* @__PURE__ */ new Map(), places: [], categories: [], childrenByParent: /* @__PURE__ */ new Map(), outcomes: /* @__PURE__ */ new Map(), allRuns: [], spend: /* @__PURE__ */ new Map(), runCount: 0, upto: 0, lineCount: 0 };
+  return { runOffset: /* @__PURE__ */ new Map(), blocked: /* @__PURE__ */ new Set(), reuseKey: /* @__PURE__ */ new Map(), candidatesByWho: /* @__PURE__ */ new Map(), places: [], categories: [], childrenByParent: /* @__PURE__ */ new Map(), outcomes: /* @__PURE__ */ new Map(), allRuns: [], spend: /* @__PURE__ */ new Map(), runCount: 0, upto: 0, lineCount: 0, configOffset: void 0 };
 }
 function memorySink(state) {
   return {
@@ -8875,6 +8794,9 @@ function memorySink(state) {
     },
     failed(rec) {
       state.spend.set(rec.id, { ts: rec.ts, cost: rec.costUsd ?? 0 });
+    },
+    config(offset) {
+      state.configOffset = offset;
     }
   };
 }
@@ -8979,12 +8901,13 @@ function handleFromMemory(state) {
         runs += 1;
       }
       return { spentUsd, runs };
-    }
+    },
+    latestConfigOffset: () => state.configOffset
   };
 }
 var memoryCache;
 function buildMemoryHandle(paths) {
-  const st = existsSync6(paths.log) ? statSync3(paths.log) : void 0;
+  const st = existsSync5(paths.log) ? statSync3(paths.log) : void 0;
   const size = st?.size ?? 0;
   const mtimeMs = st ? Math.round(st.mtimeMs) : 0;
   if (memoryCache && memoryCache.logPath === paths.log && memoryCache.size === size && memoryCache.mtimeMs === mtimeMs) {
@@ -9004,7 +8927,7 @@ function buildMemoryHandle(paths) {
   memoryCache = { logPath: paths.log, size, mtimeMs, state };
   return handleFromMemory(state);
 }
-var SCHEMA_VERSION = 7;
+var SCHEMA_VERSION = 8;
 var SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE runs (
@@ -9118,7 +9041,8 @@ function prepStatements(db) {
     insertPlace: db.prepare("INSERT OR IGNORE INTO places (kind, val, run_id) VALUES (?, ?, ?)"),
     insertCategory: db.prepare("INSERT OR REPLACE INTO categories (run_id, name, section, family, gate) VALUES (?, ?, ?, ?, ?)"),
     updateBlocked: db.prepare("UPDATE runs SET blocked = ? WHERE id = ?"),
-    insertSpend: db.prepare("INSERT OR REPLACE INTO spend (id, ts, cost) VALUES (?, ?, ?)")
+    insertSpend: db.prepare("INSERT OR REPLACE INTO spend (id, ts, cost) VALUES (?, ?, ?)"),
+    setLastConfig: db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_config_offset', ?)")
   };
 }
 function mdlJson(rec) {
@@ -9149,6 +9073,9 @@ function sqlSink(stmts) {
     },
     failed(rec) {
       stmts.insertSpend.run(rec.id, rec.ts, rec.costUsd ?? 0);
+    },
+    config(offset) {
+      stmts.setLastConfig.run(String(offset));
     }
   };
 }
@@ -9277,13 +9204,17 @@ function handleFromSql(db) {
     budgetRollup: (sinceIso) => {
       const row = stBudgetRollup.get(sinceIso);
       return { spentUsd: Number(row.spentUsd), runs: Number(row.runs) };
+    },
+    latestConfigOffset: () => {
+      const v = getMeta(db, "last_config_offset");
+      return v === void 0 ? void 0 : Number(v);
     }
   };
 }
 function withLockIfNeeded(lockPath, fn) {
   let heldByUs = false;
   try {
-    heldByUs = Number.parseInt(readFileSync6(lockPath, "utf8").trim(), 10) === process.pid;
+    heldByUs = Number.parseInt(readFileSync5(lockPath, "utf8").trim(), 10) === process.pid;
   } catch {
   }
   return heldByUs ? fn() : withLock(lockPath, fn);
@@ -9293,12 +9224,12 @@ function tmpDbPath(dbPath) {
 }
 function rmDbFiles(dbPath) {
   for (const f of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
-    if (existsSync6(f)) rmSync(f, { force: true });
+    if (existsSync5(f)) rmSync(f, { force: true });
   }
 }
 function rmSiblingWalShm(dbPath) {
   for (const f of [`${dbPath}-wal`, `${dbPath}-shm`]) {
-    if (existsSync6(f)) rmSync(f, { force: true });
+    if (existsSync5(f)) rmSync(f, { force: true });
   }
 }
 function rebuildToDisk(paths, Db) {
@@ -9310,7 +9241,7 @@ function rebuildToDisk(paths, Db) {
     db.exec("PRAGMA journal_mode = WAL");
     db.exec(SCHEMA_SQL);
     const stmts = prepStatements(db);
-    const size = existsSync6(paths.log) ? statSync3(paths.log).size : 0;
+    const size = existsSync5(paths.log) ? statSync3(paths.log).size : 0;
     db.exec("BEGIN");
     let result;
     if (size > 0) {
@@ -9332,20 +9263,20 @@ function rebuildToDisk(paths, Db) {
     throw e;
   }
   db.close();
-  if (existsSync6(paths.index)) {
+  if (existsSync5(paths.index)) {
     try {
       if (statSync3(paths.index).isDirectory()) rmSync(paths.index, { recursive: true, force: true });
     } catch {
     }
   }
   rmSiblingWalShm(paths.index);
-  renameSync2(tmp, paths.index);
+  renameSync(tmp, paths.index);
   return new Db(paths.index);
 }
 function catchUpInPlace(db, paths) {
   const stmts = prepStatements(db);
   const before = readMetaState(db);
-  const size = existsSync6(paths.log) ? statSync3(paths.log).size : 0;
+  const size = existsSync5(paths.log) ? statSync3(paths.log).size : 0;
   if (size <= before.upto) return;
   db.exec("BEGIN");
   try {
@@ -9382,7 +9313,7 @@ function quickCheckOk(db) {
   }
 }
 function tryOpenAndCheck(paths, Db) {
-  if (!existsSync6(paths.index)) return { ok: false };
+  if (!existsSync5(paths.index)) return { ok: false };
   let db;
   try {
     db = new Db(paths.index);
@@ -9393,7 +9324,7 @@ function tryOpenAndCheck(paths, Db) {
     if (!sizeLooksSane(db, paths.index) && !quickCheckOk(db)) return { ok: false, db };
     if (getMeta(db, "schema_version") !== String(SCHEMA_VERSION)) return { ok: false, db };
     const { upto } = readMetaState(db);
-    const size = existsSync6(paths.log) ? statSync3(paths.log).size : 0;
+    const size = existsSync5(paths.log) ? statSync3(paths.log).size : 0;
     if (size < upto) return { ok: false, db };
     const fpStart = Number(getMeta(db, "fp_start") ?? "0");
     const storedFp = getMeta(db, "fingerprint") ?? "";
@@ -9436,7 +9367,7 @@ function ensureFreshDb(paths, Db, opts) {
   return withLockIfNeeded(paths.lock, () => refreshUnderLock(paths, Db));
 }
 function withIndex(paths, fn, opts = {}) {
-  const logStat = existsSync6(paths.log) ? statSync3(paths.log) : void 0;
+  const logStat = existsSync5(paths.log) ? statSync3(paths.log) : void 0;
   if (!logStat || logStat.size === 0) return fn(handleFromMemory(emptyMemoryState()));
   return runSqlite(paths, fn, { forceRebuild: opts.forceRebuild ?? false, readOnly: opts.readOnly ?? false });
 }
@@ -9461,6 +9392,12 @@ function runSqlite(paths, fn, opts) {
     return fn(buildMemoryHandle(paths));
   }
 }
+function latestConfigRecord(paths, opts = {}) {
+  const offset = withIndex(paths, (h) => h.latestConfigOffset(), { readOnly: opts.readOnly ?? false });
+  if (offset === void 0) return void 0;
+  const rec = readRecordAt(paths.log, offset);
+  return rec && rec.kind === "config" ? rec : void 0;
+}
 
 // src/budget/budget.ts
 var BudgetError = class extends Error {
@@ -9479,9 +9416,9 @@ function moneyLeft(left, cap, spent) {
 var EPOCH = iso2(0);
 var AGENT_POINTER = "\n\u2192 see: mm3 agent budget";
 function readLegacyBudgetJson(paths) {
-  if (!existsSync7(paths.budget)) return void 0;
+  if (!existsSync6(paths.budget)) return void 0;
   try {
-    const v = JSON.parse(readFileSync7(paths.budget, "utf8"));
+    const v = JSON.parse(readFileSync6(paths.budget, "utf8"));
     const capUsd = v.capUsd;
     const capRuns = v.capRuns;
     const resetAt = v.resetAt;
@@ -9501,9 +9438,13 @@ function windowStartMs(budget, now) {
   return Math.max(floor, periodStartMs);
 }
 function stateFromConfig(paths, config, now, opts = {}) {
-  const sinceMs = windowStartMs(config.budget, now);
+  let sinceMs = windowStartMs(config.budget, now);
+  const restart = onStore(paths.log, "read", () => latestConfigRecord(paths, opts))?.windowSince;
+  const restartMs = restart ? Date.parse(restart) : Number.NaN;
+  const restarted = !Number.isNaN(restartMs) && restartMs > sinceMs;
+  if (restarted) sinceMs = restartMs;
   const { spentUsd, runs } = onStore(paths.log, "read", () => budgetRollup(paths, iso2(sinceMs), opts));
-  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: config.budget.since ?? EPOCH, warnAt: config.budget.warnAt };
+  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: restarted ? iso2(sinceMs) : config.budget.since ?? EPOCH, warnAt: config.budget.warnAt };
 }
 function budgetStateNow(paths, now = Date.now(), env = process.env) {
   const { config } = resolveConfig(paths, env);
@@ -9562,7 +9503,7 @@ function budgetLine(s) {
 }
 
 // src/classifier/chaos.ts
-import { mkdirSync as mkdirSync3, readFileSync as readFileSync8, renameSync as renameSync3, writeFileSync as writeFileSync4 } from "node:fs";
+import { mkdirSync as mkdirSync3, readFileSync as readFileSync7, renameSync as renameSync2, writeFileSync as writeFileSync3 } from "node:fs";
 import path4 from "node:path";
 
 // src/util/text.ts
@@ -9758,13 +9699,13 @@ function stepper(steps, stateFile) {
     return withLock(`${stateFile}.lock`, () => {
       let at = 0;
       try {
-        const s = JSON.parse(readFileSync8(stateFile, "utf8"));
+        const s = JSON.parse(readFileSync7(stateFile, "utf8"));
         if (s.schedule === schedule && Number.isInteger(s.next)) at = s.next;
       } catch {
       }
       mkdirSync3(path4.dirname(stateFile), { recursive: true });
-      writeFileSync4(`${stateFile}.tmp`, JSON.stringify({ schedule, next: at + 1 }));
-      renameSync3(`${stateFile}.tmp`, stateFile);
+      writeFileSync3(`${stateFile}.tmp`, JSON.stringify({ schedule, next: at + 1 }));
+      renameSync2(`${stateFile}.tmp`, stateFile);
       return steps[at] ?? "ok";
     });
   };
@@ -10071,7 +10012,7 @@ function providerIdentity(env = process.env, deps = {}) {
 }
 
 // src/config/config.ts
-import { existsSync as existsSync8, readdirSync, readFileSync as readFileSync9, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync8, readdirSync, readFileSync as readFileSync9, writeFileSync as writeFileSync4 } from "node:fs";
 import path5 from "node:path";
 
 // src/contract/emit.ts
@@ -10117,6 +10058,41 @@ function emit(doc) {
   }
   return `${lines.join("\n")}
 `;
+}
+
+// src/config/receipt.ts
+import { createHash as createHash2 } from "node:crypto";
+import { existsSync as existsSync7, readFileSync as readFileSync8 } from "node:fs";
+var fingerprintOf = (text) => createHash2("sha256").update(text).digest("hex");
+function configStatus(paths) {
+  let text;
+  if (paths && existsSync7(paths.config)) {
+    try {
+      text = readFileSync8(paths.config, "utf8");
+    } catch {
+      text = void 0;
+    }
+  }
+  const latest = paths ? latestConfigRecord(paths) : void 0;
+  if (text === void 0) return latest ? { kind: "gone", loadedAt: latest.ts, fileStops: [] } : { kind: "defaults", fileStops: [] };
+  const fileStops = checkConfigText(text).stops;
+  if (fileStops.length) return { kind: "invalid", fileStops };
+  if (!latest) return hasSettings(text) ? { kind: "unrecorded", fileStops } : { kind: "defaults", fileStops };
+  return latest.fingerprint === fingerprintOf(text) ? { kind: "loaded", loadedAt: latest.ts, fileStops } : { kind: "unrecorded", fileStops };
+}
+function statusLine(s) {
+  switch (s.kind) {
+    case "defaults":
+      return void 0;
+    case "loaded":
+      return `config: loaded ${s.loadedAt}`;
+    case "unrecorded":
+      return "\u26A0 config.yaml is in effect but its latest change is not recorded \u2192 mm3 config --load";
+    case "gone":
+      return `\u26A0 config.yaml is gone (last loaded ${s.loadedAt}) \u2192 the defaults apply; restore the file, or load another with mm3 config --load <file>`;
+    case "invalid":
+      return "\u2716 config.yaml has a problem \u2192 fix it: paid runs stop until you do";
+  }
 }
 
 // src/config/config.ts
@@ -10221,7 +10197,7 @@ function formatConfig(resolved, projectLine2, extraNotes = []) {
     "",
     "notes:",
     "  - free: never spends; plain config never writes",
-    ...resolved.present ? [`  - customized in ${configFileLabel(projectLine2)} \u2192 edit it, then run mm3 config --load to activate the change`] : ["  - no config.yaml here \u2192 every value is a default or env var", `  - ${customizeNote(projectLine2)}`],
+    ...resolved.present ? [`  - customized in ${configFileLabel(projectLine2)} \u2192 edit it (it applies at once), then run mm3 config --load to record the change`] : ["  - no config.yaml here \u2192 every value is a default or env var", `  - ${customizeNote(projectLine2)}`],
     ...extraNotes.map((n) => `  - ${n}`)
   ];
   return `${lines.join("\n")}
@@ -10235,7 +10211,7 @@ function nearMissNotes(paths) {
   } catch {
     return [];
   }
-  return names.filter((n) => n.toLowerCase().startsWith("config") && n !== "config.yaml" && !n.startsWith(path5.basename(paths.configActive))).sort().slice(0, 3).map((n) => `found .mm3/${n} \u2014 did you mean config.yaml? \u2192 rename it`);
+  return names.filter((n) => n.toLowerCase().startsWith("config") && n !== "config.yaml" && !n.startsWith("config.active.json")).sort().slice(0, 3).map((n) => `found .mm3/${n} \u2014 did you mean config.yaml? \u2192 rename it`);
 }
 function runConfig(env, paths, projectLine2) {
   const resolved = resolveConfig(paths, env);
@@ -10301,8 +10277,8 @@ var STARTER_FRONT = [
   "#",
   "# Every setting below is commented out, so MM3 runs on its built-in defaults. To change one, uncomment its",
   '# line (delete the leading "# ") and change the value. To go back to the default, delete the line or comment it',
-  "# out again. Run mm3 config to check the file: it lists every problem and where each value comes from. Edits take",
-  "# effect only once loaded: mm3 config --load checks the file and makes it the active config (a bad file is refused).",
+  "# out again. Run mm3 config to check the file: it lists every problem and where each value comes from. Edits apply",
+  "# at once; mm3 config --load checks the file and records the change in the ledger (a bad file is refused).",
   "#",
   "# Precedence: environment variable > this file > built-in default.",
   "# Safe to commit: it holds settings only, never keys (those go in env or the keychain). The ledger is not committed.",
@@ -10383,8 +10359,7 @@ function runConfigWrite(paths, projectLine2) {
     ensureDir(paths);
     try {
       const starter = starterConfig();
-      writeFileSync5(paths.config, starter, { flag: "wx" });
-      writeActive(paths, {}, fingerprintOf(starter));
+      writeFileSync4(paths.config, starter, { flag: "wx" });
       return true;
     } catch (e) {
       if (e.code === "EEXIST") return false;
@@ -10403,13 +10378,13 @@ var show = (v) => {
   if (typeof v === "object" && v !== null) return `{${Object.entries(v).map(([k, x]) => `${k}: ${show(x)}`).join(", ")}}`;
   return typeof v === "string" ? scalar(v, false) : String(v);
 };
-var isTree3 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
+var isTree2 = (v) => typeof v === "object" && v !== null && !Array.isArray(v);
 function changesFrom(over, def, prefix, out) {
   for (const [k, v] of Object.entries(over)) {
     if (v === void 0) continue;
     const at = prefix ? `${prefix}.${k}` : k;
     const d = def[k];
-    if (isTree3(v) && !KEYED_MAPS.includes(prefix)) changesFrom(v, isTree3(d) ? d : {}, at, out);
+    if (isTree2(v) && !KEYED_MAPS.includes(prefix)) changesFrom(v, isTree2(d) ? d : {}, at, out);
     else if (JSON.stringify(v) !== JSON.stringify(d)) out.push(`${at}: ${show(d)} \u2192 ${show(v)}`);
   }
 }
@@ -10436,9 +10411,8 @@ function runConfigLoad(paths, file, cwd, projectLine2, now = Date.now()) {
   }
   const checked = checkConfigText(text);
   if (checked.stops.length) {
-    const kept = readActive(paths) ? "not loaded: the active config is unchanged" : "not loaded: nothing is active yet, so every value stays a default";
     return { exit: 2, text: `${checked.stops.map((s) => s.text).join("\n")}
-${kept}
+not loaded: nothing was recorded
 \u2192 see: mm3 agent config
 ` };
   }
@@ -10446,41 +10420,29 @@ ${kept}
   if (copied) {
     onStore(paths.config, "write", () => {
       ensureDir(paths);
-      writeFileSync5(paths.config, text);
+      writeFileSync4(paths.config, text);
     });
   }
-  const previous = readActive(paths);
-  let overrides = checked.overrides;
-  let stamped = false;
-  let restarted = false;
-  if (previous && !previous.reset && checked.overrides.budget?.since === void 0) {
-    if (budgetChanged(previous.overrides, checked.overrides)) {
-      overrides = { ...overrides, budget: { ...overrides.budget, since: isoSeconds(now) } };
-      stamped = restarted = true;
-    } else if (previous.stamped && previous.overrides.budget?.since !== void 0) {
-      overrides = { ...overrides, budget: { ...overrides.budget, since: previous.overrides.budget.since } };
-      stamped = true;
-    }
-  }
-  writeActive(paths, overrides, fingerprintOf(text), now, false, stamped);
+  const previous = latestConfigRecord(paths);
+  const previousSettings = previous?.settings ?? {};
   const changes = [];
-  changesFrom(checked.overrides, DEFAULT_CONFIG, "", changes);
+  changesFrom(mergeConfig(checked.overrides).config, mergeConfig(previousSettings).config, "", changes);
+  let windowSince;
+  let restarted = false;
+  if (previous && checked.overrides.budget?.since === void 0) {
+    if (budgetChanged(previousSettings, checked.overrides)) {
+      windowSince = isoSeconds(now);
+      restarted = true;
+    } else windowSince = previous.windowSince;
+  }
+  ensureDir(paths);
+  appendConfig(paths, { fingerprint: fingerprintOf(text), settings: checked.overrides, changes, ...windowSince ? { windowSince } : {} }, now);
   const shown2 = changes.slice(0, MAX_CHANGES_SHOWN).map((c) => `  ${c}`);
   if (changes.length > shown2.length) shown2.push(`  \u2026 ${changes.length - shown2.length} more`);
-  const head = `\u2714 valid \xB7 active \xB7 ${changes.length} changed from defaults`;
+  const head = `\u2714 valid \xB7 loaded \xB7 ${changes.length} changed ${previous ? "since the last load" : "from the defaults"}`;
   const restartLine = restarted ? ["  count restarted: the budget changed, so spend is counted from now"] : [];
   return { exit: 0, text: `${[head, ...shown2, ...restartLine, ...copied ? [`  copied ${file} \u2192 ${label}`] : []].join("\n")}
 ` };
-}
-function runConfigReset(paths, projectLine2, now = Date.now()) {
-  if (!paths) return { exit: 2, text: "\u2716 config: no project here \u2192 run inside a project (a folder with .git or .mm3), or set MM3_HOME" };
-  const fileExists = existsSync8(paths.config);
-  if (!fileExists && !readActive(paths)) return { exit: 0, text: "\u2714 defaults are already active (no config.yaml, nothing loaded)\n" };
-  writeActive(paths, {}, "", now, true);
-  const note = fileExists ? `  ${configFileLabel(projectLine2)} was left as it is \u2192 mm3 config --load applies it again
-` : "";
-  return { exit: 0, text: `\u2714 reset \xB7 defaults active
-${note}` };
 }
 
 // src/mcp/stdio.ts
@@ -10568,7 +10530,7 @@ function runMcpServer(io, runOne, serverVersion) {
 }
 
 // src/setup/env-file.ts
-import { chmodSync, existsSync as existsSync9, mkdirSync as mkdirSync4, readFileSync as readFileSync10, rmSync as rmSync2, statSync as statSync4, writeFileSync as writeFileSync6 } from "node:fs";
+import { chmodSync, existsSync as existsSync9, mkdirSync as mkdirSync4, readFileSync as readFileSync10, rmSync as rmSync2, statSync as statSync4, writeFileSync as writeFileSync5 } from "node:fs";
 import os from "node:os";
 import path6 from "node:path";
 var ALLOWED_NAMES = ["TYPESAFE_API_KEY", "AI_GATEWAY_API_KEY", "TYPESAFE_BASE_URL", "JEV_MODEL", "JEV_GATEWAY_MODEL", "MM3_PROVIDER"];
@@ -10623,7 +10585,7 @@ function setEnvFileValue(file, name, value) {
     return line3;
   });
   if (!replaced) next.push(newLine);
-  writeFileSync6(file, `${next.join("\n").replace(/\n+$/u, "")}
+  writeFileSync5(file, `${next.join("\n").replace(/\n+$/u, "")}
 `);
   chmodSync(file, 384);
 }
@@ -10644,7 +10606,7 @@ function removeEnvFileValue(file, name) {
     rmSync2(file, { force: true });
     return "file-removed";
   }
-  writeFileSync6(file, `${next.join("\n").replace(/\n+$/u, "")}
+  writeFileSync5(file, `${next.join("\n").replace(/\n+$/u, "")}
 `);
   chmodSync(file, 384);
   return "removed";
@@ -10713,7 +10675,7 @@ function removeStoredKey(runner, platform, env) {
 }
 
 // src/setup/init.ts
-import { existsSync as existsSync15, mkdirSync as mkdirSync6, readFileSync as readFileSync16, realpathSync as realpathSync2, writeFileSync as writeFileSync9 } from "node:fs";
+import { existsSync as existsSync15, mkdirSync as mkdirSync6, readFileSync as readFileSync16, realpathSync as realpathSync2, writeFileSync as writeFileSync7 } from "node:fs";
 import path13 from "node:path";
 
 // src/verbs/doctor.ts
@@ -10722,7 +10684,7 @@ import { existsSync as existsSync14, readFileSync as readFileSync15, realpathSyn
 import path12 from "node:path";
 
 // src/setup/agents-status.ts
-import { existsSync as existsSync11, readFileSync as readFileSync12, writeFileSync as writeFileSync7 } from "node:fs";
+import { existsSync as existsSync11, readFileSync as readFileSync12 } from "node:fs";
 import path8 from "node:path";
 
 // src/setup/agents-file.ts
@@ -10791,7 +10753,6 @@ function planAgents(root) {
 }
 
 // src/setup/agents-status.ts
-var AGENTS_NOTE_MARKER = "agents-note-shown";
 var read2 = (file) => existsSync11(file) ? readFileSync12(file, "utf8") : void 0;
 function agentsState(root) {
   const agents = read2(path8.join(root, AGENTS_FILE));
@@ -10810,19 +10771,14 @@ function agentsDoctorValue(root) {
   const state = agentsState(root);
   return state === "ok" ? "ok" : AGENTS_FIX[state];
 }
-function takeAgentsNote(paths) {
-  if (existsSync11(path8.join(paths.dir, AGENTS_NOTE_MARKER))) return void 0;
+function agentsNote(paths) {
+  if (nextRunNumber(paths) > 1) return void 0;
   const state = agentsState(paths.root);
-  if (state === "ok") return void 0;
-  try {
-    writeFileSync7(path8.join(paths.dir, AGENTS_NOTE_MARKER), "shown\n");
-  } catch {
-  }
-  return `agents: ${AGENTS_FIX[state]}`;
+  return state === "ok" ? void 0 : `agents: ${AGENTS_FIX[state]}`;
 }
 
 // src/setup/install-record.ts
-import { existsSync as existsSync12, mkdirSync as mkdirSync5, readFileSync as readFileSync13, rmSync as rmSync3, writeFileSync as writeFileSync8 } from "node:fs";
+import { existsSync as existsSync12, mkdirSync as mkdirSync5, readFileSync as readFileSync13, rmSync as rmSync3, writeFileSync as writeFileSync6 } from "node:fs";
 import path9 from "node:path";
 function installRecordPath(env = process.env) {
   return path9.join(mm3ConfigDir(env), "install.json");
@@ -10845,7 +10801,7 @@ function readInstallRecord(env = process.env) {
 function writeInstallRecord(env, record2) {
   const file = installRecordPath(env);
   mkdirSync5(path9.dirname(file), { recursive: true });
-  writeFileSync8(file, `${JSON.stringify(record2, null, 2)}
+  writeFileSync6(file, `${JSON.stringify(record2, null, 2)}
 `);
 }
 function clearInstallRecord(env = process.env) {
@@ -11958,7 +11914,7 @@ function configField(paths) {
   const line3 = statusLine(status);
   if (status.fileStops.length) return [...status.fileStops.map((s) => s.text), ...line3 ? [line3] : []];
   if (status.kind === "defaults") return "\u2714 config: defaults";
-  return status.kind === "active" ? `\u2714 ${line3}` : line3;
+  return status.kind === "loaded" ? `\u2714 ${line3}` : line3;
 }
 var MAX_DOCTOR_STOPS = 5;
 function doctorStops(lines) {
@@ -12240,7 +12196,7 @@ ${e.written}`).join("\n\n");
   for (const e of plan.edits) {
     const file = path13.join(root, e.file);
     mkdirSync6(path13.dirname(file), { recursive: true });
-    writeFileSync9(file, e.content);
+    writeFileSync7(file, e.content);
   }
   return [...shown2, ...plan.edits.map((e) => line("done", "agents", e.done))];
 }
@@ -13714,7 +13670,7 @@ function respondText(mak, mdl2, next, notes) {
   return emit(m(["mak", mak], ["mdl", m(["recorded", mdl2])], ["next", next], ["notes", [...notes]]));
 }
 function commonNotes(notes, budgetNote, adapter, paths, requestNotes = []) {
-  const agents = paths ? takeAgentsNote(paths) : void 0;
+  const agents = paths ? agentsNote(paths) : void 0;
   return [...notes, ...adapter && isRehearsal(adapter) ? [`adapter ${adapter} \xB7 not evidence`] : [], ...agents ? [agents] : [], ...requestNotes, budgetNote];
 }
 var GOAL_ONLY_NEXT = "the goal missed though every part passed \xB7 fix what is missing, then run it again";
@@ -15397,7 +15353,7 @@ function undeclaredFieldSamples(paths, opts) {
 }
 
 // src/verbs/report-web.ts
-import { writeFileSync as writeFileSync10 } from "node:fs";
+import { writeFileSync as writeFileSync8 } from "node:fs";
 import path21 from "node:path";
 var DAY_MS = 24 * 60 * 60 * 1e3;
 var LIST_CAP = 12;
@@ -16037,7 +15993,7 @@ function runReportWeb(ctx) {
   const html = renderViewerHtml(data);
   ensureDir(ctx.paths);
   const viewerPath = path21.join(ctx.paths.dir, "viewer.html");
-  writeFileSync10(viewerPath, html);
+  writeFileSync8(viewerPath, html);
   const shown2 = path21.relative(ctx.paths.root, viewerPath).split(path21.sep).join("/");
   const opened = tryOpen(viewerPath, ctx.platform, ctx.runner, ctx.env);
   const runCount = data.windows.all.story.runs;
@@ -17391,15 +17347,15 @@ function configCard() {
   return renderCard(
     ["tool: config"],
     [
-      "- syntax: mm3 config [--write | --load [file] | --reset]",
+      "- syntax: mm3 config [--write | --load [file]]",
       "- free: plain config never writes, never spends, works with or without a project",
       "- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from",
-      "- requests read the ACTIVE config, not the file: mm3 config --load [file] checks .mm3/config.yaml (or the named file, copied there as is) and makes it active; \u2714 valid \xB7 active \xB7 N changed from defaults, or every \u2716 problem and the previous active config stays",
-      "- an edit to config.yaml changes nothing until loaded: doctor and mm3 config say \u26A0 config.yaml changed since load \u2192 mm3 config --load",
-      "- mm3 config --reset makes the built-in defaults active again and leaves config.yaml as it is (doctor then warns if the file has settings that are not loaded; --load brings them back); it never deletes or edits the file",
-      "- a project with a config.yaml and no active copy gets it loaded once, on its first paid run, with a note",
+      "- .mm3/config.yaml IS the config: every request reads it, so an edit applies at once and deleting the file means defaults",
+      "- mm3 config --load [file] checks the file (a named file is copied to .mm3/config.yaml as is) and records a receipt in the ledger: \u2714 valid \xB7 loaded \xB7 N changed since the last load, or every \u2716 problem and nothing recorded",
+      "- doctor and mm3 config compare the file with the latest receipt: \u2714 config: loaded <time>, or \u26A0 config.yaml is in effect but its latest change is not recorded \u2192 mm3 config --load",
+      "- a changed budget (usd, runs, per) restarts the count when loaded; the receipt says so",
+      "- a config.yaml with a problem stops paid runs (class, scan, drill, loop, replay) with every \u2716 and the fix; reads still answer",
       "- sparse overrides only, precedence env > config > default",
-      "- a bad config.yaml shows its \u2716 problems here too, then the effective (active) table underneath",
       "- the display is not a file: to customize run mm3 config --write \u2192 writes .mm3/config.yaml (commented guide) only if missing, never overwrites",
       "- a misnamed .mm3/config.ymal (or config.yml, config.json) gets a did-you-mean note here and in doctor"
     ]
@@ -17728,7 +17684,7 @@ var LINES3 = {
   outcome: "mm3 outcome <MM3-####> held|overruled|failed --by <actor>",
   budget: "mm3 budget [show]",
   doctor: "mm3 doctor [<file> | -]",
-  config: "mm3 config [--write | --load [file] | --reset]",
+  config: "mm3 config [--write | --load [file]]",
   init: "mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]  \xB7  or: mm3 init --agents [--yes]",
   uninstall: "mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]",
   mcp: "mm3 mcp"
@@ -17794,6 +17750,9 @@ function readRequest(file, stdinSource, maxBytes = DEFAULT_REQUEST_MAX_BYTES) {
   if (bytes.includes(0)) return { stop: `\u2716 request: ${file === "-" ? "stdin" : shown2} is binary, not text \u2192 write the request as YAML, starting "mak:"` };
   return { text: bytes.toString("utf8") };
 }
+var configStopText = (stops) => `${stops.map((s) => s.text).join("\n")}
+\u2716 config: paid runs stop until .mm3/config.yaml is fixed \u2192 fix it, then run mm3 config --load
+\u2192 see: mm3 agent config`;
 var RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop };
 var resolveStoredFor = (c) => () => resolveStoredKey(c.runner, c.platform, c.env);
 var providerExit = (e) => e instanceof JevConfigError ? e.exit : 1;
@@ -17802,8 +17761,8 @@ async function runSweptVerb(command, rest, paths, ctx) {
   if (twice) return finish(2, withAgentPointer(twice, command));
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { "dry-run": { type: "boolean", default: false } } });
   positionalCount(command, positionals, 1, 1);
-  const loadedNote = values["dry-run"] ? void 0 : autoLoad(paths);
   const fileConfig = resolveConfig(paths, ctx.env);
+  if (fileConfig.stops.length) return finish(2, configStopText(fileConfig.stops));
   const read3 = readRequest(positionals[0], ctx.stdin, fileConfig.config.requestMaxBytes);
   if ("stop" in read3) return finish(2, withAgentPointer(read3.stop, command));
   let provider;
@@ -17812,7 +17771,7 @@ async function runSweptVerb(command, rest, paths, ctx) {
   } catch (e) {
     return finish(providerExit(e), e.message);
   }
-  const r = await RUNNERS[command](read3.text, { paths, provider, env: ctx.env, config: fileConfig, ...loadedNote ? { notes: [loadedNote] } : {}, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
+  const r = await RUNNERS[command](read3.text, { paths, provider, env: ctx.env, config: fileConfig, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
   return finish(r.exit, r.text);
 }
 async function dispatch(argv, ctx) {
@@ -17885,13 +17844,12 @@ async function dispatch(argv, ctx) {
     return finish(r.exit, r.text);
   }
   if (command === "config") {
-    const { positionals, values } = args("config", { args: rest, allowPositionals: true, options: { write: { type: "boolean" }, load: { type: "boolean" }, reset: { type: "boolean" } } });
+    const { positionals, values } = args("config", { args: rest, allowPositionals: true, options: { write: { type: "boolean" }, load: { type: "boolean" } } });
     if (values.load && values.write) throw new UsageStop("config", "--load and --write cannot go together \u2192 run mm3 config --write first, edit the file, then mm3 config --load");
-    if (values.reset && (values.load || values.write)) throw new UsageStop("config", "--reset cannot go together with --load or --write \u2192 run one at a time: mm3 config --reset, then mm3 config --load to bring the file back");
     positionalCount("config", positionals, 0, values.load ? 1 : 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
     const projectLine2 = configPaths ? path25.relative(ctx.cwd, configPaths.root) || "." : "none";
-    const r = values.reset ? runConfigReset(configPaths, projectLine2) : values.load ? runConfigLoad(configPaths, positionals[0], ctx.cwd, projectLine2) : values.write ? runConfigWrite(configPaths, projectLine2) : runConfig(ctx.env, configPaths, projectLine2);
+    const r = values.load ? runConfigLoad(configPaths, positionals[0], ctx.cwd, projectLine2) : values.write ? runConfigWrite(configPaths, projectLine2) : runConfig(ctx.env, configPaths, projectLine2);
     return finish(r.exit, r.text);
   }
   if (command === "mcp") {
@@ -18038,7 +17996,7 @@ async function dispatch(argv, ctx) {
         allowPositionals: true,
         options: { "dry-run": { type: "boolean", default: false }, parent: { type: "string" }, compare: { type: "string" }, expect: { type: "string" } }
       });
-      const loadedNote = values["dry-run"] ? void 0 : autoLoad(paths);
+      if (resolved().stops.length) return finish(2, configStopText(resolved().stops));
       const usingFlags = values.parent !== void 0 || values.compare !== void 0;
       let text;
       if (usingFlags) {
@@ -18078,7 +18036,7 @@ async function dispatch(argv, ctx) {
       } catch (e) {
         return finish(providerExit(e), e.message);
       }
-      const r = await runReplay(text, { paths, provider, env: ctx.env, config: resolved(), ...loadedNote ? { notes: [loadedNote] } : {}, dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
+      const r = await runReplay(text, { paths, provider, env: ctx.env, config: resolved(), dryRun: values["dry-run"], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case "outcome": {

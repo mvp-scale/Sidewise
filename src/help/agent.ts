@@ -272,22 +272,22 @@ function templateCard(): string {
   );
 }
 
-/** `mm3 agent config`'s card: `mm3 config` is free, never writes (`--write` writes only a missing
- *  starter file, `--load` writes the active copy), and works with or without a project. Terse like every other tool card here — the full key list lives in `mm3 config`'s
+/** `mm3 agent config`'s card: `mm3 config` is free, never writes (`--write` writes only a missing starter file,
+ *  `--load` records a receipt in the ledger), and works with or without a project. Terse like every other tool card here — the full key list lives in `mm3 config`'s
  *  own output (it prints every effective value plus its source), not repeated here. */
 function configCard(): string {
   return renderCard(
     ['tool: config'],
     [
-      '- syntax: mm3 config [--write | --load [file] | --reset]',
+      '- syntax: mm3 config [--write | --load [file]]',
       '- free: plain config never writes, never spends, works with or without a project',
       '- prints every effective setting (budget, provider, baseURL, model, pricing, timeoutMs, retries, backoffMs, sweep, requestMaxBytes, reuse, depth, evidence, lens, mdl) and which of default/config/env it came from',
-      '- requests read the ACTIVE config, not the file: mm3 config --load [file] checks .mm3/config.yaml (or the named file, copied there as is) and makes it active; ✔ valid · active · N changed from defaults, or every ✖ problem and the previous active config stays',
-      '- an edit to config.yaml changes nothing until loaded: doctor and mm3 config say ⚠ config.yaml changed since load → mm3 config --load',
-      '- mm3 config --reset makes the built-in defaults active again and leaves config.yaml as it is (doctor then warns if the file has settings that are not loaded; --load brings them back); it never deletes or edits the file',
-      '- a project with a config.yaml and no active copy gets it loaded once, on its first paid run, with a note',
+      '- .mm3/config.yaml IS the config: every request reads it, so an edit applies at once and deleting the file means defaults',
+      '- mm3 config --load [file] checks the file (a named file is copied to .mm3/config.yaml as is) and records a receipt in the ledger: ✔ valid · loaded · N changed since the last load, or every ✖ problem and nothing recorded',
+      '- doctor and mm3 config compare the file with the latest receipt: ✔ config: loaded <time>, or ⚠ config.yaml is in effect but its latest change is not recorded → mm3 config --load',
+      '- a changed budget (usd, runs, per) restarts the count when loaded; the receipt says so',
+      '- a config.yaml with a problem stops paid runs (class, scan, drill, loop, replay) with every ✖ and the fix; reads still answer',
       '- sparse overrides only, precedence env > config > default',
-      '- a bad config.yaml shows its ✖ problems here too, then the effective (active) table underneath',
       '- the display is not a file: to customize run mm3 config --write → writes .mm3/config.yaml (commented guide) only if missing, never overwrites',
       '- a misnamed .mm3/config.ymal (or config.yml, config.json) gets a did-you-mean note here and in doctor',
     ],

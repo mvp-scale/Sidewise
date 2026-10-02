@@ -29,11 +29,13 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { scalar } from '../contract/emit.ts';
 import { onStore } from '../ledger/lock.ts';
+import { latestConfigRecord } from '../ledger/index.ts';
+import { appendConfig } from '../ledger/log.ts';
 import { ensureDir, type Mm3Paths } from '../ledger/paths.ts';
 import type { VerbResult } from '../verbs/types.ts';
 import { DEFAULT_CONFIG, KEYED_MAPS, type ConfigSource, type Mm3Config, type PricingRate } from './defaults.ts';
-import { configStatus, fingerprintOf, readActive, statusLine, writeActive } from './active.ts';
-import { resolveConfig, type ResolvedConfig } from './load.ts';
+import { configStatus, fingerprintOf, statusLine } from './receipt.ts';
+import { mergeConfig, resolveConfig, type ResolvedConfig } from './load.ts';
 import { checkConfigText } from './parse.ts';
 
 type Prim = string | number | boolean | readonly number[];
@@ -164,7 +166,7 @@ export function formatConfig(resolved: ResolvedConfig, projectLine: string, extr
     '',
     'notes:',
     '  - free: never spends; plain config never writes',
-    ...(resolved.present ? [`  - customized in ${configFileLabel(projectLine)} → edit it, then run mm3 config --load to activate the change`] : ['  - no config.yaml here → every value is a default or env var', `  - ${customizeNote(projectLine)}`]),
+    ...(resolved.present ? [`  - customized in ${configFileLabel(projectLine)} → edit it (it applies at once), then run mm3 config --load to record the change`] : ['  - no config.yaml here → every value is a default or env var', `  - ${customizeNote(projectLine)}`]),
     ...extraNotes.map((n) => `  - ${n}`),
   ];
   return `${lines.join('\n')}\n`;
@@ -182,7 +184,7 @@ export function nearMissNotes(paths: Mm3Paths | undefined): string[] {
     return [];
   }
   return names
-    .filter((n) => n.toLowerCase().startsWith('config') && n !== 'config.yaml' && !n.startsWith(path.basename(paths.configActive))) // the active copy (and its temp file) are MM3's own, not a misnamed config
+    .filter((n) => n.toLowerCase().startsWith('config') && n !== 'config.yaml' && !n.startsWith('config.active.json')) // a copy older versions of MM3 left behind (and its temp file) are MM3's own, not a misnamed config
     .sort()
     .slice(0, 3)
     .map((n) => `found .mm3/${n} — did you mean config.yaml? → rename it`);
@@ -193,7 +195,7 @@ export function runConfig(env: Record<string, string | undefined>, paths: Mm3Pat
   const status = configStatus(paths);
   const line = statusLine(status);
   const notes = [...(line ? [line] : []), ...nearMissNotes(paths)];
-  // The problems shown are the file's own, as it stands now (requests run on the loaded copy, which is always clean).
+  // The problems shown are the file's own, as it stands now: it is what every request reads.
   if (status.fileStops.length) {
     const stopLines = status.fileStops.map((st) => st.text).join('\n');
     return { exit: 2, text: `${stopLines}\n\n${formatConfig(resolved, projectLine, notes)}\n→ see: mm3 agent config` };
@@ -254,8 +256,8 @@ const STARTER_FRONT = [
   '#',
   '# Every setting below is commented out, so MM3 runs on its built-in defaults. To change one, uncomment its',
   '# line (delete the leading "# ") and change the value. To go back to the default, delete the line or comment it',
-  '# out again. Run mm3 config to check the file: it lists every problem and where each value comes from. Edits take',
-  '# effect only once loaded: mm3 config --load checks the file and makes it the active config (a bad file is refused).',
+  '# out again. Run mm3 config to check the file: it lists every problem and where each value comes from. Edits apply',
+  '# at once; mm3 config --load checks the file and records the change in the ledger (a bad file is refused).',
   '#',
   '# Precedence: environment variable > this file > built-in default.',
   '# Safe to commit: it holds settings only, never keys (those go in env or the keychain). The ledger is not committed.',
@@ -345,8 +347,6 @@ export function runConfigWrite(paths: Mm3Paths | undefined, projectLine: string)
     try {
       const starter = starterConfig();
       writeFileSync(paths.config, starter, { flag: 'wx' });
-      // The starter is active at once (it holds no overrides), so a later edit shows up as "changed since load".
-      writeActive(paths, {}, fingerprintOf(starter));
       return true;
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === 'EEXIST') return false;
@@ -379,11 +379,6 @@ function changesFrom(over: Record<string, unknown>, def: Record<string, unknown>
 
 const MAX_CHANGES_SHOWN = 20;
 
-/** `mm3 config --load [file]`: checks the file with the same validation `mm3 config`/`mm3 doctor` use and, only if
- *  it is clean, makes it the active config (config/active.ts). A bad file prints every problem and leaves the
- *  active copy exactly as it was: a bad config never goes live. A `file` other than `.mm3/config.yaml` is
- *  checked first and then copied there verbatim (comments and all; the user's own config.yaml is never rewritten in
- *  place) before it is loaded. Writes `.mm3/config.active.json` (and, for another file, `.mm3/config.yaml`). */
 const isoSeconds = (ms: number): string => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
 /** The caps or the window kind differ between two override sets, each read against the defaults (`warnAt` and `since` don't count). */
 const budgetChanged = (a: Partial<Mm3Config>, b: Partial<Mm3Config>): boolean => {
@@ -391,6 +386,14 @@ const budgetChanged = (a: Partial<Mm3Config>, b: Partial<Mm3Config>): boolean =>
   return (a.budget?.usd ?? d.usd) !== (b.budget?.usd ?? d.usd) || (a.budget?.runs ?? d.runs) !== (b.budget?.runs ?? d.runs) || (a.budget?.per ?? d.per) !== (b.budget?.per ?? d.per);
 };
 
+/** `mm3 config --load [file]`: checks the file with the same validation `mm3 config`/`mm3 doctor` use and, only if it is
+ *  clean, appends a receipt to the ledger: when, the file's hash, the settings, what changed since the previous receipt
+ *  (or from the defaults, for the first). It does not change what runs read: every request already reads config.yaml
+ *  itself. A bad file prints every problem, exits 2 and records nothing. A `file` other than `.mm3/config.yaml` is checked
+ *  first and then copied there verbatim (comments and all; the user's own config.yaml is never rewritten in place). When
+ *  the budget (usd, runs or per) changed since the previous receipt, and the file has no `budget.since` of its own, the
+ *  receipt starts the budget count over from this moment; a later load that leaves the budget alone carries that start
+ *  forward. */
 export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefined, cwd: string, projectLine: string, now: number = Date.now()): VerbResult {
   if (!paths) return { exit: 2, text: '✖ config: no project here → run inside a project (a folder with .git or .mm3), or set MM3_HOME' };
   const label = configFileLabel(projectLine);
@@ -409,8 +412,7 @@ export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefi
   }
   const checked = checkConfigText(text);
   if (checked.stops.length) {
-    const kept = readActive(paths) ? 'not loaded: the active config is unchanged' : 'not loaded: nothing is active yet, so every value stays a default';
-    return { exit: 2, text: `${checked.stops.map((s) => s.text).join('\n')}\n${kept}\n→ see: mm3 agent config\n` };
+    return { exit: 2, text: `${checked.stops.map((s) => s.text).join('\n')}\nnot loaded: nothing was recorded\n→ see: mm3 agent config\n` };
   }
   const copied = path.resolve(source) !== path.resolve(paths.config);
   if (copied) {
@@ -419,44 +421,23 @@ export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefi
       writeFileSync(paths.config, text);
     });
   }
-  // A changed budget (caps or window) starts its count over from this load, unless the file sets `budget.since`
-  // itself. The stamp lives only in the active copy: config.yaml is never rewritten. A later load that leaves the
-  // budget alone carries the stamp forward, so the restarted count is not lost.
-  const previous = readActive(paths);
-  let overrides = checked.overrides;
-  let stamped = false;
-  let restarted = false;
-  // After `config --reset` the active copy holds the defaults, not the budget that was in force, so there is nothing
-  // honest to compare against: that load never restarts (otherwise reset-then-load would clear the count with no edit).
-  if (previous && !previous.reset && checked.overrides.budget?.since === undefined) {
-    if (budgetChanged(previous.overrides, checked.overrides)) {
-      overrides = { ...overrides, budget: { ...overrides.budget, since: isoSeconds(now) } as Mm3Config['budget'] };
-      stamped = restarted = true;
-    } else if (previous.stamped && previous.overrides.budget?.since !== undefined) {
-      overrides = { ...overrides, budget: { ...overrides.budget, since: previous.overrides.budget.since } as Mm3Config['budget'] };
-      stamped = true;
-    }
-  }
-  writeActive(paths, overrides, fingerprintOf(text), now, false, stamped);
+  const previous = latestConfigRecord(paths);
+  const previousSettings = (previous?.settings ?? {}) as Partial<Mm3Config>;
   const changes: string[] = [];
-  changesFrom(checked.overrides as Record<string, unknown>, DEFAULT_CONFIG as unknown as Record<string, unknown>, '', changes);
+  changesFrom(mergeConfig(checked.overrides).config as unknown as Record<string, unknown>, mergeConfig(previousSettings).config as unknown as Record<string, unknown>, '', changes);
+  let windowSince: string | undefined;
+  let restarted = false;
+  if (previous && checked.overrides.budget?.since === undefined) {
+    if (budgetChanged(previousSettings, checked.overrides)) {
+      windowSince = isoSeconds(now);
+      restarted = true;
+    } else windowSince = previous.windowSince;
+  }
+  ensureDir(paths);
+  appendConfig(paths, { fingerprint: fingerprintOf(text), settings: checked.overrides as Record<string, unknown>, changes, ...(windowSince ? { windowSince } : {}) }, now);
   const shown = changes.slice(0, MAX_CHANGES_SHOWN).map((c) => `  ${c}`);
   if (changes.length > shown.length) shown.push(`  … ${changes.length - shown.length} more`);
-  const head = `✔ valid · active · ${changes.length} changed from defaults`;
+  const head = `✔ valid · loaded · ${changes.length} changed ${previous ? 'since the last load' : 'from the defaults'}`;
   const restartLine = restarted ? ['  count restarted: the budget changed, so spend is counted from now'] : [];
   return { exit: 0, text: `${[head, ...shown, ...restartLine, ...(copied ? [`  copied ${file} → ${label}`] : [])].join('\n')}\n` };
-}
-
-/** `mm3 config --reset`: makes the built-in defaults the active config. The user's config.yaml is never touched or
- *  deleted; the active copy is written empty and marked as a reset, so doctor says defaults are active (and warns
- *  when config.yaml holds settings that are not loaded) and the one-time automatic load does not undo it.
- *  `mm3 config --load` brings the file back. With no config.yaml and nothing active there is nothing to reset: no
- *  file is created. */
-export function runConfigReset(paths: Mm3Paths | undefined, projectLine: string, now: number = Date.now()): VerbResult {
-  if (!paths) return { exit: 2, text: '✖ config: no project here → run inside a project (a folder with .git or .mm3), or set MM3_HOME' };
-  const fileExists = existsSync(paths.config);
-  if (!fileExists && !readActive(paths)) return { exit: 0, text: '✔ defaults are already active (no config.yaml, nothing loaded)\n' };
-  writeActive(paths, {}, '', now, true);
-  const note = fileExists ? `  ${configFileLabel(projectLine)} was left as it is → mm3 config --load applies it again\n` : '';
-  return { exit: 0, text: `✔ reset · defaults active\n${note}` };
 }

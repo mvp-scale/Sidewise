@@ -1,7 +1,7 @@
 // The whole command surface through the built binary, on a throwaway project in a throwaway HOME: every command,
 // subcommand, flag and stop, with the fake provider (no key, no network). A command that would change state
 // outside the project (init's install, uninstall's removal) runs in the form that only previews or refuses, and
-// the destructive ones that are safe in a sandbox (config --reset, a lowered cap) run for real. The container
+// the destructive ones that are safe in a sandbox (a lowered cap) run for real. The container
 // matrix runs this on Node 22 and 24, so a command that behaves differently there fails here by name.
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
@@ -70,8 +70,8 @@ describe('every command, subcommand and flag, through the built CLI', () => {
     go({ name: 'doctor', args: ['doctor'], has: /provider: fake/ });
     go({ name: 'config view', args: ['config'], has: /budget:/ });
     go({ name: 'config --write makes the starter file', args: ['config', '--write'] });
-    go({ name: 'config --load activates it', args: ['config', '--load'], has: /valid|active/ });
-    go({ name: 'config --reset', args: ['config', '--reset'] });
+    go({ name: 'config --load records it', args: ['config', '--load'], has: /valid · loaded/ });
+    go({ name: 'config --reset is gone', args: ['config', '--reset'], exit: 2, has: /unknown flag --reset/ });
     go({ name: 'config --load with a file argument', args: ['config', '--load', '.mm3/config.yaml'] });
     go({ name: 'init --agents previews the block', args: ['init', '--agents'], has: hasGit() ? /mm3:agents/ : /git project/ });
     go({ name: 'uninstall refuses without a yes', args: ['uninstall'], has: /cannot be undone|\[y\/N\]/ });
@@ -149,7 +149,6 @@ describe('every command, subcommand and flag, through the built CLI', () => {
     go({ name: 'help for an unknown topic', args: ['help', 'init'], exit: 2, has: /not a verb or topic/ });
     go({ name: 'agent for an unknown topic', args: ['agent', 'nope'], exit: 2 });
     go({ name: 'config --load with --write', args: ['config', '--load', '--write'], exit: 2 });
-    go({ name: 'config --reset with --load', args: ['config', '--reset', '--load'], exit: 2 });
     go({ name: 'config --load a missing file', args: ['config', '--load', 'missing.yaml'], exit: 2 });
     go({ name: 'init with two modes', args: ['init', '--global', '--local'], exit: 2, has: /at most one/ });
     go({ name: 'init --agents with another flag', args: ['init', '--agents', '--global'], exit: 2, has: /runs on its own/ });

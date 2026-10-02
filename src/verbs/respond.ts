@@ -10,7 +10,7 @@ import type { Answer, Category, Depth, Gate, Mak, Mdl } from '../contract/types.
 import { IRREVERSIBLE_NOTE } from '../contract/validate.ts';
 import type { Mm3Paths } from '../ledger/paths.ts';
 import { computeConsensus, type Consensus, type SlotAnswer } from '../lens/consensus.ts';
-import { takeAgentsNote } from '../setup/agents-status.ts';
+import { agentsNote } from '../setup/agents-status.ts';
 import { clip } from '../util/text.ts';
 
 /** A bare number for yes/no; {top, p} for scale/choice. */
@@ -85,9 +85,9 @@ export function respondText(mak: Map<string, Value>, mdl: Value, next: string, n
 
 /** Validation and evidence notes first; a rehearsal adapter (fake, chaos — port.ts's own REHEARSAL_ADAPTERS)
  * gets a "not evidence" label next, so an agent can't mistake a rehearsal answer for a real one just by
- * skimming notes; the one-time `agents:` note (setup/agents-status.ts) and any request-level note (`ctx.notes`: the one-time config auto-load) come just before the budget note, which is always last. */
+ * skimming notes; the one-time `agents:` note (setup/agents-status.ts) and any request-level note (`ctx.notes`) come just before the budget note, which is always last. */
 export function commonNotes(notes: readonly string[], budgetNote: string, adapter?: string, paths?: Mm3Paths, requestNotes: readonly string[] = []): string[] {
-  const agents = paths ? takeAgentsNote(paths) : undefined; // once per project; only a real run gets here (a dry run prints its own plan)
+  const agents = paths ? agentsNote(paths) : undefined; // first real run of the project only (a dry run prints its own plan)
   return [...notes, ...(adapter && isRehearsal(adapter) ? [`adapter ${adapter} · not evidence`] : []), ...(agents ? [agents] : []), ...requestNotes, budgetNote];
 }
 

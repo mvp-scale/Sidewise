@@ -290,16 +290,16 @@ describe('doctor (P5)', () => {
       expect(r.text).toContain('config: "✔ config: defaults"');
     });
 
-    it('a clean override file that has been loaded: config: active (loaded <time>)', () => {
+    it('a clean override file that has been loaded: config: loaded <time>', () => {
       const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: 10\nprovider: fake\n' });
       expect(runConfigLoad(paths, undefined, paths.root, '.').exit).toBe(0);
       const r = runDoctor({}, paths);
-      expect(r.text).toMatch(/config: "✔ config: active \(loaded \d{4}-\d\d-\d\dT[\d:]+Z\)"/);
+      expect(r.text).toMatch(/config: "✔ config: loaded \d{4}-\d\d-\d\dT[\d:.]+Z"/);
     });
 
-    it('a config.yaml that was never loaded is flagged, not silently counted', () => {
+    it('a config.yaml that was never loaded is in effect but flagged as not recorded', () => {
       const { paths } = tempProject({ '.mm3/config.yaml': 'budget:\n  usd: 10\n' });
-      expect(runDoctor({}, paths).text).toContain('⚠ config.yaml is not loaded yet → mm3 config --load');
+      expect(runDoctor({}, paths).text).toContain('⚠ config.yaml is in effect but its latest change is not recorded → mm3 config --load');
     });
 
     it('a broken config.yaml: every problem in one pass, same ✖ config.<path> shape mm3 config uses', () => {

@@ -15,7 +15,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { DEFAULT_CONFIG, type Mm3Config } from '../config/defaults.ts';
 import { resolveConfig, type ResolvedConfig } from '../config/load.ts';
 import { writeConfigOverride } from '../config/write.ts';
-import { budgetRollup } from '../ledger/index.ts';
+import { budgetRollup, latestConfigRecord } from '../ledger/index.ts';
 import { onStore, withLock } from '../ledger/lock.ts';
 import { appendFailedLocked, type NewFailed } from '../ledger/log.ts';
 import type { Mm3Paths } from '../ledger/paths.ts';
@@ -86,12 +86,17 @@ function windowStartMs(budget: Mm3Config['budget'], now: number): number {
 }
 
 function stateFromConfig(paths: Mm3Paths, config: Mm3Config, now: number, opts: { readOnly?: boolean } = {}): BudgetState {
-  const sinceMs = windowStartMs(config.budget, now);
+  let sinceMs = windowStartMs(config.budget, now);
+  // A load that changed the budget started its count over: the latest receipt says where. A later start wins.
+  const restart = onStore(paths.log, 'read', () => latestConfigRecord(paths, opts))?.windowSince;
+  const restartMs = restart ? Date.parse(restart) : Number.NaN;
+  const restarted = !Number.isNaN(restartMs) && restartMs > sinceMs;
+  if (restarted) sinceMs = restartMs;
   // Wrapped in onStore, same as every other ledger read (ledger/reuse.ts's lookupAnswers/exactReuse) — a raw fs
   // error (log.jsonl replaced by a directory, permissions) must surface as the usual clean StoreError, never an
   // unwrapped errno escaping just because this read happens to go through budgetRollup instead of readLedger.
   const { spentUsd, runs } = onStore(paths.log, 'read', () => budgetRollup(paths, iso(sinceMs), opts));
-  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: config.budget.since ?? EPOCH, warnAt: config.budget.warnAt };
+  return { capUsd: config.budget.usd, capRuns: config.budget.runs, spentUsd, runs, resetAt: restarted ? iso(sinceMs) : (config.budget.since ?? EPOCH), warnAt: config.budget.warnAt };
 }
 
 /** Ledger-derived state with no side effects at all (no migration attempt, no locking of its own) — safe to

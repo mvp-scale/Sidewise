@@ -7,7 +7,6 @@ import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { budgetLine, checkBudget, loadBudget, recordSpend } from '../../src/budget/budget.ts';
 import { runCli, type CliCtx } from '../../src/cli.ts';
-import { writeConfigOverride } from '../../src/config/write.ts';
 import { tempProject } from '../helpers/project.ts';
 
 function ctxFor(root: string): CliCtx {
@@ -184,31 +183,6 @@ describe('mm3 config --load restarts the count only when the budget changed', ()
     const r = await mm3(root, ['config', '--load']);
     expect(r.text).toContain('count restarted');
     expect(await left(root)).toBe('5 of 5 runs left');
-  });
-
-  it('[C-253] an MM3 write into the config keeps the restarted count through the next load', async () => {
-    const { root, paths } = tempProject();
-    write(root, 'budget:\n  runs: 5\n');
-    await mm3(root, ['config', '--load']);
-    for (let i = 0; i < 3; i++) recordSpend(paths, 0, Date.now() - 60_000);
-    write(root, 'budget:\n  runs: 10\n');
-    await mm3(root, ['config', '--load']); // restarts: the three runs above are before it
-    writeConfigOverride(paths, { budget: { warnAt: 0.5 } }); // MM3's own write (fields --accept, the legacy migration)
-    write(root, 'budget:\n  runs: 10\n  warnAt: 0.5\ndepth:\n  class: [4, 6, 9]\n');
-    await mm3(root, ['config', '--load']); // other settings only
-    expect(await left(root)).toBe('10 of 10 runs left');
-  });
-
-  it('[C-253] config --reset, then loading the same file, keeps the count', async () => {
-    const { root, paths } = tempProject();
-    write(root, 'budget:\n  runs: 20\n');
-    await mm3(root, ['config', '--load']);
-    for (let i = 0; i < 2; i++) recordSpend(paths, 0, Date.now() - 60_000);
-    expect(await left(root)).toBe('18 of 20 runs left');
-    await mm3(root, ['config', '--reset']);
-    const r = await mm3(root, ['config', '--load']);
-    expect(r.text).not.toContain('count restarted');
-    expect(await left(root)).toBe('18 of 20 runs left');
   });
 
   it('[C-253] loading a file by name restarts like any load', async () => {

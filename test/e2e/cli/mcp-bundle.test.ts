@@ -90,10 +90,9 @@ describe('the plugin bundle over real MCP stdio', () => {
     for (const view of ['hits', 'patterns', 'history', 'calls', 'problems', 'mdl']) await ok(['report', view]);
     await ok(['report', 'graph', 'category:injection']);
 
-    // Config: validate and activate the file, then reset to the defaults.
+    // Config: validate and record the file.
     await ok(['config', '--load'], undefined, /valid/);
     await ok(['config'], undefined, /from config\.yaml/);
-    await ok(['config', '--reset']);
 
     // Stops are errors with one ✖ line and a fix, never a crash.
     for (const [args, stdin] of [

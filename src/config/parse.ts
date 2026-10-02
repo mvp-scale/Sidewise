@@ -1,6 +1,6 @@
 /**
  * config.yaml text → the raw value `validateConfig` checks, or the one stop saying why it can't be read. Split out
- * of load.ts so both the per-request path (legacy, no active copy yet) and `mm3 config --load` / doctor share one
+ * of load.ts so both the per-request path and `mm3 config --load` / doctor share one
  * parser. Pure: text in, value or stops out, no file or env access.
  */
 import { parseDocument } from 'yaml';

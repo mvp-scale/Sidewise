@@ -1353,8 +1353,8 @@ function runSqlite<T>(paths: Mm3Paths, fn: (h: IndexHandle) => T, opts: { forceR
 
 /** The newest config receipt in the ledger, or undefined when no load has ever been recorded. One indexed read of
  *  where it sits, then one targeted read of that line: never a scan of the log. */
-export function latestConfigRecord(paths: Mm3Paths): ConfigRecord | undefined {
-  const offset = withIndex(paths, (h) => h.latestConfigOffset());
+export function latestConfigRecord(paths: Mm3Paths, opts: { readOnly?: boolean } = {}): ConfigRecord | undefined {
+  const offset = withIndex(paths, (h) => h.latestConfigOffset(), { readOnly: opts.readOnly ?? false });
   if (offset === undefined) return undefined;
   const rec = readRecordAt(paths.log, offset);
   return rec && rec.kind === 'config' ? rec : undefined;

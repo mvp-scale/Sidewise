@@ -20,8 +20,7 @@ import { BudgetError, budgetLine, loadBudget } from './budget/budget.ts';
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
 import { JevConfigError } from './classifier/typesafe/config.ts';
-import { runConfig, runConfigLoad, runConfigReset, runConfigWrite } from './config/config.ts';
-import { autoLoad } from './config/active.ts';
+import { runConfig, runConfigLoad, runConfigWrite } from './config/config.ts';
 import { classifierFileConfig, resolveConfig, type ResolvedConfig } from './config/load.ts';
 import { RUN_ID } from './ledger/ids.ts';
 import { LockError, StoreError } from './ledger/lock.ts';
@@ -80,7 +79,7 @@ const LINES = {
   outcome: 'mm3 outcome <MM3-####> held|overruled|failed --by <actor>',
   budget: 'mm3 budget [show]',
   doctor: 'mm3 doctor [<file> | -]',
-  config: 'mm3 config [--write | --load [file] | --reset]',
+  config: 'mm3 config [--write | --load [file]]',
   init: 'mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]  ·  or: mm3 init --agents [--yes]',
   uninstall: 'mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]',
   mcp: 'mm3 mcp',
@@ -183,6 +182,10 @@ function readRequest(file: string, stdinSource: () => Buffer, maxBytes: number =
   return { text: bytes.toString('utf8') };
 }
 
+/** A config.yaml with problems: every problem, then why nothing ran. Reads (view, budget, report, doctor) still answer. */
+const configStopText = (stops: readonly { text: string }[]): string =>
+  `${stops.map((s) => s.text).join('\n')}\n✖ config: paid runs stop until .mm3/config.yaml is fixed → fix it, then run mm3 config --load\n→ see: mm3 agent config`;
+
 const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop } as const;
 
 // Item H (batch G): a key stored in the OS keychain or the user file (~/.config/mm3/env), with no env
@@ -221,10 +224,8 @@ async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths
   if (twice) return finish(2, withAgentPointer(twice, command));
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { 'dry-run': { type: 'boolean', default: false } } });
   positionalCount(command, positionals, 1, 1);
-  // The one-time load of a pre-existing config.yaml happens here, on the first real (non-dry) run — never on a
-  // free read, which writes nothing. Its note rides along in the run's notes.
-  const loadedNote = values['dry-run'] ? undefined : autoLoad(paths);
   const fileConfig = resolveConfig(paths, ctx.env);
+  if (fileConfig.stops.length) return finish(2, configStopText(fileConfig.stops));
   const read = readRequest(positionals[0]!, ctx.stdin, fileConfig.config.requestMaxBytes);
   if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
   let provider: ClassifierPort;
@@ -233,7 +234,7 @@ async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths
   } catch (e) {
     return finish(providerExit(e), (e as Error).message);
   }
-  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, config: fileConfig, ...(loadedNote ? { notes: [loadedNote] } : {}), dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
+  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, config: fileConfig, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
   return finish(r.exit, r.text);
 }
 
@@ -344,15 +345,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   // default, since there's nowhere for config.yaml to live). Never spends; plain `config` never writes, and
   // `--write` writes only a missing starter .mm3/config.yaml (never overwrites one that exists).
   if (command === 'config') {
-    const { positionals, values } = args('config', { args: rest, allowPositionals: true, options: { write: { type: 'boolean' }, load: { type: 'boolean' }, reset: { type: 'boolean' } } });
+    const { positionals, values } = args('config', { args: rest, allowPositionals: true, options: { write: { type: 'boolean' }, load: { type: 'boolean' } } });
     if (values.load && values.write) throw new UsageStop('config', '--load and --write cannot go together → run mm3 config --write first, edit the file, then mm3 config --load');
-    if (values.reset && (values.load || values.write)) throw new UsageStop('config', '--reset cannot go together with --load or --write → run one at a time: mm3 config --reset, then mm3 config --load to bring the file back');
     positionalCount('config', positionals, 0, values.load ? 1 : 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
     const projectLine = configPaths ? path.relative(ctx.cwd, configPaths.root) || '.' : 'none';
-    const r = values.reset
-      ? runConfigReset(configPaths, projectLine)
-      : values.load
+    const r = values.load
       ? runConfigLoad(configPaths, positionals[0], ctx.cwd, projectLine)
       : values.write
         ? runConfigWrite(configPaths, projectLine)
@@ -533,7 +531,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         allowPositionals: true,
         options: { 'dry-run': { type: 'boolean', default: false }, parent: { type: 'string' }, compare: { type: 'string' }, expect: { type: 'string' } },
       });
-      const loadedNote = values['dry-run'] ? undefined : autoLoad(paths); // see runSweptVerb
+      if (resolved().stops.length) return finish(2, configStopText(resolved().stops));
       const usingFlags = values.parent !== undefined || values.compare !== undefined;
       let text: string;
       if (usingFlags) {
@@ -581,7 +579,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       } catch (e) {
         return finish(providerExit(e), (e as Error).message);
       }
-      const r = await runReplay(text, { paths, provider, env: ctx.env, config: resolved(), ...(loadedNote ? { notes: [loadedNote] } : {}), dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
+      const r = await runReplay(text, { paths, provider, env: ctx.env, config: resolved(), dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case 'outcome': {

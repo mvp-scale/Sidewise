@@ -45,7 +45,7 @@ Bring a TypeSafe API key. MM3 wraps TypeSafe's API (Jev at `api.typesafe.ai`), a
 ```bash
 mm3 config            # see the settings in effect, the endpoint included
 mm3 config --write    # create .mm3/config.yaml, then uncomment baseURL: and set it
-mm3 config --load     # check the file and make it the active config
+mm3 config --load     # check the file and record the load in the ledger
 TYPESAFE_BASE_URL=https://api.example.com mm3 class review.yaml   # or for one run only
 ```
 
