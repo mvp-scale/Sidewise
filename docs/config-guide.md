@@ -36,7 +36,7 @@ budget:
   since: 2026-10-01T00:00:00Z   # only count runs after this time
 ```
 
-**The happy path.** `mm3 budget` shows what is left and how to change it. To raise (or lower) a cap, edit `budget.usd` or `budget.runs` here, then run `mm3 config --load`. A load whose budget changed starts the count over from that moment, so the new cap is a fresh allowance; a load that changes other settings keeps the count. To start over with the same caps, set `budget.since` to now. If you write `since` yourself it decides the window and nothing is stamped. There is no `budget set` or `budget reset`: asking for one stops and points here.
+**The happy path.** `mm3 budget` shows what is left and how to change it. To raise (or lower) a cap, edit `budget.usd` or `budget.runs` here, then run `mm3 config --load`. A load whose budget changed starts the count over from that moment, so the new cap is a fresh allowance; a load that changes other settings keeps the count. To start over with the same caps, set `budget.since` to now. If you write `since` yourself it decides the window and nothing is stamped. So by default the cap is a fresh allowance each time you change it, not a lifetime ceiling; to keep a ceiling on everything ever spent, pin `since` to the beginning. A load right after `mm3 config --reset` never restarts the count, and runs in the same second as a load still count. The restart is recorded only in the loaded copy (`.mm3/config.active.json`), so if that file is deleted the count goes back to everything in the ledger until the next load. There is no `budget set` or `budget reset`: asking for one stops and points here.
 
 ### Classifier endpoint and model
 

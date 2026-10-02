@@ -426,7 +426,9 @@ export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefi
   let overrides = checked.overrides;
   let stamped = false;
   let restarted = false;
-  if (previous && checked.overrides.budget?.since === undefined) {
+  // After `config --reset` the active copy holds the defaults, not the budget that was in force, so there is nothing
+  // honest to compare against: that load never restarts (otherwise reset-then-load would clear the count with no edit).
+  if (previous && !previous.reset && checked.overrides.budget?.since === undefined) {
     if (budgetChanged(previous.overrides, checked.overrides)) {
       overrides = { ...overrides, budget: { ...overrides.budget, since: isoSeconds(now) } as Mm3Config['budget'] };
       stamped = restarted = true;

@@ -1,6 +1,6 @@
 /**
  * The one place that WRITES `.mm3/config.yaml`. Every other config module is read-only
- * (load.ts/validate.ts/config.ts) — `mm3 budget set`/`reset` and the one-time budget.json migration
+ * (load.ts/validate.ts/config.ts) — the one-time budget.json migration, `report fields --accept` and the starter-file writes
  * (src/budget/budget.ts) are the only callers, and they only ever merge a sparse patch into whatever is already
  * there, preserving every other key (and comments, since this goes through the `yaml` package's own Document
  * rather than a plain stringify-the-whole-object round trip — the same idiom src/verbs/template.ts uses for
@@ -79,7 +79,7 @@ export function writeConfigOverride(paths: Mm3Paths, patch: DeepPartial<Mm3Confi
     setDeep(doc, [], patch);
     const written = doc.toString();
     writeFileSync(paths.config, written);
-    // MM3's own writes (budget set/reset, the legacy-budget migration, `report fields --accept`) go live at once:
+    // MM3's own writes (the legacy-budget migration, `report fields --accept`) go live at once:
     // the same patch is laid over the active copy. The copy's fingerprint follows the file only when the two were
     // in step before (or there was no file and no copy at all: a fresh project); otherwise a pending hand edit
     // stays pending and doctor keeps saying so. A file with no copy yet (never loaded) is left for the first

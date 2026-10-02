@@ -10453,7 +10453,7 @@ ${kept}
   let overrides = checked.overrides;
   let stamped = false;
   let restarted = false;
-  if (previous && checked.overrides.budget?.since === void 0) {
+  if (previous && !previous.reset && checked.overrides.budget?.since === void 0) {
     if (budgetChanged(previous.overrides, checked.overrides)) {
       overrides = { ...overrides, budget: { ...overrides.budget, since: isoSeconds(now) } };
       stamped = restarted = true;

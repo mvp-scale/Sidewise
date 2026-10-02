@@ -144,8 +144,6 @@ export function usedFraction(s: BudgetState): number {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
 }
 
-/** The one fix for a cap that is low or reached: the owner raises the cap that ran out (only that cap's flag is
- *  named). `reset` restarts the counted window but raises no cap, so it is not what either message recommends. */
 /** The one fix for a low or spent budget, named the same way in the warning and in the stop: the caps live in the
  *  config, and a load makes the change real. */
 function raiseHint(usd: boolean, runs: boolean): string {
