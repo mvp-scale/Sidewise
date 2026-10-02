@@ -11919,6 +11919,14 @@ function versionOnPath(bin) {
   }
   return void 0;
 }
+function versionsLine(running, plugin) {
+  const base = (v) => v.split("-")[0] ?? v;
+  const nightlySha = /\.g([0-9a-f]{7,40})$/.exec(running)?.[1];
+  const sameBase = plugin.version !== void 0 && base(plugin.version) === base(running);
+  const sameCommit = nightlySha === void 0 || plugin.sha.startsWith(nightlySha.slice(0, 7)) || nightlySha.startsWith(plugin.sha.slice(0, 7));
+  if (sameBase && sameCommit) return plugin.version === running ? `\u2714 the plugin and this copy are both ${running}` : `\u2714 the plugin and this copy are the same build (${running})`;
+  return `\u26A0 the plugin is ${plugin.version ?? "an unknown version"} (${plugin.sha.slice(0, 7)}) and this copy is ${running} \u2192 update the older one: /plugin update in Claude Code, or npm install -g @mvpscale/mm3@latest`;
+}
 function cliLine(env, platform, version) {
   const resolved = findOnPath("mm3", env, platform);
   const drift = resolved && version ? versionOnPath(resolved) : void 0;
@@ -12032,6 +12040,7 @@ function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
         ["index", nodeVersionOk(nodeVersion) ? sqliteAvailable() ? "node:sqlite" : "unavailable (unexpected on Node 22.13+)" : DOCTOR_INDEX_TOO_OLD],
         ["cli", cliLine(env, deps.platform ?? process.platform, deps.version)],
         ["plugin", pluginLine(deps)],
+        ...deps.pluginInstall && deps.version ? [["versions", versionsLine(deps.version, deps.pluginInstall)]] : [],
         ...paths ? [["agents", agentsDoctorValue(paths.root)]] : [],
         ["config", configField(paths)]
       )
@@ -17674,6 +17683,34 @@ function pluginCommit(packageDir, homeDir, env) {
   }
   return void 0;
 }
+function pluginInstallInfo(homeDir, env) {
+  const claudeDir = env.CLAUDE_CONFIG_DIR || path24.join(homeDir, ".claude");
+  let record2;
+  try {
+    record2 = JSON.parse(readFileSync22(path24.join(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
+  } catch {
+    return void 0;
+  }
+  const plugins = record2?.plugins;
+  if (!plugins || typeof plugins !== "object") return void 0;
+  let best;
+  for (const [name, installs] of Object.entries(plugins)) {
+    if (!name.startsWith("mm3@") || !Array.isArray(installs)) continue;
+    for (const i of installs) {
+      if (typeof i?.gitCommitSha !== "string") continue;
+      if (!best || String(i.lastUpdated ?? "") > String(best.lastUpdated ?? "")) best = i;
+    }
+  }
+  if (!best || typeof best.gitCommitSha !== "string") return void 0;
+  const sha = best.gitCommitSha.slice(0, 12);
+  if (typeof best.installPath !== "string") return { sha };
+  try {
+    const meta = JSON.parse(readFileSync22(path24.join(best.installPath, "package.json"), "utf8"));
+    return typeof meta.version === "string" ? { version: meta.version, sha } : { sha };
+  } catch {
+    return { sha };
+  }
+}
 
 // src/cli.ts
 var PACKAGE_DIR = path25.join(path25.dirname(fileURLToPath2(import.meta.url)), "..");
@@ -17842,7 +17879,8 @@ async function dispatch(argv, ctx) {
       resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
       runner: ctx.runner,
       platform: ctx.platform,
-      version: ctx.pkg.version
+      version: ctx.pkg.version,
+      pluginInstall: pluginInstallInfo(ctx.homeDir, ctx.env)
     });
     return finish(r.exit, r.text);
   }

@@ -1614,6 +1614,10 @@ The key's source (`env`, `keychain` or `file`) is carried alongside it. [C-097]
 - `doctor` names the CLI's own install: `cli: <path> · installed --<mode> ...`. [C-098]
 - `doctor` names the Claude Code plugin's overall state: `plugin: mm3@mvp-scale · <scope> scope`, or `not installed → ...`. [C-098]
 
+**The `versions:` line:**
+
+- When Claude Code has the plugin installed, `doctor` compares this copy of MM3 with the plugin's own version, read from Claude's install record. It prints `versions: ✔ the plugin and this copy are both 0.1.2`, or `versions: ⚠ the plugin is 0.1.1 (f337f61) and this copy is 0.1.2 → update the older one: /plugin update in Claude Code, or npm install -g @mvpscale/mm3@latest`. The base versions must match; a nightly build (`x.y.z-nightly.<date>.g<sha>`) must also be at the plugin's commit. With no plugin installed there is no line. [C-254]
+
 **The `plugin:` nudge:**
 
 - Using MM3 is scoped per project. But Claude Code's own `/plugin install` UI defaults to `user` scope. By contrast, `mm3 init` already defaults to `project` scope. [C-177]

@@ -50,7 +50,7 @@ import { HELP_EXTRAS, HELP_TOPICS, runHelp } from './help/index.ts';
 import { VERBS } from './contract/types.ts';
 import { resolveMcpActor } from './mcp/actor.ts';
 import { nodeVersionStop } from './util/node-version.ts';
-import { pluginCommit } from './util/plugin-build.ts';
+import { pluginCommit, pluginInstallInfo } from './util/plugin-build.ts';
 import { clip, hasControlChars } from './util/text.ts';
 
 // This package's own root directory (one level above dist/cli.js, or src/cli.ts in dev): init passes it to
@@ -335,6 +335,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       runner: ctx.runner,
       platform: ctx.platform,
       version: ctx.pkg.version,
+      pluginInstall: pluginInstallInfo(ctx.homeDir, ctx.env),
     });
     return finish(r.exit, r.text);
   }

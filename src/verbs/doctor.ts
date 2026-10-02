@@ -139,6 +139,17 @@ function versionOnPath(bin: string): string | undefined {
   return undefined;
 }
 
+/** The `versions:` value when a plugin is installed here: this copy against Claude's record of the plugin. The base
+ *  versions must match; a nightly build (`x.y.z-nightly.<date>.g<sha>`) must also be at the plugin's commit. */
+function versionsLine(running: string, plugin: { version?: string; sha: string }): string {
+  const base = (v: string): string => v.split('-')[0] ?? v;
+  const nightlySha = /\.g([0-9a-f]{7,40})$/.exec(running)?.[1];
+  const sameBase = plugin.version !== undefined && base(plugin.version) === base(running);
+  const sameCommit = nightlySha === undefined || plugin.sha.startsWith(nightlySha.slice(0, 7)) || nightlySha.startsWith(plugin.sha.slice(0, 7));
+  if (sameBase && sameCommit) return plugin.version === running ? `✔ the plugin and this copy are both ${running}` : `✔ the plugin and this copy are the same build (${running})`;
+  return `⚠ the plugin is ${plugin.version ?? 'an unknown version'} (${plugin.sha.slice(0, 7)}) and this copy is ${running} → update the older one: /plugin update in Claude Code, or npm install -g @mvpscale/mm3@latest`;
+}
+
 /** The `cli:` value: where `mm3` resolves on PATH (a pure, always-safe filesystem walk — never gated on
  *  deps), plus how init installed it, from install.json, when that record exists. */
 function cliLine(env: Record<string, string | undefined>, platform: NodeJS.Platform, version?: string): string {
@@ -271,7 +282,7 @@ export function runDoctor(
   env: Record<string, string | undefined>,
   paths: Mm3Paths | undefined,
   nodeVersion: string = process.version,
-  deps: { resolveStored?: ResolveStored; runner?: Runner; platform?: NodeJS.Platform; version?: string } = {},
+  deps: { resolveStored?: ResolveStored; runner?: Runner; platform?: NodeJS.Platform; version?: string; pluginInstall?: { version?: string; sha: string } } = {},
 ): VerbResult {
   let config: JevConfig;
   try {
@@ -307,6 +318,7 @@ export function runDoctor(
         ['index', nodeVersionOk(nodeVersion) ? (sqliteAvailable() ? 'node:sqlite' : 'unavailable (unexpected on Node 22.13+)') : DOCTOR_INDEX_TOO_OLD],
         ['cli', cliLine(env, deps.platform ?? process.platform, deps.version)],
         ['plugin', pluginLine(deps)],
+        ...(deps.pluginInstall && deps.version ? [['versions', versionsLine(deps.version, deps.pluginInstall)] as [string, Value]] : []),
         ...(paths ? [['agents', agentsDoctorValue(paths.root)] as [string, Value]] : []),
         ['config', configField(paths)],
       ),
