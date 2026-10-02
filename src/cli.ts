@@ -475,8 +475,8 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
 
   const paths = resolvePaths(ctx.cwd, ctx.env);
   if (!paths) return finish(2, withAgentPointer(NO_PROJECT, command));
-  // The effective config, read once per request and only by the commands that use it (`budget set`/`reset` and the
-  // ledger-only commands never need it, and `budget` rewrites config.yaml, so it must not be carried past that).
+  // The effective config, read once per request and only by the commands that use it (`budget` and the
+  // ledger-only commands never need it).
   let resolvedOnce: ResolvedConfig | undefined;
   const resolved = (): ResolvedConfig => (resolvedOnce ??= resolveConfig(paths, ctx.env));
   switch (command) {

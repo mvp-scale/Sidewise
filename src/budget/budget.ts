@@ -116,7 +116,7 @@ export function peekBudget(paths: Mm3Paths, now: number = Date.now(), env: Recor
 
 /** Migrates a legacy `.mm3/budget.json`'s caps into config.yaml, once — only when config.yaml doesn't
  *  already say something about `budget.since` (the marker that this project's budget has already been touched
- *  under the new scheme, whether by a real `budget reset` or by this very migration). A no-op every subsequent
+ *  under the new scheme, whether by a `budget.since` the owner wrote or by this very migration). A no-op every subsequent
  *  call. Returns true only when it actually wrote, so `loadBudget` can report it as `created` — the same
  *  one-time-notice spirit as the old "budget file created with defaults." */
 function migrateLegacyIfNeeded(paths: Mm3Paths, env: Record<string, string | undefined>, resolved: ResolvedConfig): boolean {

@@ -1,7 +1,7 @@
 // The whole command surface through the built binary, on a throwaway project in a throwaway HOME: every command,
 // subcommand, flag and stop, with the fake provider (no key, no network). A command that would change state
 // outside the project (init's install, uninstall's removal) runs in the form that only previews or refuses, and
-// the destructive ones that are safe in a sandbox (budget reset, config --reset) run for real. The container
+// the destructive ones that are safe in a sandbox (config --reset, a lowered cap) run for real. The container
 // matrix runs this on Node 22 and 24, so a command that behaves differently there fails here by name.
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
