@@ -1,4 +1,4 @@
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { budgetLine, checkBudget, loadBudget, peekBudget, recordSpend, resetBudget, setBudget } from '../../src/budget/budget.ts';
 import { resolveConfig } from '../../src/config/load.ts';
@@ -79,6 +79,17 @@ describe('budget', () => {
     expect(created).toBe(false);
     expect(state).toMatchObject({ capUsd: 5, capRuns: 500, spentUsd: 0, runs: 0 });
     expect(peekBudget(paths, T)).toMatchObject({ capUsd: 5, capRuns: 500 });
+  });
+
+  it('set works on the starter file: an empty `budget:` section (every key commented out) takes the new cap and keeps the comments', () => {
+    const { paths } = tempProject({});
+    mkdirSync(paths.dir, { recursive: true });
+    writeFileSync(paths.config, '# MM3 project settings\n\nbudget:  # spending caps\n#   usd: 5  # dollars MM3 may spend\n\n# provider: typesafe\n');
+    setBudget(paths, { capUsd: 3 }, T);
+    expect(resolveConfig(paths, {}).config.budget.usd).toBe(3);
+    const text = readFileSync(paths.config, 'utf8');
+    expect(text).toContain('# MM3 project settings');
+    expect(text).toContain('# provider: typesafe');
   });
 
   it('refuses caps that are not positive numbers', () => {

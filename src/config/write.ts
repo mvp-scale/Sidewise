@@ -7,7 +7,7 @@
  * --goal/--where overlays).
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { parseDocument } from 'yaml';
+import { isScalar, parseDocument } from 'yaml';
 import { onStore } from '../ledger/lock.ts';
 import { ensureDir, type Mm3Paths } from '../ledger/paths.ts';
 import { fingerprintOf, readActive, writeActive } from './active.ts';
@@ -21,6 +21,21 @@ type DeepPartial<T> = { [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]>
 
 function setDeep(doc: ReturnType<typeof parseDocument>, prefix: string[], value: unknown): void {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    // A section the starter file leaves empty (`budget:` with every key under it commented out) parses as null, and
+    // `setIn` cannot descend into a null: swap each such parent for an empty map first.
+    for (let i = 1; i < prefix.length; i++) {
+      const parent = prefix.slice(0, i);
+      const node = doc.getIn(parent, true);
+      if (node === null || (isScalar(node) && node.value === null)) {
+        const map = doc.createNode({});
+        // The null carries the starter's commented-out lines; keep them (they move below the new keys).
+        if (isScalar(node)) {
+          if (node.comment !== undefined) map.comment = node.comment;
+          if (node.commentBefore !== undefined) map.commentBefore = node.commentBefore;
+        }
+        doc.setIn(parent, map);
+      }
+    }
     doc.setIn(prefix, value);
     return;
   }
