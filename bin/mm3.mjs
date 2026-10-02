@@ -7369,7 +7369,7 @@ var require_dist = __commonJS({
 
 // src/cli.ts
 var import_yaml6 = __toESM(require_dist(), 1);
-import { readFileSync as readFileSync22, realpathSync as realpathSync7, statSync as statSync9 } from "node:fs";
+import { readFileSync as readFileSync23, realpathSync as realpathSync8, statSync as statSync9 } from "node:fs";
 import os3 from "node:os";
 import path25 from "node:path";
 import { fileURLToPath as fileURLToPath2 } from "node:url";
@@ -10713,11 +10713,12 @@ function removeStoredKey(runner, platform, env) {
 }
 
 // src/setup/init.ts
-import { existsSync as existsSync14, mkdirSync as mkdirSync6, readFileSync as readFileSync15, realpathSync, writeFileSync as writeFileSync9 } from "node:fs";
+import { existsSync as existsSync15, mkdirSync as mkdirSync6, readFileSync as readFileSync16, realpathSync as realpathSync2, writeFileSync as writeFileSync9 } from "node:fs";
 import path13 from "node:path";
 
 // src/verbs/doctor.ts
 var import_yaml4 = __toESM(require_dist(), 1);
+import { existsSync as existsSync14, readFileSync as readFileSync15, realpathSync } from "node:fs";
 import path12 from "node:path";
 
 // src/setup/agents-status.ts
@@ -11900,15 +11901,35 @@ function keyLine(env, config, deps) {
   const stored = deps.resolveStored?.();
   return { value: `yes \xB7 from env ${envVar}${stored ? " (overrides stored)" : ""}` };
 }
-function cliLine(env, platform) {
+function versionOnPath(bin) {
+  try {
+    let dir = path12.dirname(realpathSync(bin));
+    for (let i = 0; i < 6; i++) {
+      const pj = path12.join(dir, "package.json");
+      if (existsSync14(pj)) {
+        const meta = JSON.parse(readFileSync15(pj, "utf8"));
+        return meta.name === "@mvpscale/mm3" ? meta.version : void 0;
+      }
+      const up = path12.dirname(dir);
+      if (up === dir) return void 0;
+      dir = up;
+    }
+  } catch {
+    return void 0;
+  }
+  return void 0;
+}
+function cliLine(env, platform, version) {
   const resolved = findOnPath("mm3", env, platform);
+  const drift = resolved && version ? versionOnPath(resolved) : void 0;
+  const mismatch = drift && drift !== version ? ` \xB7 \u26A0 version ${drift}, this is ${version} \u2192 run "mm3 init" to match them` : "";
   const record2 = readInstallRecord(env);
   if (!resolved && !record2) return 'not on PATH \u2192 run "mm3 init" to install it';
   const shown2 = resolved ?? "(not currently on PATH)";
-  if (!record2) return `${shown2} \xB7 on PATH`;
+  if (!record2) return `${shown2} \xB7 on PATH${mismatch}`;
   const flag = record2.mode === "global" ? "--global" : record2.mode === "user" ? "--user" : "--local";
   const detail = record2.mode === "local" ? `project ${record2.projectDir ?? "?"}` : `npm prefix ${record2.npmPrefix ?? "?"}`;
-  return `${shown2} \xB7 installed ${flag} (${detail})`;
+  return `${shown2} \xB7 installed ${flag} (${detail})${mismatch}`;
 }
 function pluginLine(deps) {
   const status = deps.runner ? pluginStatus(deps.runner) : { installed: false, scopes: [] };
@@ -12009,7 +12030,7 @@ function runDoctor(env, paths, nodeVersion = process.version, deps = {}) {
         ["actor", actorLine(env)],
         ["node", doctorNodeValue(nodeVersion)],
         ["index", nodeVersionOk(nodeVersion) ? sqliteAvailable() ? "node:sqlite" : "unavailable (unexpected on Node 22.13+)" : DOCTOR_INDEX_TOO_OLD],
-        ["cli", cliLine(env, deps.platform ?? process.platform)],
+        ["cli", cliLine(env, deps.platform ?? process.platform, deps.version)],
         ["plugin", pluginLine(deps)],
         ...paths ? [["agents", agentsDoctorValue(paths.root)]] : [],
         ["config", configField(paths)]
@@ -12071,14 +12092,14 @@ var GLYPH = { done: "\u2714", already: "\xB7", skipped: "\u2013", problem: "\u27
 var line = (status, label, text) => `${GLYPH[status]} ${label}: ${text}`;
 var nowIso = (ctx) => (ctx.now ?? (() => (/* @__PURE__ */ new Date()).toISOString()))();
 var firstLine = (s) => s.trim().split("\n")[0] ?? "";
-var insideGitProject = (cwd) => existsSync14(path13.join(cwd, ".git"));
+var insideGitProject = (cwd) => existsSync15(path13.join(cwd, ".git"));
 function isPackageBin(binPath, pkgName) {
   try {
-    let dir = path13.dirname(realpathSync(binPath));
+    let dir = path13.dirname(realpathSync2(binPath));
     for (let i = 0; i < 6; i++) {
       const pj = path13.join(dir, "package.json");
-      if (existsSync14(pj)) {
-        const meta = JSON.parse(readFileSync15(pj, "utf8"));
+      if (existsSync15(pj)) {
+        const meta = JSON.parse(readFileSync16(pj, "utf8"));
         return meta.name === pkgName;
       }
       const up = path13.dirname(dir);
@@ -12091,7 +12112,7 @@ function isPackageBin(binPath, pkgName) {
   return false;
 }
 function defaultMode(cwd, prefixWritable) {
-  if (existsSync14(path13.join(cwd, "package.json"))) return "local";
+  if (existsSync15(path13.join(cwd, "package.json"))) return "local";
   return prefixWritable ? "global" : "user";
 }
 function isNpxCache(binPath) {
@@ -12183,7 +12204,7 @@ async function stepPlugin(flags, ctx) {
 }
 function stepProject(ctx) {
   const paths = pathsFor(ctx.cwd);
-  const already = existsSync14(paths.dir);
+  const already = existsSync15(paths.dir);
   ensureDir(paths);
   return [line(already ? "already" : "done", "project", `${already ? "already has" : "created"} .mm3/ (self-ignoring: .mm3/.gitignore)`)];
 }
@@ -12261,7 +12282,7 @@ var realRunner = (cmd, args2, opts = {}) => {
 };
 
 // src/setup/uninstall.ts
-import { existsSync as existsSync15, realpathSync as realpathSync2, rmSync as rmSync5 } from "node:fs";
+import { existsSync as existsSync16, realpathSync as realpathSync3, rmSync as rmSync5 } from "node:fs";
 import path14 from "node:path";
 var GLYPH2 = { done: "\u2714", already: "\xB7", skipped: "\u2013", problem: "\u2716" };
 var line2 = (status, label, text) => `${GLYPH2[status]} ${label}: ${text}`;
@@ -12273,7 +12294,7 @@ function detectInstallMode(ctx) {
   if (!onPath) return void 0;
   let real2;
   try {
-    real2 = realpathSync2(onPath);
+    real2 = realpathSync3(onPath);
   } catch {
     real2 = onPath;
   }
@@ -12289,7 +12310,7 @@ async function stepPlugin2(flags, ctx, manual) {
   const status = pluginStatus(ctx.runner);
   const scopesToRemove = flags.all ? status.scopes : status.scopes.filter((s) => s === "project");
   const marketplace = flags.all && marketplaceExists(ctx.runner);
-  const cacheDirExists = flags.all && existsSync15(pluginCacheDir(ctx.homeDir));
+  const cacheDirExists = flags.all && existsSync16(pluginCacheDir(ctx.homeDir));
   if (!scopesToRemove.length && !marketplace && !cacheDirExists) return [line2("already", "plugin", "nothing to remove here")];
   const manualCmds = [
     ...scopesToRemove.map((s) => `claude plugin uninstall mm3@mvp-scale --scope ${s}`),
@@ -12353,7 +12374,7 @@ async function stepKey2(flags, ctx, manual) {
 async function stepData(flags, ctx, manual) {
   if (flags.keepData) return [line2("skipped", "project", "skipped (--keep-data)")];
   const dir = `${ctx.cwd}/.mm3`;
-  if (!existsSync15(dir)) return [line2("already", "project", "no .mm3/ here")];
+  if (!existsSync16(dir)) return [line2("already", "project", "no .mm3/ here")];
   const remove = flags.yes ? false : await confirm("Remove this project's .mm3/ (your run history)? This cannot be undone.", false, ctx.io);
   if (!remove) {
     manual.push(`project data: rm -rf ${dir}`);
@@ -12363,7 +12384,7 @@ async function stepData(flags, ctx, manual) {
     rmSync5(dir, { recursive: true, force: true });
   } catch {
   }
-  if (existsSync15(dir)) {
+  if (existsSync16(dir)) {
     manual.push(`project data: rm -rf ${dir}`);
     return [line2("problem", "project", `could not remove ${dir} \u2192 remove it by hand: rm -rf ${dir}`)];
   }
@@ -12562,11 +12583,11 @@ function itemsState(items, notes, limits = ITEM_LIMITS) {
 
 // src/evidence/git.ts
 import { spawnSync } from "node:child_process";
-import { readFileSync as readFileSync17, realpathSync as realpathSync4, statSync as statSync7 } from "node:fs";
+import { readFileSync as readFileSync18, realpathSync as realpathSync5, statSync as statSync7 } from "node:fs";
 import path17 from "node:path";
 
 // src/evidence/code.ts
-import { readFileSync as readFileSync16, realpathSync as realpathSync3, statSync as statSync6 } from "node:fs";
+import { readFileSync as readFileSync17, realpathSync as realpathSync4, statSync as statSync6 } from "node:fs";
 import path16 from "node:path";
 
 // src/evidence/paths.ts
@@ -12612,7 +12633,7 @@ function readCodeEvidence(root, where, opts = {}) {
     }
     let text;
     try {
-      if (isOutside(path16.relative(realpathSync3(root), realpathSync3(full)))) {
+      if (isOutside(path16.relative(realpathSync4(root), realpathSync4(full)))) {
         errors.push(outside);
         continue;
       }
@@ -12620,7 +12641,7 @@ function readCodeEvidence(root, where, opts = {}) {
         errors.push(`\u2716 mak.where: "${rawPath}" is a folder \u2192 name a file (scan covers folders)`);
         continue;
       }
-      text = readFileSync16(full, "utf8");
+      text = readFileSync17(full, "utf8");
     } catch {
       errors.push(`\u2716 mak.where: cannot read "${rawPath}" \u2192 check the path`);
       continue;
@@ -12749,7 +12770,7 @@ function readGitEvidence(root, ref, field, paths, deps) {
     if (ref === "worktree") {
       let text;
       try {
-        if (isOutside(path17.relative(realpathSync4(root), realpathSync4(full)))) {
+        if (isOutside(path17.relative(realpathSync5(root), realpathSync5(full)))) {
           errors.push(outside);
           continue;
         }
@@ -12757,7 +12778,7 @@ function readGitEvidence(root, ref, field, paths, deps) {
           errors.push(`\u2716 mak.compare.${field}: "${rawPath}" is a folder \u2192 name a file`);
           continue;
         }
-        text = readFileSync17(full, "utf8");
+        text = readFileSync18(full, "utf8");
       } catch {
         errors.push(`\u2716 mak.compare.${field}: cannot read "${rawPath}" \u2192 check the path`);
         continue;
@@ -12791,7 +12812,7 @@ function readGitEvidence(root, ref, field, paths, deps) {
 }
 
 // src/evidence/units.ts
-import { readFileSync as readFileSync18, realpathSync as realpathSync5 } from "node:fs";
+import { readFileSync as readFileSync19, realpathSync as realpathSync6 } from "node:fs";
 import path19 from "node:path";
 
 // src/evidence/glob.ts
@@ -13183,8 +13204,8 @@ function readFiles(root, spec, notes, maxFiles) {
     const full = path19.join(root, rel);
     let text;
     try {
-      if (isOutside(path19.relative(realpathSync5(root), realpathSync5(full)))) throw new Error("outside");
-      text = readFileSync18(full, "utf8");
+      if (isOutside(path19.relative(realpathSync6(root), realpathSync6(full)))) throw new Error("outside");
+      text = readFileSync19(full, "utf8");
     } catch {
       notes.push(`${rel}: could not read, skipped`);
       continue;
@@ -13264,8 +13285,8 @@ function readUnit(root, unit) {
   if (isOutside(rel)) return outside;
   let text;
   try {
-    if (isOutside(path19.relative(realpathSync5(root), realpathSync5(full)))) return outside;
-    text = readFileSync18(full, "utf8");
+    if (isOutside(path19.relative(realpathSync6(root), realpathSync6(full)))) return outside;
+    text = readFileSync19(full, "utf8");
   } catch {
     return { ok: false, error: `cannot read "${unit.path}"` };
   }
@@ -14905,7 +14926,7 @@ async function runLoop(text, ctx) {
 }
 
 // src/ledger/graph.ts
-import { existsSync as existsSync16, readFileSync as readFileSync19, statSync as statSync8 } from "node:fs";
+import { existsSync as existsSync17, readFileSync as readFileSync20, statSync as statSync8 } from "node:fs";
 var GRAPH_SCHEMA_VERSION = "2";
 var GRAPH_SCHEMA_SQL = `
 CREATE TABLE IF NOT EXISTS nodes (
@@ -15117,7 +15138,7 @@ function scanCompleteLines(buf, from, to) {
   return { consumed: pos, lines };
 }
 function needsCatchUp(paths, logSize) {
-  if (!existsSync16(paths.index)) return true;
+  if (!existsSync17(paths.index)) return true;
   let db;
   try {
     db = openGraphDb(paths.index);
@@ -15141,9 +15162,9 @@ function catchUpGraph(paths, env) {
     db.exec(META_TABLE_SQL);
     if (getMeta2(db, "graph_schema_version") !== GRAPH_SCHEMA_VERSION) resetGraphSchema(db);
     const upto = Number(getMeta2(db, "graph_upto") ?? "0");
-    const size = existsSync16(paths.log) ? statSync8(paths.log).size : 0;
+    const size = existsSync17(paths.log) ? statSync8(paths.log).size : 0;
     if (upto >= size) return;
-    const buf = readFileSync19(paths.log);
+    const buf = readFileSync20(paths.log);
     const { consumed, lines } = scanCompleteLines(buf, upto, size);
     const mdlConfig = resolveConfig(paths, env).config.mdl;
     db.exec("BEGIN");
@@ -15173,14 +15194,14 @@ function catchUpGraph(paths, env) {
   }
 }
 function refreshGraph(paths, env = process.env) {
-  const logStat = existsSync16(paths.log) ? statSync8(paths.log) : void 0;
+  const logStat = existsSync17(paths.log) ? statSync8(paths.log) : void 0;
   if (!logStat || logStat.size === 0) return;
   if (!needsCatchUp(paths, logStat.size)) return;
   withLock(paths.lock, () => catchUpGraph(paths, env));
 }
 var EMPTY_NEIGHBORHOOD = { nodes: [], edges: [] };
 function graphAround(paths, opts) {
-  if (!existsSync16(paths.index)) return EMPTY_NEIGHBORHOOD;
+  if (!existsSync17(paths.index)) return EMPTY_NEIGHBORHOOD;
   const db = openGraphDb(paths.index);
   try {
     const label = normalizeLabel(opts.kind, opts.label);
@@ -15223,7 +15244,7 @@ function graphAround(paths, opts) {
   }
 }
 function mdlRows(paths, opts = {}) {
-  if (!existsSync16(paths.index)) return [];
+  if (!existsSync17(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const limit = Math.min(Math.max(opts.limit ?? 100, 1), 1e3);
@@ -15257,7 +15278,7 @@ function mdlRows(paths, opts = {}) {
   }
 }
 function problemCounts(paths, opts = {}) {
-  if (!existsSync16(paths.index)) return [];
+  if (!existsSync17(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const limit = Math.min(Math.max(opts.limit ?? 20, 1), 500);
@@ -15281,7 +15302,7 @@ function problemCounts(paths, opts = {}) {
   }
 }
 function callStats(paths, opts = {}) {
-  if (!existsSync16(paths.index)) return [];
+  if (!existsSync17(paths.index)) return [];
   const since = opts.sinceIso ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3).toISOString();
   const limit = Math.min(Math.max(opts.limit ?? 500, 1), 5e3);
   let rows;
@@ -15327,7 +15348,7 @@ var MAX_UNDECLARED_KEYS = 50;
 var MAX_VALUES_PER_KEY = 200;
 var MAX_SAMPLES_PER_KEY = 5;
 function undeclaredFieldSamples(paths, opts) {
-  if (!existsSync16(paths.index)) return [];
+  if (!existsSync17(paths.index)) return [];
   const db = openGraphDb(paths.index);
   try {
     const known = new Set(opts.knownKeys);
@@ -16384,7 +16405,7 @@ async function runScan(text, ctx) {
 
 // src/verbs/template.ts
 var import_yaml5 = __toESM(require_dist(), 1);
-import { readFileSync as readFileSync20 } from "node:fs";
+import { readFileSync as readFileSync21 } from "node:fs";
 import path22 from "node:path";
 import { fileURLToPath } from "node:url";
 var DEFAULT_PACKAGE_DIR = path22.join(path22.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -16448,7 +16469,7 @@ function fromRunId(id, flags, paths) {
 function fromFile(from, flags) {
   let raw;
   try {
-    raw = readFileSync20(from, "utf8");
+    raw = readFileSync21(from, "utf8");
   } catch (e) {
     const code = e.code;
     const shown2 = clip(from, 60);
@@ -16482,7 +16503,7 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
       };
     }
     const file = drillSampleFile(flags.parent, paths);
-    const raw = readFileSync20(path22.join(packageDir, "skills", "mm3", "templates", file), "utf8");
+    const raw = readFileSync21(path22.join(packageDir, "skills", "mm3", "templates", file), "utf8");
     const doc = (0, import_yaml5.parseDocument)(raw);
     doc.setIn(["mak", "parent"], flags.parent);
     doc.setIn(["mak", "from"], flags.from);
@@ -16492,7 +16513,7 @@ function runTemplate(target, flags = {}, paths, packageDir = DEFAULT_PACKAGE_DIR
   if (flags.where !== void 0 || flags.goal !== void 0) {
     return { exit: 2, text: stopText([`\u2716 template: --where/--goal need --from \u2192 mm3 template ${target} --from <request.yaml>`], "template") };
   }
-  return { exit: 0, text: readFileSync20(path22.join(packageDir, "skills", "mm3", "templates", `${target}.yaml`), "utf8") };
+  return { exit: 0, text: readFileSync21(path22.join(packageDir, "skills", "mm3", "templates", `${target}.yaml`), "utf8") };
 }
 
 // src/verbs/view.ts
@@ -17625,11 +17646,11 @@ function resolveMcpActor() {
 }
 
 // src/util/plugin-build.ts
-import { readFileSync as readFileSync21, realpathSync as realpathSync6 } from "node:fs";
+import { readFileSync as readFileSync22, realpathSync as realpathSync7 } from "node:fs";
 import path24 from "node:path";
 var real = (p) => {
   try {
-    return realpathSync6(p);
+    return realpathSync7(p);
   } catch {
     return path24.resolve(p);
   }
@@ -17638,7 +17659,7 @@ function pluginCommit(packageDir, homeDir, env) {
   const claudeDir = env.CLAUDE_CONFIG_DIR || path24.join(homeDir, ".claude");
   let record2;
   try {
-    record2 = JSON.parse(readFileSync21(path24.join(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
+    record2 = JSON.parse(readFileSync22(path24.join(claudeDir, "plugins", "installed_plugins.json"), "utf8"));
   } catch {
     return void 0;
   }
@@ -17726,7 +17747,7 @@ function readRequest(file, stdinSource, maxBytes = DEFAULT_REQUEST_MAX_BYTES) {
       if (st.isDirectory()) return { stop: `\u2716 request: ${shown2} is a folder \u2192 pass a request file, or - to read stdin` };
       if (st.size > maxBytes) return { stop: tooBig(maxBytes) };
     }
-    bytes = file === "-" ? stdinSource() : readFileSync22(file);
+    bytes = file === "-" ? stdinSource() : readFileSync23(file);
   } catch (e) {
     const code = e.code;
     if (code === "ENOENT") return { stop: `\u2716 request: ${shown2} not found \u2192 check the path, or pass - to read stdin` };
@@ -17820,7 +17841,8 @@ async function dispatch(argv, ctx) {
     const r = runDoctor(ctx.env, resolvePaths(ctx.cwd, ctx.env), ctx.nodeVersion, {
       resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
       runner: ctx.runner,
-      platform: ctx.platform
+      platform: ctx.platform,
+      version: ctx.pkg.version
     });
     return finish(r.exit, r.text);
   }
@@ -17950,7 +17972,7 @@ async function dispatch(argv, ctx) {
         content = ctx.stdin().toString("utf8");
       } else {
         try {
-          content = readFileSync22(arg, "utf8");
+          content = readFileSync23(arg, "utf8");
         } catch {
         }
       }
@@ -18076,7 +18098,7 @@ function realCtx() {
     pkg: { name: package_default.name, version: package_default.version },
     homeDir: os3.homedir(),
     nodeVersion: process.version,
-    stdin: () => readFileSync22(0),
+    stdin: () => readFileSync23(0),
     get io() {
       return { input: process.stdin, output: process.stdout };
     }
@@ -18086,7 +18108,7 @@ function isEntrypoint() {
   const invoked = process.argv[1];
   if (!invoked) return false;
   try {
-    return realpathSync7(invoked) === realpathSync7(fileURLToPath2(import.meta.url));
+    return realpathSync8(invoked) === realpathSync8(fileURLToPath2(import.meta.url));
   } catch {
     return false;
   }

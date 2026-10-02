@@ -78,7 +78,7 @@ Run `mm3 agent` first: it names every command an agent needs — the six verbs p
 
 ## Invoke it
 
-In Claude Code, call the `mm3` MCP tool directly — same args as the CLI (e.g. `args: ["class", "-"]`), the request YAML as `stdin`. There is no CLI on PATH; don't look for one. `doctor` through the tool shows where its key comes from, never the key itself.
+In Claude Code, call the `mm3` MCP tool directly — same args as the CLI (e.g. `args: ["class", "-"]`), the request YAML as `stdin`. The plugin also puts `mm3` on Claude's Bash PATH (its `bin/mm3` launcher, always the plugin's own version), so `mm3 <args>` works in a shell command too; prefer the tool. `doctor` through the tool shows where its key comes from, never the key itself.
 
 Elsewhere, find the command before you use it: use `mm3` if it's on PATH, else `npx --no-install mm3`; if neither works, tell the user to run `npx @mvpscale/mm3 init` in this project, and stop — never install anything on the user's behalf.
 

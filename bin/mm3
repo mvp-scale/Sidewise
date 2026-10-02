@@ -1,0 +1,13 @@
+#!/bin/sh
+# mm3: the plugin's command-line entry. Claude Code puts a plugin's bin/ on the Bash tool's PATH, and a file there is
+# run by its own name, so this is `mm3` (the bundle beside it is `mm3.mjs`). It runs that bundle, so the command is
+# always the same version as the plugin that carries it. Follows symlinks, so a link on a PATH folder works too.
+self=$0
+while [ -h "$self" ]; do
+  dir=$(cd "$(dirname "$self")" && pwd)
+  self=$(readlink "$self")
+  case $self in /*) ;; *) self="$dir/$self" ;; esac
+done
+here=$(cd "$(dirname "$self")" && pwd)
+command -v node >/dev/null 2>&1 || { echo '✖ mm3: node not found → install Node 22.13 or newer, then run mm3 again' >&2; exit 1; }
+exec node "$here/mm3.mjs" "$@"

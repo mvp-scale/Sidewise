@@ -26,6 +26,7 @@
  * themselves); anything else is checked as a CONFIG file, via `config/validate.ts`'s `validateConfig` directly
  * (no project needed at all for this path — it only validates YAML text, never touches `.mm3/`).
  */
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { parseDocument } from 'yaml';
 import { CHAOS_MODEL } from '../classifier/chaos.ts';
@@ -117,17 +118,40 @@ function keyLine(env: Record<string, string | undefined>, config: JevConfig, dep
   return { value: `yes · from env ${envVar}${stored ? ' (overrides stored)' : ''}` };
 }
 
+/** The version of the MM3 package a `mm3` found on PATH belongs to: the nearest package.json above its real path
+ *  (an npm global install, or the plugin folder), or undefined when it is some other program. */
+function versionOnPath(bin: string): string | undefined {
+  try {
+    let dir = path.dirname(realpathSync(bin));
+    for (let i = 0; i < 6; i++) {
+      const pj = path.join(dir, 'package.json');
+      if (existsSync(pj)) {
+        const meta = JSON.parse(readFileSync(pj, 'utf8')) as { name?: string; version?: string };
+        return meta.name === '@mvpscale/mm3' ? meta.version : undefined;
+      }
+      const up = path.dirname(dir);
+      if (up === dir) return undefined;
+      dir = up;
+    }
+  } catch {
+    return undefined;
+  }
+  return undefined;
+}
+
 /** The `cli:` value: where `mm3` resolves on PATH (a pure, always-safe filesystem walk — never gated on
  *  deps), plus how init installed it, from install.json, when that record exists. */
-function cliLine(env: Record<string, string | undefined>, platform: NodeJS.Platform): string {
+function cliLine(env: Record<string, string | undefined>, platform: NodeJS.Platform, version?: string): string {
   const resolved = findOnPath('mm3', env, platform);
+  const drift = resolved && version ? versionOnPath(resolved) : undefined;
+  const mismatch = drift && drift !== version ? ` · ⚠ version ${drift}, this is ${version} → run "mm3 init" to match them` : '';
   const record = readInstallRecord(env);
   if (!resolved && !record) return 'not on PATH → run "mm3 init" to install it';
   const shown = resolved ?? '(not currently on PATH)';
-  if (!record) return `${shown} · on PATH`;
+  if (!record) return `${shown} · on PATH${mismatch}`;
   const flag = record.mode === 'global' ? '--global' : record.mode === 'user' ? '--user' : '--local';
   const detail = record.mode === 'local' ? `project ${record.projectDir ?? '?'}` : `npm prefix ${record.npmPrefix ?? '?'}`;
-  return `${shown} · installed ${flag} (${detail})`;
+  return `${shown} · installed ${flag} (${detail})${mismatch}`;
 }
 
 /** The `plugin:` value. `deps.runner` omitted (every caller but cli.ts) never actually spawns `claude` — it
@@ -247,7 +271,7 @@ export function runDoctor(
   env: Record<string, string | undefined>,
   paths: Mm3Paths | undefined,
   nodeVersion: string = process.version,
-  deps: { resolveStored?: ResolveStored; runner?: Runner; platform?: NodeJS.Platform } = {},
+  deps: { resolveStored?: ResolveStored; runner?: Runner; platform?: NodeJS.Platform; version?: string } = {},
 ): VerbResult {
   let config: JevConfig;
   try {
@@ -281,7 +305,7 @@ export function runDoctor(
         ['actor', actorLine(env)],
         ['node', doctorNodeValue(nodeVersion)],
         ['index', nodeVersionOk(nodeVersion) ? (sqliteAvailable() ? 'node:sqlite' : 'unavailable (unexpected on Node 22.13+)') : DOCTOR_INDEX_TOO_OLD],
-        ['cli', cliLine(env, deps.platform ?? process.platform)],
+        ['cli', cliLine(env, deps.platform ?? process.platform, deps.version)],
         ['plugin', pluginLine(deps)],
         ...(paths ? [['agents', agentsDoctorValue(paths.root)] as [string, Value]] : []),
         ['config', configField(paths)],

@@ -19,12 +19,22 @@ In Claude Code, from your project:
 
 Pick **project** scope. Claude asks for a TypeSafe API key (masked, optional): press Enter on "TypeSafe API key", paste, Enter, then "Save configuration". Leave it empty to add one later with `mm3 init`.
 
-In a terminal (needs Node 22.13+):
+The plugin carries its own copy of MM3, and Claude Code puts a plugin's `bin/` folder on Claude's Bash PATH, so Claude can run every command (`mm3 config --load` included) without anything else installed. It is always the same version as the plugin.
+
+In your own terminal (optional, needs Node 22.13+). Run it without installing anything:
+
+```bash
+npx @mvpscale/mm3 config
+```
+
+or install the command once, pinned to the version you ran:
 
 ```bash
 npm install -g @mvpscale/mm3
 mm3 init
 ```
+
+`mm3 doctor` says which `mm3` your terminal finds and warns when its version differs from the one running, with the fix (`mm3 init`). After you update the plugin, run `mm3 init` once to bring the terminal copy along. `mm3 init` never uses sudo and never edits your shell profile: it installs into your user folder (`~/.local`) and prints the one `export PATH=...` line if that folder is not on your PATH.
 
 **Status: beta.** It works well and we use it ourselves; formal benchmarks are coming. The plugin and the npm package are both out.
 

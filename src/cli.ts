@@ -334,6 +334,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
       runner: ctx.runner,
       platform: ctx.platform,
+      version: ctx.pkg.version,
     });
     return finish(r.exit, r.text);
   }

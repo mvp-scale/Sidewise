@@ -1,7 +1,7 @@
 // doctor: plumbing, not a verb (owner ruling, P5) — free (no call, no budget, no ledger write). Reports the
 // resolved provider/route/base URL, whether a key is set (never its value), project/ledger location and the
 // Node/node:sqlite runtime; exit 2 with a ✖ line when the config itself is invalid.
-import { mkdtempSync, readFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -14,6 +14,19 @@ import { tempProject } from '../helpers/project.ts';
 
 function tmpXdg(): { XDG_CONFIG_HOME: string } {
   return { XDG_CONFIG_HOME: mkdtempSync(path.join(os.tmpdir(), 'mm3-doctor-')) };
+}
+
+/** A `mm3` on a PATH folder that is a symlink into a package of the given version, the way an npm global install lays it out. */
+function fakeCliOnPath(version: string): { pathDir: string } {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'mm3-clipkg-'));
+  mkdirSync(path.join(root, 'dist'), { recursive: true });
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: '@mvpscale/mm3', version }));
+  writeFileSync(path.join(root, 'dist', 'cli.js'), '#!/usr/bin/env node\n');
+  const pathDir = path.join(root, 'bin');
+  mkdirSync(pathDir);
+  symlinkSync(path.join(root, 'dist', 'cli.js'), path.join(pathDir, 'mm3'));
+  chmodSync(path.join(root, 'dist', 'cli.js'), 0o755);
+  return { pathDir };
 }
 
 describe('doctor (P5)', () => {
@@ -224,6 +237,19 @@ describe('doctor (P5)', () => {
     it('cli: no PATH match and no install record → the exact stop-and-fix line', () => {
       const r = runDoctor({ PATH: '/does/not/exist' }, undefined);
       expect(r.text).toContain('cli: not on PATH → run "mm3 init" to install it');
+    });
+
+    it('cli: a copy on PATH of a different version than the one running is flagged, with the fix', () => {
+      const { pathDir } = fakeCliOnPath('0.0.1');
+      const r = runDoctor({ PATH: pathDir }, undefined, undefined, { version: '9.9.9' });
+      expect(r.text).toContain('cli: ');
+      expect(r.text).toContain('⚠ version 0.0.1, this is 9.9.9 → run "mm3 init" to match them');
+    });
+
+    it('cli: a copy on PATH of the same version says nothing extra', () => {
+      const { pathDir } = fakeCliOnPath('9.9.9');
+      const r = runDoctor({ PATH: pathDir }, undefined, undefined, { version: '9.9.9' });
+      expect(r.text).not.toContain('⚠ version');
     });
 
     it('plugin: with no deps.runner injected, always reads as not installed (never spawns claude for real)', () => {
