@@ -6,7 +6,8 @@
 // later without restructuring; the async drill cases sit alongside it since a table entry can't await.
 import { PassThrough } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { checkBudget, loadBudget, recordSpend, setBudget } from '../../src/budget/budget.ts';
+import { checkBudget, loadBudget, recordSpend } from '../../src/budget/budget.ts';
+import { writeConfigOverride } from '../../src/config/write.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { appendOutcome, appendRun } from '../../src/ledger/log.ts';
 import { runCli, type CliCtx } from '../../src/cli.ts';
@@ -49,7 +50,7 @@ describe('every non-request-validation stop still points at its own "mm3 agent <
     const { paths: viewPaths } = tempProject({});
     const { paths: reportPaths } = tempProject({});
     const { paths: budgetPaths } = tempProject({});
-    setBudget(budgetPaths, { capRuns: 1 });
+    writeConfigOverride(budgetPaths, { budget: { runs: 1 } });
     recordSpend(budgetPaths, 0);
     const corruptPaths = tempProject({}).paths;
     mkdirSync(corruptPaths.dir, { recursive: true });
@@ -82,9 +83,6 @@ describe('every non-request-validation stop still points at its own "mm3 agent <
           return { text: gate.message };
         }),
       },
-      // a corrupt legacy budget.json no longer stops anything (silently ignored — config.yaml is
-      // the real authority now); the still-live budget stop is `set` given a non-positive cap.
-      { label: 'budget: set given a bad cap', target: 'budget', text: textOf(() => setBudget(corruptPaths, { capUsd: 0 })) },
       { label: 'outcome: an unknown run id', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'MM3-9999', 'held', 'anyone')) },
       { label: 'outcome: the asking actor can\'t self-certify "held"', target: 'outcome', text: textOf(() => appendOutcome(outcomePaths, 'MM3-0001', 'held', 'someone')) },
     ];

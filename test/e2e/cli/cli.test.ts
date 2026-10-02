@@ -43,7 +43,7 @@ describe('mm3 CLI (built): the six verbs, template, outcome, budget', () => {
     expect(mm3(root, ['view', 'src']).stdout).toContain('MM3-0001');
     expect(mm3(root, ['outcome', 'MM3-0001', 'held', '--by', 'e2e-agent']).status).toBe(1);
     expect(mm3(root, ['outcome', 'MM3-0001', 'held', '--by', 'owner']).stdout).toBe('mm3 outcome MM3-0001 held · by owner\n');
-    expect(mm3(root, ['budget']).stdout).toBe('budget: $5.00 left of $5.00 · 498 of 500 runs left\n'); // [C-229]
+    expect(mm3(root, ['budget']).stdout).toBe('budget: $5.00 left of $5.00 · 498 of 500 runs left\n→ to change it: edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load\n'); // [C-229]
   });
 
   it('loop, scan and drill run end to end (drill off the loop parent, sweep shape)', () => {
@@ -158,12 +158,12 @@ describe('mm3 CLI (built): the six verbs, template, outcome, budget', () => {
   });
 
   it(
-    'a held lock exits 1 with one clean "✖ lock:" line, even for a budget command',
+    'a held lock exits 1 with one clean "✖ lock:" line, even for a config write',
     () => {
       const root = project();
       mkdirSync(path.join(root, '.mm3'), { recursive: true });
       writeFileSync(path.join(root, '.mm3', 'lock'), `${process.pid}\n`); // this test process: alive
-      const r = mm3(root, ['budget', 'reset']);
+      const r = mm3(root, ['outcome', 'MM3-0001', 'failed', '--by', 'owner']);
       expect(r.status).toBe(1);
       expect(r.stderr).toBe('✖ lock: .mm3/lock is locked → wait for the other run, or delete the lock file if no run is active\n');
     },

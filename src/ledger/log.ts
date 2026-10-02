@@ -223,7 +223,43 @@ export interface LookupRecord {
 
 export type NewLookup = Omit<LookupRecord, 'kind' | 'id' | 'uid' | 'ts'>;
 
-export type LedgerRecord = RunRecord | ContractRun | OutcomeRecord | FailedRecord | LookupRecord;
+/**
+ * The receipt `mm3 config --load` leaves: when the file was loaded, its hash, the settings it held (validated), what
+ * changed since the previous receipt, and, when the budget changed, the moment its count restarts. It is the record of
+ * a load, not the loader: every request reads config.yaml itself. Never a run, never counted toward the budget.
+ */
+export interface ConfigRecord {
+  kind: 'config';
+  id: string;
+  uid: string;
+  ts: string;
+  /** sha256 of the config.yaml text that was loaded. */
+  fingerprint: string;
+  /** The validated settings the file held (a sparse tree, the same shape as the config's overrides). */
+  settings: Record<string, unknown>;
+  /** One line per setting that differs from the previous receipt (or from the defaults, for the first one). */
+  changes: string[];
+  /** The budget count starts here: set when this load changed the budget, carried forward by later loads that did not. */
+  windowSince?: string;
+  /** The load found no config.yaml: the receipt records going back to the defaults. */
+  absent?: true;
+}
+
+export type NewConfig = Omit<ConfigRecord, 'kind' | 'id' | 'uid' | 'ts'>;
+
+export type LedgerRecord = RunRecord | ContractRun | OutcomeRecord | FailedRecord | LookupRecord | ConfigRecord;
+
+const KNOWN_KINDS = ['run', 'outcome', 'failed', 'lookup', 'config'];
+
+/** The stop for a line that parsed as JSON but is not a record this copy accepts. A kind this copy has never heard of
+ *  (a newer MM3 wrote it) says so and names the fix; anything else is the plain "not a ledger record". */
+export function notARecord(value: unknown, lineNo: number, shown: string): LedgerError {
+  const kind = value && typeof value === 'object' && !Array.isArray(value) ? (value as { kind?: unknown }).kind : undefined;
+  if (typeof kind === 'string' && !KNOWN_KINDS.includes(kind)) {
+    return new LedgerError(`✖ ledger: line ${lineNo} of ${shown} has a ${JSON.stringify(kind.slice(0, 30))} record this MM3 does not know → update this copy of MM3 (mm3 doctor shows which)`);
+  }
+  return new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not a ledger record → fix or remove that line`);
+}
 
 export class LedgerError extends Error {
   /** 1: the ledger itself is the problem · 2: the caller asked for something the ledger doesn't hold. */
@@ -253,6 +289,7 @@ export function isRecord(v: unknown): v is LedgerRecord {
   const r = v as Record<string, unknown>;
   if (r.kind === 'outcome') return [r.id, r.of, r.outcome, r.by, r.ts].every(isText);
   if (r.kind === 'failed') return [r.id, r.ts, r.verb, r.actor, r.adapter, r.model, r.reason].every(isText);
+  if (r.kind === 'config') return [r.id, r.uid, r.ts, r.fingerprint].every(isText) && isObj(r.settings) && Array.isArray(r.changes) && r.changes.every(isText) && (r.windowSince === undefined || isText(r.windowSince)) && (r.absent === undefined || r.absent === true);
   if (r.kind === 'lookup') return [r.id, r.uid, r.ts, r.goal].every(isText) && Array.isArray(r.where) && r.where.every(isText) && typeof r.hit === 'boolean';
   if (r.kind !== 'run') return false;
   if (r.v === 2) {
@@ -301,7 +338,7 @@ export function readLedger(paths: Mm3Paths, opts: { partialTail?: boolean } = {}
     }
     if (!isRecord(value)) {
       if (inProgress) return;
-      throw new LedgerError(`✖ ledger: line ${i + 1} of ${shown} is not a ledger record → fix or remove that line`);
+      throw notARecord(value, i + 1, shown);
     }
     records.push(normalizeRecordMdl(value));
   });
@@ -344,7 +381,7 @@ function checkTail(paths: Mm3Paths, upto: number, lineCount: number): void {
   } catch {
     throw new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not valid JSON → fix or remove that line`);
   }
-  if (!isRecord(value)) throw new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not a ledger record → fix or remove that line`);
+  if (!isRecord(value)) throw notARecord(value, lineNo, shown);
 }
 
 /** Before a paid call: the ledger reads cleanly and can be appended to, so a run we pay for can be logged.
@@ -487,6 +524,16 @@ export function appendRun(paths: Mm3Paths, run: NewRun, now: number = Date.now()
 
 /** A free view lookup (see LookupRecord's own comment): takes the lock like every other append (concurrent
  *  writers must never interleave lines), but assigns no MM3-#### id and never touches the budget. */
+/** Appends one config receipt (see ConfigRecord). Under the ledger lock like every other append. */
+export function appendConfig(paths: Mm3Paths, config: NewConfig, now: number = Date.now()): ConfigRecord {
+  return withLock(paths.lock, () => {
+    const uid = ulid(now);
+    const record: ConfigRecord = { kind: 'config', id: uid, uid, ts: iso(now), ...redactDeep(config) };
+    appendLine(paths, record);
+    return record;
+  });
+}
+
 export function appendLookup(paths: Mm3Paths, lookup: NewLookup, now: number = Date.now()): LookupRecord {
   return withLock(paths.lock, () => {
     const uid = ulid(now);

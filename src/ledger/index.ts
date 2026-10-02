@@ -51,7 +51,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { closeSync, existsSync, openSync, readFileSync, readSync, renameSync, rmSync, statSync } from 'node:fs';
 import type { Category, Gate, Verb } from '../contract/types.ts';
 import { normalizeMdl } from '../contract/mdl-fields.ts';
-import { isContractRun, isRecord, LedgerError, shownLog, type ContractRun, type FailedRecord, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
+import { isContractRun, isRecord, LedgerError, notARecord, shownLog, type ConfigRecord, type ContractRun, type FailedRecord, type LedgerRecord, type OutcomeRecord, type RunRecord } from './log.ts';
 import { withLock } from './lock.ts';
 import { ensureDir, type Mm3Paths } from './paths.ts';
 import { MIN_NODE_LABEL } from '../util/node-version.ts';
@@ -204,6 +204,8 @@ export interface IndexHandle {
   /** For the budget: total `costUsd` and count of every contract-run/run/failed record with
    *  `ts >= sinceIso` — one indexed query, never a full-ledger scan on the paid path. See `budgetRollup` below. */
   budgetRollup(sinceIso: string): { spentUsd: number; runs: number };
+  /** Byte offset of the newest config receipt in the log, or undefined when there is none. */
+  latestConfigOffset(): number | undefined;
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -217,6 +219,8 @@ interface Sink {
    *  still count toward the budget rollup below ("budget.runs == paid runs + failed records") —
    *  see budgetRollup's own comment for why this needs its own tiny table rather than living in `runs`. */
   failed(rec: FailedRecord): void;
+  /** A config receipt: only where the newest one sits is kept (the index never copies its contents). */
+  config(offset: number): void;
 }
 
 const CHUNK_BYTES = 1 << 20; // 1 MiB: bounds memory during a scan regardless of log.jsonl's size.
@@ -258,7 +262,7 @@ function parseLedgerLine(raw: string, lineNo: number, shown: string): LedgerReco
     throw new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not valid JSON → fix or remove that line`);
   }
   if (!isRecord(value)) {
-    throw new LedgerError(`✖ ledger: line ${lineNo} of ${shown} is not a ledger record → fix or remove that line`);
+    throw notARecord(value, lineNo, shown);
   }
   return normalizeRecordMdl(value);
 }
@@ -279,6 +283,10 @@ function applyLine(sink: Sink, raw: string, startByte: number, lineNo: number, s
   if (value.kind === 'failed') {
     sink.failed(value);
     return false; // never gets an id-index entry — see Sink.failed's own comment
+  }
+  if (value.kind === 'config') {
+    sink.config(startByte);
+    return false;
   }
   if (value.kind !== 'run') return false;
   sink.run(value, startByte);
@@ -419,10 +427,12 @@ interface MemoryState {
   runCount: number;
   upto: number;
   lineCount: number;
+  /** Where the newest config receipt starts in the log. */
+  configOffset: number | undefined;
 }
 
 function emptyMemoryState(): MemoryState {
-  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], categories: [], childrenByParent: new Map(), outcomes: new Map(), allRuns: [], spend: new Map(), runCount: 0, upto: 0, lineCount: 0 };
+  return { runOffset: new Map(), blocked: new Set(), reuseKey: new Map(), candidatesByWho: new Map(), places: [], categories: [], childrenByParent: new Map(), outcomes: new Map(), allRuns: [], spend: new Map(), runCount: 0, upto: 0, lineCount: 0, configOffset: undefined };
 }
 
 function memorySink(state: MemoryState): Sink {
@@ -459,6 +469,9 @@ function memorySink(state: MemoryState): Sink {
     },
     failed(rec) {
       state.spend.set(rec.id, { ts: rec.ts, cost: rec.costUsd ?? 0 });
+    },
+    config(offset) {
+      state.configOffset = offset;
     },
   };
 }
@@ -581,6 +594,7 @@ function handleFromMemory(state: MemoryState): IndexHandle {
       }
       return { spentUsd, runs };
     },
+    latestConfigOffset: () => state.configOffset,
   };
 }
 
@@ -642,7 +656,7 @@ function buildMemoryHandle(paths: Mm3Paths): IndexHandle {
 // needs the original outcome record's uid back). A stale on-disk index built under an older version self-heals
 // via the existing schema-version-mismatch rebuild trigger — no migration needed, just a rebuild, which is
 // exactly what self-healing is for.
-const SCHEMA_VERSION = 7; // 7: the `runs.wise` column became `runs.mdl` (MM3 rename); an older index is stale and rebuilds
+const SCHEMA_VERSION = 8; // 8: the newest config receipt's offset is kept in meta (7: `runs.wise` became `runs.mdl`); an older index is stale and rebuilds
 
 const SCHEMA_SQL = `
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
@@ -826,6 +840,7 @@ interface SqlStatements {
   insertCategory: SqliteStatement;
   updateBlocked: SqliteStatement;
   insertSpend: SqliteStatement;
+  setLastConfig: SqliteStatement;
 }
 
 function prepStatements(db: SqliteDb): SqlStatements {
@@ -837,6 +852,7 @@ function prepStatements(db: SqliteDb): SqlStatements {
     insertCategory: db.prepare('INSERT OR REPLACE INTO categories (run_id, name, section, family, gate) VALUES (?, ?, ?, ?, ?)'),
     updateBlocked: db.prepare('UPDATE runs SET blocked = ? WHERE id = ?'),
     insertSpend: db.prepare('INSERT OR REPLACE INTO spend (id, ts, cost) VALUES (?, ?, ?)'),
+    setLastConfig: db.prepare("INSERT OR REPLACE INTO meta (key, value) VALUES ('last_config_offset', ?)"),
   };
 }
 
@@ -871,6 +887,9 @@ function sqlSink(stmts: SqlStatements): Sink {
     },
     failed(rec) {
       stmts.insertSpend.run(rec.id, rec.ts, rec.costUsd ?? 0);
+    },
+    config(offset) {
+      stmts.setLastConfig.run(String(offset));
     },
   };
 }
@@ -1040,6 +1059,10 @@ function handleFromSql(db: SqliteDb): IndexHandle {
     budgetRollup: (sinceIso) => {
       const row = stBudgetRollup.get(sinceIso) as { spentUsd: number; runs: number };
       return { spentUsd: Number(row.spentUsd), runs: Number(row.runs) };
+    },
+    latestConfigOffset: () => {
+      const v = getMeta(db, 'last_config_offset');
+      return v === undefined ? undefined : Number(v);
     },
   };
 }
@@ -1326,4 +1349,13 @@ function runSqlite<T>(paths: Mm3Paths, fn: (h: IndexHandle) => T, opts: { forceR
     if (e instanceof LedgerError) throw e; // genuine ledger corruption: fail closed, never silently retried
     return fn(buildMemoryHandle(paths));
   }
+}
+
+/** The newest config receipt in the ledger, or undefined when no load has ever been recorded. One indexed read of
+ *  where it sits, then one targeted read of that line: never a scan of the log. */
+export function latestConfigRecord(paths: Mm3Paths, opts: { readOnly?: boolean } = {}): ConfigRecord | undefined {
+  const offset = withIndex(paths, (h) => h.latestConfigOffset(), { readOnly: opts.readOnly ?? false });
+  if (offset === undefined) return undefined;
+  const rec = readRecordAt(paths.log, offset);
+  return rec && rec.kind === 'config' ? rec : undefined;
 }

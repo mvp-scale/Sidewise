@@ -16,12 +16,12 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
 import { stringify } from 'yaml';
 import pkg from '../package.json' with { type: 'json' };
-import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './budget/budget.ts';
+import { BudgetError, budgetLine, loadBudget } from './budget/budget.ts';
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
 import { JevConfigError } from './classifier/typesafe/config.ts';
-import { runConfig, runConfigWrite } from './config/config.ts';
-import { classifierFileConfig, resolveConfig } from './config/load.ts';
+import { runConfig, runConfigLoad, runConfigWrite } from './config/config.ts';
+import { classifierFileConfig, resolveConfig, type ResolvedConfig } from './config/load.ts';
 import { RUN_ID } from './ledger/ids.ts';
 import { LockError, StoreError } from './ledger/lock.ts';
 import { appendOutcome, findRun, isContractRun, LedgerError, type Outcome } from './ledger/log.ts';
@@ -49,7 +49,7 @@ import { HELP_EXTRAS, HELP_TOPICS, runHelp } from './help/index.ts';
 import { VERBS } from './contract/types.ts';
 import { resolveMcpActor } from './mcp/actor.ts';
 import { nodeVersionStop } from './util/node-version.ts';
-import { pluginCommit } from './util/plugin-build.ts';
+import { pluginCommit, pluginInstallInfo } from './util/plugin-build.ts';
 import { clip, hasControlChars } from './util/text.ts';
 
 // This package's own root directory (one level above dist/cli.js, or src/cli.ts in dev): init passes it to
@@ -77,9 +77,9 @@ const LINES = {
   agent: `mm3 agent [${VERBS.join('|')}|${AGENT_EXTRAS.join('|')}]`,
   report: 'mm3 report [hits|patterns|history]',
   outcome: 'mm3 outcome <MM3-####> held|overruled|failed --by <actor>',
-  budget: 'mm3 budget [show | reset | set --usd <n> --runs <n>]',
+  budget: 'mm3 budget [show]',
   doctor: 'mm3 doctor [<file> | -]',
-  config: 'mm3 config [--write]',
+  config: 'mm3 config [--write | --load [file]]',
   init: 'mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]  ·  or: mm3 init --agents [--yes]',
   uninstall: 'mm3 uninstall [--all] [--keep-key] [--keep-data] [--yes]',
   mcp: 'mm3 mcp',
@@ -182,13 +182,9 @@ function readRequest(file: string, stdinSource: () => Buffer, maxBytes: number =
   return { text: bytes.toString('utf8') };
 }
 
-const BUDGET_EXAMPLE = 'e.g. mm3 budget set --usd 5 --runs 500';
-
-/** A --usd/--runs value as a positive finite number, or a stop naming the bad value. */
-function cap(flag: string, raw: string): number | string {
-  const n = Number(raw);
-  return raw.trim() !== '' && Number.isFinite(n) && n > 0 ? n : `✖ budget: --${flag} must be a positive number, got "${raw}" → ${BUDGET_EXAMPLE}`;
-}
+/** A config.yaml with problems: every problem, then why nothing ran. Reads (view, budget, report, doctor) still answer. */
+const configStopText = (stops: readonly { text: string }[]): string =>
+  `${stops.map((s) => s.text).join('\n')}\n✖ config: paid runs stop until .mm3/config.yaml is fixed → fix it, then run mm3 config --load\n→ see: mm3 agent config`;
 
 const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop } as const;
 
@@ -229,6 +225,7 @@ async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths
   const { values, positionals } = args(command, { args: rest, allowPositionals: true, options: { 'dry-run': { type: 'boolean', default: false } } });
   positionalCount(command, positionals, 1, 1);
   const fileConfig = resolveConfig(paths, ctx.env);
+  if (fileConfig.stops.length) return finish(2, configStopText(fileConfig.stops));
   const read = readRequest(positionals[0]!, ctx.stdin, fileConfig.config.requestMaxBytes);
   if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
   let provider: ClassifierPort;
@@ -237,7 +234,7 @@ async function runSweptVerb(command: keyof typeof RUNNERS, rest: string[], paths
   } catch (e) {
     return finish(providerExit(e), (e as Error).message);
   }
-  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
+  const r = await RUNNERS[command](read.text, { paths, provider, env: ctx.env, config: fileConfig, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
   return finish(r.exit, r.text);
 }
 
@@ -338,6 +335,8 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       resolveStored: () => resolveStoredKey(ctx.runner, ctx.platform, ctx.env),
       runner: ctx.runner,
       platform: ctx.platform,
+      version: ctx.pkg.version,
+      pluginInstall: pluginInstallInfo(ctx.homeDir, ctx.env),
     });
     return finish(r.exit, r.text);
   }
@@ -346,11 +345,16 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
   // default, since there's nowhere for config.yaml to live). Never spends; plain `config` never writes, and
   // `--write` writes only a missing starter .mm3/config.yaml (never overwrites one that exists).
   if (command === 'config') {
-    const { positionals, values } = args('config', { args: rest, allowPositionals: true, options: { write: { type: 'boolean' } } });
-    positionalCount('config', positionals, 0, 0);
+    const { positionals, values } = args('config', { args: rest, allowPositionals: true, options: { write: { type: 'boolean' }, load: { type: 'boolean' } } });
+    if (values.load && values.write) throw new UsageStop('config', '--load and --write cannot go together → run mm3 config --write first, edit the file, then mm3 config --load');
+    positionalCount('config', positionals, 0, values.load ? 1 : 0);
     const configPaths = resolvePaths(ctx.cwd, ctx.env);
     const projectLine = configPaths ? path.relative(ctx.cwd, configPaths.root) || '.' : 'none';
-    const r = values.write ? runConfigWrite(configPaths, projectLine) : runConfig(ctx.env, configPaths, projectLine);
+    const r = values.load
+      ? runConfigLoad(configPaths, positionals[0], ctx.cwd, projectLine)
+      : values.write
+        ? runConfigWrite(configPaths, projectLine)
+        : runConfig(ctx.env, configPaths, projectLine);
     return finish(r.exit, r.text);
   }
 
@@ -471,6 +475,10 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
 
   const paths = resolvePaths(ctx.cwd, ctx.env);
   if (!paths) return finish(2, withAgentPointer(NO_PROJECT, command));
+  // The effective config, read once per request and only by the commands that use it (`budget` and the
+  // ledger-only commands never need it).
+  let resolvedOnce: ResolvedConfig | undefined;
+  const resolved = (): ResolvedConfig => (resolvedOnce ??= resolveConfig(paths, ctx.env));
   switch (command) {
     case 'view': {
       const twice = givenTwice(rest, ['level', 'answers']);
@@ -498,7 +506,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
           // not a file: treat arg itself as the place/id
         }
       }
-      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env, resolveStored: resolveStoredFor(ctx) }, content, values.summary, values.answers);
+      const r = runView(arg, Number(values.level) as Level, { paths, env: ctx.env, config: resolved(), resolveStored: resolveStoredFor(ctx) }, content, values.summary, values.answers);
       return finish(r.exit, r.text);
     }
     case 'report': {
@@ -507,7 +515,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
       const { values, positionals } = args('report', { args: rest, allowPositionals: true, options: { accept: { type: 'string' } } });
       // 0-2 positionals: the view name, then an optional target — only meaningful for `report graph <kind:label>`.
       positionalCount('report', positionals, 0, 2);
-      const r = runReport(positionals[0], { paths, env: ctx.env, runner: ctx.runner, platform: ctx.platform }, positionals[1], values.accept);
+      const r = runReport(positionals[0], { paths, env: ctx.env, config: resolved(), runner: ctx.runner, platform: ctx.platform }, positionals[1], values.accept);
       return finish(r.exit, r.text);
     }
     case 'class':
@@ -523,6 +531,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         allowPositionals: true,
         options: { 'dry-run': { type: 'boolean', default: false }, parent: { type: 'string' }, compare: { type: 'string' }, expect: { type: 'string' } },
       });
+      if (resolved().stops.length) return finish(2, configStopText(resolved().stops));
       const usingFlags = values.parent !== undefined || values.compare !== undefined;
       let text: string;
       if (usingFlags) {
@@ -556,7 +565,7 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         text = stringify({ mak: { goal, parent: values.parent, compare: { before: values.compare.slice(0, sep), after: values.compare.slice(sep + 2) }, expect } });
       } else {
         positionalCount('replay', positionals, 1, 1);
-        const read = readRequest(positionals[0]!, ctx.stdin, resolveConfig(paths, ctx.env).config.requestMaxBytes);
+        const read = readRequest(positionals[0]!, ctx.stdin, resolved().config.requestMaxBytes);
         if ('stop' in read) return finish(2, withAgentPointer(read.stop, command));
         text = read.text;
       }
@@ -565,12 +574,12 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
         provider = selectProvider(ctx.env, {
           chaosState: path.join(paths.dir, 'chaos.json'),
           resolveStored: resolveStoredFor(ctx),
-          fileConfig: classifierFileConfig(resolveConfig(paths, ctx.env).config),
+          fileConfig: classifierFileConfig(resolved().config),
         });
       } catch (e) {
         return finish(providerExit(e), (e as Error).message);
       }
-      const r = await runReplay(text, { paths, provider, env: ctx.env, dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
+      const r = await runReplay(text, { paths, provider, env: ctx.env, config: resolved(), dryRun: values['dry-run'], resolveStored: resolveStoredFor(ctx) });
       return finish(r.exit, r.text);
     }
     case 'outcome': {
@@ -592,25 +601,16 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     }
     case 'budget': {
       const [sub = 'show', ...more] = rest;
-      if (sub === 'show' || sub === 'reset') {
-        positionalCount('budget', more, 0, 0);
-        if (sub === 'show') return finish(0, budgetLine(loadBudget(paths).state));
-        return finish(0, `reset · ${budgetLine(resetBudget(paths))}`);
+      // The caps live in the config; this command only reads. `set` and `reset` were removed, and say where to go.
+      if (sub === 'set') return finish(2, withAgentPointer(`✖ budget: set was removed → edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load`, command));
+      if (sub === 'reset') {
+        return finish(2, withAgentPointer('✖ budget: reset was removed → change budget.usd or budget.runs in .mm3/config.yaml and run mm3 config --load (a changed budget restarts the count), or set budget.since to now', command));
       }
-      if (sub !== 'set') throw new UsageStop('budget', `"${clip(sub, 40)}" is not show, reset or set`);
-      const twice = givenTwice(more, ['usd', 'runs']);
-      if (twice) return finish(2, withAgentPointer(twice, command));
-      const { usd, runs } = args('budget', { args: more, options: { usd: { type: 'string' }, runs: { type: 'string' } } }).values;
-      if (usd === undefined && runs === undefined) return finish(2, withAgentPointer(`✖ budget: set needs --usd or --runs → ${BUDGET_EXAMPLE}`, command));
-      const capUsd = usd === undefined ? undefined : cap('usd', usd);
-      const capRuns = runs === undefined ? undefined : cap('runs', runs);
-      const stops = [capUsd, capRuns].filter((v): v is string => typeof v === 'string');
-      if (stops.length) return finish(2, withAgentPointer(stops.join('\n'), command));
-      const caps = {
-        ...(typeof capUsd === 'number' ? { capUsd } : {}),
-        ...(typeof capRuns === 'number' ? { capRuns } : {}),
-      };
-      return finish(0, `set · ${budgetLine(setBudget(paths, caps))}`);
+      if (sub !== 'show') throw new UsageStop('budget', `"${clip(sub, 40)}" is not show`);
+      positionalCount('budget', more, 0, 0);
+      const line = budgetLine(loadBudget(paths).state);
+      // A warning already carries its own fix; a plain line gets the way to change it underneath.
+      return finish(0, line.startsWith('⚠') ? line : `${line}\n→ to change it: edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load`);
     }
   }
   // Unreachable by construction: `Command` minus the early-return branches above is exactly this switch's case
