@@ -14,7 +14,6 @@ import { resolveConfig } from '../../src/config/load.ts';
 import { hasGit } from '../../src/evidence/git.ts';
 import { writeConfigOverride } from '../../src/config/write.ts';
 import { runDoctor } from '../../src/verbs/doctor.ts';
-import { setBudget } from '../../src/budget/budget.ts';
 import { pathsFor } from '../../src/ledger/paths.ts';
 import { tempProject } from '../helpers/project.ts';
 
@@ -249,23 +248,22 @@ describe('the active copy on disk', () => {
 });
 
 describe('MM3\'s own config writes go live at once', () => {
-  it('budget set updates the active copy and keeps it in step with the file [C-245]', async () => {
+  it('an MM3 write updates the active copy and keeps it in step with the file [C-245]', async () => {
     const { root, paths } = tempProject();
     write(root, '# caps\nbudget:\n  usd: 2\n');
     await mm3(root, ['config', '--load']);
-    const r = await mm3(root, ['budget', 'set', '--usd', '7']);
-    expect(r.exit).toBe(0);
+    writeConfigOverride(paths, { budget: { usd: 7 } });
     expect(resolveConfig(paths, {}).config.budget.usd).toBe(7);
     expect(runDoctor({}, paths).text).toMatch(/✔ config: active/); // fingerprint followed the file
     expect(readFileSync(path.join(root, '.mm3', 'config.yaml'), 'utf8')).toContain('# caps');
   });
 
-  it('a pending hand edit stays pending when budget set writes: doctor keeps warning', async () => {
+  it('a pending hand edit stays pending when MM3 writes: doctor keeps warning', async () => {
     const { root, paths } = tempProject();
     write(root, 'budget:\n  usd: 2\n');
     await mm3(root, ['config', '--load']);
     write(root, 'budget:\n  usd: 2\nretries: 5\n'); // edited, not loaded
-    setBudget(paths, { capRuns: 11 });
+    writeConfigOverride(paths, { budget: { runs: 11 } });
     expect(resolveConfig(paths, {}).config.budget.runs).toBe(11); // the budget write is live
     expect(resolveConfig(paths, {}).config.retries).toBe(2); // the hand edit is not
     expect(runDoctor({}, paths).text).toContain('⚠ config.yaml changed since load');
@@ -443,12 +441,12 @@ describe('mm3 config --reset [C-248] [C-249]', () => {
     expect(runDoctor({}, paths).text).toMatch(/✔ config: active/);
   });
 
-  it('budget set after a reset still writes the file and goes live', async () => {
+  it('an MM3 write after a reset still writes the file and goes live', async () => {
     const { root, paths } = tempProject();
     write(root, 'budget:\n  usd: 2\n');
     await mm3(root, ['config', '--load']);
     await mm3(root, ['config', '--reset']);
-    expect((await mm3(root, ['budget', 'set', '--runs', '77'])).exit).toBe(0);
+    writeConfigOverride(paths, { budget: { runs: 77 } });
     expect(resolveConfig(paths, {}).config.budget.runs).toBe(77);
     expect(readFileSync(path.join(root, '.mm3', 'config.yaml'), 'utf8')).toContain('runs: 77');
     // with no file at all, a reset copy is replaced by a fresh in-step one
@@ -458,7 +456,7 @@ describe('mm3 config --reset [C-248] [C-249]', () => {
     await mm3(fresh.root, ['config', '--load']);
     rmSync(path.join(fresh.root, '.mm3', 'config.yaml'));
     await mm3(fresh.root, ['config', '--reset']);
-    await mm3(fresh.root, ['budget', 'set', '--usd', '3']);
+    writeConfigOverride(fresh.paths, { budget: { usd: 3 } });
     expect(runDoctor({}, fresh.paths).text).toMatch(/✔ config: active/);
   });
 

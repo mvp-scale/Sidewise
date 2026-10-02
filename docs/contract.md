@@ -313,9 +313,9 @@ notes: [budget …, validation notes …]
 **The budget line**
 
 - It states headroom, not a percentage: `budget: $0.11 left of $0.12 · 27 of 30 runs left`. That is dollars left of the dollar cap, and runs left of the run cap. It is never below zero. [C-229]
-- One formatter builds it for every run's `notes:` and for `mm3 budget`, `budget set` and `budget reset`. [C-229]
+- One formatter builds it for every run's `notes:` and for `mm3 budget`. [C-229]
 - It gains a leading `⚠` only at 80% or more used, of either cap. [C-229]
-- Then it says what to do and which cap is low: `⚠ budget: $0.02 left of $0.12 · 3 of 30 runs left → low: ask the owner to run mm3 budget set --usd <n> --runs <n>`. Only the low cap's flag is named. [C-229]
+- Then it says what to do and which cap is low: `⚠ budget: $0.02 left of $0.12 · 3 of 30 runs left → low: ask the owner to raise budget.usd in .mm3/config.yaml, then run mm3 config --load`. Only the low cap's key is named (`budget.usd`, `budget.runs`, or both). [C-229]
 - A cap that concurrent runs overshot says how much was used, instead of reading as exactly at the cap: `0 of 3 runs left (5 used)`, `$0.00 left of $5.00 ($5.50 used)`. [C-229]
 - Spend under a cent is never hidden. Dollars left gain just enough decimals to differ from the cap: `$4.998 left of $5.00`. [C-229]
 - Below 80% there is no warning. So an agent reads a nearly-full budget as room to keep working. [C-229]
@@ -1444,8 +1444,10 @@ The Claude Code skill's own "Run this first" guidance sends a cold agent to `mm3
 - A run whose every answer is reused from prior runs is never blocked by an already-reached budget cap, on any verb. [C-136] [C-149] [C-150] [C-151] [C-152]
 - The cap is checked only when the run would actually need to call the classifier. [C-136] [C-149] [C-150] [C-151] [C-152]
 - Reuse skips only the spend gate. It never skips the ledger gate: the ledger must still read cleanly and accept the new line either way. [C-136] [C-149] [C-150] [C-151] [C-152]
-- `mm3 budget`'s cap-reached message gives the same command as the low-budget warning. That is `mm3 budget set` with the flag of each cap that tripped: `--runs <n>`, `--usd <n>`, or both. [C-133]
-- `mm3 budget reset` restarts the counted window but raises no cap. [C-133]
+- The cap-reached message gives the same fix as the low-budget warning: raise `budget.usd`, `budget.runs`, or both (whichever tripped) in `.mm3/config.yaml`, then run `mm3 config --load`. [C-133]
+- `mm3 budget` only reads. It prints the budget line and, unless that line is already a warning (which carries its own fix), `→ to change it: edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load`. [C-251]
+- `mm3 budget set` and `mm3 budget reset` no longer exist. Each stops with exit 2, says where to go (the config, then `mm3 config --load`), and writes nothing. [C-252]
+- `mm3 config --load` starts the budget count over only when the budget changed since the last load (`usd`, `runs` or `per`; not `warnAt`) and the file has no `budget.since` of its own. The start time is stamped in the active copy, never in `config.yaml`, and the load prints `count restarted`. A later load that leaves the budget alone keeps the restarted count, and the first load of a project never restarts what was already spent. [C-253]
 
 ### Node version
 

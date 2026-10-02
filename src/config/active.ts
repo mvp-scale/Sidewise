@@ -23,6 +23,9 @@ interface ActiveConfig {
   overrides: Partial<Mm3Config>;
   /** Set by `mm3 config --reset`: the defaults were made active on purpose, whatever config.yaml says. */
   reset?: true;
+  /** `budget.since` in `overrides` was stamped by a load (the budget changed), not written in config.yaml: a later load
+   *  that doesn't change the budget carries it forward, so the restarted count survives. */
+  stamped?: true;
 }
 
 export const fingerprintOf = (text: string): string => createHash('sha256').update(text).digest('hex');
@@ -37,7 +40,7 @@ export function readActive(paths: Mm3Paths | undefined): ActiveConfig | undefine
     if (v.v !== 1 || typeof v.loadedAt !== 'string' || typeof v.fingerprint !== 'string' || typeof v.overrides !== 'object' || v.overrides === null || Array.isArray(v.overrides)) return undefined;
     const checked = validateConfig(v.overrides);
     if (checked.stops.length) return undefined;
-    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value, ...(v.reset === true ? { reset: true as const } : {}) };
+    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value, ...(v.reset === true ? { reset: true as const } : {}), ...(v.stamped === true ? { stamped: true as const } : {}) };
   } catch {
     return undefined;
   }
@@ -45,10 +48,10 @@ export function readActive(paths: Mm3Paths | undefined): ActiveConfig | undefine
 
 /** Replaces the active copy atomically (tmp file, then rename): a reader sees the old copy or the new one, never half
  *  of one, and two loads racing each leave one whole valid copy. */
-export function writeActive(paths: Mm3Paths, overrides: Partial<Mm3Config>, fingerprint: string, now: number = Date.now(), reset = false): void {
+export function writeActive(paths: Mm3Paths, overrides: Partial<Mm3Config>, fingerprint: string, now: number = Date.now(), reset = false, stamped = false): void {
   onStore(paths.configActive, 'write', () => {
     ensureDir(paths);
-    const body: ActiveConfig = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z'), fingerprint, overrides, ...(reset ? { reset: true as const } : {}) };
+    const body: ActiveConfig = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, 'Z'), fingerprint, overrides, ...(reset ? { reset: true as const } : {}), ...(stamped ? { stamped: true as const } : {}) };
     const tmp = `${paths.configActive}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
     writeFileSync(tmp, `${JSON.stringify(body)}\n`);
     renameSync(tmp, paths.configActive);

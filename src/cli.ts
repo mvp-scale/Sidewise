@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs, type ParseArgsConfig } from 'node:util';
 import { stringify } from 'yaml';
 import pkg from '../package.json' with { type: 'json' };
-import { BudgetError, budgetLine, loadBudget, resetBudget, setBudget } from './budget/budget.ts';
+import { BudgetError, budgetLine, loadBudget } from './budget/budget.ts';
 import type { ClassifierPort } from './classifier/port.ts';
 import { selectProvider } from './classifier/select.ts';
 import { JevConfigError } from './classifier/typesafe/config.ts';
@@ -78,7 +78,7 @@ const LINES = {
   agent: `mm3 agent [${VERBS.join('|')}|${AGENT_EXTRAS.join('|')}]`,
   report: 'mm3 report [hits|patterns|history]',
   outcome: 'mm3 outcome <MM3-####> held|overruled|failed --by <actor>',
-  budget: 'mm3 budget [show | reset | set --usd <n> --runs <n>]',
+  budget: 'mm3 budget [show]',
   doctor: 'mm3 doctor [<file> | -]',
   config: 'mm3 config [--write | --load [file] | --reset]',
   init: 'mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]  ·  or: mm3 init --agents [--yes]',
@@ -181,14 +181,6 @@ function readRequest(file: string, stdinSource: () => Buffer, maxBytes: number =
   if (bytes.length > maxBytes) return { stop: tooBig(maxBytes) };
   if (bytes.includes(0)) return { stop: `✖ request: ${file === '-' ? 'stdin' : shown} is binary, not text → write the request as YAML, starting "mak:"` };
   return { text: bytes.toString('utf8') };
-}
-
-const BUDGET_EXAMPLE = 'e.g. mm3 budget set --usd 5 --runs 500';
-
-/** A --usd/--runs value as a positive finite number, or a stop naming the bad value. */
-function cap(flag: string, raw: string): number | string {
-  const n = Number(raw);
-  return raw.trim() !== '' && Number.isFinite(n) && n > 0 ? n : `✖ budget: --${flag} must be a positive number, got "${raw}" → ${BUDGET_EXAMPLE}`;
 }
 
 const RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop } as const;
@@ -609,25 +601,16 @@ async function dispatch(argv: string[], ctx: CliCtx): Promise<{ exit: number; te
     }
     case 'budget': {
       const [sub = 'show', ...more] = rest;
-      if (sub === 'show' || sub === 'reset') {
-        positionalCount('budget', more, 0, 0);
-        if (sub === 'show') return finish(0, budgetLine(loadBudget(paths).state));
-        return finish(0, `reset · ${budgetLine(resetBudget(paths))}`);
+      // The caps live in the config; this command only reads. `set` and `reset` were removed, and say where to go.
+      if (sub === 'set') return finish(2, withAgentPointer(`✖ budget: set was removed → edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load`, command));
+      if (sub === 'reset') {
+        return finish(2, withAgentPointer('✖ budget: reset was removed → change budget.usd or budget.runs in .mm3/config.yaml and run mm3 config --load (a changed budget restarts the count), or set budget.since to now', command));
       }
-      if (sub !== 'set') throw new UsageStop('budget', `"${clip(sub, 40)}" is not show, reset or set`);
-      const twice = givenTwice(more, ['usd', 'runs']);
-      if (twice) return finish(2, withAgentPointer(twice, command));
-      const { usd, runs } = args('budget', { args: more, options: { usd: { type: 'string' }, runs: { type: 'string' } } }).values;
-      if (usd === undefined && runs === undefined) return finish(2, withAgentPointer(`✖ budget: set needs --usd or --runs → ${BUDGET_EXAMPLE}`, command));
-      const capUsd = usd === undefined ? undefined : cap('usd', usd);
-      const capRuns = runs === undefined ? undefined : cap('runs', runs);
-      const stops = [capUsd, capRuns].filter((v): v is string => typeof v === 'string');
-      if (stops.length) return finish(2, withAgentPointer(stops.join('\n'), command));
-      const caps = {
-        ...(typeof capUsd === 'number' ? { capUsd } : {}),
-        ...(typeof capRuns === 'number' ? { capRuns } : {}),
-      };
-      return finish(0, `set · ${budgetLine(setBudget(paths, caps))}`);
+      if (sub !== 'show') throw new UsageStop('budget', `"${clip(sub, 40)}" is not show`);
+      positionalCount('budget', more, 0, 0);
+      const line = budgetLine(loadBudget(paths).state);
+      // A warning already carries its own fix; a plain line gets the way to change it underneath.
+      return finish(0, line.startsWith('⚠') ? line : `${line}\n→ to change it: edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load`);
     }
   }
   // Unreachable by construction: `Command` minus the early-return branches above is exactly this switch's case

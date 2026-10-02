@@ -77,13 +77,14 @@ describe('every command, subcommand and flag, through the built CLI', () => {
     go({ name: 'uninstall refuses without a yes', args: ['uninstall'], has: /cannot be undone|\[y\/N\]/ });
     go({ name: 'uninstall plan with everything kept', args: ['uninstall', '--all', '--keep-key', '--keep-data'] });
 
-    // Budget: show, set (each cap and both), reset.
-    go({ name: 'budget show', args: ['budget'], has: /budget:/ });
+    // Budget: read-only; the caps are changed in the config.
+    go({ name: 'budget show', args: ['budget'], has: /budget:.*\n→ to change it: edit budget\.usd/ });
     go({ name: 'budget show, spelled out', args: ['budget', 'show'], has: /budget:/ });
-    go({ name: 'budget set --usd', args: ['budget', 'set', '--usd', '3'], has: /\$3\.00/ });
-    go({ name: 'budget set --runs', args: ['budget', 'set', '--runs', '40'], has: /40 of 40/ });
-    go({ name: 'budget set both', args: ['budget', 'set', '--usd', '4', '--runs', '50'], has: /\$4\.00.*50 of 50/ });
-    go({ name: 'budget reset', args: ['budget', 'reset'], has: /^reset/ });
+    go({ name: 'budget set was removed', args: ['budget', 'set', '--usd', '3'], exit: 2, has: /was removed → edit budget\.usd/ });
+    go({ name: 'budget reset was removed', args: ['budget', 'reset'], exit: 2, has: /was removed → change budget\.usd/ });
+    writeFileSync(path.join(root, '.mm3', 'config.yaml'), 'budget:\n  usd: 4\n  runs: 50\n');
+    go({ name: 'config --load picks up the new budget', args: ['config', '--load'], has: /budget\.usd: 5 → 4/ });
+    go({ name: 'budget shows the loaded caps', args: ['budget'], has: /\$4\.00.*50 of 50/ });
 
     // The ledger-free reads on an empty ledger.
     go({ name: 'view a folder', args: ['view', 'src'], has: /no runs yet/ });
@@ -142,9 +143,8 @@ describe('every command, subcommand and flag, through the built CLI', () => {
     go({ name: 'outcome with a bad id', args: ['outcome', 'nope', 'held', '--by', 'x'], exit: 2, has: /not a run id/ });
     go({ name: 'outcome with a bad outcome', args: ['outcome', 'MM3-0001', 'maybe', '--by', 'x'], exit: 2, has: /held, overruled or failed/ });
     go({ name: 'outcome without --by', args: ['outcome', 'MM3-0001', 'held'], exit: 2, has: /--by/ });
-    go({ name: 'budget set with nothing', args: ['budget', 'set'], exit: 2, has: /--usd or --runs/ });
-    go({ name: 'budget set with a bad number', args: ['budget', 'set', '--usd', 'lots'], exit: 2 });
-    go({ name: 'budget with a bad subcommand', args: ['budget', 'wipe'], exit: 2, has: /show, reset or set/ });
+    go({ name: 'budget set with nothing', args: ['budget', 'set'], exit: 2, has: /was removed/ });
+    go({ name: 'budget with a bad subcommand', args: ['budget', 'wipe'], exit: 2, has: /is not show/ });
     go({ name: 'report with a bad view', args: ['report', 'level2'], exit: 2, has: /not a view/ });
     go({ name: 'help for an unknown topic', args: ['help', 'init'], exit: 2, has: /not a verb or topic/ });
     go({ name: 'agent for an unknown topic', args: ['agent', 'nope'], exit: 2 });
@@ -158,11 +158,14 @@ describe('every command, subcommand and flag, through the built CLI', () => {
     go({ name: 'init with both key flags', args: ['init', '--key-stdin', '--no-key'], exit: 2 });
     go({ name: 'view a path that is not there', args: ['view', 'nowhere/at/all'] });
 
-    // The cap: set it to what is used, and the next paid call stops at exit 3 before spending.
-    const used = /(\d+) of (\d+) runs left/.exec(run({ args: ['budget'] }).stdout)!;
-    go({ name: 'cap the runs at what is used', args: ['budget', 'set', '--runs', String(Number(used[2]) - Number(used[1]))] });
-    go({ name: 'a paid call over the cap stops at exit 3', args: ['class', '-'], input: fixture('class').replace('login handler', 'new handler'), exit: 3, has: /cap/i });
-    go({ name: 'budget reset zeroes the spend, keeps the caps', args: ['budget', 'reset'], has: /^reset/ });
+    // The cap: one run allowed against the whole ledger (a budget.since in the file wins over the automatic
+    // restart), so the next paid call stops at exit 3 before spending.
+    writeFileSync(path.join(root, '.mm3', 'config.yaml'), 'budget:\n  usd: 4\n  runs: 1\n  since: 1970-01-01T00:00:00Z\n');
+    go({ name: 'lower the runs cap against the whole ledger, and load', args: ['config', '--load'] });
+    go({ name: 'a paid call over the cap stops at exit 3', args: ['class', '-'], input: fixture('class').replace('login handler', 'new handler'), exit: 3, has: /ask the owner to raise budget\.runs in \.mm3\/config\.yaml, then run mm3 config --load/ });
+    writeFileSync(path.join(root, '.mm3', 'config.yaml'), 'budget:\n  usd: 4\n  runs: 11\n');
+    go({ name: 'raising the cap and loading restarts the count', args: ['config', '--load'], has: /count restarted/ });
+    go({ name: 'the budget then shows a fresh count', args: ['budget'], has: /11 of 11 runs left/ });
 
     // mcp over empty stdin starts, finds the client gone, and exits clean.
     go({ name: 'mcp exits clean when the client is gone', args: ['mcp'], input: '' });

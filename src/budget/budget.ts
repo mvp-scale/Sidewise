@@ -146,15 +146,18 @@ export function usedFraction(s: BudgetState): number {
 
 /** The one fix for a cap that is low or reached: the owner raises the cap that ran out (only that cap's flag is
  *  named). `reset` restarts the counted window but raises no cap, so it is not what either message recommends. */
-function raiseCommand(usd: boolean, runs: boolean): string {
-  return `mm3 budget set ${[usd ? '--usd <n>' : '', runs ? '--runs <n>' : ''].filter(Boolean).join(' ')}`;
+/** The one fix for a low or spent budget, named the same way in the warning and in the stop: the caps live in the
+ *  config, and a load makes the change real. */
+function raiseHint(usd: boolean, runs: boolean): string {
+  const keys = [usd ? 'budget.usd' : '', runs ? 'budget.runs' : ''].filter(Boolean).join(' and ');
+  return `raise ${keys} in .mm3/config.yaml, then run mm3 config --load`;
 }
 
 export function checkBudget(s: BudgetState): { ok: true } | { ok: false; message: string } {
   const runsCapped = s.runs >= s.capRuns;
   const usdCapped = s.spentUsd >= s.capUsd;
   if (runsCapped || usdCapped) {
-    return { ok: false, message: `✖ budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs) → the owner runs "${raiseCommand(usdCapped, runsCapped)}"${AGENT_POINTER}` };
+    return { ok: false, message: `✖ budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} · ${s.runs} of ${s.capRuns} runs) → ask the owner to ${raiseHint(usdCapped, runsCapped)}${AGENT_POINTER}` };
   }
   return { ok: true };
 }
@@ -175,38 +178,12 @@ export function recordSpend(paths: Mm3Paths, costUsd: number, now: number = Date
   withLock(paths.lock, () => appendFailedLocked(paths, failed, now));
   return budgetStateNow(paths, now);
 }
-
-/** Moves `since` to now — the window narrows from here on; nothing already in the ledger is touched or erased.
- *  Under the same lock every other budget/ledger mutation uses, so a concurrent writer (or a stale held lock)
- *  is detected the same way it always was, even though there's no longer a running counter to serialize. */
-export function resetBudget(paths: Mm3Paths, now: number = Date.now(), env: Record<string, string | undefined> = process.env): BudgetState {
-  return withLock(paths.lock, () => {
-    writeConfigOverride(paths, { budget: { since: iso(now) } });
-    return budgetStateNow(paths, now, env);
-  });
-}
-
-export function setBudget(paths: Mm3Paths, caps: { capUsd?: number; capRuns?: number }, now: number = Date.now(), env: Record<string, string | undefined> = process.env): BudgetState {
-  for (const [name, v] of Object.entries(caps)) {
-    if (v !== undefined && !(Number.isFinite(v) && v > 0)) throw new BudgetError(`✖ budget: ${name} must be a positive number, got ${v} → e.g. --usd 5 --runs 500${AGENT_POINTER}`);
-  }
-  return withLock(paths.lock, () => {
-    writeConfigOverride(paths, {
-      budget: {
-        ...(caps.capUsd !== undefined ? { usd: caps.capUsd } : {}),
-        ...(caps.capRuns !== undefined ? { runs: caps.capRuns } : {}),
-      },
-    });
-    return budgetStateNow(paths, now, env);
-  });
-}
-
 /** Share of a cap spent at which the line turns into a warning (and says what to do) — below it the line is
  *  plain headroom, so an agent reading "10% used" no longer mistakes a nearly-empty meter for a constraint. The default;
  *  a project moves it with `budget.warnAt`. [C-229] */
 export const BUDGET_LOW_FRACTION = DEFAULT_CONFIG.budget.warnAt;
 
-/** The one budget-line formatter: run notes, `budget`, `budget set/reset` all print exactly this. It states
+/** The one budget-line formatter: run notes and `mm3 budget` print exactly this. It states
  *  what is LEFT, not a percentage — `budget: $0.11 left of $0.12 · 27 of 30 runs left`. A `⚠` appears only at
  *  >= 80% used, followed by the fix for whichever cap is running low. [C-229] */
 export function budgetLine(s: BudgetState): string {
@@ -220,5 +197,5 @@ export function budgetLine(s: BudgetState): string {
   if (usedFraction(s) < warnAt) return line;
   const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= warnAt : true;
   const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= warnAt : true;
-  return `⚠ ${line} → low: ask the owner to run ${raiseCommand(lowUsd, lowRuns)}`;
+  return `⚠ ${line} → low: ask the owner to ${raiseHint(lowUsd, lowRuns)}`;
 }

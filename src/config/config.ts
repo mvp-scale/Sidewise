@@ -31,7 +31,7 @@ import { scalar } from '../contract/emit.ts';
 import { onStore } from '../ledger/lock.ts';
 import { ensureDir, type Mm3Paths } from '../ledger/paths.ts';
 import type { VerbResult } from '../verbs/types.ts';
-import { DEFAULT_CONFIG, KEYED_MAPS, type ConfigSource, type PricingRate } from './defaults.ts';
+import { DEFAULT_CONFIG, KEYED_MAPS, type ConfigSource, type Mm3Config, type PricingRate } from './defaults.ts';
 import { configStatus, fingerprintOf, readActive, statusLine, writeActive } from './active.ts';
 import { resolveConfig, type ResolvedConfig } from './load.ts';
 import { checkConfigText } from './parse.ts';
@@ -384,6 +384,13 @@ const MAX_CHANGES_SHOWN = 20;
  *  active copy exactly as it was: a bad config never goes live. A `file` other than `.mm3/config.yaml` is
  *  checked first and then copied there verbatim (comments and all; the user's own config.yaml is never rewritten in
  *  place) before it is loaded. Writes `.mm3/config.active.json` (and, for another file, `.mm3/config.yaml`). */
+const isoSeconds = (ms: number): string => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+/** The caps or the window kind differ between two override sets, each read against the defaults (`warnAt` and `since` don't count). */
+const budgetChanged = (a: Partial<Mm3Config>, b: Partial<Mm3Config>): boolean => {
+  const d = DEFAULT_CONFIG.budget;
+  return (a.budget?.usd ?? d.usd) !== (b.budget?.usd ?? d.usd) || (a.budget?.runs ?? d.runs) !== (b.budget?.runs ?? d.runs) || (a.budget?.per ?? d.per) !== (b.budget?.per ?? d.per);
+};
+
 export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefined, cwd: string, projectLine: string, now: number = Date.now()): VerbResult {
   if (!paths) return { exit: 2, text: '✖ config: no project here → run inside a project (a folder with .git or .mm3), or set MM3_HOME' };
   const label = configFileLabel(projectLine);
@@ -412,13 +419,30 @@ export function runConfigLoad(paths: Mm3Paths | undefined, file: string | undefi
       writeFileSync(paths.config, text);
     });
   }
-  writeActive(paths, checked.overrides, fingerprintOf(text), now);
+  // A changed budget (caps or window) starts its count over from this load, unless the file sets `budget.since`
+  // itself. The stamp lives only in the active copy: config.yaml is never rewritten. A later load that leaves the
+  // budget alone carries the stamp forward, so the restarted count is not lost.
+  const previous = readActive(paths);
+  let overrides = checked.overrides;
+  let stamped = false;
+  let restarted = false;
+  if (previous && checked.overrides.budget?.since === undefined) {
+    if (budgetChanged(previous.overrides, checked.overrides)) {
+      overrides = { ...overrides, budget: { ...overrides.budget, since: isoSeconds(now) } as Mm3Config['budget'] };
+      stamped = restarted = true;
+    } else if (previous.stamped && previous.overrides.budget?.since !== undefined) {
+      overrides = { ...overrides, budget: { ...overrides.budget, since: previous.overrides.budget.since } as Mm3Config['budget'] };
+      stamped = true;
+    }
+  }
+  writeActive(paths, overrides, fingerprintOf(text), now, false, stamped);
   const changes: string[] = [];
   changesFrom(checked.overrides as Record<string, unknown>, DEFAULT_CONFIG as unknown as Record<string, unknown>, '', changes);
   const shown = changes.slice(0, MAX_CHANGES_SHOWN).map((c) => `  ${c}`);
   if (changes.length > shown.length) shown.push(`  … ${changes.length - shown.length} more`);
   const head = `✔ valid · active · ${changes.length} changed from defaults`;
-  return { exit: 0, text: `${[head, ...shown, ...(copied ? [`  copied ${file} → ${label}`] : [])].join('\n')}\n` };
+  const restartLine = restarted ? ['  count restarted: the budget changed, so spend is counted from now'] : [];
+  return { exit: 0, text: `${[head, ...shown, ...restartLine, ...(copied ? [`  copied ${file} → ${label}`] : [])].join('\n')}\n` };
 }
 
 /** `mm3 config --reset`: makes the built-in defaults the active config. The user's config.yaml is never touched or

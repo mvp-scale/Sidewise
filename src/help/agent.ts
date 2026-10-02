@@ -197,18 +197,19 @@ function budgetCard(): string {
   return renderCard(
     ['tool: budget'],
     [
-      '- three subcommands: show (default), reset, set',
-      '- set needs --usd, --runs, or both',
-      '- reset zeroes spend and run count, keeps the caps',
+      '- read-only: prints what is left and how to change it',
+      '- the caps live in .mm3/config.yaml: budget.usd, budget.runs (and budget.per, budget.since, budget.warnAt)',
+      '- change one, then run mm3 config --load: a changed budget restarts the count',
       '- over either cap: exit 3, before spending anything',
     ],
     [
       'patterns:',
-      '- why: set with no flags changes nothing',
+      '- why: `budget set` and `budget reset` were removed, the config is the one place to change it',
       '  bad:',
-      '    mm3 budget set',
-      '  good:',
       '    mm3 budget set --usd 5 --runs 500',
+      '  good:',
+      '    # edit budget.usd / budget.runs in .mm3/config.yaml, then:',
+      '    mm3 config --load',
     ],
   );
 }

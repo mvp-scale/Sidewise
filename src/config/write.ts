@@ -87,7 +87,7 @@ export function writeConfigOverride(paths: Mm3Paths, patch: DeepPartial<Mm3Confi
     const base = active?.overrides ?? (had ? undefined : {});
     if (base) {
       const checked = validateConfig(overlay(base as Tree, patch as Tree));
-      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || (!had && (!active || active.reset)) ? fingerprintOf(written) : active!.fingerprint, now);
+      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || (!had && (!active || active.reset)) ? fingerprintOf(written) : active!.fingerprint, now, false, active?.stamped === true);
     }
   });
 }

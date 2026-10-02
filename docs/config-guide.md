@@ -36,6 +36,8 @@ budget:
   since: 2026-10-01T00:00:00Z   # only count runs after this time
 ```
 
+**The happy path.** `mm3 budget` shows what is left and how to change it. To raise (or lower) a cap, edit `budget.usd` or `budget.runs` here, then run `mm3 config --load`. A load whose budget changed starts the count over from that moment, so the new cap is a fresh allowance; a load that changes other settings keeps the count. To start over with the same caps, set `budget.since` to now. If you write `since` yourself it decides the window and nothing is stamped. There is no `budget set` or `budget reset`: asking for one stops and points here.
+
 ### Classifier endpoint and model
 
 ```yaml

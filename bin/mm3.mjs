@@ -8176,15 +8176,15 @@ function readActive(paths) {
     if (v.v !== 1 || typeof v.loadedAt !== "string" || typeof v.fingerprint !== "string" || typeof v.overrides !== "object" || v.overrides === null || Array.isArray(v.overrides)) return void 0;
     const checked = validateConfig(v.overrides);
     if (checked.stops.length) return void 0;
-    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value, ...v.reset === true ? { reset: true } : {} };
+    return { v: 1, loadedAt: v.loadedAt, fingerprint: v.fingerprint, overrides: checked.value, ...v.reset === true ? { reset: true } : {}, ...v.stamped === true ? { stamped: true } : {} };
   } catch {
     return void 0;
   }
 }
-function writeActive(paths, overrides, fingerprint, now = Date.now(), reset = false) {
+function writeActive(paths, overrides, fingerprint, now = Date.now(), reset = false, stamped = false) {
   onStore(paths.configActive, "write", () => {
     ensureDir(paths);
-    const body = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z"), fingerprint, overrides, ...reset ? { reset: true } : {} };
+    const body = { v: 1, loadedAt: new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z"), fingerprint, overrides, ...reset ? { reset: true } : {}, ...stamped ? { stamped: true } : {} };
     const tmp = `${paths.configActive}.${process.pid}.${Math.random().toString(36).slice(2, 8)}.tmp`;
     writeFileSync2(tmp, `${JSON.stringify(body)}
 `);
@@ -8376,7 +8376,7 @@ function writeConfigOverride(paths, patch, now = Date.now()) {
     const base = active?.overrides ?? (had ? void 0 : {});
     if (base) {
       const checked = validateConfig(overlay2(base, patch));
-      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || !had && (!active || active.reset) ? fingerprintOf(written) : active.fingerprint, now);
+      if (!checked.stops.length) writeActive(paths, checked.value, wasInSync || !had && (!active || active.reset) ? fingerprintOf(written) : active.fingerprint, now, false, active?.stamped === true);
     }
   });
 }
@@ -9471,9 +9471,9 @@ var BudgetError = class extends Error {
 };
 var iso2 = (now) => new Date(now).toISOString().replace(/\.\d{3}Z$/, "Z");
 var money = (n) => `$${n.toFixed(2)}`;
-function moneyLeft(left, cap2, spent) {
+function moneyLeft(left, cap, spent) {
   if (spent <= 0) return money(left);
-  for (let d = 2; d < 6; d++) if (left.toFixed(d) !== cap2.toFixed(d)) return `$${left.toFixed(d)}`;
+  for (let d = 2; d < 6; d++) if (left.toFixed(d) !== cap.toFixed(d)) return `$${left.toFixed(d)}`;
   return `$${left.toFixed(6)}`;
 }
 var EPOCH = iso2(0);
@@ -9535,36 +9535,17 @@ function loadBudget(paths, now = Date.now(), env = process.env) {
 function usedFraction(s) {
   return Math.max(s.capUsd > 0 ? s.spentUsd / s.capUsd : 1, s.capRuns > 0 ? s.runs / s.capRuns : 1);
 }
-function raiseCommand(usd, runs) {
-  return `mm3 budget set ${[usd ? "--usd <n>" : "", runs ? "--runs <n>" : ""].filter(Boolean).join(" ")}`;
+function raiseHint(usd, runs) {
+  const keys = [usd ? "budget.usd" : "", runs ? "budget.runs" : ""].filter(Boolean).join(" and ");
+  return `raise ${keys} in .mm3/config.yaml, then run mm3 config --load`;
 }
 function checkBudget2(s) {
   const runsCapped = s.runs >= s.capRuns;
   const usdCapped = s.spentUsd >= s.capUsd;
   if (runsCapped || usdCapped) {
-    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 the owner runs "${raiseCommand(usdCapped, runsCapped)}"${AGENT_POINTER}` };
+    return { ok: false, message: `\u2716 budget: cap reached (${money(s.spentUsd)} of ${money(s.capUsd)} \xB7 ${s.runs} of ${s.capRuns} runs) \u2192 ask the owner to ${raiseHint(usdCapped, runsCapped)}${AGENT_POINTER}` };
   }
   return { ok: true };
-}
-function resetBudget(paths, now = Date.now(), env = process.env) {
-  return withLock(paths.lock, () => {
-    writeConfigOverride(paths, { budget: { since: iso2(now) } });
-    return budgetStateNow(paths, now, env);
-  });
-}
-function setBudget(paths, caps, now = Date.now(), env = process.env) {
-  for (const [name, v] of Object.entries(caps)) {
-    if (v !== void 0 && !(Number.isFinite(v) && v > 0)) throw new BudgetError(`\u2716 budget: ${name} must be a positive number, got ${v} \u2192 e.g. --usd 5 --runs 500${AGENT_POINTER}`);
-  }
-  return withLock(paths.lock, () => {
-    writeConfigOverride(paths, {
-      budget: {
-        ...caps.capUsd !== void 0 ? { usd: caps.capUsd } : {},
-        ...caps.capRuns !== void 0 ? { runs: caps.capRuns } : {}
-      }
-    });
-    return budgetStateNow(paths, now, env);
-  });
 }
 var BUDGET_LOW_FRACTION = DEFAULT_CONFIG.budget.warnAt;
 function budgetLine(s) {
@@ -9577,7 +9558,7 @@ function budgetLine(s) {
   if (usedFraction(s) < warnAt) return line3;
   const lowUsd = s.capUsd > 0 ? s.spentUsd / s.capUsd >= warnAt : true;
   const lowRuns = s.capRuns > 0 ? s.runs / s.capRuns >= warnAt : true;
-  return `\u26A0 ${line3} \u2192 low: ask the owner to run ${raiseCommand(lowUsd, lowRuns)}`;
+  return `\u26A0 ${line3} \u2192 low: ask the owner to ${raiseHint(lowUsd, lowRuns)}`;
 }
 
 // src/classifier/chaos.ts
@@ -10433,6 +10414,11 @@ function changesFrom(over, def, prefix, out) {
   }
 }
 var MAX_CHANGES_SHOWN = 20;
+var isoSeconds = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+var budgetChanged = (a, b) => {
+  const d = DEFAULT_CONFIG.budget;
+  return (a.budget?.usd ?? d.usd) !== (b.budget?.usd ?? d.usd) || (a.budget?.runs ?? d.runs) !== (b.budget?.runs ?? d.runs) || (a.budget?.per ?? d.per) !== (b.budget?.per ?? d.per);
+};
 function runConfigLoad(paths, file, cwd, projectLine2, now = Date.now()) {
   if (!paths) return { exit: 2, text: "\u2716 config: no project here \u2192 run inside a project (a folder with .git or .mm3), or set MM3_HOME" };
   const label = configFileLabel(projectLine2);
@@ -10463,13 +10449,27 @@ ${kept}
       writeFileSync5(paths.config, text);
     });
   }
-  writeActive(paths, checked.overrides, fingerprintOf(text), now);
+  const previous = readActive(paths);
+  let overrides = checked.overrides;
+  let stamped = false;
+  let restarted = false;
+  if (previous && checked.overrides.budget?.since === void 0) {
+    if (budgetChanged(previous.overrides, checked.overrides)) {
+      overrides = { ...overrides, budget: { ...overrides.budget, since: isoSeconds(now) } };
+      stamped = restarted = true;
+    } else if (previous.stamped && previous.overrides.budget?.since !== void 0) {
+      overrides = { ...overrides, budget: { ...overrides.budget, since: previous.overrides.budget.since } };
+      stamped = true;
+    }
+  }
+  writeActive(paths, overrides, fingerprintOf(text), now, false, stamped);
   const changes = [];
   changesFrom(checked.overrides, DEFAULT_CONFIG, "", changes);
   const shown2 = changes.slice(0, MAX_CHANGES_SHOWN).map((c) => `  ${c}`);
   if (changes.length > shown2.length) shown2.push(`  \u2026 ${changes.length - shown2.length} more`);
   const head = `\u2714 valid \xB7 active \xB7 ${changes.length} changed from defaults`;
-  return { exit: 0, text: `${[head, ...shown2, ...copied ? [`  copied ${file} \u2192 ${label}`] : []].join("\n")}
+  const restartLine = restarted ? ["  count restarted: the budget changed, so spend is counted from now"] : [];
+  return { exit: 0, text: `${[head, ...shown2, ...restartLine, ...copied ? [`  copied ${file} \u2192 ${label}`] : []].join("\n")}
 ` };
 }
 function runConfigReset(paths, projectLine2, now = Date.now()) {
@@ -11467,7 +11467,7 @@ function firstStringLayer(over) {
   }
   return null;
 }
-function checkOver(over, rule, cap2) {
+function checkOver(over, rule, cap) {
   const { chain, problems } = mapLayers(over);
   const out = [...problems];
   const counts = /* @__PURE__ */ new Map();
@@ -11511,7 +11511,7 @@ function checkOver(over, rule, cap2) {
   };
   for (const l of chain) walk2(l, over[l], "the top");
   for (const [layer, n] of counts) {
-    if (n > cap2) out.push(`\u2716 mak.over.${layer}: ${n} items \u2192 at most ${cap2} per layer at this depth; raise depth or split the request`);
+    if (n > cap) out.push(`\u2716 mak.over.${layer}: ${n} items \u2192 at most ${cap} per layer at this depth; raise depth or split the request`);
   }
   return [...new Set(out)];
 }
@@ -13822,7 +13822,7 @@ function planSweep(request, who, paths, dryRun, opts = {}, limits = {}) {
   const goalQ = goalQuestion(request.mak.goal);
   const reused = lookupAnswers(paths, who, allKeys, { readOnly: dryRun, reuse: reuseLimits });
   const depthCap = (limits.sweep?.itemsPerLayer ?? SWEEP_ITEM_CAP)[request.mak.depth ?? "quick"];
-  const cap2 = projectMaxItems !== void 0 ? Math.min(depthCap, projectMaxItems) : depthCap;
+  const cap = projectMaxItems !== void 0 ? Math.min(depthCap, projectMaxItems) : depthCap;
   const keys = /* @__PURE__ */ new Map();
   const reusedFrom = /* @__PURE__ */ new Map();
   const answers = {};
@@ -13846,7 +13846,7 @@ function planSweep(request, who, paths, dryRun, opts = {}, limits = {}) {
           keys.set(a.q.id, a.key);
           answers[a.q.id] = hit.answer;
         }
-      } else if (askedCount >= cap2) {
+      } else if (askedCount >= cap) {
         skipped.push(item.id);
       } else {
         askedCount += 1;
@@ -16916,9 +16916,9 @@ var OUTCOME_PAIRS = [
 ];
 var BUDGET_PAIRS = [
   {
-    rule: "`set` with no flags changes nothing and has nothing to report.",
-    bad: ["mm3 budget set", "\u2192 \u2716 budget: set needs --usd or --runs \u2192 e.g. mm3 budget set --usd 5 --runs 500"],
-    good: ["mm3 budget set --usd 5 --runs 500"]
+    rule: "the caps are changed in the config, not here.",
+    bad: ["mm3 budget set --usd 5", "\u2192 \u2716 budget: set was removed \u2192 edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load"],
+    good: ["# edit budget.usd / budget.runs in .mm3/config.yaml, then:", "mm3 config --load"]
   }
 ];
 var indent2 = (lines, pad) => lines.map((l) => `${pad}${l}`);
@@ -16988,16 +16988,17 @@ function doctorHelp() {
 function budgetHelp() {
   return [
     "## budget",
-    "Shows or changes the project's spend cap. Not a mak:-YAML verb: it never calls a provider. `show` (the default) prints the current spend and run count; `reset` zeroes both but keeps the caps; `set` changes either or both caps without touching the spend already counted.",
+    "Shows the project's spend and run count, and how to change the caps. Not a mak:-YAML verb: it never calls a provider and never writes. The caps live in `.mm3/config.yaml` (`budget.usd`, `budget.runs`); change one and run `mm3 config --load`.",
     "",
     "Example:",
-    "mm3 budget                          # same as: mm3 budget show",
-    "mm3 budget set --usd 5 --runs 500   # the defaults",
+    "mm3 budget                          # the count, and the way to change it",
+    "",
+    "# to raise the cap: edit .mm3/config.yaml, then",
+    "mm3 config --load",
     "",
     "Sharp rules:",
-    "- three subcommands only: `show` (default), `reset`, `set`.",
-    "- `set` needs at least one of `--usd`/`--runs` \u2014 giving neither is a stop.",
-    "- by convention only the project owner runs `reset` \u2014 nothing in the code stops any agent from running it.",
+    "- read-only: `show` is the only subcommand. `set` and `reset` were removed and stop with where to go.",
+    "- a load whose `budget:` section changed (usd, runs or per) restarts the count from that moment; a load that changes other settings keeps it. To restart with the same caps, set `budget.since` to now.",
     "- any verb call that would go over either cap stops at exit 3 before it spends anything.",
     ...proseCliPairs(BUDGET_PAIRS)
   ].join("\n");
@@ -17288,18 +17289,19 @@ function budgetCard() {
   return renderCard(
     ["tool: budget"],
     [
-      "- three subcommands: show (default), reset, set",
-      "- set needs --usd, --runs, or both",
-      "- reset zeroes spend and run count, keeps the caps",
+      "- read-only: prints what is left and how to change it",
+      "- the caps live in .mm3/config.yaml: budget.usd, budget.runs (and budget.per, budget.since, budget.warnAt)",
+      "- change one, then run mm3 config --load: a changed budget restarts the count",
       "- over either cap: exit 3, before spending anything"
     ],
     [
       "patterns:",
-      "- why: set with no flags changes nothing",
+      "- why: `budget set` and `budget reset` were removed, the config is the one place to change it",
       "  bad:",
-      "    mm3 budget set",
+      "    mm3 budget set --usd 5 --runs 500",
       "  good:",
-      "    mm3 budget set --usd 5 --runs 500"
+      "    # edit budget.usd / budget.runs in .mm3/config.yaml, then:",
+      "    mm3 config --load"
     ]
   );
 }
@@ -17666,7 +17668,7 @@ var LINES3 = {
   agent: `mm3 agent [${VERBS.join("|")}|${AGENT_EXTRAS.join("|")}]`,
   report: "mm3 report [hits|patterns|history]",
   outcome: "mm3 outcome <MM3-####> held|overruled|failed --by <actor>",
-  budget: "mm3 budget [show | reset | set --usd <n> --runs <n>]",
+  budget: "mm3 budget [show]",
   doctor: "mm3 doctor [<file> | -]",
   config: "mm3 config [--write | --load [file] | --reset]",
   init: "mm3 init [--global | --user | --local] [--claude | --no-claude] [--scope user|project] [--key-stdin | --no-key] [--yes]  \xB7  or: mm3 init --agents [--yes]",
@@ -17733,11 +17735,6 @@ function readRequest(file, stdinSource, maxBytes = DEFAULT_REQUEST_MAX_BYTES) {
   if (bytes.length > maxBytes) return { stop: tooBig(maxBytes) };
   if (bytes.includes(0)) return { stop: `\u2716 request: ${file === "-" ? "stdin" : shown2} is binary, not text \u2192 write the request as YAML, starting "mak:"` };
   return { text: bytes.toString("utf8") };
-}
-var BUDGET_EXAMPLE = "e.g. mm3 budget set --usd 5 --runs 500";
-function cap(flag, raw) {
-  const n = Number(raw);
-  return raw.trim() !== "" && Number.isFinite(n) && n > 0 ? n : `\u2716 budget: --${flag} must be a positive number, got "${raw}" \u2192 ${BUDGET_EXAMPLE}`;
 }
 var RUNNERS = { class: runClass, scan: runScan, drill: runDrill, loop: runLoop };
 var resolveStoredFor = (c) => () => resolveStoredKey(c.runner, c.platform, c.env);
@@ -18043,25 +18040,15 @@ async function dispatch(argv, ctx) {
     }
     case "budget": {
       const [sub = "show", ...more] = rest;
-      if (sub === "show" || sub === "reset") {
-        positionalCount("budget", more, 0, 0);
-        if (sub === "show") return finish(0, budgetLine(loadBudget(paths).state));
-        return finish(0, `reset \xB7 ${budgetLine(resetBudget(paths))}`);
+      if (sub === "set") return finish(2, withAgentPointer(`\u2716 budget: set was removed \u2192 edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load`, command));
+      if (sub === "reset") {
+        return finish(2, withAgentPointer("\u2716 budget: reset was removed \u2192 change budget.usd or budget.runs in .mm3/config.yaml and run mm3 config --load (a changed budget restarts the count), or set budget.since to now", command));
       }
-      if (sub !== "set") throw new UsageStop("budget", `"${clip(sub, 40)}" is not show, reset or set`);
-      const twice = givenTwice(more, ["usd", "runs"]);
-      if (twice) return finish(2, withAgentPointer(twice, command));
-      const { usd, runs } = args("budget", { args: more, options: { usd: { type: "string" }, runs: { type: "string" } } }).values;
-      if (usd === void 0 && runs === void 0) return finish(2, withAgentPointer(`\u2716 budget: set needs --usd or --runs \u2192 ${BUDGET_EXAMPLE}`, command));
-      const capUsd = usd === void 0 ? void 0 : cap("usd", usd);
-      const capRuns = runs === void 0 ? void 0 : cap("runs", runs);
-      const stops = [capUsd, capRuns].filter((v) => typeof v === "string");
-      if (stops.length) return finish(2, withAgentPointer(stops.join("\n"), command));
-      const caps = {
-        ...typeof capUsd === "number" ? { capUsd } : {},
-        ...typeof capRuns === "number" ? { capRuns } : {}
-      };
-      return finish(0, `set \xB7 ${budgetLine(setBudget(paths, caps))}`);
+      if (sub !== "show") throw new UsageStop("budget", `"${clip(sub, 40)}" is not show`);
+      positionalCount("budget", more, 0, 0);
+      const line3 = budgetLine(loadBudget(paths).state);
+      return finish(0, line3.startsWith("\u26A0") ? line3 : `${line3}
+\u2192 to change it: edit budget.usd / budget.runs in .mm3/config.yaml, then run mm3 config --load`);
     }
   }
   return finish(1, `\u2716 mm3: internal: unhandled command "${command}"`);

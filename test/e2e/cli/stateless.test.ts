@@ -56,19 +56,19 @@ describe('statelessness', () => {
     expect(again.stdout).toContain('$5.00 left of $5.00 · 499 of 500 runs left');
   });
 
-  // Plan 2c B1: budget.json is gone — a `budget set` now writes .mm3/config.yaml instead (caps live there;
-  // spend is ledger-derived).
+  // Plan 2c B1: budget.json is gone — the caps live in .mm3/config.yaml (spend is ledger-derived).
   it('after runs finish, .mm3/ holds only .gitignore, agents-note-shown, log.jsonl, config.yaml, config.active.json and (with node:sqlite) index.db — no lock, no temp file', () => {
     const root = project();
     expect(mm3(root, ['class', 'req.yaml']).status).toBe(0);
     expect(mm3(root, ['outcome', 'MM3-0001', 'failed', '--by', 'owner']).status).toBe(0);
-    expect(mm3(root, ['budget', 'set', '--runs', '50']).status).toBe(0);
+    writeFileSync(path.join(root, '.mm3', 'config.yaml'), 'budget:\n  runs: 50\n');
+    expect(mm3(root, ['config', '--load']).status).toBe(0);
     expect(mm3(root, ['view', 'src']).status).toBe(0);
     expect(mm3(root, ['class', 'missing.txt']).status).toBe(2);
     // index.db is the disposable id-index sidecar (ledger/index.ts): expected here, unlike a lock or .tmp file —
     // but only when this test's own Node has node:sqlite; the Node < 22.13 fallback never writes one at all.
     // agents-note-shown: the one-time `agents:` note's marker [C-234] (this fixture project has no AGENTS.md).
-    // config.active.json: the loaded copy of config.yaml, written with it by `budget set`.
+    // config.active.json: the loaded copy of config.yaml, written by `config --load`.
     const expected = ['.gitignore', 'agents-note-shown', 'config.active.json', 'config.yaml', ...(hasNodeSqlite ? ['index.db'] : []), 'log.jsonl'];
     expect(readdirSync(path.join(root, '.mm3')).sort()).toEqual(expected);
   });
